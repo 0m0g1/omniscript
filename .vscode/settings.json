@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.ejs": "html",
+        "*.os": "javascript",
+        "utility": "cpp",
+        "memory": "cpp"
+    }
+}

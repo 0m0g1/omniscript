@@ -1,0 +1,18 @@
+- canvas rendering apis
+- make it all statically linked
+- fix property and method calls, properties are method calls currently
+
+- overloading functions by writing more than one argument list like so ??
+- function print(int value)
+              - (string value)
+              - (object value) {
+              - 
+              - }
+
+- time object
+- file object
+- os object
+- ffmpeg converter api
+- fix unary minus
+
+- operator overloading
