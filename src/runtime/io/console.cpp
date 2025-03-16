@@ -100,18 +100,20 @@ void ConsoleObject::log(const ArgumentDefinition& args, LogLevel level) {
             } else {
                 messagePart = "null"; // Handle null shared_ptr
             }
-        } else if (isTruthy(arg)) {
-            auto object = primitiveToObject(arg);
-            if (auto number = std::dynamic_pointer_cast<Number>(object)) {
-                messagePart = number->toString();
-            } else if (auto string = std::dynamic_pointer_cast<String>(object)) {
-                messagePart = string->getValue();
-            } else if (auto array = std::dynamic_pointer_cast<Array>(object)) {
-                messagePart = array->toString();
-            } else {
-                messagePart = object->toString();
-            }
-        } else {
+        } 
+        // else if (isTruthy(arg)) {
+        //     auto object = primitiveToObject(arg);
+        //     if (auto number = std::dynamic_pointer_cast<Number>(object)) {
+        //         messagePart = number->toString();
+        //     } else if (auto string = std::dynamic_pointer_cast<String>(object)) {
+        //         messagePart = string->getValue();
+        //     } else if (auto array = std::dynamic_pointer_cast<Array>(object)) {
+        //         messagePart = array->toString();
+        //     } else {
+        //         messagePart = object->toString();
+        //     }
+        // }
+        else {
             messagePart = "null"; // Default for falsy or unrecognized values
         }
 

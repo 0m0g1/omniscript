@@ -2,46 +2,33 @@
 #include <omniscript/engine/lexer.h>
 #include <omniscript/engine/parser.h>
 #include <omniscript/omniscript_pch.h>
+#include <omniscript/runtime/Statement.h>
+#include <omniscript/engine/IRGenerator.h>
+#include <omniscript/engine/JITCompiler.h>
 
 struct Config {
     bool debugMode = false;
-    bool executeStatements = false;
-    bool useCompiler = false;
+    bool executeStatements = false; // JIT execution flag
+    bool useCompiler = false;        // AOT compilation flag
     std::string filePath;
 };
 
-class Interpreter {
-public:
-    void interpret(const std::string& source, const Config &config);
-};
-
-void Interpreter::interpret(const std::string& source, const Config &config) {
-    Lexer lexer(source);
-    Parser parser(lexer);
-    parser.setScopeName();
-    parser.setDebugMode(config.debugMode);
-    parser.setExecution(config.executeStatements);
-    parser.Parse();
-    parser.Interprete();
-}
-
 class Compiler {
+private:
+    IRGenerator& irGen;
 public:
-    void compile(const std::string& source, const Config &config) {
-        Lexer lexer(source);
-        Parser parser(lexer);
-        parser.setScopeName();
-        parser.setDebugMode(config.debugMode);
-        
-        console.debug("Compiling source code...");
-
-        parser.Parse();
-        parser.Compile();
-
-        // Add further compilation logic here, e.g., LLVM IR generation.
-        console.log("Compilation completed.");
-    }
+    Compiler(IRGenerator& generator) : irGen(generator) {}
+    void compile(const std::vector<std::shared_ptr<Statement>>& statements, const Config &config);
 };
+
+void Compiler::compile(const std::vector<std::shared_ptr<Statement>>& statements, const Config &config) {
+    console.debug("Compiling source code...");
+    for (const auto& statement : statements) {
+        llvm::Value* ir = static_cast<StatementCRTP<decltype(*statement.get())>*>(statement.get())->generateIR(irGen);
+        // Further compilation logic (e.g., emitting LLVM IR)
+    }
+    console.log("Compilation completed.");
+}
 
 class Engine {
 public:
@@ -51,8 +38,8 @@ public:
         console.log("Usage: omniscript [options] <file>");
         console.log("Options:");
         console.log("  --debug       Enable debug mode");
-        console.log("  --execute     Execute statements");
-        console.log("  --make        Compile the source code");
+        console.log("  --execute     Execute statements (JIT compilation)");
+        console.log("  --make        Compile the source code (AOT compilation)");
         console.log("  --version     Display version information");
         console.log("  --help        Display this help message");
     }
@@ -89,6 +76,15 @@ public:
         if (!fileSpecified) {
             throw std::runtime_error("Error: File path is required.");
         }
+
+        if (config.executeStatements && config.useCompiler) {
+            throw std::runtime_error("Error: Conflicting options: cannot use both '--execute' and '--make' simultaneously.");
+        }
+
+        if (!config.executeStatements && !config.useCompiler) {
+            config.executeStatements = true;
+        }
+
         return config;
     }
 
@@ -110,13 +106,19 @@ public:
 
     static void run(const Config& config) {
         std::string sourceCode = readSourceCode(config);
-
+        Lexer lexer(sourceCode);
+        Parser parser(lexer);
+        parser.setScopeName();
+        parser.setDebugMode(config.debugMode);
+        std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
+        
+        IRGenerator irGen;
         if (config.useCompiler) {
-            Compiler compiler;
-            compiler.compile(sourceCode, config);
+            Compiler compiler(irGen);
+            compiler.compile(statements, config);
         } else {
-            Interpreter interpreter;
-            interpreter.interpret(sourceCode, config);
+            JITCompiler jit(irGen);
+            jit.execute(statements, config);
         }
     }
 };

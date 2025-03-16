@@ -237,22 +237,24 @@ Token Lexer::getNextToken() {
 }
 
 Token Lexer::getNumberLiterals(char &currentChar) {
-        // Check for number literals
     if (std::isdigit(currentChar) || (currentChar == '.' && std::isdigit(peek())) ||
-        (currentChar == '0' && (peek() == 'x' || peek() == 'o' || peek() == 'b'))) { // Start of a number or special base
-        
+        (currentChar == '0' && (peek() == 'x' || peek() == 'o' || peek() == 'b'))) {
+
         std::string numberValue;
         bool isFloat = false;
+        bool hasDecimalPoint = false;
+        bool hasExponent = false;
+        bool isBigInt = false;
         TokenTypes tokenType = TokenTypes::IntegerLiteral;
-        
-        // Handle hex, octal, and binary prefixes
+
+        // Handle hex, octal, and binary literals
         if (currentChar == '0' && (peek() == 'x' || peek() == 'o' || peek() == 'b')) {
             char baseIndicator = peek();
             numberValue += currentChar;
             numberValue += baseIndicator;
-            currentPosition += 2; // Skip '0x', '0o', or '0b'
+            currentPosition += 2;
             column += 2;
-            
+
             if (baseIndicator == 'x') {
                 while (currentPosition < source.length() && std::isxdigit(source[currentPosition])) {
                     numberValue += source[currentPosition];
@@ -276,10 +278,12 @@ Token Lexer::getNumberLiterals(char &currentChar) {
                 tokenType = TokenTypes::BinaryLiteral;
             }
         } else {
-            // Handle normal integer and floating-point numbers
-            if (currentChar == '.') { // Treat a number like ".5" as "0.5"
+            // Handle normal numbers (integers & floats)
+            if (currentChar == '.') { // ".5" should be "0.5"
                 isFloat = true;
+                hasDecimalPoint = true;
                 numberValue = "0";
+                numberValue += '.';
                 currentPosition++;
                 column++;
             }
@@ -290,13 +294,23 @@ Token Lexer::getNumberLiterals(char &currentChar) {
                 column++;
             }
 
-            // Check for method/property calls
+            // Check if the number is a BigInt (must be an integer, no decimals)
+            if (source[currentPosition] == 'n') {
+                isBigInt = true;
+                numberValue += 'n';
+                currentPosition++;
+                column++;
+                return Token(TokenTypes::BigInt, numberValue, line, column);
+            }
+
+            // Prevent accidental method calls (e.g., "123.toString()")
             if (source[currentPosition] == '.' && (std::isalpha(peek()) || peek() == '_')) {
                 return Token(TokenTypes::IntegerLiteral, numberValue, line, column);
             }
 
-            // Check for decimal point to identify floating-point numbers
-            if ((currentPosition < source.length() && source[currentPosition] == '.') && !isFloat) {
+            // Handle decimal point and floating-point numbers
+            if (currentPosition < source.length() && source[currentPosition] == '.' && !hasDecimalPoint) {
+                hasDecimalPoint = true;
                 isFloat = true;
                 numberValue += '.';
                 currentPosition++;
@@ -309,12 +323,13 @@ Token Lexer::getNumberLiterals(char &currentChar) {
                         column++;
                     }
                 } else {
-                    numberValue += '0'; // Append '0' to make it a valid float
+                    numberValue += '0'; // Ensure valid float format
                 }
             }
 
-            // Support scientific notation (e.g., "1.23e4", "5e-6")
+            // Handle scientific notation (e.g., "1.23e4", "5e-6")
             if (isFloat && currentPosition < source.length() && (source[currentPosition] == 'e' || source[currentPosition] == 'E')) {
+                hasExponent = true;
                 numberValue += source[currentPosition];
                 currentPosition++;
                 column++;
@@ -338,22 +353,19 @@ Token Lexer::getNumberLiterals(char &currentChar) {
             }
         }
 
-        // Handle suffixes (e.g., 'u', 'L', 'n')
-        if (currentPosition < source.length() && (source[currentPosition] == 'u' || source[currentPosition] == 'L' || source[currentPosition] == 'n')) {
+        // Handle suffixes (e.g., 'f' for float, otherwise default to double)
+        if (currentPosition < source.length() && source[currentPosition] == 'f') {
             numberValue += source[currentPosition];
             currentPosition++;
             column++;
+            return Token(TokenTypes::FloatLiteral, numberValue, line, column); // 32-bit float
         }
 
-        // Determine final token type
-        if (isFloat) {
-            return Token(TokenTypes::FloatLiteral, numberValue, line, column);
-        } else {
-            return Token(tokenType, numberValue, line, column);
-        }
+        return Token(isFloat ? TokenTypes::FloatLiteral : tokenType, numberValue, line, column);
     }
     return Token(TokenTypes::Invalid);
 }
+
 
 Token Lexer::getOperator(char &currentChar) {
     // Operator Tokens

@@ -130,16 +130,16 @@ public:
     ~Class();
 
     // Add a constructor to the class
-    void addConstructor(std::shared_ptr<Function> new_constructor) {
-        // constructors.push_back(constructor);
-        constructor = new_constructor;
-    }
+    // void addConstructor(std::shared_ptr<Function> new_constructor) {
+    //     // constructors.push_back(constructor);
+    //     constructor = new_constructor;
+    // }
 
     // Add a destructor to the class
-    void addDestructor(std::shared_ptr<Function> new_destructor) {
-        // destructors.push_back(new_destructor);
-        destructor = new_destructor;
-    }
+    // void addDestructor(std::shared_ptr<Function> new_destructor) {
+    //     // destructors.push_back(new_destructor);
+    //     destructor = new_destructor;
+    // }
 
     std::string toString(int indentLevel = 0) const override;
 
@@ -154,10 +154,10 @@ public:
     std::vector<std::string> classNames;
     std::vector<std::shared_ptr<Class>> parentClasses;
 
-    std::vector<std::shared_ptr<Function>> parentConstructors;
-    std::vector<std::shared_ptr<Function>> parentDestructors;
-    std::shared_ptr<Function> constructor;
-    std::shared_ptr<Function> destructor;
+    // std::vector<std::shared_ptr<Function>> parentConstructors;
+    // std::vector<std::shared_ptr<Function>> parentDestructors;
+    // std::shared_ptr<Function> constructor;
+    // std::shared_ptr<Function> destructor;
 private:
     void registerMethods();
     void registerProperties();
@@ -184,8 +184,8 @@ public:
     std::string toString(int indentLevel = 0) const override;
     std::shared_ptr<std::vector<std::string>> classNames;
     
-    std::vector<std::shared_ptr<Function>> constructors;
-    std::vector<std::shared_ptr<Function>> destructors;
+    // std::vector<std::shared_ptr<Function>> constructors;
+    // std::vector<std::shared_ptr<Function>> destructors;
 
 private:
     void registerMethods();

@@ -11,12 +11,12 @@
 #include <omniscript/engine/IRGenerator.h>
 
 // built - in objects
-#include <omniscript/runtime/Function.h>
-#include <omniscript/runtime/Class.h>
-#include <omniscript/runtime/Namespace.h>
-#include <omniscript/runtime/Enum.h>
-#include <omniscript/runtime/Number.h>
-#include <omniscript/runtime/String.h>
+// // #include <omniscript/runtime/Function.h>
+// #include <omniscript/runtime/Class.h>
+// #include <omniscript/runtime/Namespace.h>
+// #include <omniscript/runtime/Enum.h>
+// #include <omniscript/runtime/Number.h>
+// #include <omniscript/runtime/String.h>
 
 
 // Environment Objects
@@ -39,9 +39,10 @@
 
 
 // Entry point for parsing the program
-void Parser::Parse() {
+std::vector<std::shared_ptr<Statement>> Parser::Parse() {
     initializeEnvironment();
     parseProgram(); // Start parsing the program
+    return this->statements;
 }
 
 void Parser::initializeEnvironment() {
@@ -88,66 +89,6 @@ void Parser::parseProgram() {
     console.debug();
 }
 
-void Parser::Interprete() {
-    console.debug();
-    showDebugSection("Executing the script");
-    if (executeStatements) {
-        for (const auto &statement : statements) {
-            if (statement) {
-                Expression::evaluate(statement, scope);
-            }
-            PROCESS_MAIN_THREAD_EVENTS();
-        }
-    }
-
-    checkAllThreadsCompleted();
-
-    console.debug("***=================================***" );
-    console.debug("   Done executing the script 😁😁😊" );
-    console.debug("***=================================***" ); 
-}
-
-void Parser::Compile() {
-    console.debug();
-    showDebugSection("Compiling the script");
-    
-    // IRGenerator irGen;
-
-    // for (const auto &statement : statements) {
-    //     if (statement) {
-    //         irGen.generateIR(statement);
-    //     }
-    // }
-
-    // irGen.printIR();
-    
-    console.debug("***=================================***" );
-    console.debug("   Done compiling the script 😁😁😊" );
-    console.debug("***=================================***" ); 
-}
-
-
-void Parser::checkAllThreadsCompleted() {
-    do {
-         std::this_thread::sleep_for(std::chrono::milliseconds(1000/60));
-    } while (!Omniscript::allThreadsDone);
-    // Get the object from the scope as a shared_ptr to the base class
-    // std::shared_ptr<Object> baseCanvas = std::get<std::shared_ptr<Object>>(scope.get("canvas").value());
-    
-    // // Cast the base class shared_ptr to the derived class shared_ptr
-    // std::shared_ptr<CanvasObject> canvas = std::dynamic_pointer_cast<CanvasObject>(baseCanvas);
-
-    // if (canvas) {
-    //     // If the cast succeeded, check if the canvas is still running
-    //     while (canvas->isRunning()) {
-    //         PROCESS_MAIN_THREAD_EVENTS();
-    //         // Optionally add a small delay here to avoid a busy-wait loop
-    //         std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    //     }
-    // } else {
-    //     console.error("Failed to cast to CanvasObject.");
-    // }
-}
 
 // Function to change the scope of the current parser
 void Parser::setScope(const SymbolTable &otherScope) {
@@ -408,35 +349,78 @@ std::shared_ptr<Statement> Parser::factor() {
 
     if (currentToken.getType() == TokenTypes::IntegerLiteral) {
         eat(TokenTypes::IntegerLiteral);
-        left = std::make_shared<Value>(std::stoi(previousToken.getValue()));
+        std::string valueStr = previousToken.getValue();
+    
+        // Check if the number is too big for int64_t
+        try {
+            long long value = std::stoll(valueStr);
+            if (value >= std::numeric_limits<int8_t>::min() && value <= std::numeric_limits<int8_t>::max()) {
+                left = std::make_shared<Int8Bit>(static_cast<int8_t>(value));
+            } else if (value >= std::numeric_limits<int16_t>::min() && value <= std::numeric_limits<int16_t>::max()) {
+                left = std::make_shared<Int16Bit>(static_cast<int16_t>(value));
+            } else if (value >= std::numeric_limits<int32_t>::min() && value <= std::numeric_limits<int32_t>::max()) {
+                left = std::make_shared<Int32Bit>(static_cast<int32_t>(value));
+            } else {
+                left = std::make_shared<Int64Bit>(static_cast<int64_t>(value));
+            }
+        } catch (const std::out_of_range&) {
+            // Handle BigInt case
+            left = std::make_shared<BigInt>(valueStr);
+        }        
     }
+    // Handle float literals (32-bit and 64-bit)
+    else if (currentToken.getType() == TokenTypes::FloatLiteral) {
+        eat(TokenTypes::FloatLiteral);
+        std::string value = previousToken.getValue();
+
+        // Check for 'f' or 'd' suffix to determine float type
+        if (!value.empty() && (value.back() == 'f' || value.back() == 'F')) {
+            left = std::make_shared<Float32Bit>(std::stof(value)); // Float32
+        } else {
+            left = std::make_shared<Float64Bit>(std::stod(value)); // Default to Float64
+        }
+    }
+
     // Handle float literals
     else if (currentToken.getType() == TokenTypes::FloatLiteral) {
         eat(TokenTypes::FloatLiteral);
-        left = std::make_shared<Value>(std::stof(previousToken.getValue()));
+        left = std::make_shared<Float32Bit>(std::stof(previousToken.getValue())); // Assuming Float32Bit is your float type
     }
+    // Handle integer literals (decimal)
+    else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
+        eat(TokenTypes::IntegerLiteral);
+        left = std::make_shared<Int32Bit>(std::stoll(previousToken.getValue())); // Assuming Int32Bit is your integer type
+    }
+    // Handle hexadecimal literals
     else if (currentToken.getType() == TokenTypes::HexLiteral) {
         eat(TokenTypes::HexLiteral);
-        left = std::make_shared<Value>(std::stoll(previousToken.getValue(), nullptr, 16)); // Base 16
+        left = std::make_shared<Int32Bit>(std::stoll(previousToken.getValue(), nullptr, 16)); // Base 16
     }
+    // Handle octal literals
     else if (currentToken.getType() == TokenTypes::OctalLiteral) {
         eat(TokenTypes::OctalLiteral);
-        left = std::make_shared<Value>(std::stoll(previousToken.getValue(), nullptr, 8)); // Base 8
+        left = std::make_shared<Int32Bit>(std::stoll(previousToken.getValue(), nullptr, 8)); // Base 8
     }
+    // Handle binary literals
     else if (currentToken.getType() == TokenTypes::BinaryLiteral) {
         eat(TokenTypes::BinaryLiteral);
-        left = std::make_shared<Value>(std::stoll(previousToken.getValue(), nullptr, 2)); // Base 2
+        left = std::make_shared<Int32Bit>(std::stoll(previousToken.getValue(), nullptr, 2)); // Base 2
+    }
+    // Handle big integers (arbitrary-precision)
+    else if (currentToken.getType() == TokenTypes::BigInt) {
+        eat(TokenTypes::BigInt);
+        left = std::make_shared<BigInt>(previousToken.getValue()); // Assuming BigInt is your arbitrary-precision type
     }
     // Handle string literals
     else if (currentToken.getType() == TokenTypes::StringLiteral) {
         eat(TokenTypes::StringLiteral);
-        left = std::make_shared<Value>(previousToken.getValue());
+        left = std::make_shared<StringLiteral>(previousToken.getValue());
     }
     // Handle identifiers (variables and functions)
     else if (currentToken.getType() == TokenTypes::Identifier) {
         console.info(currentToken.getValue());
         left = parseIdentifier(); // This should return a Statement (already parsed)
-        console.info(valueToString(left));
+        // console.info(valueToString(left));
     }
     // Handle arrays (e.g., [1, 2, 3])
     else if (currentToken.getType() == TokenTypes::LeftBracket) {
@@ -445,7 +429,7 @@ std::shared_ptr<Statement> Parser::factor() {
 
         // Parse array items (comma-separated expressions)
         while (currentToken.getType() != TokenTypes::RightBracket) {
-            items.push_back(parseExpression());  // Wrap each item in an Expression
+            // items.push_back(parseExpression());  // Wrap each item in an Expression
             if (currentToken.getType() == TokenTypes::Comma) {
                 eat(TokenTypes::Comma);  // Consume the comma if there are more items
             } else {
@@ -461,9 +445,9 @@ std::shared_ptr<Statement> Parser::factor() {
 
     // Handle expressions within parentheses
     else if (currentToken.getType() == TokenTypes::LeftParen) {
-        console.warn(valueToString(left));
+        // console.warn(valueToString(left));
         if (checkIfLambdaExpression()) {
-            left = std::make_shared<Value>(parseLambdaFunction());
+            // left = std::make_shared<Literal>(parseLambdaFunction());
         } else {
             eat(TokenTypes::LeftParen);
             left = parseExpression();  // Parse the expression within parentheses
@@ -471,10 +455,10 @@ std::shared_ptr<Statement> Parser::factor() {
         }
     } else if (currentToken.getType() == TokenTypes::False) {
         eat(TokenTypes::False);
-        left = std::make_shared<Value>(false);
+        left = std::make_shared<BoolLiteral>(false);
     } else if (currentToken.getType() == TokenTypes::True) {
         eat(TokenTypes::True);
-        left = std::make_shared<Value>(true);
+        left = std::make_shared<BoolLiteral>(true);
     
     // Parse objects and dictionaries
     // {a = 0, b = 1}
@@ -486,8 +470,9 @@ std::shared_ptr<Statement> Parser::factor() {
         std::string objectClassName = currentToken.getValue();
         eat(TokenTypes::Identifier);
         auto [types, args] = parseArguments();
-        auto objectType = std::make_shared<Variable>(objectClassName);
-        left = std::make_shared<ObjectConstructorStatement>(objectType, args);
+        // auto objectType = std::make_shared<Variable>(objectClassName);
+        // left = std::make_shared<ObjectConstructorStatement>(objectType, args);
+        left = nullptr;
     }  else if (currentToken.getType() == TokenTypes::Null) {
         left = nullptr;
     }
@@ -571,7 +556,7 @@ std::shared_ptr<Statement> Parser::parseObject() {
 
     while (currentToken.getType() != TokenTypes::RightBrace) {
         std::string propertyName;
-        SymbolTable::ValueType propertyValue;
+        std::shared_ptr<Statement> propertyValue;
 
         // Accept identifiers, string literals, and numbers as keys
         if (currentToken.getType() == TokenTypes::Identifier || 
@@ -603,7 +588,7 @@ std::shared_ptr<Statement> Parser::parseObject() {
             }
 
             // Set the property on the object
-            object->setProperty(propertyName, propertyValue);
+            // object->setProperty(propertyName, propertyValue);
         } else {
             eat(TokenTypes::RightBrace, "Invalid property name in object or dictionary.");
         }
@@ -693,134 +678,135 @@ ClassMemberModifiers Parser::parseClassMemberModifiers() {
 
 
 std::shared_ptr<Statement> Parser::parseClass() {
-    eat(TokenTypes::Class);
+    // eat(TokenTypes::Class);
 
-    std::string className = currentToken.getValue();
-    auto new_Class = std::make_shared<Class>(className);
+    // std::string className = currentToken.getValue();
+    // auto new_Class = std::make_shared<Class>(className);
     
-    eat(TokenTypes::Identifier);
+    // eat(TokenTypes::Identifier);
 
-    std::vector<std::pair<std::string, std::string>> types;
+    // std::vector<std::pair<std::string, std::string>> types;
 
-    if (currentToken.getType() == TokenTypes::LessThan) {
-        types = parseTypeParametersForDeclaration();
-    }
+    // if (currentToken.getType() == TokenTypes::LessThan) {
+    //     types = parseTypeParametersForDeclaration();
+    // }
 
-    console.debug("Parsing a class " + className);
+    // console.debug("Parsing a class " + className);
 
-    if (currentToken.getType() == TokenTypes::Colon) {
-        eat(TokenTypes::Colon);
+    // if (currentToken.getType() == TokenTypes::Colon) {
+    //     eat(TokenTypes::Colon);
 
-        while (currentToken.getType() != TokenTypes::LeftBrace) {
-            if (currentToken.getType() == TokenTypes::Comma) {
-                eat(TokenTypes::Comma);
-            }
-            if (currentToken.getType() == TokenTypes::Public || currentToken.getType() == TokenTypes::Private) {
-                eat(currentToken.getType());
-            }
-            std::string parentClassName = currentToken.getValue();
-            eat(TokenTypes::Identifier);
-            new_Class->classNames.push_back(parentClassName);
-        }
-    }
+    //     while (currentToken.getType() != TokenTypes::LeftBrace) {
+    //         if (currentToken.getType() == TokenTypes::Comma) {
+    //             eat(TokenTypes::Comma);
+    //         }
+    //         if (currentToken.getType() == TokenTypes::Public || currentToken.getType() == TokenTypes::Private) {
+    //             eat(currentToken.getType());
+    //         }
+    //         std::string parentClassName = currentToken.getValue();
+    //         eat(TokenTypes::Identifier);
+    //         new_Class->classNames.push_back(parentClassName);
+    //     }
+    // }
     
-    eat(TokenTypes::LeftBrace);
+    // eat(TokenTypes::LeftBrace);
 
-    bool hasConstructor = false;
-    bool hasDestructor = false;
+    // bool hasConstructor = false;
+    // bool hasDestructor = false;
 
-    while (currentToken.getType() != TokenTypes::RightBrace) {
-        // Parse modifiers before method name
-        ClassMemberModifiers preModifiers = parseClassMemberModifiers();
+    // while (currentToken.getType() != TokenTypes::RightBrace) {
+    //     // Parse modifiers before method name
+    //     ClassMemberModifiers preModifiers = parseClassMemberModifiers();
 
-        if (currentToken.getType() == TokenTypes::Identifier && currentToken.getValue() == "constructor") {
-            if (hasConstructor) {
-                console.error("Class " + className + " has multiple constructors.");
-                return nullptr;
-            }
-            hasConstructor = true;
-            eat(TokenTypes::Identifier);
+    //     if (currentToken.getType() == TokenTypes::Identifier && currentToken.getValue() == "constructor") {
+    //         if (hasConstructor) {
+    //             console.error("Class " + className + " has multiple constructors.");
+    //             return nullptr;
+    //         }
+    //         hasConstructor = true;
+    //         eat(TokenTypes::Identifier);
 
-            auto [paramNames, parameters] = parseParameters();
+    //         auto [paramNames, parameters] = parseParameters();
 
-            // Parse modifiers after parameters
-            ClassMemberModifiers postModifiers = parseClassMemberModifiers();
+    //         // Parse modifiers after parameters
+    //         ClassMemberModifiers postModifiers = parseClassMemberModifiers();
 
-            if (preModifiers.isInitialized || postModifiers.isInitialized) {
-                console.error("The constructor takes in no modifiers.");
-                return nullptr;
-            }
+    //         if (preModifiers.isInitialized || postModifiers.isInitialized) {
+    //             console.error("The constructor takes in no modifiers.");
+    //             return nullptr;
+    //         }
 
-            std::vector<std::shared_ptr<Statement>> body = parseBlock();
+    //         std::vector<std::shared_ptr<Statement>> body = parseBlock();
 
-            auto constructor = std::make_shared<Function>("constructor", paramNames, parameters, body);
-            constructor->addParameter("this", nullptr);
+    //         auto constructor = std::make_shared<Function>("constructor", paramNames, parameters, body);
+    //         constructor->addParameter("this", nullptr);
 
-            new_Class->addConstructor(constructor);
-        } else if (currentToken.getType() == TokenTypes::Identifier && currentToken.getValue() == "destructor") {
-            if (hasDestructor) {
-                console.error("Class " + className + " has multiple destructors.");
-                return nullptr;
-            }
-            hasDestructor = true;
-            eat(TokenTypes::Identifier);
+    //         new_Class->addConstructor(constructor);
+    //     } else if (currentToken.getType() == TokenTypes::Identifier && currentToken.getValue() == "destructor") {
+    //         if (hasDestructor) {
+    //             console.error("Class " + className + " has multiple destructors.");
+    //             return nullptr;
+    //         }
+    //         hasDestructor = true;
+    //         eat(TokenTypes::Identifier);
 
-            auto [paramNames, parameters] = parseParameters();
+    //         auto [paramNames, parameters] = parseParameters();
 
-            // Parse modifiers after parameters
-            ClassMemberModifiers postModifiers = parseClassMemberModifiers();
+    //         // Parse modifiers after parameters
+    //         ClassMemberModifiers postModifiers = parseClassMemberModifiers();
 
-            if (preModifiers.isInitialized || postModifiers.isInitialized) {
-                console.error("The destructor takes in no modifiers.");
-                return nullptr;
-            }
+    //         if (preModifiers.isInitialized || postModifiers.isInitialized) {
+    //             console.error("The destructor takes in no modifiers.");
+    //             return nullptr;
+    //         }
 
-            auto body = parseBlock();
-            auto destructor = std::make_shared<Function>("destructor", paramNames, parameters, body);
-            destructor->addParameter("this", nullptr);
-            new_Class->addDestructor(destructor);
-        } else if (currentToken.getType() == TokenTypes::Identifier) {
-            std::string methodName = currentToken.getValue();
-            eat(TokenTypes::Identifier);
+    //         auto body = parseBlock();
+    //         auto destructor = std::make_shared<Function>("destructor", paramNames, parameters, body);
+    //         destructor->addParameter("this", nullptr);
+    //         new_Class->addDestructor(destructor);
+    //     } else if (currentToken.getType() == TokenTypes::Identifier) {
+    //         std::string methodName = currentToken.getValue();
+    //         eat(TokenTypes::Identifier);
 
-            auto [paramNames, parameters] = parseParameters();
+    //         auto [paramNames, parameters] = parseParameters();
 
-            // Parse modifiers after parameters
-            ClassMemberModifiers postModifiers = parseClassMemberModifiers();
+    //         // Parse modifiers after parameters
+    //         ClassMemberModifiers postModifiers = parseClassMemberModifiers();
 
-            if (preModifiers.isInitialized && postModifiers.isInitialized) {
-                console.error("Modifiers should appear only before or after the method name, not both.");
-                return nullptr;
-            }
+    //         if (preModifiers.isInitialized && postModifiers.isInitialized) {
+    //             console.error("Modifiers should appear only before or after the method name, not both.");
+    //             return nullptr;
+    //         }
 
-            // Use the modifiers (either preModifiers or postModifiers)
-            ClassMemberModifiers methodModifiers = preModifiers.isInitialized ? preModifiers : postModifiers;
+    //         // Use the modifiers (either preModifiers or postModifiers)
+    //         ClassMemberModifiers methodModifiers = preModifiers.isInitialized ? preModifiers : postModifiers;
 
-            auto body = parseBlock();
-            auto method = std::make_shared<Function>(methodName, paramNames, parameters, body);
+    //         auto body = parseBlock();
+    //         auto method = std::make_shared<Function>(methodName, paramNames, parameters, body);
 
-            if (methodModifiers.shouldOverride) {
-                auto [methodToOverride, parentModifiers] = new_Class->getClassMethod(methodName);
+    //         if (methodModifiers.shouldOverride) {
+    //             auto [methodToOverride, parentModifiers] = new_Class->getClassMethod(methodName);
 
-                if (std::holds_alternative<std::nullptr_t>(methodToOverride)) {
-                    console.error("Method " + methodName + " marked as override but does not override any virtual method.");
-                }
-                if (parentModifiers.isFinal) {
-                    console.error("Method " + methodName + " is a final member of its parent class and cannot be overridden. Remove the 'final' keyword from the parent class.");
-                }
-            }
+    //             if (std::holds_alternative<std::nullptr_t>(methodToOverride)) {
+    //                 console.error("Method " + methodName + " marked as override but does not override any virtual method.");
+    //             }
+    //             if (parentModifiers.isFinal) {
+    //                 console.error("Method " + methodName + " is a final member of its parent class and cannot be overridden. Remove the 'final' keyword from the parent class.");
+    //             }
+    //         }
 
-            method->addParameter("this", nullptr);
-            new_Class->addClassMethod(methodName, method, methodModifiers);
-        } else {
-            console.error("Unexpected token in class definition.");
-            return nullptr;
-        }
-    }
+    //         method->addParameter("this", nullptr);
+    //         new_Class->addClassMethod(methodName, method, methodModifiers);
+    //     } else {
+    //         console.error("Unexpected token in class definition.");
+    //         return nullptr;
+    //     }
+    // }
 
-    eat(TokenTypes::RightBrace); // End of class body
+    // eat(TokenTypes::RightBrace); // End of class body
 
-    return std::make_shared<ConstantAssignment>(className, std::make_shared<ObjectConstructorStatement>(new_Class));
+    // return std::make_shared<ConstantAssignment>(className, std::make_shared<ObjectConstructorStatement>(new_Class));
+    return nullptr;
 }
 
 SymbolTable::ValueType Parser::parseFunctionArrow() {
@@ -844,15 +830,15 @@ SymbolTable::ValueType Parser::parseFunctionArrow() {
     return SymbolTable::ValueType{};
 }
 
-std::shared_ptr<Function> Parser::parseLambdaFunction() {
-    auto [paramNames, params] = parseParameters();
+// std::shared_ptr<Function> Parser::parseLambdaFunction() {
+//     auto [paramNames, params] = parseParameters();
     
-    SymbolTable::ValueType returnType = parseFunctionArrow();
+//     std::shared_ptr<Statement> returnType = parseFunctionArrow();
 
-    std::vector<std::shared_ptr<Statement>> body = parseBlock();
+//     std::vector<std::shared_ptr<Statement>> body = parseBlock();
     
-    return std::make_shared<Function>("lambda", paramNames, params, body);
-}
+//     return std::make_shared<Function>("lambda", paramNames, params, body);
+// }
 
 bool Parser::checkIfLambdaExpression() {
     if (currentToken.getType() == TokenTypes::LeftParen) {
@@ -968,7 +954,7 @@ std::pair<std::vector<std::string>, std::vector<std::shared_ptr<Statement>>> Par
         }
     }
 
-    console.debug("Got " + valueToString(paramNames.size()) + " parameters.");
+    // console.debug("Got " + valueToString(paramNames.size()) + " parameters.");
     eat(TokenTypes::RightParen); // End of parameters
 
     return {paramNames, parameters};
@@ -976,52 +962,53 @@ std::pair<std::vector<std::string>, std::vector<std::shared_ptr<Statement>>> Par
 
 // Parse function declarations
 std::shared_ptr<Statement> Parser::parseFunctionDeclaration() {
-    eat(TokenTypes::Function); // Consume the 'function' keyword
+    // eat(TokenTypes::Function); // Consume the 'function' keyword
 
-    std::string name = currentToken.getValue(); // Function name
-    eat(TokenTypes::Identifier);
+    // std::string name = currentToken.getValue(); // Function name
+    // eat(TokenTypes::Identifier);
 
-    std::vector<std::pair<std::string, std::string>> types; // Generic types
+    // std::vector<std::pair<std::string, std::string>> types; // Generic types
 
-    if (currentToken.getType() == TokenTypes::LessThan) {
-        types = parseTypeParametersForDeclaration();
-    }
+    // if (currentToken.getType() == TokenTypes::LessThan) {
+    //     types = parseTypeParametersForDeclaration();
+    // }
 
-    auto [paramNames, parameters] = parseParameters();
-    std::vector<std::shared_ptr<Statement>> body = parseBlock(); // Parse function body
+    // auto [paramNames, parameters] = parseParameters();
+    // std::vector<std::shared_ptr<Statement>> body = parseBlock(); // Parse function body
     
-    std::vector<std::shared_ptr<Statement>> monomorphizedFunctions;
+    // std::vector<std::shared_ptr<Statement>> monomorphizedFunctions;
 
-    if (!types.empty()) {
-        // Generate specialized function name
-        std::string typeSuffix;
-        bool isGeneric = false;
-        for (const auto& type : types) {
-            typeSuffix += "_" + type.second; // Append each type
-            if (type.second == "any" || type.second == "variant") {
-                isGeneric = true;
-            }
-        }
+    // if (!types.empty()) {
+    //     // Generate specialized function name
+    //     std::string typeSuffix;
+    //     bool isGeneric = false;
+    //     for (const auto& type : types) {
+    //         typeSuffix += "_" + type.second; // Append each type
+    //         if (type.second == "any" || type.second == "variant") {
+    //             isGeneric = true;
+    //         }
+    //     }
 
-        std::string specializedName = name + typeSuffix; // Example: add_int_string_float
+    //     std::string specializedName = name + typeSuffix; // Example: add_int_string_float
 
-        auto func = std::make_shared<Function>(
-            specializedName, paramNames, parameters, body, std::nullopt, types
-        );
+    //     auto func = std::make_shared<Function>(
+    //         specializedName, paramNames, parameters, body, std::nullopt, types
+    //     );
 
-        if (isGeneric) {
-            monomorphizedFunctions.push_back(std::make_shared<GenericAssignment>(specializedName, func));
-        } else {
-            monomorphizedFunctions.push_back(std::make_shared<ConstantAssignment>(specializedName, func));
-        }
+    //     if (isGeneric) {
+    //         monomorphizedFunctions.push_back(std::make_shared<GenericAssignment>(specializedName, func));
+    //     } else {
+    //         monomorphizedFunctions.push_back(std::make_shared<ConstantAssignment>(specializedName, func));
+    //     }
 
-        // Return all monomorphized functions as a block
-        return std::make_shared<BlockStatement>(monomorphizedFunctions);
-    }
+    //     // Return all monomorphized functions as a block
+    //     return std::make_shared<BlockStatement>(monomorphizedFunctions);
+    // }
 
-    // If no generics, just return a normal function assignment
-    auto func = std::make_shared<Function>(name, paramNames, parameters, body);
-    return std::make_shared<ConstantAssignment>(name, func);
+    // // If no generics, just return a normal function assignment
+    // auto func = std::make_shared<Function>(name, paramNames, parameters, body);
+    // return std::make_shared<ConstantAssignment>(name, func);
+    return nullptr;
 }
 
 std::string Parser::generateSpecializedNameForDecleration(
@@ -1163,7 +1150,7 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
         }
         eat(TokenTypes::GreaterThan); // `>`
     }
-    console.log(valueToString(typeParams));
+    // console.log(valueToString(typeParams));
     return typeParams;
 }
 
@@ -1217,14 +1204,14 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             eat(TokenTypes::Assign);
             if (checkIfLambdaExpression()) {
                 std::vector<std::shared_ptr<Statement>> args;
-                auto propertyName = std::make_shared<Value>(member);
-                std::shared_ptr<Function> value = parseLambdaFunction();
-                args.push_back(propertyName);
-                args.push_back(std::make_shared<Value>(value));
-                statement = std::make_shared<CallMethod>(previousStatement, "setMethod", args);
+                auto propertyName = std::make_shared<StringLiteral>(member);
+                // std::shared_ptr<Function> value = parseLambdaFunction();
+                // args.push_back(propertyName);
+                // args.push_back(std::make_shared<Literal>(value));
+                // statement = std::make_shared<CallMethod>(previousStatement, "setMethod", args);
             } else {
                 std::vector<std::shared_ptr<Statement>> args;
-                auto propertyName = std::make_shared<Value>(member);
+                auto propertyName = std::make_shared<StringLiteral>(member);
                 std::shared_ptr<Statement> value = parseExpression();
                 args.push_back(propertyName);
                 args.push_back(value);
@@ -1253,7 +1240,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             eat(currentToken.getType());
             
             std::vector<std::shared_ptr<Statement>> args;
-            auto propertyName = std::make_shared<Value>(member);
+            auto propertyName = std::make_shared<StringLiteral>(member);
             std::shared_ptr<Statement> value = parseExpression();
 
             // Get the current value of the variable
@@ -1426,7 +1413,7 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
 // Parse return statements
 std::shared_ptr<ReturnStatement> Parser::parseReturnStatement() {
     eat(TokenTypes::Return); // Consume the 'return' keyword
-    SymbolTable::ValueType value = parseExpression();
+    std::shared_ptr<Statement> value = parseExpression();
     return std::make_shared<ReturnStatement>(value);
 }
 
@@ -1455,14 +1442,15 @@ std::shared_ptr<Statement> Parser::parseEnum() {
                 std::shared_ptr<Statement> value = parseExpression();
                 values.push_back(value);
             } else {
-                values.push_back(std::make_shared<Value>(i));
+                // values.push_back(std::make_shared<Int32Bit>(i));
             }
         }
     }
     eat(TokenTypes::RightBrace);
-    auto newEnum = std::make_shared<Enum>(enumName, keys, values);
-    auto constructor = std::make_shared<ObjectConstructorStatement>(newEnum);
-    return std::make_shared<ConstantAssignment>(enumName, constructor);
+    // auto newEnum = std::make_shared<Enum>(enumName, keys, values);
+    // auto constructor = std::make_shared<ObjectConstructorStatement>(newEnum);
+    // return std::make_shared<ConstantAssignment>(enumName, constructor);
+    return nullptr;
 }
 
 
@@ -1473,9 +1461,10 @@ std::shared_ptr<Statement> Parser::parseNamespace() {
 
     std::vector<std::shared_ptr<Statement>> body = parseBlock();
     
-    auto namespaceObj = std::make_shared<Namespace>(namespaceName, body);
-    auto objectConstructor = std::make_shared<ObjectConstructorStatement>(namespaceObj);
-    return std::make_shared<ConstantAssignment>(namespaceName, objectConstructor);
+    // auto namespaceObj = std::make_shared<Namespace>(namespaceName, body);
+    // auto objectConstructor = std::make_shared<ObjectConstructorStatement>(namespaceObj);
+    // return std::make_shared<ConstantAssignment>(namespaceName, objectConstructor);
+    return nullptr;
 }
 
 // Parse variable assignments

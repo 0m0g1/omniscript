@@ -6,7 +6,6 @@
 
 // Forward declaration to avoid circular dependency
 class Function;
-class Statement;
 class Object;
 class Array;
 class Namespace;
@@ -22,8 +21,8 @@ class SymbolTable {
                                     std::vector<std::string>,
                                     bool,
                                     char, std::vector<char>,
-                                    std::shared_ptr<Function>,
-                                    std::shared_ptr<Statement>, std::vector<std::shared_ptr<Statement>>,
+                                    // std::shared_ptr<Function>,
+                                    // std::shared_ptr<Statement>, std::vector<std::shared_ptr<Statement>>,
                                     std::shared_ptr<Object>, std::vector<std::shared_ptr<Object>>,
                                     std::shared_ptr<Array>,
                                     std::shared_ptr<Namespace>,
@@ -52,11 +51,11 @@ class SymbolTable {
         void setConstant(const std::string &name, std::optional<ValueType> value); // Set constants
         std::optional<ValueType> getConstant(const std::string &name);
         
-        void addFunction(const std::string &name, const std::shared_ptr<Function> &func);
-        std::shared_ptr<Function> getFunction(const std::string &name); // Return a pointer to a function
+        // void addFunction(const std::string &name, const std::shared_ptr<Function> &func);
+        // std::shared_ptr<Function> getFunction(const std::string &name); // Return a pointer to a function
         
-        void addGenericFunction(const std::string &name, const std::shared_ptr<Function> &func);
-        std::shared_ptr<Function> getGenericFunction(const std::string &name); // Return a pointer to a function
+        // void addGenericFunction(const std::string &name, const std::shared_ptr<Function> &func);
+        // std::shared_ptr<Function> getGenericFunction(const std::string &name); // Return a pointer to a function
         
         void addObject(const std::string &name, const std::shared_ptr<Object> &obj);
         std::shared_ptr<Object> getObject(const std::string &name); // Return a pointer to a object
@@ -66,8 +65,8 @@ class SymbolTable {
         SymbolTable* parent = nullptr;
         std::unordered_map<std::string, std::optional<ValueType>> variables;
         std::unordered_map<std::string, std::optional<ValueType>> constants;
-        std::unordered_map<std::string, std::shared_ptr<Function>> functions;
-        std::unordered_map<std::string, std::shared_ptr<Function>> genericFunctions;
+        // std::unordered_map<std::string, std::shared_ptr<Function>> functions;
+        // std::unordered_map<std::string, std::shared_ptr<Function>> genericFunctions;
         std::unordered_map<std::string, std::shared_ptr<Object>> objects;
     private:
         //

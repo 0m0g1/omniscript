@@ -9,7 +9,6 @@
 #include <set>
 #include <queue>
 #include <memory>
-#include <optional>
 #include <variant>
 #include <functional>
 #include <algorithm>
@@ -28,6 +27,7 @@
 #include <cstdlib> // Keep this after defining _GLIBCXX_HAVE_TIMESPEC_GET
 #include <cctype>
 #include <inttypes.h>
+#include <cstddef>
 
 // System-Specific Headers
 #ifdef _WIN32

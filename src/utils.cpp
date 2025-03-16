@@ -3,7 +3,7 @@
 
 #include <omniscript/runtime/Namespace.h>
 #include <omniscript/runtime/object.h>
-#include <omniscript/runtime/Function.h>
+// #include <omniscript/runtime/Function.h>
 #include <omniscript/runtime/Number.h>
 #include <omniscript/runtime/String.h>
 #include <omniscript/runtime/Pointer.h>
@@ -66,9 +66,10 @@ std::string valueToString(const SymbolTable::ValueType& value, int indentLevel) 
 
         if constexpr (std::is_same_v<T, std::string>) {
             return "\"" + arg + "\"";
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<Function>>) {
-            return arg ? arg->toString(indentLevel) : "[Function]";
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<Array>>) {
+        } // else if constexpr (std::is_same_v<T, std::shared_ptr<Function>>) {
+            // return arg ? arg->toString(indentLevel) : "[Function]";
+        // }
+        else if constexpr (std::is_same_v<T, std::shared_ptr<Array>>) {
             return arg ? arg->toString(indentLevel) : "[null array]";
         } else if constexpr (std::is_same_v<T, std::shared_ptr<Object>>) {
             return arg ? arg->toString(indentLevel) : "[null object]";
@@ -77,8 +78,8 @@ std::string valueToString(const SymbolTable::ValueType& value, int indentLevel) 
             auto& stmt = *arg;
 
             // Check the exact type of the statement object using dynamic_cast
-            if (dynamic_cast<Value*>(&stmt)) {
-                return "[Value Statement]";
+            if (dynamic_cast<Literal*>(&stmt)) {
+                return "[Literal Statement]";
             } else if (dynamic_cast<Assignment*>(&stmt)) {
                 return "[Assignment Statement]";
             } else if (dynamic_cast<ConstantAssignment*>(&stmt)) {
@@ -265,36 +266,37 @@ std::shared_ptr<Object> primitiveToObject(const SymbolTable::ValueType &objectVa
     // } else if (auto ushortValue = std::get_if<unsigned short>(&objectValue)) {
     //     baseObject = std::make_shared<Number>(*ushortValue);
     // } else
-    if (auto intValue = std::get_if<int>(&objectValue)) {
-        baseObject = std::make_shared<Number>(*intValue);
-    } else if (auto uintValue = std::get_if<unsigned int>(&objectValue)) {
-        baseObject = std::make_shared<Number>(*uintValue);
-    } else if (auto longValue = std::get_if<long>(&objectValue)) {
-        baseObject = std::make_shared<Number>(*longValue);
-    } else if (auto ulongValue = std::get_if<unsigned long>(&objectValue)) {
-        baseObject = std::make_shared<Number>(*ulongValue);
-    } else if (auto longLongValue = std::get_if<long long>(&objectValue)) {
-        baseObject = std::make_shared<Number>(*longLongValue);
-    } else if (auto ulongLongValue = std::get_if<unsigned long long>(&objectValue)) {
-        baseObject = std::make_shared<Number>(*ulongLongValue);
-    }
+    // if (auto intValue = std::get_if<int>(&objectValue)) {
+    //     baseObject = std::make_shared<Number>(*intValue);
+    // } else if (auto uintValue = std::get_if<unsigned int>(&objectValue)) {
+    //     baseObject = std::make_shared<Number>(*uintValue);
+    // } else if (auto longValue = std::get_if<long>(&objectValue)) {
+    //     baseObject = std::make_shared<Number>(*longValue);
+    // } else if (auto ulongValue = std::get_if<unsigned long>(&objectValue)) {
+    //     baseObject = std::make_shared<Number>(*ulongValue);
+    // } else if (auto longLongValue = std::get_if<long long>(&objectValue)) {
+    //     baseObject = std::make_shared<Number>(*longLongValue);
+    // } else if (auto ulongLongValue = std::get_if<unsigned long long>(&objectValue)) {
+    //     baseObject = std::make_shared<Number>(*ulongLongValue);
+    // }
 
-    // Handle floating-point types
-    else if (auto floatValue = std::get_if<float>(&objectValue)) {
-        baseObject = std::make_shared<Number>(*floatValue);
-    } else if (auto doubleValue = std::get_if<double>(&objectValue)) {
-        baseObject = std::make_shared<Number>(*doubleValue);
-    } else if (auto longDoubleValue = std::get_if<long double>(&objectValue)) {
-        baseObject = std::make_shared<Number>(*longDoubleValue);
-    }
+    // // Handle floating-point types
+    // else if (auto floatValue = std::get_if<float>(&objectValue)) {
+    //     baseObject = std::make_shared<Number>(*floatValue);
+    // } else if (auto doubleValue = std::get_if<double>(&objectValue)) {
+    //     baseObject = std::make_shared<Number>(*doubleValue);
+    // } else if (auto longDoubleValue = std::get_if<long double>(&objectValue)) {
+    //     baseObject = std::make_shared<Number>(*longDoubleValue);
+    // }
 
     // Handle string type
-    else if (auto stringValue = std::get_if<std::string>(&objectValue)) {
-        baseObject = std::make_shared<String>(*stringValue);
-    }
+    // else if (auto stringValue = std::get_if<std::string>(&objectValue)) {
+    //     baseObject = std::make_shared<String>(*stringValue);
+    // }
 
     // Handle boolean type
-    else if (auto boolValue = std::get_if<bool>(&objectValue)) {
+    // else 
+    if (auto boolValue = std::get_if<bool>(&objectValue)) {
         baseObject = std::make_shared<Boolean>(*boolValue);
     }
 

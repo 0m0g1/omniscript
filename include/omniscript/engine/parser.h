@@ -1,5 +1,3 @@
-//The parser class
-
 #ifndef PARSER_H
 #define PARSER_H
 
@@ -12,7 +10,7 @@
 #include <omniscript/runtime/Class.h>
 
 //Include llvm headers
-// #include <llvm-c/
+// #include <llvm-c/...
 
 class Parser {
     public:
@@ -20,18 +18,16 @@ class Parser {
         void setScope(const SymbolTable &otherScope);
         void setScopeName(std::string name = "global") {
             scope.name = name;
-        };
+        }
         void setDebugMode(bool state) {
             debugMode = state;
-        };
+        }
         void setExecution(bool state) {
             executeStatements = state;
         }
 
-        void Parse();
-        void Interprete();
-        void Compile();
-        void checkAllThreadsCompleted();
+        std::vector<std::shared_ptr<Statement>> Parse();
+        
 
     private:
         std::vector<std::shared_ptr<Statement>> statements;
@@ -43,35 +39,32 @@ class Parser {
         Token previousToken;
         SymbolTable scope;
 
-       // Function declarations for parsing different token types
+        // Function declarations for parsing different token types
         void parseProgram();                                // To parse a complete program
         
-        void initializeEnvironment();                       // To initialize constants, objects and utilitiy functions
+        void initializeEnvironment();                       // To initialize constants, objects and utility functions
         void initializeFunctions();
         void initializeBuiltInObjects();
         void initializeConstants();
 
-        std::shared_ptr<Statement> parseStatement(bool checkForTerminalChar = true);              // To parse a single statement
+        std::shared_ptr<Statement> parseStatement(bool checkForTerminalChar = true); // To parse a single statement
 
         std::pair<std::vector<std::string>, std::vector<std::shared_ptr<Statement>>> parseParameters();
-        std::pair<
-                std::vector<std::string>,
-                std::vector<std::shared_ptr<Statement>>
-                > parseArguments();    // Parse code block
-        std::shared_ptr<Statement> parseFunctionDeclaration();    // To parse function declarations
-        // std::shared_ptr<Statement> parseFunctionCall();     // To parse function calls
-        std::shared_ptr<Statement> parseIdentifier();               // Call a function
+        std::pair<std::vector<std::string>, std::vector<std::shared_ptr<Statement>>> parseArguments(); // Parse code block
+        std::shared_ptr<Statement> parseFunctionDeclaration(); // To parse function declarations
+        // std::shared_ptr<Statement> parseFunctionCall();      // To parse function calls
+        std::shared_ptr<Statement> parseIdentifier();          // To parse an identifier / function call
 
-        std::shared_ptr<ForLoop> parseForLoop();                    // To parse for loops
-        std::shared_ptr<BreakStatement> parseBreak();                    // To parse for loops
-        std::shared_ptr<ContinueStatement> parseContinue();                    // To parse for loops
-        std::shared_ptr<Statement> parseIfStatement();              // To parse if statements
-        std::shared_ptr<Statement> parseWhileStatement();           // To parse while loops
-        std::shared_ptr<ReturnStatement> parseReturnStatement();    // To parse return statements
-        std::shared_ptr<Statement> parseAssignment();               // To parse variable assignments
-        std::string parseStringLiteral();                           // To parse strings
+        std::shared_ptr<ForLoop> parseForLoop();               // To parse for loops
+        std::shared_ptr<BreakStatement> parseBreak();          // To parse break statements
+        std::shared_ptr<ContinueStatement> parseContinue();    // To parse continue statements
+        std::shared_ptr<Statement> parseIfStatement();         // To parse if statements
+        std::shared_ptr<Statement> parseWhileStatement();      // To parse while loops
+        std::shared_ptr<ReturnStatement> parseReturnStatement();// To parse return statements
+        std::shared_ptr<Statement> parseAssignment();          // To parse variable assignments
+        std::string parseStringLiteral();                      // To parse string literals
         std::vector<std::shared_ptr<Statement>> parseBlock();
-        std::shared_ptr<Function> parseLambdaFunction();
+        // std::shared_ptr<Function> parseLambdaFunction();
         bool checkIfLambdaExpression();
         bool checkIfFunctionCall();
         SymbolTable::ValueType parseFunctionArrow();
@@ -89,29 +82,26 @@ class Parser {
         std::vector<std::string> parseTypeParametersForCall();
         std::vector<std::pair<std::string, std::string>> parseTypeParametersForDeclaration();
         
-
         // Parse Objects
         /*
-        std::shared_ptr<lambda> parseLambda();                      // To parse a lambda function
+        std::shared_ptr<lambda> parseLambda(); // To parse a lambda function
         */
-       std::shared_ptr<Statement> parseObject();
-       std::shared_ptr<Statement> parseClass();
-       ClassMemberModifiers parseClassMemberModifiers();
-       std::shared_ptr<Statement> parseThisStatement();
+        std::shared_ptr<Statement> parseObject();
+        std::shared_ptr<Statement> parseClass();
+        ClassMemberModifiers parseClassMemberModifiers();
+        std::shared_ptr<Statement> parseThisStatement();
 
-        // Parse binary and operational expressions like mathematical expressions
-        std::shared_ptr<Statement> parseTenaryExpression();                  // Parse a tenary expression
-        std::shared_ptr<Statement> parseBinaryExpression();                  // Parse a binary expression
-        std::shared_ptr<Statement> parseExpression();                       // To parse an expression
+        // Parse binary and operational expressions (e.g., mathematical expressions)
+        std::shared_ptr<Statement> parseTenaryExpression();   // Parse a ternary expression
+        std::shared_ptr<Statement> parseBinaryExpression();   // Parse a binary expression
+        std::shared_ptr<Statement> parseExpression();         // To parse a general expression
         std::shared_ptr<Statement> logicalOrExpression();
         std::shared_ptr<Statement> logicalAndExpression();
         std::shared_ptr<Statement> comparisonExpression();
-        std::shared_ptr<Statement> term();                                  // To parse multiplications and divisions
-        std::shared_ptr<Statement> factor();                            // To parse brackets expressions ()
+        std::shared_ptr<Statement> term();                    // To parse multiplications and divisions
+        std::shared_ptr<Statement> factor();                  // To parse bracketed expressions ()
 
         void eat(TokenTypes expectedType, const std::string& errorMessage = ""); // Helper function to consume a token if it matches the expected type
-        
 };
-
 
 #endif

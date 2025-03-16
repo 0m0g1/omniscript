@@ -72,6 +72,7 @@ endif
 GENERATED :=
 OBJECTS :=
 
+GENERATED += $(OBJDIR)/Allocator.o
 GENERATED += $(OBJDIR)/Application.o
 GENERATED += $(OBJDIR)/Audio.o
 GENERATED += $(OBJDIR)/AudioAccess.o
@@ -87,6 +88,7 @@ GENERATED += $(OBJDIR)/FileAccess.o
 GENERATED += $(OBJDIR)/Function.o
 GENERATED += $(OBJDIR)/Http.o
 GENERATED += $(OBJDIR)/IRGenerator.o
+GENERATED += $(OBJDIR)/JITCompiler.o
 GENERATED += $(OBJDIR)/Json.o
 GENERATED += $(OBJDIR)/KeyEvent.o
 GENERATED += $(OBJDIR)/Math.o
@@ -111,6 +113,7 @@ GENERATED += $(OBJDIR)/parser.o
 GENERATED += $(OBJDIR)/symboltable.o
 GENERATED += $(OBJDIR)/tokens.o
 GENERATED += $(OBJDIR)/utils.o
+OBJECTS += $(OBJDIR)/Allocator.o
 OBJECTS += $(OBJDIR)/Application.o
 OBJECTS += $(OBJDIR)/Audio.o
 OBJECTS += $(OBJDIR)/AudioAccess.o
@@ -126,6 +129,7 @@ OBJECTS += $(OBJDIR)/FileAccess.o
 OBJECTS += $(OBJDIR)/Function.o
 OBJECTS += $(OBJDIR)/Http.o
 OBJECTS += $(OBJDIR)/IRGenerator.o
+OBJECTS += $(OBJDIR)/JITCompiler.o
 OBJECTS += $(OBJDIR)/Json.o
 OBJECTS += $(OBJDIR)/KeyEvent.o
 OBJECTS += $(OBJDIR)/Math.o
@@ -216,7 +220,13 @@ endif
 $(OBJDIR)/Core.o: src/Core.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Allocator.o: src/engine/Allocator.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/IRGenerator.o: src/engine/IRGenerator.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/JITCompiler.o: src/engine/JITCompiler.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/lexer.o: src/engine/lexer.cpp

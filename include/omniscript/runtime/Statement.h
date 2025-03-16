@@ -1,10 +1,6 @@
 #pragma once
 
-// #include <llvm/IR/Value.h>
-// #include <cmath>
-// #include <vector>
-// #include <string>
-// #include <iostream>
+#include <omniscript/engine/IRGenerator.h>
 #include <omniscript/runtime/object.h>
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
@@ -23,7 +19,7 @@ class Statement { // Base class for all statements
 
         // }
         // virtual std::unique_ptr<Statement> clone() const = 0; // clone method
-        virtual void execute(SymbolTable &scope) = 0; //Function to execute a statement
+        // virtual void execute(SymbolTable &scope) = 0; //Function to execute a statement
         virtual ~Statement() = default;
         // llvm::Value* codegen() { return nullptr; }
 
@@ -48,144 +44,175 @@ class Statement { // Base class for all statements
 
 };
 
-class Expression {
+template <typename Derived>
+class StatementCRTP : public Statement {
     public:
-    // Helper function to extract values from statements
-    static std::optional<SymbolTable::ValueType> evaluate(const SymbolTable::ValueType& statement, SymbolTable &scope);
+        llvm::Value* generateIR(IRGenerator& generator) {
+            // return static_cast<Derived*>(this)->codegen(scope);
+            return nullptr;
+        }
 };
 
-class Value: public Statement {
-    public:
-        Value(SymbolTable::ValueType value = {})
-            : value(value) {}
-
-        SymbolTable::ValueType value; // Store a value
-
-        void execute(SymbolTable &scope) override {}
-
-        SymbolTable::ValueType evaluate(SymbolTable &scope);
-
-
-
-};
-
-class Assignment : public Statement {
+class Literal : public StatementCRTP<Literal> {
 public:
-    Assignment(const std::string &variable, std::optional<SymbolTable::ValueType> value = SymbolTable::ValueType{}) :
+    virtual ~Literal() = default;
+};
+
+// ============================== Numeric Literals ============================== //
+
+// Base class for numeric literals
+template <typename T, typename V>
+class NumericLiteral : public Literal {
+public:
+    using ValueType = V;
+    ValueType value;
+
+    explicit NumericLiteral(ValueType val) : value(val) {}
+
+    llvm::Value* codegen(IRGenerator& generator) {
+        return static_cast<T*>(this)->codegenImpl(generator);
+    }
+};
+
+class Int8Bit : public NumericLiteral<Int8Bit, int8_t> {
+public:
+    using NumericLiteral::NumericLiteral;
+    llvm::Value* codegenImpl(IRGenerator& generator);
+};
+
+class Int16Bit : public NumericLiteral<Int16Bit, int16_t> {
+public:
+    using NumericLiteral::NumericLiteral;
+    llvm::Value* codegenImpl(IRGenerator& generator);
+};
+
+class Int32Bit : public NumericLiteral<Int32Bit, int32_t> {
+public:
+    using NumericLiteral::NumericLiteral;
+    llvm::Value* codegenImpl(IRGenerator& generator);
+};
+
+class Int64Bit : public NumericLiteral<Int64Bit, int64_t> {
+public:
+    using NumericLiteral::NumericLiteral;
+    llvm::Value* codegenImpl(IRGenerator& generator);
+};
+
+class Float32Bit : public NumericLiteral<Float32Bit, float> {
+public:
+    using NumericLiteral::NumericLiteral;
+    llvm::Value* codegenImpl(IRGenerator& generator);
+};
+
+class Float64Bit : public NumericLiteral<Float64Bit, double> {
+public:
+    using NumericLiteral::NumericLiteral;
+    llvm::Value* codegenImpl(IRGenerator& generator);
+};
+
+// Arbitrary-precision integer (BigInt)
+class BigInt : public NumericLiteral<BigInt, std::string> {
+public:
+    using NumericLiteral::NumericLiteral;
+    llvm::Value* codegenImpl(IRGenerator& generator);
+};
+
+// ============================== Other Literals ============================== //
+
+class StringLiteral : public Literal {
+public:
+    std::string value;
+
+    explicit StringLiteral(std::string val) : value(std::move(val)) {}
+    llvm::Value* codegen(IRGenerator& generator);
+};
+
+class BoolLiteral : public Literal {
+public:
+    bool value;
+
+    explicit BoolLiteral(bool val) : value(std::move(val)) {}
+    llvm::Value* codegen(IRGenerator& generator);
+};
+        
+    
+// ============================== Assignments ============================== //
+class Assignment : public StatementCRTP<Assignment> {
+public:
+    Assignment(const std::string &variable, std::shared_ptr<Statement> value) :
         variable(variable), value(value) {}
 
-    const std::string &getVariable() const { return variable; }
-    void setValue(SymbolTable::ValueType newValue) {
-        value = newValue;
-    }
-    SymbolTable::ValueType getValue() {
-        auto currentValue = value;
-        return currentValue.value(); 
-    }
-    std::shared_ptr<Assignment> clone() const {
-        return std::make_shared<Assignment>(*this); // Copy constructor
-    }
-    void execute(SymbolTable &scope) override;
+    llvm::Value* codegen(IRGenerator& generator);
+    
 
 private:
     std::string variable;
-    std::optional<SymbolTable::ValueType> value;
+    std::shared_ptr<Statement> value;
 };
 
-class ConstantAssignment : public Statement {
+class ConstantAssignment : public StatementCRTP<ConstantAssignment> {
 public:
-    ConstantAssignment(const std::string &variable, std::optional<SymbolTable::ValueType> value) :
+    ConstantAssignment(const std::string &variable, std::shared_ptr<Statement> value) :
         variable(variable), value(value) {}
 
-    const std::string &getVariable() const { return variable; }
-    void setValue(SymbolTable::ValueType newValue) {
-        value = newValue;
-    }
-    SymbolTable::ValueType getValue() {
-        auto tempValue = value;
-        return tempValue.value(); 
-    }
-    std::shared_ptr<ConstantAssignment> clone() const {
-        return std::make_shared<ConstantAssignment>(*this); // Copy constructor
-    }
+    llvm::Value* codegen(IRGenerator& generator);
 
-    void execute(SymbolTable &scope) override;
+    
 
 private:
     std::string variable;
-    std::optional<SymbolTable::ValueType> value;
-    std::optional<SymbolTable::ValueType> tempValue;
+    std::shared_ptr<Statement> value;
+    std::shared_ptr<Statement> tempValue;
 };
 
-class GenericAssignment : public Statement {
+class GenericAssignment : public StatementCRTP<GenericAssignment> {
 public:
-    GenericAssignment(const std::string &variable, SymbolTable::ValueType value) :
+    GenericAssignment(const std::string &variable, std::shared_ptr<Statement> value) :
         variable(variable), value(value) {}
 
-    const std::string &getVariable() const { return variable; }
-    void setValue(SymbolTable::ValueType newValue) {
-        value = newValue;
-    }
-    SymbolTable::ValueType getValue() {
-        auto tempValue = value;
-        return tempValue.value(); 
-    }
-    std::shared_ptr<GenericAssignment> clone() const {
-        return std::make_shared<GenericAssignment>(*this); // Copy constructor
-    }
+    llvm::Value* codegen(IRGenerator& generator);
 
-    void execute(SymbolTable &scope) override;
+    
 
 private:
     std::string variable;
-    std::optional<SymbolTable::ValueType> value;
-    std::optional<SymbolTable::ValueType> tempValue;
+    std::shared_ptr<Statement> value;
+    std::shared_ptr<Statement> tempValue;
 };
 
 
-class Variable : public Statement {
+class Variable : public StatementCRTP<Variable> {
 public:
-    Variable(SymbolTable::ValueType variable, SymbolTable::ValueType value = SymbolTable::ValueType{})
+    Variable(std::string variableName, std::shared_ptr<Statement> value = std::shared_ptr<Statement>{})
         : variable(variable), value(value) {}
 
-    SymbolTable::ValueType value;
-    
-    SymbolTable::ValueType getValue() {
-        auto currentValue = value;
-        value = tempValue;
-        // console.debug("The variable statement for '" + valueToString(variable) + "' was reset");
-        return currentValue; 
-    }
-
-    void execute(SymbolTable &scope) override {};
-    SymbolTable::ValueType evaluate(SymbolTable &scope);
-
-
-    SymbolTable::ValueType variable;
+        
+    llvm::Value* codegen(IRGenerator& generator);
+        
+    std::shared_ptr<Statement> value;
+    std::shared_ptr<Statement> variable;
 private:
-    SymbolTable::ValueType tempValue;
+    std::shared_ptr<Statement> tempValue;
 };
 
 
-class ReturnStatement : public Statement {
+class ReturnStatement : public StatementCRTP<ReturnStatement> {
 public:
-    ReturnStatement(std::optional<SymbolTable::ValueType> value = std::nullopt)
+    ReturnStatement(std::shared_ptr<Statement> value)
         : returnValue(value) {}
+    llvm::Value* codegen(IRGenerator& generator);
+    std::shared_ptr<Statement> returnValue; // Store the return value
 
-    std::optional<SymbolTable::ValueType> returnValue; // Store the return value
-
-    // std::vector<std::optional<SymbolTable::ValueType>> variableReturnValues;
-    std::optional<SymbolTable::ValueType> variableReturnValue = std::nullopt;
-
-    void execute(SymbolTable &scope) override {};
-    SymbolTable::ValueType evaluate(SymbolTable &scope);
+    // std::vector<std::optional<std::shared_ptr<Statement>>> variableReturnValues;
+    std::shared_ptr<Statement> variableReturnValue;
+    
 };
 
 
-class FunctionCallStatement : public Statement {
+class FunctionCallStatement : public StatementCRTP<FunctionCallStatement> {
 public:
     FunctionCallStatement(
-            SymbolTable::ValueType func,
+            std::shared_ptr<Statement> func,
             std::vector<std::shared_ptr<Statement>> args,
             std::string baseName = "",
             std::string specializedName = "",
@@ -194,41 +221,37 @@ public:
             
             func(func), args(std::move(args)), types(types), baseName(baseName), specializedName(specializedName) {}
 
-    // New method to get the return value
-
-    void execute(SymbolTable &scope) override {}
-
-    SymbolTable::ValueType evaluate(SymbolTable &scope);
-    
+        llvm::Value* codegen(IRGenerator& generator);
     
     private:
-    SymbolTable::ValueType func;
-    std::vector<std::shared_ptr<Statement>> args;
-    std::vector<std::string> types;
-    std::string baseName;
-    std::string specializedName;
+        std::shared_ptr<Statement> func;
+        std::vector<std::shared_ptr<Statement>> args;
+        std::vector<std::string> types;
+        std::string baseName;
+        std::string specializedName;
 };
 
-class BlockStatement : public Statement {
+class BlockStatement : public StatementCRTP<BlockStatement> {
 public:
     BlockStatement(std::vector<std::shared_ptr<Statement>> statements = {})
     : statements(std::move(statements)) {}
 
-    void execute(SymbolTable &scope) override;
-    // SymbolTable::ValueType evaluate(SymbolTable &scope) override;
+    llvm::Value* codegen(IRGenerator& generator);
 
 private:
     std::vector<std::shared_ptr<Statement>> statements;
 };
 
-class IfStatement : public Statement {
+class IfStatement : public StatementCRTP<IfStatement> {
 public:
     IfStatement(std::shared_ptr<Statement> condition,
                 std::vector<std::shared_ptr<Statement>> body = {},
                 std::vector<std::shared_ptr<IfStatement>> branches = {}, 
                 std::vector<std::shared_ptr<Statement>> falseBranch = {}) 
         : condition(condition), body(body), branches(branches), falseBranch(falseBranch) {}
-
+    
+    llvm::Value* codegen(IRGenerator& generator);
+    
     std::shared_ptr<Statement> condition;
     std::vector<std::shared_ptr<Statement>> body;
     std::vector<std::shared_ptr<IfStatement>> branches;
@@ -237,17 +260,14 @@ public:
 
     bool conditionIsMet(SymbolTable &scope);
 
-    void execute(SymbolTable &scope) override {
-    }
-
-    SymbolTable::ValueType evaluate(SymbolTable &scope);
+    
 };
 
 
 // Binary expression statement
-class BinaryExpression : public Statement {
+class BinaryExpression : public StatementCRTP<BinaryExpression> {
 public:
-    BinaryExpression(SymbolTable::ValueType left = SymbolTable::ValueType{}, TokenTypes op = TokenTypes::Null, SymbolTable::ValueType right = SymbolTable::ValueType{})
+    BinaryExpression(std::shared_ptr<Statement> left = std::shared_ptr<Statement>{}, TokenTypes op = TokenTypes::Null, std::shared_ptr<Statement> right = std::shared_ptr<Statement>{})
         : left(left), op(op), right(right) {}
 
      // Helper function to get operator as a string
@@ -270,21 +290,20 @@ public:
 
     
     // Method to evaluate the binary expression
-    std::optional<SymbolTable::ValueType> evaluate(SymbolTable &scope);
+    llvm::Value* codegen(IRGenerator& generator);
+    std::shared_ptr<Statement> evaluate(SymbolTable &scope);
     
-    void execute(SymbolTable &scope) override {
-    }
 
 private:
-    SymbolTable::ValueType left;
+    std::shared_ptr<Statement> left;
     TokenTypes op;
-    SymbolTable::ValueType right;
+    std::shared_ptr<Statement> right;
 
 };
 
-class UnaryExpression : public Statement {
+class UnaryExpression : public StatementCRTP<UnaryExpression> {
 public:
-    UnaryExpression(SymbolTable::ValueType left = SymbolTable::ValueType{}, TokenTypes op = TokenTypes::Null, SymbolTable::ValueType right = SymbolTable::ValueType{})
+    UnaryExpression(std::shared_ptr<Statement> left = std::shared_ptr<Statement>{}, TokenTypes op = TokenTypes::Null, std::shared_ptr<Statement> right = std::shared_ptr<Statement>{})
         : left(left), op(op), right(right) {}
 
      // Helper function to get operator as a string
@@ -307,27 +326,25 @@ public:
 
     
     // Method to evaluate the binary expression
-    std::optional<SymbolTable::ValueType> evaluate(SymbolTable &scope);
+    llvm::Value* codegen(IRGenerator& generator);
+    std::shared_ptr<Statement> evaluate(SymbolTable &scope);
     
-    void execute(SymbolTable &scope) override {
-    }
+
 
 private:
-    SymbolTable::ValueType left;
+    std::shared_ptr<Statement> left;
     TokenTypes op;
-    SymbolTable::ValueType right;
+    std::shared_ptr<Statement> right;
 
 };
 
 
-class TenaryExpression : public Statement {
+class TenaryExpression : public StatementCRTP<TenaryExpression> {
     public:
         TenaryExpression(std::shared_ptr<Statement> condition, std::shared_ptr<Statement> truthy, std::shared_ptr<Statement> falsey) :
         condition(condition), truthy(truthy), falsey(falsey) {}
 
-        void execute(SymbolTable &scope) override {};
-
-        SymbolTable::ValueType evaluate(SymbolTable &scope);
+    llvm::Value* codegen(IRGenerator& generator);
 
     private:
         std::shared_ptr<Statement> condition;
@@ -336,23 +353,19 @@ class TenaryExpression : public Statement {
 };
 
 // A while statement
-class WhileStatement : public Statement {
+class WhileStatement : public StatementCRTP<WhileStatement> {
 public:
     WhileStatement(std::shared_ptr<Statement> condition, std::vector<std::shared_ptr<Statement>> body = {})
         : condition(condition), body(body) {}
 
+    llvm::Value* codegen(IRGenerator& generator);
     std::shared_ptr<Statement> condition;
     std::vector<std::shared_ptr<Statement>> body;
-
-    void execute(SymbolTable &scope) override {
-    }
-
-    SymbolTable::ValueType evaluate(SymbolTable &scope);
 
 private:
     // Helper function to evaluate the condition as a boolean
     bool evaluateCondition(SymbolTable &scope) {
-        auto result = Expression::evaluate(condition, scope);
+        // auto result = Expression::evaluate(condition, scope);
         
         return false; // If the condition cannot be evaluated to a valid boolean, stop the loop
     }
@@ -360,38 +373,38 @@ private:
 
 
 // A class to call methods on objects
-class CallMethod : public Statement {
+class CallMethod : public StatementCRTP<CallMethod> {
+public:
+    CallMethod(std::shared_ptr<Statement> object, const std::string& methodName, std::vector<std::shared_ptr<Statement>> args)
+        : object(object), methodName(methodName), arguments(std::move(args)) {}
+    
+    
+    llvm::Value* codegen(IRGenerator& generator);
+    std::shared_ptr<Statement> evaluate(SymbolTable& scope);
 private:
-    SymbolTable::ValueType object; // The base object on which the method is called.
+    std::shared_ptr<Statement> object; // The base object on which the method is called.
     std::string methodName; // The method name.
     std::vector<std::shared_ptr<Statement>> arguments; // The arguments to the method.
 
-public:
-    CallMethod(SymbolTable::ValueType object, const std::string& methodName, std::vector<std::shared_ptr<Statement>> args)
-        : object(object), methodName(methodName), arguments(std::move(args)) {}
-    
-    void execute(SymbolTable &scope) override {}
-
-    SymbolTable::ValueType evaluate(SymbolTable& scope);
 };
 
-class GetProperty : public Statement {
+class GetProperty : public StatementCRTP<GetProperty> {
 private:
-    SymbolTable::ValueType object; // The base object on which the method is called.
+    std::shared_ptr<Statement> object; // The base object on which the method is called.
     std::string propertyName; // The method name.
     std::vector<std::shared_ptr<Statement>> arguments; // The arguments to the method.
 
 public:
-    GetProperty(SymbolTable::ValueType object, const std::string& propertyName)
+    GetProperty(std::shared_ptr<Statement> object, const std::string& propertyName)
         : object(object), propertyName(propertyName) {}
     
-    void execute(SymbolTable &scope) override {}
-
-    SymbolTable::ValueType evaluate(SymbolTable& scope);
+    
+    llvm::Value* codegen(IRGenerator& generator);
+    std::shared_ptr<Statement> evaluate(SymbolTable& scope);
 };
 
 
-class ForLoop : public Statement {
+class ForLoop : public StatementCRTP<ForLoop> {
     std::shared_ptr<Statement> initialization;
     std::shared_ptr<Statement> condition;
     std::shared_ptr<Statement> increment;
@@ -402,48 +415,41 @@ public:
             std::shared_ptr<Statement> incr, std::vector<std::shared_ptr<Statement>> body)
         :   initialization(std::move(init)), condition(std::move(cond)), 
             increment(std::move(incr)), body(std::move(body)) {}
-
-    void execute(SymbolTable &scope) override {
-    }
-
-    SymbolTable::ValueType evaluate(SymbolTable& scope);
+    llvm::Value* codegen(IRGenerator& generator);
+    std::shared_ptr<Statement> evaluate(SymbolTable& scope);
 };
 
-class BreakStatement : public Statement {
+class BreakStatement : public StatementCRTP<BreakStatement> {
+    public:
+        llvm::Value* codegen(IRGenerator& generator);
+};
+
+class ContinueStatement : public StatementCRTP<ContinueStatement> {
 public:
-    void execute(SymbolTable& scope) override {
-        // The break statement just stops the loop, no value is returned
-    }
+    llvm::Value* codegen(IRGenerator& generator);
 };
 
-class ContinueStatement : public Statement {
-public:
-    void execute(SymbolTable& scope) override {
-        // The continue statement just skips to the next loop iteration
-    }
-};
-
-class ObjectConstructorStatement : public Statement {
+class ObjectConstructorStatement : public StatementCRTP<ObjectConstructorStatement> {
 private:
-    SymbolTable::ValueType obj;
+    std::shared_ptr<Object> obj;
     std::vector<std::shared_ptr<Statement>> constructorArgs;
 
 public:
-    ObjectConstructorStatement(SymbolTable::ValueType obj,
+    ObjectConstructorStatement(std::shared_ptr<Object> obj,
                                std::vector<std::shared_ptr<Statement>> args = {})
         : obj(obj), constructorArgs(std::move(args)) {}
 
-    void execute(SymbolTable &scope) override {};
-    SymbolTable::ValueType evaluate(SymbolTable &scope);
+    llvm::Value* codegen(IRGenerator& generator);
+    
 };
 
-class ObjectDestructorStatement : public Statement {
+class ObjectDestructorStatement : public StatementCRTP<ObjectDestructorStatement> {
 private:
     std::string variableName; // The variable holding the object reference
 
 public:
     explicit ObjectDestructorStatement(const std::string& variableName)
         : variableName(variableName) {}
-
-    void execute(SymbolTable &scope) override;
+        llvm::Value* codegen(IRGenerator& generator);
+    
 };

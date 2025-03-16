@@ -13,7 +13,7 @@
 using ArgumentDefinition = std::vector<SymbolTable::ValueType>;
 using MethodDefinition = std::variant<
                             std::nullptr_t,
-                            std::shared_ptr<Function>,
+                            // std::shared_ptr<Function>,
                             std::function<SymbolTable::ValueType(const ArgumentDefinition&)>
                             >;
                             
@@ -77,13 +77,13 @@ public:
         }
 
         // Check if the name exists as a method
-        auto methodIt = methods.find(name);
-        if (methodIt != methods.end()) {
-            auto method = methodIt->second;
-            if (std::holds_alternative<std::shared_ptr<Function>>(method)) {
-                return std::get<std::shared_ptr<Function>>(method);
-            }
-        }
+        // auto methodIt = methods.find(name);
+        // if (methodIt != methods.end()) {
+        //     auto method = methodIt->second;
+        //     if (std::holds_alternative<std::shared_ptr<Function>>(method)) {
+        //         return std::get<std::shared_ptr<Function>>(method);
+        //     }
+        // }
 
         // Return null if neither property nor method exists
         return nullptr;
