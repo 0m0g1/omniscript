@@ -4,6 +4,7 @@
 #include <omniscript/runtime/Statement.h>
 #include <omniscript/engine/IRGenerator.h>
 #include <omniscript/omniscript_pch.h>
+#include <omniscript/engine/EngineConfigs.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>

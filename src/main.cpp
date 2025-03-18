@@ -5,13 +5,7 @@
 #include <omniscript/runtime/Statement.h>
 #include <omniscript/engine/IRGenerator.h>
 #include <omniscript/engine/JITCompiler.h>
-
-struct Config {
-    bool debugMode = false;
-    bool executeStatements = false; // JIT execution flag
-    bool useCompiler = false;        // AOT compilation flag
-    std::string filePath;
-};
+#include <omniscript/engine/EngineConfigs.h>
 
 class Compiler {
 private:
