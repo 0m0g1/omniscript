@@ -16,34 +16,140 @@
 // #include <omniscript/runtime/Pointer.h>
 
 
-llvm::Value* Int8Bit::codegenImpl(IRGenerator& generator) {
+llvm::Value* Int8Bit::codegen(IRGenerator& generator) {
+    console.debug("Creating an 8 bit integer " + std::to_string(value));
     return generator.create8BitInteger(this->value);
 }
 
-llvm::Value* Int16Bit::codegenImpl(IRGenerator& generator) {
+llvm::Value* Int16Bit::codegen(IRGenerator& generator) {
     return generator.create16BitInteger(this->value);
 }
 
-llvm::Value* Int32Bit::codegenImpl(IRGenerator& generator) {
+llvm::Value* Int32Bit::codegen(IRGenerator& generator) {
+    console.debug("Creating an 8 bit integer with value" + std::to_string(value));
     return generator.create32BitInteger(this->value);
 }
 
-llvm::Value* Int64Bit::codegenImpl(IRGenerator& generator) {
+llvm::Value* Int64Bit::codegen(IRGenerator& generator) {
     return generator.create64BitInteger(this->value);
 }
 
-llvm::Value* Float32Bit::codegenImpl(IRGenerator& generator) {
+llvm::Value* Float32Bit::codegen(IRGenerator& generator) {
     return generator.create32BitFloat(this->value);
 }
 
-llvm::Value* Float64Bit::codegenImpl(IRGenerator& generator) {
+llvm::Value* Float64Bit::codegen(IRGenerator& generator) {
     return generator.create64BitFloat(this->value);
 }
 
 // Arbitrary-precision integer (BigInt)
-llvm::Value* BigInt::codegenImpl(IRGenerator& generator) {
+llvm::Value* BigInt::codegen(IRGenerator& generator) {
     return generator.createBigInt(this->value); // Assuming IRGenerator has a method for BigInt
 }
+
+llvm::Value* BoolLiteral::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* StringLiteral::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+// ======================= Assignments and Variable Getters ======================= //
+// Assignment
+createVariable::createVariable(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value)
+    : variable(variable), type(type), value(value) {}
+
+llvm::Value* createVariable::codegen(IRGenerator& generator) {
+    console.debug("Creating variable " + variable);
+    llvm::Value* result = value->codegen(generator);
+    return generator.createVariable(variable, type, result);
+}
+
+// Constant Assignment
+createConstant::createConstant(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value)
+: variable(variable), type(type), value(value) {}
+
+llvm::Value* createConstant::codegen(IRGenerator& generator) {
+    return generator.createConstant(variable, type, value->codegen(generator));
+}
+
+// Dynamic Assignment
+createDynamicVariable::createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value)
+    : variable(variable), value(value) {}
+
+llvm::Value* createDynamicVariable::codegen(IRGenerator& generator) {
+    return generator.assignDynamicVariable(variable, value->codegen(generator));
+}
+
+// Get Variable
+GetVariable::GetVariable(const std::string &variable) : variable(variable) {}
+
+llvm::Value* GetVariable::codegen(IRGenerator& generator) {
+    return generator.getVariable(variable);
+}
+
+// Get Dynamic Variable
+GetDynamicVariable::GetDynamicVariable(const std::string &variable) : variable(variable) {}
+
+llvm::Value* GetDynamicVariable::codegen(IRGenerator& generator) {
+    return generator.getDynamicVariable(variable);
+}
+
+
+llvm::Value* BreakStatement::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* ContinueStatement::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* ObjectConstructorStatement::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* ForLoop::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* GetProperty::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* CallMethod::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* WhileStatement::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* TenaryExpression::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* BinaryExpression::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* IfStatement::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* FunctionCallStatement::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* ReturnStatement::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+llvm::Value* Variable::codegen(IRGenerator& generator) {
+    return nullptr;
+}
+
+
 
 // // Helper function to extract values from statements
 // std::optional<SymbolTable::ValueType> Expression::evaluate(const SymbolTable::ValueType& object, SymbolTable &scope) {

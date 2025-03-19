@@ -1,5 +1,5 @@
-let a = 10;
-// let b = 0;
+let a : i8 = 10;
+let b : i8 = 0;
    
 /* This is a function */
 // function changeA() {
@@ -13,13 +13,13 @@ let a = 10;
    // a += changeA();
 // }
 
-let a = 0;
-for (let i = 0; i < 5; i++) {
-   console.log(i);
-   a++;
-}
+// let a = 0;
+// for (let i = 0; i < 5; i++) {
+//    console.log(i);
+//    a++;
+// }
 
-console.log(a);
+// console.log(a);
 
 // changeA();
 // a = (changeA() + (5 + 1) / 2 * 3 - 1);

@@ -80,11 +80,14 @@ std::string valueToString(const SymbolTable::ValueType& value, int indentLevel) 
             // Check the exact type of the statement object using dynamic_cast
             if (dynamic_cast<Literal*>(&stmt)) {
                 return "[Literal Statement]";
-            } else if (dynamic_cast<Assignment*>(&stmt)) {
-                return "[Assignment Statement]";
-            } else if (dynamic_cast<ConstantAssignment*>(&stmt)) {
-                return "[Constant Assignment Statement]";
-            } else if (dynamic_cast<GenericAssignment*>(&stmt)) {
+            } 
+            // else if (dynamic_cast<Assignment*>(&stmt)) {
+                // return "[Assignment Statement]";
+            // } 
+            // else if (dynamic_cast<ConstantAssignment*>(&stmt)) {
+            //     return "[Constant Assignment Statement]";
+            // }
+            else if (dynamic_cast<GenericAssignment*>(&stmt)) {
                 return "[Generic Assignment Statement]";
             } else if (dynamic_cast<Variable*>(&stmt)) {
                 return "[Variable Statement]";

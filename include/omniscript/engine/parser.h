@@ -8,13 +8,14 @@
 #include <omniscript/runtime/Statement.h>
 #include <omniscript/runtime/symboltable.h>
 #include <omniscript/runtime/Class.h>
+#include <omniscript/engine/IRGenerator.h>
 
 //Include llvm headers
 // #include <llvm-c/...
 
 class Parser {
     public:
-        Parser(Lexer &lexer) : lexer(lexer), currentToken(lexer.getNextToken()) {}
+        Parser(Lexer &lexer, IRGenerator& irGen) : lexer(lexer), irGen(irGen), currentToken(lexer.getNextToken()) {}
         void setScope(const SymbolTable &otherScope);
         void setScopeName(std::string name = "global") {
             scope.name = name;
@@ -34,7 +35,8 @@ class Parser {
 
         bool executeStatements = true;
         bool debugMode = false;
-        Lexer &lexer;
+        IRGenerator& irGen;
+        Lexer& lexer;
         Token currentToken;
         Token previousToken;
         SymbolTable scope;

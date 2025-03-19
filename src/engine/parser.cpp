@@ -32,11 +32,6 @@
 // #include <omniscript/runtime/Path/Path.h>
 // #include <omniscript/runtime/OS/OS.h>
 
-// #include <llvm/IR/LLVMContext.h>
-// #include <llvm/IR/Module.h>
-// #include <llvm/IR/IRBuilder.h>
-// #include <llvm/Support/raw_ostream.h>
-
 
 // Entry point for parsing the program
 std::vector<std::shared_ptr<Statement>> Parser::Parse() {
@@ -946,7 +941,7 @@ std::pair<std::vector<std::string>, std::vector<std::shared_ptr<Statement>>> Par
             }
 
             // Add assignment for default value or implicit null
-            parameters.push_back(std::make_shared<Assignment>(paramName, defaultValue));
+            // parameters.push_back(std::make_shared<Assignment>(paramName, defaultValue));
         }
 
         if (currentToken.getType() == TokenTypes::Comma) {
@@ -1471,35 +1466,51 @@ std::shared_ptr<Statement> Parser::parseNamespace() {
 std::shared_ptr<Statement> Parser::parseAssignment() {
     TokenTypes variableType;
     std::string variableName;
+    std::vector<std::string> dataTypes;
+    std::shared_ptr<Statement> value;
+    llvm::Type* type;
 
     // Parse variable declarations (let or const)
     if (currentToken.getType() == TokenTypes::Let) {
         eat(TokenTypes::Let);
         variableType = TokenTypes::Let;
-        variableName = currentToken.getValue();
-        eat(TokenTypes::Identifier);
     } else if (currentToken.getType() == TokenTypes::Const) {
         eat(TokenTypes::Const);
         variableType = TokenTypes::Const;
-        variableName = currentToken.getValue();
-        eat(TokenTypes::Identifier);
     } else {
         variableName = previousToken.getValue();
     }
 
-    console.debug("Parsing an assignment for " + getTokenTypeName(variableType) + " " + variableName);
+    // Handle type annotation before variable name
+    if (currentToken.getType() == TokenTypes::Identifier) {
+        variableName = currentToken.getValue();
 
-    SymbolTable::ValueType dataType;
-    if (currentToken.getType() == TokenTypes::Colon) {
-        eat(TokenTypes::Colon);
-        dataType = currentToken.getValue();
         eat(TokenTypes::Identifier);
+
+        if (currentToken.getType() == TokenTypes::Colon) {
+            // Handling `let b : Numbers.i8 = 0;`
+            eat(TokenTypes::Colon);
+
+            std::vector<std::string> namespaceParts;
+            namespaceParts.push_back(currentToken.getValue());
+            eat(TokenTypes::Identifier);
+
+            while (currentToken.getType() == TokenTypes::Dot) {
+                eat(TokenTypes::Dot);
+                namespaceParts.push_back(currentToken.getValue());
+                eat(TokenTypes::Identifier);
+            }
+
+            dataTypes = namespaceParts;
+        }
     }
 
-    std::shared_ptr<Statement> value;
+    type = irGen.resolveLLVMType(dataTypes);
+
+    console.debug("Parsing assignment for " + getTokenTypeName(variableType) + " " + variableName + " with type " + dataTypes[dataTypes.size() - 1]);
+    
     if (currentToken.getType() != TokenTypes::Semicolon) {
-        if (currentToken.getType() == TokenTypes::Increment ||
-            currentToken.getType() == TokenTypes::Decrement) { // Check if the imediate next operator is an increment (++) or decrement operator (--)
+        if (currentToken.getType() == TokenTypes::Increment || currentToken.getType() == TokenTypes::Decrement) {
             console.debug("Assigning a unary statement");
             switch (currentToken.getType()) {
                 case TokenTypes::Increment:
@@ -1513,7 +1524,7 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
             }
             eat(currentToken.getType());
         } else {
-            console.debug("Assigning a binary or tenary expression");
+            console.debug("Assigning a binary or ternary expression");
             Token currentAssignmentOperation = currentToken;
             eat(currentToken.getType());
 
@@ -1537,12 +1548,11 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
                 default:
                     eat(TokenTypes::Assign, "The current operator " + getTokenTypeName(currentAssignmentOperation.getType()) +
                     " at line : " + std::to_string(currentAssignmentOperation.getLine()) + " column: " +
-                    std::to_string(currentAssignmentOperation.getColumn()) +" is an invalid assigment operator. \n" +
-                    "Accepted assignment operators are '=', '+=', '-=', '/=/, and '*='." );
+                    std::to_string(currentAssignmentOperation.getColumn()) +" is an invalid assignment operator. \n" +
+                    "Accepted assignment operators are '=', '+=', '-=', '/=', and '*='.");
                     break;
             }
         }
-
     } else {
         value = nullptr; // For statements like `let a;` or `const a;`
         if (currentToken.getType() != TokenTypes::Newline &&
@@ -1551,11 +1561,12 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
             eat(TokenTypes::Semicolon);
         }
     }
-    
+
     if (variableType == TokenTypes::Const) {
-        return std::make_shared<ConstantAssignment>(variableName, value);
+        return std::make_shared<createConstant>(variableName, type, value);
     }
-    return std::make_shared<Assignment>(variableName, value);
+
+    return std::make_shared<createVariable>(variableName, type, value);
 }
 
 

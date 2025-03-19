@@ -3,10 +3,22 @@
 void JITCompiler::execute(const std::vector<std::shared_ptr<Statement>>& statements, const Config &config) {
     console.log("Executing with the JIT Compiler");
 
+    std::vector<std::function<void()>> pendingCalls; // Store top-level function calls
+
     // Generate IR for all statements
     for (const auto& statement : statements) {
-        llvm::Value* ir = static_cast<StatementCRTP<decltype(*statement.get())>*>(statement.get())->generateIR(irGen);
-        // Execute IR via JIT runtime
+        llvm::Value* ir = statement->codegen(irGen);
+        
+        // If this statement is a function call, store it for later execution
+        if (auto* func = llvm::dyn_cast<llvm::Function>(ir)) {
+            pendingCalls.push_back([this, func]() {
+                auto symbol = jit->lookup(func->getName().str());
+                if (symbol) {
+                    auto fnPtr = symbol->toPtr<void(*)()>();
+                    fnPtr();
+                }
+            });
+        }
     }
 
     // Print the generated IR
@@ -18,7 +30,6 @@ void JITCompiler::execute(const std::vector<std::shared_ptr<Statement>>& stateme
 
     // Wrap LLVMContext in ThreadSafeContext
     llvm::orc::ThreadSafeContext tsContext(irGen.getContext());
-
     auto module = std::move(irGen.getModule());
     llvm::orc::ThreadSafeModule tsm(std::move(module), tsContext);
 
@@ -27,14 +38,18 @@ void JITCompiler::execute(const std::vector<std::shared_ptr<Statement>>& stateme
         throw std::runtime_error("Failed to add IR module to JIT");
     }
 
-    // Look up the main function
+    // Look up `main`
     auto mainSymbol = jit->lookup("main");
-    if (!mainSymbol) {
-        throw std::runtime_error("Failed to find main function in JIT");
-    }
 
-    // Execute the main function
-    auto mainFunc = mainSymbol->toPtr<int(*)()>();
-    int result = mainFunc();
-    console.log("Execution Result: " + std::to_string(result));
+    if (mainSymbol) {
+        // Execute only main() and ignore top-level function calls
+        auto mainFunc = mainSymbol->toPtr<int(*)()>();
+        int result = mainFunc();
+        console.log("Execution Result: " + std::to_string(result));
+    } else {
+        // No main function? Execute stored top-level calls
+        for (auto& call : pendingCalls) {
+            call();
+        }
+    }
 }

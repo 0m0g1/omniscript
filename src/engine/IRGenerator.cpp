@@ -3,6 +3,7 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/StandardInstrumentations.h>
+#include <omniscript/debuggingtools/console.h>
 
 IRGenerator::IRGenerator() {
     Context = std::make_unique<llvm::LLVMContext>();
@@ -30,8 +31,35 @@ void IRGenerator::optimizeModule() {
     mpm.run(*Module, mam);
 }
 
-// Generate IR for different types
 
+llvm::Type* IRGenerator::resolveLLVMType(const std::vector<std::string>& dataTypes) {
+    if (dataTypes.empty()) {
+        return nullptr; // No type annotation provided
+    }
+
+    llvm::LLVMContext& context = *Context; // Dereferencing the unique_ptr
+
+    if (dataTypes[0] == "i8") {
+        return llvm::Type::getInt8Ty(context);
+    } else if (dataTypes[0] == "i16") {
+        return llvm::Type::getInt16Ty(context);
+    } else if (dataTypes[0] == "i32") {
+        return llvm::Type::getInt32Ty(context);
+    } else if (dataTypes[0] == "i64") {
+        return llvm::Type::getInt64Ty(context);
+    } else if (dataTypes[0] == "f32") {
+        return llvm::Type::getFloatTy(context);
+    } else if (dataTypes[0] == "f64") {
+        return llvm::Type::getDoubleTy(context);
+    }
+
+    // console.error("Unknown type: " + dataTypes[0]);
+    return nullptr;
+}
+
+
+
+// Generate IR for different types
 // ============================== Generate IR for Numeric Types ============================== //
 // Create an 8-bit integer (i8)
 llvm::Value* IRGenerator::create8BitInteger(int value) {
@@ -68,3 +96,95 @@ llvm::Value* IRGenerator::createBigInt(const std::string& str) {
     llvm::APInt bigIntValue(1024, str, 10); // 1024-bit integer from string (base 10)
     return llvm::ConstantInt::get(*Context, bigIntValue);
 }
+
+
+llvm::Value* IRGenerator::createVariable(const std::string& name, llvm::Type* type, llvm::Value* initialValue) {
+    llvm::IRBuilder<> builder(Builder->GetInsertBlock());
+    console.log("here");
+    llvm::AllocaInst* alloca = builder.CreateAlloca(type, nullptr, name);
+    console.log("here 1");
+    builder.CreateStore(initialValue, alloca);
+    console.log("here 2");
+    NamedValues[name] = alloca;
+    console.log("here 3");
+    return alloca;
+}
+
+llvm::Value* IRGenerator::createConstant(const std::string& name, llvm::Type* type, llvm::Value* value) {
+    NamedValues[name] = value;
+    return value;
+}
+
+llvm::Value* IRGenerator::createDynamicVariable(const std::string& name, llvm::Value* value) {
+    llvm::IRBuilder<> builder(Builder->GetInsertBlock());
+    llvm::AllocaInst* alloca = builder.CreateAlloca(value->getType(), nullptr, name);
+    builder.CreateStore(value, alloca);
+    NamedValues[name] = alloca;
+    return alloca;
+}
+
+llvm::Value* IRGenerator::reassign(const std::string& name, llvm::Value* newValue) {
+    if (NamedValues.find(name) == NamedValues.end()) {
+        throw std::runtime_error("Variable not found: " + name);
+    }
+    Builder->CreateStore(newValue, NamedValues[name]);
+    return newValue;
+}
+
+llvm::Value* IRGenerator::getVariable(const std::string& name) {
+    if (NamedValues.find(name) == NamedValues.end()) {
+        throw std::runtime_error("Variable not found: " + name);
+    }
+
+    llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(NamedValues[name]);
+    if (!alloca) {
+        throw std::runtime_error("Invalid variable type: " + name);
+    }
+
+    return Builder->CreateLoad(alloca->getAllocatedType(), alloca, name);
+}
+
+
+llvm::Value* IRGenerator::createDynamicConstant(const std::string& name, llvm::Value* value) {
+    NamedValues[name] = value;
+    return value;
+}
+
+llvm::Value* IRGenerator::assignDynamicVariable(const std::string& name, llvm::Value* newValue) {
+    auto it = runtimeVariables.find(name);
+    if (it != runtimeVariables.end()) {
+        delete it->second; // Free old value
+    }
+
+    if (llvm::ConstantInt* intVal = llvm::dyn_cast<llvm::ConstantInt>(newValue)) {
+        runtimeVariables[name] = new DynamicValue(intVal->getSExtValue());
+    } else if (llvm::ConstantFP* floatVal = llvm::dyn_cast<llvm::ConstantFP>(newValue)) {
+        runtimeVariables[name] = new DynamicValue(floatVal->getValueAPF().convertToDouble());
+    } else {
+        // Assume it's a string (you need proper string handling)
+        runtimeVariables[name] = new DynamicValue("string_value_placeholder");
+    }
+
+    return newValue;
+}
+
+
+llvm::Value* IRGenerator::getDynamicVariable(const std::string& name) {
+    llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(NamedValues[name]);
+    if (!alloca) {
+        throw std::runtime_error("Variable is not an AllocaInst: " + name);
+    }
+    return Builder->CreateLoad(alloca->getAllocatedType(), alloca, name);
+}
+
+llvm::Value* IRGenerator::generateOpaqueDynamicVariable(const std::string& name, llvm::Value* value) {
+    llvm::Type* int8PtrType = llvm::PointerType::get(llvm::Type::getInt8Ty(*Context), 0);
+    llvm::Value* castedValue = Builder->CreateBitCast(value, int8PtrType);
+
+    llvm::AllocaInst* alloca = Builder->CreateAlloca(int8PtrType, nullptr, name);
+    Builder->CreateStore(castedValue, alloca);
+
+    NamedValues[name] = alloca;
+    return alloca;
+}
+

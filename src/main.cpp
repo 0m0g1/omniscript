@@ -18,7 +18,7 @@ public:
 void Compiler::compile(const std::vector<std::shared_ptr<Statement>>& statements, const Config &config) {
     console.debug("Compiling source code...");
     for (const auto& statement : statements) {
-        llvm::Value* ir = static_cast<StatementCRTP<decltype(*statement.get())>*>(statement.get())->generateIR(irGen);
+        llvm::Value* ir = statement->codegen(irGen);
         // Further compilation logic (e.g., emitting LLVM IR)
     }
     console.log("Compilation completed.");
@@ -100,13 +100,15 @@ public:
 
     static void run(const Config& config) {
         std::string sourceCode = readSourceCode(config);
+        
+        IRGenerator irGen;
+
         Lexer lexer(sourceCode);
-        Parser parser(lexer);
+        Parser parser(lexer, irGen);
         parser.setScopeName();
         parser.setDebugMode(config.debugMode);
         std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
         
-        IRGenerator irGen;
         if (config.useCompiler) {
             Compiler compiler(irGen);
             compiler.compile(statements, config);

@@ -20,8 +20,9 @@ class Statement { // Base class for all statements
         // }
         // virtual std::unique_ptr<Statement> clone() const = 0; // clone method
         // virtual void execute(SymbolTable &scope) = 0; //Function to execute a statement
-        virtual ~Statement() = default;
-        // llvm::Value* codegen() { return nullptr; }
+        ~Statement() = default;
+
+        virtual llvm::Value* codegen(IRGenerator& generator) {return nullptr; }
 
         inline void setPosition(int line, int column, const std::string& file) {
             pos.line = line;
@@ -44,77 +45,67 @@ class Statement { // Base class for all statements
 
 };
 
-template <typename Derived>
-class StatementCRTP : public Statement {
-    public:
-        llvm::Value* generateIR(IRGenerator& generator) {
-            // return static_cast<Derived*>(this)->codegen(scope);
-            return nullptr;
-        }
-};
 
-class Literal : public StatementCRTP<Literal> {
+class Literal : public Statement {
 public:
     virtual ~Literal() = default;
 };
 
 // ============================== Numeric Literals ============================== //
-
-// Base class for numeric literals
-template <typename T, typename V>
 class NumericLiteral : public Literal {
 public:
-    using ValueType = V;
-    ValueType value;
-
-    explicit NumericLiteral(ValueType val) : value(val) {}
-
-    llvm::Value* codegen(IRGenerator& generator) {
-        return static_cast<T*>(this)->codegenImpl(generator);
-    }
+    virtual ~NumericLiteral() = default;
 };
 
-class Int8Bit : public NumericLiteral<Int8Bit, int8_t> {
+class Int8Bit : public NumericLiteral {
 public:
-    using NumericLiteral::NumericLiteral;
-    llvm::Value* codegenImpl(IRGenerator& generator);
+    explicit Int8Bit(int8_t val) : value(val) {}
+    llvm::Value* codegen(IRGenerator& generator) override;
+    int8_t value;
 };
 
-class Int16Bit : public NumericLiteral<Int16Bit, int16_t> {
+class Int16Bit : public NumericLiteral {
 public:
-    using NumericLiteral::NumericLiteral;
-    llvm::Value* codegenImpl(IRGenerator& generator);
+    explicit Int16Bit(int16_t val) : value(val) {}
+    llvm::Value* codegen(IRGenerator& generator) override;
+    int16_t value;
 };
 
-class Int32Bit : public NumericLiteral<Int32Bit, int32_t> {
+class Int32Bit : public NumericLiteral {
 public:
-    using NumericLiteral::NumericLiteral;
-    llvm::Value* codegenImpl(IRGenerator& generator);
+    explicit Int32Bit(int32_t val) : value(val) {}
+    llvm::Value* codegen(IRGenerator& generator) override;
+    int32_t value;
 };
 
-class Int64Bit : public NumericLiteral<Int64Bit, int64_t> {
+class Int64Bit : public NumericLiteral {
 public:
-    using NumericLiteral::NumericLiteral;
-    llvm::Value* codegenImpl(IRGenerator& generator);
+    explicit Int64Bit(int64_t val) : value(val) {}
+    llvm::Value* codegen(IRGenerator& generator) override;
+    int64_t value;
 };
 
-class Float32Bit : public NumericLiteral<Float32Bit, float> {
+class Float32Bit : public NumericLiteral {
 public:
-    using NumericLiteral::NumericLiteral;
-    llvm::Value* codegenImpl(IRGenerator& generator);
+    explicit Float32Bit(float val) : value(val) {}
+    llvm::Value* codegen(IRGenerator& generator) override;
+    float value;
 };
 
-class Float64Bit : public NumericLiteral<Float64Bit, double> {
+class Float64Bit : public NumericLiteral {
 public:
-    using NumericLiteral::NumericLiteral;
-    llvm::Value* codegenImpl(IRGenerator& generator);
+    explicit Float64Bit(double val) : value(val) {}
+    llvm::Value* codegen(IRGenerator& generator) override;
+    double value;
 };
+    
 
 // Arbitrary-precision integer (BigInt)
-class BigInt : public NumericLiteral<BigInt, std::string> {
+class BigInt : public NumericLiteral {
 public:
-    using NumericLiteral::NumericLiteral;
-    llvm::Value* codegenImpl(IRGenerator& generator);
+    BigInt(const std::string& value) : value(value) {}
+    llvm::Value* codegen(IRGenerator& generator);
+    std::string value;
 };
 
 // ============================== Other Literals ============================== //
@@ -124,7 +115,7 @@ public:
     std::string value;
 
     explicit StringLiteral(std::string val) : value(std::move(val)) {}
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
 };
 
 class BoolLiteral : public Literal {
@@ -132,47 +123,71 @@ public:
     bool value;
 
     explicit BoolLiteral(bool val) : value(std::move(val)) {}
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
 };
         
     
 // ============================== Assignments ============================== //
-class Assignment : public StatementCRTP<Assignment> {
+// Assignments
+class createVariable : public Statement {
 public:
-    Assignment(const std::string &variable, std::shared_ptr<Statement> value) :
-        variable(variable), value(value) {}
+    createVariable(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value);
+    llvm::Value* codegen(IRGenerator& generator) override;
 
-    llvm::Value* codegen(IRGenerator& generator);
-    
+private:
+    std::string variable;
+    llvm::Type* type;
+    std::shared_ptr<Statement> value;
+};
+
+class createConstant : public Statement {
+public:
+    createConstant(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value);
+    llvm::Value* codegen(IRGenerator& generator) override;
+
+private:
+    std::string variable;
+    llvm::Type* type;
+    std::shared_ptr<Statement> value;
+};
+
+class createDynamicVariable : public Statement {
+public:
+    createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value);
+    llvm::Value* codegen(IRGenerator& generator) override;
 
 private:
     std::string variable;
     std::shared_ptr<Statement> value;
 };
 
-class ConstantAssignment : public StatementCRTP<ConstantAssignment> {
+
+// Variable Retrieval
+class GetVariable : public Statement {
 public:
-    ConstantAssignment(const std::string &variable, std::shared_ptr<Statement> value) :
-        variable(variable), value(value) {}
-
-    llvm::Value* codegen(IRGenerator& generator);
-
-    
+    GetVariable(const std::string &variable);
+    llvm::Value* codegen(IRGenerator& generator) override;
 
 private:
     std::string variable;
-    std::shared_ptr<Statement> value;
-    std::shared_ptr<Statement> tempValue;
 };
 
-class GenericAssignment : public StatementCRTP<GenericAssignment> {
+class GetDynamicVariable : public Statement {
+public:
+    GetDynamicVariable(const std::string &variable);
+    llvm::Value* codegen(IRGenerator& generator) override;
+
+private:
+    std::string variable;
+};
+    
+
+class GenericAssignment : public Statement {
 public:
     GenericAssignment(const std::string &variable, std::shared_ptr<Statement> value) :
         variable(variable), value(value) {}
 
-    llvm::Value* codegen(IRGenerator& generator);
-
-    
+    llvm::Value* codegen(IRGenerator& generator) override;
 
 private:
     std::string variable;
@@ -181,13 +196,13 @@ private:
 };
 
 
-class Variable : public StatementCRTP<Variable> {
+class Variable : public Statement {
 public:
     Variable(std::string variableName, std::shared_ptr<Statement> value = std::shared_ptr<Statement>{})
         : variable(variable), value(value) {}
 
         
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
         
     std::shared_ptr<Statement> value;
     std::shared_ptr<Statement> variable;
@@ -196,11 +211,11 @@ private:
 };
 
 
-class ReturnStatement : public StatementCRTP<ReturnStatement> {
+class ReturnStatement : public Statement {
 public:
     ReturnStatement(std::shared_ptr<Statement> value)
         : returnValue(value) {}
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
     std::shared_ptr<Statement> returnValue; // Store the return value
 
     // std::vector<std::optional<std::shared_ptr<Statement>>> variableReturnValues;
@@ -209,7 +224,7 @@ public:
 };
 
 
-class FunctionCallStatement : public StatementCRTP<FunctionCallStatement> {
+class FunctionCallStatement : public Statement {
 public:
     FunctionCallStatement(
             std::shared_ptr<Statement> func,
@@ -221,7 +236,7 @@ public:
             
             func(func), args(std::move(args)), types(types), baseName(baseName), specializedName(specializedName) {}
 
-        llvm::Value* codegen(IRGenerator& generator);
+        llvm::Value* codegen(IRGenerator& generator) override;
     
     private:
         std::shared_ptr<Statement> func;
@@ -231,18 +246,18 @@ public:
         std::string specializedName;
 };
 
-class BlockStatement : public StatementCRTP<BlockStatement> {
+class BlockStatement : public Statement {
 public:
     BlockStatement(std::vector<std::shared_ptr<Statement>> statements = {})
     : statements(std::move(statements)) {}
 
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
 
 private:
     std::vector<std::shared_ptr<Statement>> statements;
 };
 
-class IfStatement : public StatementCRTP<IfStatement> {
+class IfStatement : public Statement {
 public:
     IfStatement(std::shared_ptr<Statement> condition,
                 std::vector<std::shared_ptr<Statement>> body = {},
@@ -250,7 +265,7 @@ public:
                 std::vector<std::shared_ptr<Statement>> falseBranch = {}) 
         : condition(condition), body(body), branches(branches), falseBranch(falseBranch) {}
     
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
     
     std::shared_ptr<Statement> condition;
     std::vector<std::shared_ptr<Statement>> body;
@@ -265,7 +280,7 @@ public:
 
 
 // Binary expression statement
-class BinaryExpression : public StatementCRTP<BinaryExpression> {
+class BinaryExpression : public Statement {
 public:
     BinaryExpression(std::shared_ptr<Statement> left = std::shared_ptr<Statement>{}, TokenTypes op = TokenTypes::Null, std::shared_ptr<Statement> right = std::shared_ptr<Statement>{})
         : left(left), op(op), right(right) {}
@@ -290,7 +305,7 @@ public:
 
     
     // Method to evaluate the binary expression
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
     std::shared_ptr<Statement> evaluate(SymbolTable &scope);
     
 
@@ -301,7 +316,7 @@ private:
 
 };
 
-class UnaryExpression : public StatementCRTP<UnaryExpression> {
+class UnaryExpression : public Statement {
 public:
     UnaryExpression(std::shared_ptr<Statement> left = std::shared_ptr<Statement>{}, TokenTypes op = TokenTypes::Null, std::shared_ptr<Statement> right = std::shared_ptr<Statement>{})
         : left(left), op(op), right(right) {}
@@ -326,7 +341,7 @@ public:
 
     
     // Method to evaluate the binary expression
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
     std::shared_ptr<Statement> evaluate(SymbolTable &scope);
     
 
@@ -339,12 +354,12 @@ private:
 };
 
 
-class TenaryExpression : public StatementCRTP<TenaryExpression> {
+class TenaryExpression : public Statement {
     public:
         TenaryExpression(std::shared_ptr<Statement> condition, std::shared_ptr<Statement> truthy, std::shared_ptr<Statement> falsey) :
         condition(condition), truthy(truthy), falsey(falsey) {}
 
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
 
     private:
         std::shared_ptr<Statement> condition;
@@ -353,12 +368,12 @@ class TenaryExpression : public StatementCRTP<TenaryExpression> {
 };
 
 // A while statement
-class WhileStatement : public StatementCRTP<WhileStatement> {
+class WhileStatement : public Statement {
 public:
     WhileStatement(std::shared_ptr<Statement> condition, std::vector<std::shared_ptr<Statement>> body = {})
         : condition(condition), body(body) {}
 
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
     std::shared_ptr<Statement> condition;
     std::vector<std::shared_ptr<Statement>> body;
 
@@ -373,13 +388,13 @@ private:
 
 
 // A class to call methods on objects
-class CallMethod : public StatementCRTP<CallMethod> {
+class CallMethod : public Statement {
 public:
     CallMethod(std::shared_ptr<Statement> object, const std::string& methodName, std::vector<std::shared_ptr<Statement>> args)
         : object(object), methodName(methodName), arguments(std::move(args)) {}
     
     
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
     std::shared_ptr<Statement> evaluate(SymbolTable& scope);
 private:
     std::shared_ptr<Statement> object; // The base object on which the method is called.
@@ -388,7 +403,7 @@ private:
 
 };
 
-class GetProperty : public StatementCRTP<GetProperty> {
+class GetProperty : public Statement {
 private:
     std::shared_ptr<Statement> object; // The base object on which the method is called.
     std::string propertyName; // The method name.
@@ -399,12 +414,12 @@ public:
         : object(object), propertyName(propertyName) {}
     
     
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
     std::shared_ptr<Statement> evaluate(SymbolTable& scope);
 };
 
 
-class ForLoop : public StatementCRTP<ForLoop> {
+class ForLoop : public Statement {
     std::shared_ptr<Statement> initialization;
     std::shared_ptr<Statement> condition;
     std::shared_ptr<Statement> increment;
@@ -415,21 +430,21 @@ public:
             std::shared_ptr<Statement> incr, std::vector<std::shared_ptr<Statement>> body)
         :   initialization(std::move(init)), condition(std::move(cond)), 
             increment(std::move(incr)), body(std::move(body)) {}
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
     std::shared_ptr<Statement> evaluate(SymbolTable& scope);
 };
 
-class BreakStatement : public StatementCRTP<BreakStatement> {
+class BreakStatement : public Statement {
     public:
-        llvm::Value* codegen(IRGenerator& generator);
+        llvm::Value* codegen(IRGenerator& generator) override;
 };
 
-class ContinueStatement : public StatementCRTP<ContinueStatement> {
+class ContinueStatement : public Statement {
 public:
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
 };
 
-class ObjectConstructorStatement : public StatementCRTP<ObjectConstructorStatement> {
+class ObjectConstructorStatement : public Statement {
 private:
     std::shared_ptr<Object> obj;
     std::vector<std::shared_ptr<Statement>> constructorArgs;
@@ -439,17 +454,17 @@ public:
                                std::vector<std::shared_ptr<Statement>> args = {})
         : obj(obj), constructorArgs(std::move(args)) {}
 
-    llvm::Value* codegen(IRGenerator& generator);
+    llvm::Value* codegen(IRGenerator& generator) override;
     
 };
 
-class ObjectDestructorStatement : public StatementCRTP<ObjectDestructorStatement> {
+class ObjectDestructorStatement : public Statement {
 private:
     std::string variableName; // The variable holding the object reference
 
 public:
     explicit ObjectDestructorStatement(const std::string& variableName)
         : variableName(variableName) {}
-        llvm::Value* codegen(IRGenerator& generator);
+        llvm::Value* codegen(IRGenerator& generator) override;
     
 };
