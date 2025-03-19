@@ -1528,7 +1528,8 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
             Token currentAssignmentOperation = currentToken;
             eat(currentToken.getType());
 
-            value = parseTenaryExpression();
+            // value = parseTenaryExpression();
+            value = factor();
             
             switch (currentAssignmentOperation.getType()) {
                 case TokenTypes::Assign:

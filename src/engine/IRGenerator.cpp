@@ -99,6 +99,7 @@ llvm::Value* IRGenerator::createBigInt(const std::string& str) {
 
 
 llvm::Value* IRGenerator::createVariable(const std::string& name, llvm::Type* type, llvm::Value* initialValue) {
+    console.log("here first");
     llvm::IRBuilder<> builder(Builder->GetInsertBlock());
     console.log("here");
     llvm::AllocaInst* alloca = builder.CreateAlloca(type, nullptr, name);

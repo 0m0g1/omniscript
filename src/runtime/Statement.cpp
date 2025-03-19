@@ -63,6 +63,7 @@ createVariable::createVariable(const std::string &variable, llvm::Type* type, st
 llvm::Value* createVariable::codegen(IRGenerator& generator) {
     console.debug("Creating variable " + variable);
     llvm::Value* result = value->codegen(generator);
+    console.debug("Created value for " + variable);
     return generator.createVariable(variable, type, result);
 }
 
