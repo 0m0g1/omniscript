@@ -8,6 +8,7 @@
 IRGenerator::IRGenerator() {
     Context = std::make_unique<llvm::LLVMContext>();
     Module = std::make_unique<llvm::Module>("OmniScript", *Context);
+    Builder = std::make_unique<llvm::IRBuilder<>>(*Context);
 }
 
 void IRGenerator::printIR() {

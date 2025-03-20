@@ -81,6 +81,7 @@ GENERATED += $(OBJDIR)/Context2D.o
 GENERATED += $(OBJDIR)/Context3D.o
 GENERATED += $(OBJDIR)/Core.o
 GENERATED += $(OBJDIR)/Date.o
+GENERATED += $(OBJDIR)/EngineConfigs.o
 GENERATED += $(OBJDIR)/Enum.o
 GENERATED += $(OBJDIR)/Event.o
 GENERATED += $(OBJDIR)/File.o
@@ -122,6 +123,7 @@ OBJECTS += $(OBJDIR)/Context2D.o
 OBJECTS += $(OBJDIR)/Context3D.o
 OBJECTS += $(OBJDIR)/Core.o
 OBJECTS += $(OBJDIR)/Date.o
+OBJECTS += $(OBJDIR)/EngineConfigs.o
 OBJECTS += $(OBJDIR)/Enum.o
 OBJECTS += $(OBJDIR)/Event.o
 OBJECTS += $(OBJDIR)/File.o
@@ -221,6 +223,9 @@ $(OBJDIR)/Core.o: src/Core.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Allocator.o: src/engine/Allocator.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/EngineConfigs.o: src/engine/EngineConfigs.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/IRGenerator.o: src/engine/IRGenerator.cpp
