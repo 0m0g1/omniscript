@@ -9,27 +9,74 @@ IRGenerator::IRGenerator() {
     Context = std::make_unique<llvm::LLVMContext>();
     Module = std::make_unique<llvm::Module>("OmniScript", *Context);
     Builder = std::make_unique<llvm::IRBuilder<>>(*Context);
+    initialize();
 }
+
+void IRGenerator::initialize() {
+    if (!Context) {
+        Context = std::make_unique<llvm::LLVMContext>();
+    }
+    if (!Module) {
+        Module = std::make_unique<llvm::Module>("OmniScript", *Context);
+    }
+    if (!Builder) {
+        Builder = std::make_unique<llvm::IRBuilder<>>(*Context);
+    }
+
+    // Check if there's already an entry block
+    llvm::Function* function = Module->getFunction("main");
+    if (!function) {
+        // Create function type: void main()
+        llvm::FunctionType* funcType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
+        function = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "main", Module.get());
+    }
+
+    if (function->empty()) {
+        // Create and insert the entry block if it doesn't exist
+        llvm::BasicBlock* entryBlock = llvm::BasicBlock::Create(*Context, "entry", function);
+        Builder->SetInsertPoint(entryBlock);
+    } else {
+        // Set insert point to the existing entry block
+        Builder->SetInsertPoint(&function->getEntryBlock());
+    }
+}
+
 
 void IRGenerator::printIR() {
     Module->print(llvm::errs(), nullptr);
 }
 
 void IRGenerator::optimizeModule() {
+    console.log("here 1.1");
     llvm::LoopAnalysisManager lam;
     llvm::FunctionAnalysisManager fam;
     llvm::CGSCCAnalysisManager cam;
     llvm::ModuleAnalysisManager mam;
-
-    llvm::PassBuilder pb;
-    pb.registerModuleAnalyses(mam);
-    pb.registerFunctionAnalyses(fam);
-    pb.registerLoopAnalyses(lam);
-    pb.registerCGSCCAnalyses(cam);
-
-    llvm::ModulePassManager mpm = pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O2);
+    console.log("here 1.2");
     
-    mpm.run(*Module, mam);
+    llvm::PassBuilder pb;
+    console.log("here 1.3");
+    pb.registerModuleAnalyses(mam);
+    console.log("here 1.3");
+    pb.registerFunctionAnalyses(fam);
+    console.log("here 1.4");
+    pb.registerLoopAnalyses(lam);
+    console.log("here 1.5");
+    pb.registerCGSCCAnalyses(cam);
+    console.log("here 1.6");
+    
+    llvm::ModulePassManager mpm = pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O2);
+    console.log("here 1.7");
+    
+    try {
+        console.log("here 1.7");
+        mpm.run(*Module, mam);
+        console.log("here 1.8");
+    } catch (const std::exception &e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown error in optimizeModule!" << std::endl;
+    }
 }
 
 
@@ -100,17 +147,16 @@ llvm::Value* IRGenerator::createBigInt(const std::string& str) {
 
 
 llvm::Value* IRGenerator::createVariable(const std::string& name, llvm::Type* type, llvm::Value* initialValue) {
-    console.log("here first");
-    llvm::IRBuilder<> builder(Builder->GetInsertBlock());
-    console.log("here");
-    llvm::AllocaInst* alloca = builder.CreateAlloca(type, nullptr, name);
-    console.log("here 1");
-    builder.CreateStore(initialValue, alloca);
-    console.log("here 2");
+    llvm::Function* function = Builder->GetInsertBlock()->getParent();  // Get current function
+    llvm::IRBuilder<> tempBuilder(&function->getEntryBlock(), function->getEntryBlock().begin());
+    
+    llvm::AllocaInst* alloca = tempBuilder.CreateAlloca(type, nullptr, name);  // Ensure alloca is in entry block
+    Builder->CreateStore(initialValue, alloca);
+    
     NamedValues[name] = alloca;
-    console.log("here 3");
     return alloca;
 }
+
 
 llvm::Value* IRGenerator::createConstant(const std::string& name, llvm::Type* type, llvm::Value* value) {
     NamedValues[name] = value;

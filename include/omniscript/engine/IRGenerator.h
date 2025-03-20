@@ -42,6 +42,8 @@ public:
     std::unique_ptr<llvm::LLVMContext> getContext() { return std::move(Context); }
     llvm::IRBuilder<>* getBuilder() { return Builder.get(); }
     
+    void initialize();
+
     void printIR();
     void optimizeModule(); // Define optimization logic
 
