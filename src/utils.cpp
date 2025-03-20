@@ -89,8 +89,8 @@ std::string valueToString(const SymbolTable::ValueType& value, int indentLevel) 
             // }
             else if (dynamic_cast<GenericAssignment*>(&stmt)) {
                 return "[Generic Assignment Statement]";
-            } else if (dynamic_cast<Variable*>(&stmt)) {
-                return "[Variable Statement]";
+            } else if (dynamic_cast<GetVariable*>(&stmt)) {
+                return "[Get Variable Statement]";
             } else if (dynamic_cast<BlockStatement*>(&stmt)) {
                 return "[Block Statement]";
             } else if (dynamic_cast<ObjectConstructorStatement*>(&stmt)) {
@@ -374,4 +374,17 @@ bool isPrimitive(const SymbolTable::ValueType& value) {
         using T = std::decay_t<decltype(arg)>;
         return isNumber(arg) || isString(arg) || std::is_same_v<T, bool>;
     }, value);
+}
+
+std::string readFile(const std::string& path) {
+    std::ifstream file(path);
+    if (!file) {
+        throw std::runtime_error("Error opening file: " + path);
+    }
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string content = buffer.str();
+
+    return content;
 }

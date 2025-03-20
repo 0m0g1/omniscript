@@ -1,6 +1,8 @@
 #pragma once
 
-#include <omniscript/engine/IRGenerator.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/LLVMContext.h>
 #include <omniscript/runtime/object.h>
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
@@ -8,6 +10,8 @@
 #include <omniscript/engine/tokens.h>
 #include <omniscript/debuggingtools/console.h>
 #include <omniscript/runtime/symboltable.h>
+
+class IRGenerator;
 
 class Statement { // Base class for all statements
     public:
@@ -45,6 +49,50 @@ class Statement { // Base class for all statements
 
 };
 
+class NamedStatement: public Statement {
+public:
+    ~NamedStatement() = default;
+    virtual std::string getName() = 0;
+};
+
+class ImportModule : public Statement {
+public:
+    std::string moduleName;
+    std::string alias;
+    std::string path;
+    std::vector<std::string> importedMembers;
+
+    ImportModule(const std::string& modName, const std::string& aliasName = "", 
+                    const std::vector<std::string>& members = {}, const std::string& path = "")
+        : moduleName(modName), alias(aliasName), importedMembers(members), path(path) {}
+
+    llvm::Value* codegen(IRGenerator& irGen) override;
+};
+    
+class CreateModule : public NamedStatement {
+public:
+    std::string moduleName;
+    std::vector<std::shared_ptr<Statement>> statements;
+
+    CreateModule(std::string name, std::vector<std::shared_ptr<Statement>> stmts)
+    : moduleName(std::move(name)), statements(std::move(stmts)) {}
+    
+    std::string getName() override { return moduleName; }
+    std::vector<std::shared_ptr<Statement>> getStatements() { return statements; }
+    llvm::Value* codegen(IRGenerator& irGen) override;
+};
+
+class PublicMember : public NamedStatement {
+public:
+    std::string memberName;
+    std::shared_ptr<Statement> value;
+
+    PublicMember(std::string name, std::shared_ptr<Statement> value)
+        : memberName(std::move(name)), value(std::move(value)) {}
+
+    std::string getName() override { return memberName; }
+    llvm::Value* codegen(IRGenerator& irGen) override;
+};
 
 class Literal : public Statement {
 public:
@@ -126,12 +174,12 @@ public:
     llvm::Value* codegen(IRGenerator& generator) override;
 };
         
-    
 // ============================== Assignments ============================== //
 // Assignments
-class createVariable : public Statement {
+class createVariable : public NamedStatement {
 public:
     createVariable(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value);
+    std::string getName() override {return variable;}
     llvm::Value* codegen(IRGenerator& generator) override;
 
 private:
@@ -140,9 +188,10 @@ private:
     std::shared_ptr<Statement> value;
 };
 
-class createConstant : public Statement {
+class createConstant : public NamedStatement {
 public:
     createConstant(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value);
+    std::string getName() override {return variable;}
     llvm::Value* codegen(IRGenerator& generator) override;
 
 private:
@@ -151,9 +200,10 @@ private:
     std::shared_ptr<Statement> value;
 };
 
-class createDynamicVariable : public Statement {
+class createDynamicVariable : public NamedStatement {
 public:
     createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value);
+    std::string getName() override {return variable;}
     llvm::Value* codegen(IRGenerator& generator) override;
 
 private:
@@ -163,18 +213,20 @@ private:
 
 
 // Variable Retrieval
-class GetVariable : public Statement {
+class GetVariable : public NamedStatement {
 public:
     GetVariable(const std::string &variable);
+    std::string getName() override {return variable;}
     llvm::Value* codegen(IRGenerator& generator) override;
 
 private:
     std::string variable;
 };
 
-class GetDynamicVariable : public Statement {
+class GetDynamicVariable : public NamedStatement {
 public:
     GetDynamicVariable(const std::string &variable);
+    std::string getName() override {return variable;}
     llvm::Value* codegen(IRGenerator& generator) override;
 
 private:
@@ -182,11 +234,11 @@ private:
 };
     
 
-class GenericAssignment : public Statement {
+class GenericAssignment : public NamedStatement {
 public:
     GenericAssignment(const std::string &variable, std::shared_ptr<Statement> value) :
         variable(variable), value(value) {}
-
+    std::string getName() override {return variable;}
     llvm::Value* codegen(IRGenerator& generator) override;
 
 private:
@@ -194,22 +246,6 @@ private:
     std::shared_ptr<Statement> value;
     std::shared_ptr<Statement> tempValue;
 };
-
-
-class Variable : public Statement {
-public:
-    Variable(std::string variableName, std::shared_ptr<Statement> value = std::shared_ptr<Statement>{})
-        : variable(variable), value(value) {}
-
-        
-    llvm::Value* codegen(IRGenerator& generator) override;
-        
-    std::shared_ptr<Statement> value;
-    std::shared_ptr<Statement> variable;
-private:
-    std::shared_ptr<Statement> tempValue;
-};
-
 
 class ReturnStatement : public Statement {
 public:
@@ -306,7 +342,7 @@ public:
     
     // Method to evaluate the binary expression
     llvm::Value* codegen(IRGenerator& generator) override;
-    std::shared_ptr<Statement> evaluate(SymbolTable &scope);
+    
     
 
 private:
@@ -342,7 +378,6 @@ public:
     
     // Method to evaluate the binary expression
     llvm::Value* codegen(IRGenerator& generator) override;
-    std::shared_ptr<Statement> evaluate(SymbolTable &scope);
     
 
 
@@ -395,7 +430,7 @@ public:
     
     
     llvm::Value* codegen(IRGenerator& generator) override;
-    std::shared_ptr<Statement> evaluate(SymbolTable& scope);
+    
 private:
     std::shared_ptr<Statement> object; // The base object on which the method is called.
     std::string methodName; // The method name.
@@ -415,7 +450,7 @@ public:
     
     
     llvm::Value* codegen(IRGenerator& generator) override;
-    std::shared_ptr<Statement> evaluate(SymbolTable& scope);
+    
 };
 
 
@@ -431,7 +466,7 @@ public:
         :   initialization(std::move(init)), condition(std::move(cond)), 
             increment(std::move(incr)), body(std::move(body)) {}
     llvm::Value* codegen(IRGenerator& generator) override;
-    std::shared_ptr<Statement> evaluate(SymbolTable& scope);
+    
 };
 
 class BreakStatement : public Statement {

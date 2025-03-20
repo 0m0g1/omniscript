@@ -8,6 +8,9 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <omniscript/omniscript_pch.h>
+#include <omniscript/utils.h>
+
+class Statement;
 
 struct DynamicValue {
     enum Type { INT, FLOAT, STRING };
@@ -32,7 +35,11 @@ private:
     std::unique_ptr<llvm::Module> Module;
     std::map<std::string, llvm::Value*> NamedValues;
     std::unordered_map<std::string, DynamicValue*> runtimeVariables;
+    std::unordered_map<std::string, std::unique_ptr<llvm::Module>> loadedModules;
+    std::unordered_map<std::string, std::unique_ptr<llvm::Module>> generatedModules;
 
+    llvm::Module* CurrentModule = nullptr;
+    std::unordered_map<std::string, std::unordered_map<std::string, llvm::Value*>> modulePublicSymbols;
 
 public:
     // Constructor initializes context, builder, and module
@@ -45,7 +52,13 @@ public:
     void initialize();
 
     void printIR();
-    void optimizeModule(); // Define optimization logic
+    void printErrors();
+    void optimizeModule(int level = 2); // Define optimization logic
+
+    void generateModule(const std::string& moduleName, const std::vector<std::shared_ptr<Statement>>& statements);
+    void importModule(const std::string& moduleName);
+    // bool isModuleUpdated(const std::string& moduleName);
+    // void unloadModule(const std::string& moduleName);
 
     llvm::Type* resolveLLVMType(const std::vector<std::string>& dataTypes);
 

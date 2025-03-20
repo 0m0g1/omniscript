@@ -30,5 +30,6 @@ bool isNumber(const SymbolTable::ValueType& value);
 bool isString(const SymbolTable::ValueType& value);
 bool isPrimitive(const SymbolTable::ValueType& value);
 // SymbolTable::ValueType convertToValueType(const std::any& anyValue);
+std::string readFile(const std::string& path);
 
 #endif

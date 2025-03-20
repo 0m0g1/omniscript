@@ -3,6 +3,8 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/StandardInstrumentations.h>
+#include <llvm/IR/Verifier.h>
+#include <llvm/Linker/Linker.h>
 #include <omniscript/debuggingtools/console.h>
 
 IRGenerator::IRGenerator() {
@@ -23,59 +25,125 @@ void IRGenerator::initialize() {
         Builder = std::make_unique<llvm::IRBuilder<>>(*Context);
     }
 
-    // Check if there's already an entry block
-    llvm::Function* function = Module->getFunction("main");
-    if (!function) {
-        // Create function type: void main()
+    // Check if there are any functions in the module
+    if (Module->empty()) {
+        // No functions exist, create a top-level entry block for global execution
         llvm::FunctionType* funcType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
-        function = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "main", Module.get());
-    }
-
-    if (function->empty()) {
-        // Create and insert the entry block if it doesn't exist
-        llvm::BasicBlock* entryBlock = llvm::BasicBlock::Create(*Context, "entry", function);
+        llvm::Function* topLevelFunc = llvm::Function::Create(funcType, llvm::Function::InternalLinkage, "__top_level__", Module.get());
+        llvm::BasicBlock* entryBlock = llvm::BasicBlock::Create(*Context, "entry", topLevelFunc);
         Builder->SetInsertPoint(entryBlock);
+        Builder->CreateRetVoid(); 
     } else {
-        // Set insert point to the existing entry block
-        Builder->SetInsertPoint(&function->getEntryBlock());
+        // There are existing functions, check if "main" exists
+        llvm::Function* function = Module->getFunction("main");
+        if (function && function->empty()) {
+            // If main exists but is empty, create an entry block
+            llvm::BasicBlock* entryBlock = llvm::BasicBlock::Create(*Context, "entry", function);
+            Builder->SetInsertPoint(entryBlock);
+        } else if (function) {
+            // If main already has an entry block, set the insert point there
+            Builder->SetInsertPoint(&function->getEntryBlock());
+        } else {
+            // If other functions exist, set insert point to the first function's entry
+            Builder->SetInsertPoint(&Module->begin()->getEntryBlock());
+        }
     }
 }
 
-
 void IRGenerator::printIR() {
+    Module->print(llvm::outs(), nullptr);
+}
+
+void IRGenerator::printErrors() {
     Module->print(llvm::errs(), nullptr);
 }
 
-void IRGenerator::optimizeModule() {
-    console.log("here 1.1");
-    llvm::LoopAnalysisManager lam;
-    llvm::FunctionAnalysisManager fam;
-    llvm::CGSCCAnalysisManager cam;
-    llvm::ModuleAnalysisManager mam;
-    console.log("here 1.2");
+void IRGenerator::optimizeModule(int level) {
+    console.log("No optimization taking place");
+    // console.log("Running module verification before optimization...");
+
+    // // Use VerifierAnalysis for LLVM 15+
+    // if (llvm::verifyModule(*Module, &llvm::errs())) {
+    //     throw std::runtime_error("Module verification failed before optimization");
+    // }
+
+    // llvm::LoopAnalysisManager lam;
+    // llvm::FunctionAnalysisManager fam;
+    // llvm::CGSCCAnalysisManager cam;
+    // llvm::ModuleAnalysisManager mam;
     
-    llvm::PassBuilder pb;
-    console.log("here 1.3");
-    pb.registerModuleAnalyses(mam);
-    console.log("here 1.3");
-    pb.registerFunctionAnalyses(fam);
-    console.log("here 1.4");
-    pb.registerLoopAnalyses(lam);
-    console.log("here 1.5");
-    pb.registerCGSCCAnalyses(cam);
-    console.log("here 1.6");
+    // llvm::PassBuilder pb;
+    // pb.registerModuleAnalyses(mam);
+    // pb.registerFunctionAnalyses(fam);
+    // pb.registerLoopAnalyses(lam);
+    // pb.registerCGSCCAnalyses(cam);
     
-    llvm::ModulePassManager mpm = pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O2);
-    console.log("here 1.7");
+    // llvm::ModulePassManager mpm = pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O2);
+
     
-    try {
-        console.log("here 1.7");
-        mpm.run(*Module, mam);
-        console.log("here 1.8");
-    } catch (const std::exception &e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-    } catch (...) {
-        std::cerr << "Unknown error in optimizeModule!" << std::endl;
+    // mpm.run(*Module, mam);
+    
+    // console.log("Optimized Code:\n");
+    // printIR();
+
+    // console.log("Errors in Optimized Code:\n");
+    // printErrors();
+}
+
+void IRGenerator::generateModule(const std::string& moduleName, const std::vector<std::shared_ptr<Statement>>& statements) {
+    // Check if the module already exists
+    if (generatedModules.find(moduleName) != generatedModules.end()) {
+        console.warn("Module '" + moduleName + "' is already defined.");
+        return;
+    }
+
+    // Create a new LLVM module
+    auto newModule = std::make_unique<llvm::Module>(moduleName, *Context);
+
+    // Backup the current module and switch context
+    llvm::Module* previousModule = CurrentModule;
+    CurrentModule = newModule.get();
+
+    // Public symbol table for the module
+    std::unordered_map<std::string, llvm::Value*> publicMembers;
+
+    for (const auto& statement : statements) {
+        if (auto moduleStatement = std::dynamic_pointer_cast<CreateModule>(statement)) {
+            // Nested module found - process it separately
+            generateModule(moduleStatement->getName(), moduleStatement->getStatements());
+        } 
+        else if (auto publicStatement = std::dynamic_pointer_cast<PublicMember>(statement)) {
+            llvm::Value* value = publicStatement->codegen(*this);
+            if (value) publicMembers[publicStatement->getName()] = value;
+        } 
+        else {
+            // Private or global statement - just generate IR
+            statement->codegen(*this);
+        }
+    }
+
+    // Restore previous module
+    CurrentModule = previousModule;
+
+    // Store the module with its public members
+    generatedModules[moduleName] = std::move(newModule);
+    modulePublicSymbols[moduleName] = std::move(publicMembers);
+
+    if (llvm::Linker::linkModules(*Module, std::move(newModule))) {
+        llvm::errs() << "Error: Linking failed!\n";
+    }
+}
+
+
+void IRGenerator::importModule(const std::string& moduleName) {
+    if (modulePublicSymbols.find(moduleName) == modulePublicSymbols.end()) {
+        console.error("Module '" + moduleName + "' not found or has no public symbols.");
+        return;
+    }
+
+    // Import only public members
+    for (const auto& [name, value] : modulePublicSymbols[moduleName]) {
+        NamedValues[name] = value;
     }
 }
 
@@ -150,12 +218,20 @@ llvm::Value* IRGenerator::createVariable(const std::string& name, llvm::Type* ty
     llvm::Function* function = Builder->GetInsertBlock()->getParent();  // Get current function
     llvm::IRBuilder<> tempBuilder(&function->getEntryBlock(), function->getEntryBlock().begin());
     
-    llvm::AllocaInst* alloca = tempBuilder.CreateAlloca(type, nullptr, name);  // Ensure alloca is in entry block
-    Builder->CreateStore(initialValue, alloca);
-    
+    // Place allocation in the entry block
+    llvm::AllocaInst* alloca = tempBuilder.CreateAlloca(type, nullptr, name);
     NamedValues[name] = alloca;
+
+    // ✅ Ensure the store is inserted *before* the return statement
+    llvm::BasicBlock* insertBlock = Builder->GetInsertBlock();
+    if (llvm::ReturnInst* retInst = llvm::dyn_cast<llvm::ReturnInst>(insertBlock->getTerminator())) {
+        Builder->SetInsertPoint(retInst);  // Insert before the return
+    }
+
+    Builder->CreateStore(initialValue, alloca);
     return alloca;
 }
+
 
 
 llvm::Value* IRGenerator::createConstant(const std::string& name, llvm::Type* type, llvm::Value* value) {

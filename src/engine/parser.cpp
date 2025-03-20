@@ -127,6 +127,12 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
     }
 
     switch (currentToken.getType()) {
+        case TokenTypes::Import:
+            statement = parseModuleImport();
+            break;
+        case TokenTypes::Module:
+            statement = parseModule();
+            break;
         case TokenTypes::Function:
             statement = parseFunctionDeclaration();
             break;
@@ -202,6 +208,103 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
     statement->setPosition(Omniscript::getPosition());
     return statement;
 }
+
+
+std::shared_ptr<Statement> Parser::parseModuleImport() {
+    eat(TokenTypes::Import);
+
+    std::vector<std::string> importedMembers;
+    std::string moduleName;
+    std::string alias;
+    std::string path; // Path of the module (if from a file)
+
+    // Handle selective import: `import { console } from std as c;`
+    if (currentToken.getType() == TokenTypes::LeftBrace) {
+        eat(TokenTypes::LeftBrace);
+        while (currentToken.getType() == TokenTypes::Identifier) {
+            importedMembers.push_back(currentToken.getValue());
+            eat(TokenTypes::Identifier);
+
+            if (currentToken.getType() == TokenTypes::Comma) {
+                eat(TokenTypes::Comma);
+            } else {
+                break;
+            }
+        }
+        eat(TokenTypes::RightBrace);
+        eat(TokenTypes::From);
+
+        // Expect module name (either standard module like `std` or a string path)
+        if (currentToken.getType() == TokenTypes::Identifier) {
+            moduleName = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+        } else {
+            path = currentToken.getValue(); // Store the file path
+            eat(TokenTypes::StringLiteral);
+        }
+    }
+    // Handle full module import: `import std;`
+    else if (currentToken.getType() == TokenTypes::Identifier) {
+        moduleName = currentToken.getValue();
+        eat(TokenTypes::Identifier);
+    }
+
+    // Handle aliasing: `import { console } from std as c;`
+    if (currentToken.getType() == TokenTypes::As) {
+        eat(TokenTypes::As);
+        if (currentToken.getType() == TokenTypes::Identifier) {
+            alias = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+        } else {
+            throw std::runtime_error("Syntax Error: Expected alias name after 'as'");
+        }
+    }
+
+    eat(TokenTypes::Semicolon);
+
+    return std::make_shared<ImportModule>(moduleName, alias, importedMembers, path);
+}
+
+std::shared_ptr<Statement> Parser::parseModule() {
+    std::string moduleName;
+    std::vector<std::shared_ptr<Statement>> members;
+    std::unordered_map<std::string, bool> publicMembers;
+
+    eat(TokenTypes::Module);
+    moduleName = currentToken.getValue();
+    eat(TokenTypes::Identifier);
+    eat(TokenTypes::LeftBrace);
+
+    while (currentToken.getType() != TokenTypes::RightBrace) {
+        bool isPublicMember = false;
+        if (currentToken.getType() == TokenTypes::Public) {
+            isPublicMember = true;
+            eat(TokenTypes::Public);
+        }
+
+        std::shared_ptr<Statement> member = parseStatement();
+
+        if (isPublicMember) {
+            std::string memberName;
+            
+            // Try to extract the name based on statement type
+            if (auto named = std::dynamic_pointer_cast<NamedStatement>(member)) {
+                memberName = named->getName();
+            } else {
+                console.error("Cannot determine name of public member in module: " + moduleName);
+                continue;
+            }
+
+            members.push_back(std::make_shared<PublicMember>(memberName, member));
+        } else {
+            members.push_back(member);
+        }
+    }
+
+    eat(TokenTypes::RightBrace);
+    return std::make_shared<CreateModule>(moduleName, members);
+}
+
 
 
 // Parse an expression, handling addition, subtraction, logical operators, and comparison operators
@@ -346,23 +449,23 @@ std::shared_ptr<Statement> Parser::factor() {
         eat(TokenTypes::IntegerLiteral);
         std::string valueStr = previousToken.getValue();
     
-        // Check if the number is too big for int64_t
         try {
             long long value = std::stoll(valueStr);
-            if (value >= std::numeric_limits<int8_t>::min() && value <= std::numeric_limits<int8_t>::max()) {
-                left = std::make_shared<Int8Bit>(static_cast<int8_t>(value));
-            } else if (value >= std::numeric_limits<int16_t>::min() && value <= std::numeric_limits<int16_t>::max()) {
-                left = std::make_shared<Int16Bit>(static_cast<int16_t>(value));
-            } else if (value >= std::numeric_limits<int32_t>::min() && value <= std::numeric_limits<int32_t>::max()) {
+    
+            if (value >= std::numeric_limits<int32_t>::min() && value <= std::numeric_limits<int32_t>::max()) {
                 left = std::make_shared<Int32Bit>(static_cast<int32_t>(value));
-            } else {
+            } else if (value >= std::numeric_limits<int64_t>::min() && value <= std::numeric_limits<int64_t>::max()) {
                 left = std::make_shared<Int64Bit>(static_cast<int64_t>(value));
+            } else {
+                // Handle BigInt case
+                left = std::make_shared<BigInt>(valueStr);
             }
         } catch (const std::out_of_range&) {
-            // Handle BigInt case
+            // Handle BigInt case for extra-large numbers
             left = std::make_shared<BigInt>(valueStr);
-        }        
+        }
     }
+
     // Handle float literals (32-bit and 64-bit)
     else if (currentToken.getType() == TokenTypes::FloatLiteral) {
         eat(TokenTypes::FloatLiteral);
@@ -465,7 +568,7 @@ std::shared_ptr<Statement> Parser::factor() {
         std::string objectClassName = currentToken.getValue();
         eat(TokenTypes::Identifier);
         auto [types, args] = parseArguments();
-        // auto objectType = std::make_shared<Variable>(objectClassName);
+        // auto objectType = std::make_shared<GetVariable>(objectClassName);
         // left = std::make_shared<ObjectConstructorStatement>(objectType, args);
         left = nullptr;
     }  else if (currentToken.getType() == TokenTypes::Null) {
@@ -579,7 +682,7 @@ std::shared_ptr<Statement> Parser::parseObject() {
             } else {
                 // If there's no colon, it behaves like an object property
                 isDictionary = false;
-                propertyValue = std::make_shared<Variable>(propertyName);
+                propertyValue = std::make_shared<GetVariable>(propertyName);
             }
 
             // Set the property on the object
@@ -1157,8 +1260,8 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     
     // Start with the base identifier as the initial statement
 
-    std::shared_ptr<Statement> previousStatement = std::make_shared<Variable>(rootIdentifier);
-    std::shared_ptr<Statement> statement = std::make_shared<Variable>(rootIdentifier);
+    std::shared_ptr<Statement> previousStatement = std::make_shared<GetVariable>(rootIdentifier);
+    std::shared_ptr<Statement> statement = std::make_shared<GetVariable>(rootIdentifier);
 
     if (currentToken.getType() == TokenTypes::Assign || 
         currentToken.getType() == TokenTypes::PlusAssign || 
@@ -1514,10 +1617,10 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
             console.debug("Assigning a unary statement");
             switch (currentToken.getType()) {
                 case TokenTypes::Increment:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<Variable>(variableName), TokenTypes::Increment);
+                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Increment);
                     break;
                 case TokenTypes::Decrement:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<Variable>(variableName), TokenTypes::Decrement);
+                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Decrement);
                     break;
                 default:
                     eat(TokenTypes::Semicolon);
@@ -1535,16 +1638,16 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
                 case TokenTypes::Assign:
                     break;
                 case TokenTypes::PlusAssign:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<Variable>(variableName), TokenTypes::Plus, value);
+                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Plus, value);
                     break;
                 case TokenTypes::MinusAssign:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<Variable>(variableName), TokenTypes::Minus, value);
+                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Minus, value);
                     break;
                 case TokenTypes::DivideAssign:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<Variable>(variableName), TokenTypes::Divide, value);
+                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Divide, value);
                     break;
                 case TokenTypes::MultiplyAssign:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<Variable>(variableName), TokenTypes::Multiply, value);
+                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Multiply, value);
                     break;
                 default:
                     eat(TokenTypes::Assign, "The current operator " + getTokenTypeName(currentAssignmentOperation.getType()) +

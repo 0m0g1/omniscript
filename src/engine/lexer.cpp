@@ -184,6 +184,14 @@ Token Lexer::getNextToken() {
             return Token(TokenTypes::Null, "", line, column);
         } else if (identifier == "xor") {
             return Token(TokenTypes::LogicalXor, "", line, column);
+        } else if (identifier == "import") {
+            return Token(TokenTypes::Import, "", line, column);
+        } else if (identifier == "from") {
+            return Token(TokenTypes::From, "", line, column);
+        } else if (identifier == "module" || identifier == "mod") {
+            return Token(TokenTypes::Module, "", line, column);
+        } else if (identifier == "as") {
+            return Token(TokenTypes::As, "", line, column);
         }
 
         // Check for function calls
@@ -514,6 +522,11 @@ Token Lexer::getOperator(char &currentChar) {
             column++;
             return Token(TokenTypes::Dot, "", line, column);
         case ':':
+            if (peek() == ':') {
+                currentPosition += 2;
+                column += 2;
+                return Token(TokenTypes::ScopeResolution, "", line, column);
+            }
             currentPosition++;
             column++;
             return Token(TokenTypes::Colon, "", line, column);

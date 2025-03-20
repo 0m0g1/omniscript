@@ -31,8 +31,9 @@ class Parser {
         
 
     private:
+        
         std::vector<std::shared_ptr<Statement>> statements;
-
+        
         bool executeStatements = true;
         bool debugMode = false;
         IRGenerator& irGen;
@@ -48,8 +49,11 @@ class Parser {
         void initializeFunctions();
         void initializeBuiltInObjects();
         void initializeConstants();
-
+        
         std::shared_ptr<Statement> parseStatement(bool checkForTerminalChar = true); // To parse a single statement
+        
+        std::shared_ptr<Statement> parseModuleImport();
+        std::shared_ptr<Statement> parseModule();
 
         std::pair<std::vector<std::string>, std::vector<std::shared_ptr<Statement>>> parseParameters();
         std::pair<std::vector<std::string>, std::vector<std::shared_ptr<Statement>>> parseArguments(); // Parse code block

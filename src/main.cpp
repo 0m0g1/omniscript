@@ -31,11 +31,13 @@ public:
     static void printUsage() {
         console.log("Usage: omniscript [options] <file>");
         console.log("Options:");
-        console.log("  --debug       Enable debug mode");
-        console.log("  --execute     Execute statements (JIT compilation)");
-        console.log("  --make        Compile the source code (AOT compilation)");
-        console.log("  --version     Display version information");
-        console.log("  --help        Display this help message");
+        console.log("  --debug                  Enable debug mode");
+        console.log("  --entry                  The function to call when starting the program");
+        console.log("  --execute                Execute statements (JIT compilation)");
+        console.log("  --make                   Compile the source code (AOT compilation)");
+        console.log("  --optimization-level     Compile the source code (AOT compilation)");
+        console.log("  --version                Display version information");
+        console.log("  --help                   Display this help message");
     }
 
     static Config parseArguments(int argc, char* argv[]) {
@@ -57,6 +59,20 @@ public:
             } else if (arg == "--help") {
                 printUsage();
                 std::exit(0);
+            } else if (arg == "--entry") {
+                if (i + 1 < argc) {
+                    config.entry = argv[i + 1];
+                    ++i;
+                } else {
+                    console.error("Error: Missing function name after '--entry'.");
+                }
+            } else if (arg == "--optimization-level") {
+                if (i + 1 < argc) {
+                    config.optimizationLevel = std::stoi(argv[i + 1]);
+                    ++i;
+                } else {
+                    console.error("Error: Missing int for optimization level after '--optimization-level'.");
+                }
             } else {
                 if (!fileSpecified) {
                     config.filePath = arg;

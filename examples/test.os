@@ -1,5 +1,9 @@
+import { foreign } from "examples/test2.os";
+// import { string, console } from std;
+
 let a : i8 = 10;
-let b : i8 = 0;
+let b : i32 = 0;
+// let c : std::string = "hello";
    
 /* This is a function */
 // function changeA() {

@@ -4,6 +4,10 @@
 #include <omniscript/runtime/symboltable.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/IRGenerator.h>
+#include <omniscript/engine/lexer.h>
+#include <omniscript/engine/Parser.h>
+#include <omniscript/utils.h>
+#include <omniscript/engine/IRGenerator.h>
 
 // #include <omniscript/runtime/object.h>
 // #include <omniscript/runtime/Class.h>
@@ -15,6 +19,27 @@
 // #include <omniscript/runtime/String.h>
 // #include <omniscript/runtime/Pointer.h>
 
+llvm::Value* ImportModule::codegen(IRGenerator& irGen) {
+    std::string sourceCode = readFile(path);
+    Lexer lexer(sourceCode);
+    Parser parser(lexer, irGen);
+
+    parser.setScopeName(alias);
+    std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
+
+    irGen.generateModule(alias, statements);
+
+    return nullptr; // No direct IR generation
+}
+
+llvm::Value* CreateModule::codegen(IRGenerator& irGen) {
+    irGen.importModule(moduleName);
+    return nullptr; // Modules themselves don't return a value
+}
+
+llvm::Value* PublicMember::codegen(IRGenerator& irGen) {
+    return value->codegen(irGen);
+}
 
 llvm::Value* Int8Bit::codegen(IRGenerator& generator) {
     console.debug("Creating an 8 bit integer " + std::to_string(value));
@@ -145,11 +170,6 @@ llvm::Value* FunctionCallStatement::codegen(IRGenerator& generator) {
 llvm::Value* ReturnStatement::codegen(IRGenerator& generator) {
     return nullptr;
 }
-
-llvm::Value* Variable::codegen(IRGenerator& generator) {
-    return nullptr;
-}
-
 
 
 // // Helper function to extract values from statements

@@ -47,6 +47,10 @@ enum class TokenTypes {
     Extends,
     Variant,
     Any,
+    Import,
+    From,
+    Module,
+    As,
 
     // Literals
     Identifier,             // To identify Variable and function names
@@ -59,8 +63,11 @@ enum class TokenTypes {
     HexLiteral,
     OctalLiteral,
     Arrow,                  // =>, ->, -->
-
+    
     // Operators
+    ScopeResolution,
+
+    // Arithmetic Operators
     Plus,                   // "+"
     Minus,                  // "-"
     Multiply,               // "*"

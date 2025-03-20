@@ -1,3 +1,7 @@
+module test {
+    public let foreign : i32 = 5;
+}
+
 // let number = (.5).toString();
 // let word = "worldhelloworld" - "world";
 // let word = "hello" * -0.95;
