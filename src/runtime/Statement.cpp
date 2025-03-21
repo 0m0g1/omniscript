@@ -26,50 +26,92 @@ llvm::Value* ImportModule::codegen(IRGenerator& irGen) {
 
     parser.setScopeName(alias);
     std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
-
-    irGen.generateModule(alias, statements);
+    
+    if (!irGen.isLoadedModule(path)) {
+        irGen.generateModule(path, statements);
+    }
+    irGen.activateModuleMembers(importedMembers);
 
     return nullptr; // No direct IR generation
 }
 
 llvm::Value* CreateModule::codegen(IRGenerator& irGen) {
-    irGen.importModule(moduleName);
+    // irGen.importModule(moduleName);8
     return nullptr; // Modules themselves don't return a value
 }
 
 llvm::Value* PublicMember::codegen(IRGenerator& irGen) {
+    if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
+        assignment->setGlobalVisibilityTo(true);
+    }
     return value->codegen(irGen);
 }
 
-llvm::Value* Int8Bit::codegen(IRGenerator& generator) {
-    console.debug("Creating an 8 bit integer " + std::to_string(value));
-    return generator.create8BitInteger(this->value);
+llvm::Value* PrivateMember::codegen(IRGenerator& irGen) {
+    if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
+        assignment->setGlobalVisibilityTo(true);
+    }
+    return value->codegen(irGen);
 }
 
-llvm::Value* Int16Bit::codegen(IRGenerator& generator) {
-    return generator.create16BitInteger(this->value);
+llvm::Value* IntegerLiteral::codegen(IRGenerator& generator) {
+    if (llvmType->isIntegerTy(8)) {
+        return generator.create8BitInteger(static_cast<int8_t>(value));
+    } else if (llvmType->isIntegerTy(16)) {
+        return generator.create16BitInteger(static_cast<int16_t>(value));
+    } else if (llvmType->isIntegerTy(32)) {
+        return generator.create32BitInteger(static_cast<int32_t>(value));
+    } else if (llvmType->isIntegerTy(64)) {
+        return generator.create64BitInteger(static_cast<int64_t>(value));
+    } 
+    // Handle BigInt cases (128-bit, 256-bit, 1024-bit)
+    else if (llvmType->isIntegerTy()) {  
+        unsigned bitWidth = llvmType->getIntegerBitWidth();
+        if (bitWidth <= 128) {
+            return generator.create128BitBigInt(std::to_string(value));
+        } else if (bitWidth == 128) {
+            return generator.create128BitBigInt(std::to_string(value));
+        }
+        return generator.create1024BitBigInt(std::to_string(value));
+    }
+
+    return nullptr; // Type not recognized
 }
 
-llvm::Value* Int32Bit::codegen(IRGenerator& generator) {
-    console.debug("Creating an 8 bit integer with value" + std::to_string(value));
-    return generator.create32BitInteger(this->value);
+
+llvm::Value* FloatLiteral::codegen(IRGenerator& generator) {
+    if (llvmType->isFloatTy()) {
+        return generator.create32BitFloat(static_cast<float>(value));
+    } else if (llvmType->isDoubleTy()) {
+        return generator.create64BitFloat(value);
+    }
+
+return nullptr;
 }
 
-llvm::Value* Int64Bit::codegen(IRGenerator& generator) {
-    return generator.create64BitInteger(this->value);
-}
-
-llvm::Value* Float32Bit::codegen(IRGenerator& generator) {
-    return generator.create32BitFloat(this->value);
-}
-
-llvm::Value* Float64Bit::codegen(IRGenerator& generator) {
-    return generator.create64BitFloat(this->value);
-}
 
 // Arbitrary-precision integer (BigInt)
 llvm::Value* BigInt::codegen(IRGenerator& generator) {
-    return generator.createBigInt(this->value); // Assuming IRGenerator has a method for BigInt
+    console.debug("Creating a big int " + value);
+    if (llvmType->isIntegerTy()) {  
+        unsigned bitWidth = llvmType->getIntegerBitWidth();
+        if (bitWidth <= 128) {
+            return generator.create128BitBigInt(value);
+        } else if (bitWidth == 128) {
+            return generator.create128BitBigInt(value);
+        }
+        return generator.create1024BitBigInt(value);
+    }
+
+    unsigned bitWidth = BigInt::determineBitWidth(value);
+
+    if (bitWidth == 128) {
+        return generator.create128BitBigInt(value);
+    } else if (bitWidth == 128) {
+        return generator.create128BitBigInt(value);
+    }
+
+    return generator.create1024BitBigInt(value);
 }
 
 llvm::Value* BoolLiteral::codegen(IRGenerator& generator) {
@@ -82,14 +124,21 @@ llvm::Value* StringLiteral::codegen(IRGenerator& generator) {
 
 // ======================= Assignments and Variable Getters ======================= //
 // Assignment
+void Assignment::setGlobalVisibilityTo(bool state) {
+    isGlobal = state;
+}
+
 createVariable::createVariable(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value)
     : variable(variable), type(type), value(value) {}
 
 llvm::Value* createVariable::codegen(IRGenerator& generator) {
     console.debug("Creating variable " + variable);
+    if (auto literal = std::dynamic_pointer_cast<Literal>(value)) {
+        literal->setType(type);
+    }
     llvm::Value* result = value->codegen(generator);
     console.debug("Created value for " + variable);
-    return generator.createVariable(variable, type, result);
+    return generator.createVariable(variable, type, result, isGlobal);
 }
 
 // Constant Assignment
@@ -121,7 +170,6 @@ GetDynamicVariable::GetDynamicVariable(const std::string &variable) : variable(v
 llvm::Value* GetDynamicVariable::codegen(IRGenerator& generator) {
     return generator.getDynamicVariable(variable);
 }
-
 
 llvm::Value* BreakStatement::codegen(IRGenerator& generator) {
     return nullptr;

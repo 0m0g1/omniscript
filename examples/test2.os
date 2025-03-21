@@ -1,5 +1,7 @@
 module test {
     public let foreign : i32 = 5;
+    public let foreign2 : i64 = 10;
+    let otherForeign : i64 = 2122;
 }
 
 // let number = (.5).toString();
@@ -26,16 +28,16 @@ module test {
 // let name = console.input("what is your name? ");
 // console.log(name);
 
-const object_vector = {
-    x: { x : {x: 200}},
-    y: 0,
-}
-const dict_person = {
-    "name": "Davis",
-    "age": 20,
-}
+// const object_vector = {
+//     x: { x : {x: 200}},
+//     y: 0,
+// }
+// const dict_person = {
+//     "name": "Davis",
+//     "age": 20,
+// }
 
-console.log(object_vector);
-console.log(dict_person);
-console.log(object_vector.x.x);
-console.log(dict_person.name);
+// console.log(object_vector);
+// console.log(dict_person);
+// console.log(object_vector.x.x);
+// console.log(dict_person.name);

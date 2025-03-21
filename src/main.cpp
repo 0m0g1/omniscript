@@ -117,7 +117,7 @@ public:
     static void run(const Config& config) {
         std::string sourceCode = readSourceCode(config);
         
-        IRGenerator irGen;
+        IRGenerator irGen(config.filePath);
 
         Lexer lexer(sourceCode);
         Parser parser(lexer, irGen);

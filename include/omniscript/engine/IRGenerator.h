@@ -40,10 +40,11 @@ private:
 
     llvm::Module* CurrentModule = nullptr;
     std::unordered_map<std::string, std::unordered_map<std::string, llvm::Value*>> modulePublicSymbols;
+    std::vector<std::pair<llvm::GlobalVariable*, llvm::Value*>> globalInitList;
 
 public:
     // Constructor initializes context, builder, and module
-    IRGenerator();
+    IRGenerator(const std::string& mainModulePath);
 
     std::unique_ptr<llvm::Module> getModule() { return std::move(Module); }
     std::unique_ptr<llvm::LLVMContext> getContext() { return std::move(Context); }
@@ -53,10 +54,16 @@ public:
 
     void printIR();
     void printErrors();
+    void printErrors(llvm::Module& module);
     void optimizeModule(int level = 2); // Define optimization logic
 
+    bool isLoadedModule(const std::string& modulePath);
+    bool isLoadedModuleMember(const std::string& modulePath, const std::string& memberName);
+    void activateModuleMembers(const std::vector<std::string>& members);
+    void linkModules();
+
     void generateModule(const std::string& moduleName, const std::vector<std::shared_ptr<Statement>>& statements);
-    void importModule(const std::string& moduleName);
+    void importModule(const std::string& moduleName, const std::vector<std::string>& members);
     // bool isModuleUpdated(const std::string& moduleName);
     // void unloadModule(const std::string& moduleName);
 
@@ -72,10 +79,18 @@ public:
     llvm::Value* create32BitFloat(float value);
     llvm::Value* create64BitFloat(double value);
 
-    llvm::Value* createBigInt(const std::string& str); // Arbitrary precision integer
+    llvm::Value* create128BitBigInt(const std::string& str); // Arbitrary precision integer
+    llvm::Value* create256BitBigInt(const std::string& str);
+    llvm::Value* create1024BitBigInt(const std::string& str);
 
     // Assignments
-    llvm::Value* createVariable(const std::string& name, llvm::Type* type, llvm::Value* initialValue);
+    llvm::GlobalVariable* createGlobalVariable(
+        const std::string& name, 
+        llvm::Type* type, 
+        llvm::Value* initialValue, 
+        llvm::GlobalValue::LinkageTypes linkage = llvm::GlobalValue::InternalLinkage // Default to internal
+    );
+    llvm::Value* createVariable(const std::string& name, llvm::Type* type, llvm::Value* initialValue, bool isGlobal = false);
     llvm::Value* createConstant(const std::string& name, llvm::Type* type, llvm::Value* value);
     llvm::Value* reassign(const std::string& name, llvm::Value* newValue);
     llvm::Value* getVariable(const std::string& name);

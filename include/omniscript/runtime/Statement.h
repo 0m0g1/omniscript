@@ -94,10 +94,30 @@ public:
     llvm::Value* codegen(IRGenerator& irGen) override;
 };
 
-class Literal : public Statement {
+class PrivateMember : public NamedStatement {
 public:
-    virtual ~Literal() = default;
+    std::string memberName;
+    std::shared_ptr<Statement> value;
+
+    PrivateMember(std::string name, std::shared_ptr<Statement> value)
+        : memberName(std::move(name)), value(std::move(value)) {}
+
+    std::string getName() override { return memberName; }
+    llvm::Value* codegen(IRGenerator& irGen) override;
 };
+
+class Literal : public Statement {
+    public:
+        explicit Literal() : llvmType(nullptr) {}
+        virtual ~Literal() = default;
+    
+        llvm::Type* getType() const { return llvmType; }
+        void setType(llvm::Type* newType) { llvmType = newType; }
+    
+    protected:
+        llvm::Type* llvmType;  // Store the type at the base level
+    };
+    
 
 // ============================== Numeric Literals ============================== //
 class NumericLiteral : public Literal {
@@ -105,56 +125,45 @@ public:
     virtual ~NumericLiteral() = default;
 };
 
-class Int8Bit : public NumericLiteral {
+class IntegerLiteral : public NumericLiteral {
 public:
-    explicit Int8Bit(int8_t val) : value(val) {}
-    llvm::Value* codegen(IRGenerator& generator) override;
-    int8_t value;
-};
+    explicit IntegerLiteral(int64_t val)
+        : value(val) {}
 
-class Int16Bit : public NumericLiteral {
-public:
-    explicit Int16Bit(int16_t val) : value(val) {}
     llvm::Value* codegen(IRGenerator& generator) override;
-    int16_t value;
-};
 
-class Int32Bit : public NumericLiteral {
-public:
-    explicit Int32Bit(int32_t val) : value(val) {}
-    llvm::Value* codegen(IRGenerator& generator) override;
-    int32_t value;
-};
-
-class Int64Bit : public NumericLiteral {
-public:
-    explicit Int64Bit(int64_t val) : value(val) {}
-    llvm::Value* codegen(IRGenerator& generator) override;
+private:
     int64_t value;
 };
 
-class Float32Bit : public NumericLiteral {
+class FloatLiteral : public NumericLiteral {
 public:
-    explicit Float32Bit(float val) : value(val) {}
-    llvm::Value* codegen(IRGenerator& generator) override;
-    float value;
-};
+    explicit FloatLiteral(double val, llvm::Type* type = nullptr) 
+        : value(val) {}
 
-class Float64Bit : public NumericLiteral {
-public:
-    explicit Float64Bit(double val) : value(val) {}
     llvm::Value* codegen(IRGenerator& generator) override;
+
+private:
     double value;
-};
-    
+};    
 
 // Arbitrary-precision integer (BigInt)
 class BigInt : public NumericLiteral {
 public:
-    BigInt(const std::string& value) : value(value) {}
-    llvm::Value* codegen(IRGenerator& generator);
+    BigInt(const std::string& value)
+        : value(value) {}
+
+    llvm::Value* codegen(IRGenerator& generator) override;
+    static unsigned determineBitWidth(const std::string& value) {
+        unsigned numBits = value.length() * 3.32; // log2(10) ≈ 3.32 bits per decimal digit
+        return numBits < 128 ? 128 : (numBits < 256 ? 256 : 1024);
+    }
+
+private:
     std::string value;
+    unsigned bitWidth;  // e.g., 128, 256, 1024
 };
+
 
 // ============================== Other Literals ============================== //
 
@@ -176,7 +185,13 @@ public:
         
 // ============================== Assignments ============================== //
 // Assignments
-class createVariable : public NamedStatement {
+class Assignment : public NamedStatement {
+public:
+    void setGlobalVisibilityTo(bool state);
+    bool isGlobal = false;
+};
+
+class createVariable : public Assignment {
 public:
     createVariable(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value);
     std::string getName() override {return variable;}
@@ -188,7 +203,7 @@ private:
     std::shared_ptr<Statement> value;
 };
 
-class createConstant : public NamedStatement {
+class createConstant : public Assignment {
 public:
     createConstant(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value);
     std::string getName() override {return variable;}
@@ -200,7 +215,7 @@ private:
     std::shared_ptr<Statement> value;
 };
 
-class createDynamicVariable : public NamedStatement {
+class createDynamicVariable : public Assignment {
 public:
     createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value);
     std::string getName() override {return variable;}

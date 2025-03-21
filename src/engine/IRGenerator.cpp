@@ -5,11 +5,13 @@
 #include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Linker/Linker.h>
+#include <llvm/IR/DataLayout.h>
+#include <llvm/Support/Alignment.h>
 #include <omniscript/debuggingtools/console.h>
 
-IRGenerator::IRGenerator() {
+IRGenerator::IRGenerator(const std::string& mainModulePath) {
     Context = std::make_unique<llvm::LLVMContext>();
-    Module = std::make_unique<llvm::Module>("OmniScript", *Context);
+    Module = std::make_unique<llvm::Module>(mainModulePath, *Context);
     Builder = std::make_unique<llvm::IRBuilder<>>(*Context);
     initialize();
 }
@@ -29,7 +31,7 @@ void IRGenerator::initialize() {
     if (Module->empty()) {
         // No functions exist, create a top-level entry block for global execution
         llvm::FunctionType* funcType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
-        llvm::Function* topLevelFunc = llvm::Function::Create(funcType, llvm::Function::InternalLinkage, "__top_level__", Module.get());
+        llvm::Function* topLevelFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "__top_level__", Module.get());
         llvm::BasicBlock* entryBlock = llvm::BasicBlock::Create(*Context, "entry", topLevelFunc);
         Builder->SetInsertPoint(entryBlock);
         Builder->CreateRetVoid(); 
@@ -55,7 +57,19 @@ void IRGenerator::printIR() {
 }
 
 void IRGenerator::printErrors() {
-    Module->print(llvm::errs(), nullptr);
+    if (llvm::verifyModule(*Module, &llvm::errs())) {
+        llvm::errs() << "Module verification failed!\n";
+    } else {
+        llvm::errs() << "No errors found.\n";
+    }
+}
+
+void IRGenerator::printErrors(llvm::Module& module) {
+    if (llvm::verifyModule(module, &llvm::errs())) {
+        llvm::errs() << "Module verification failed!\n";
+    } else {
+        llvm::errs() << "No errors found.\n";
+    }
 }
 
 void IRGenerator::optimizeModule(int level) {
@@ -90,59 +104,90 @@ void IRGenerator::optimizeModule(int level) {
     // printErrors();
 }
 
-void IRGenerator::generateModule(const std::string& moduleName, const std::vector<std::shared_ptr<Statement>>& statements) {
-    // Check if the module already exists
-    if (generatedModules.find(moduleName) != generatedModules.end()) {
-        console.warn("Module '" + moduleName + "' is already defined.");
+void IRGenerator::generateModule(const std::string& modulePath, const std::vector<std::shared_ptr<Statement>>& statements) {
+    console.debug("Generating module " + modulePath);
+    if (generatedModules.find(modulePath) != generatedModules.end()) {
         return;
     }
-
-    // Create a new LLVM module
-    auto newModule = std::make_unique<llvm::Module>(moduleName, *Context);
-
-    // Backup the current module and switch context
+    
+    auto newModule = std::make_unique<llvm::Module>(modulePath, *Context);
     llvm::Module* previousModule = CurrentModule;
     CurrentModule = newModule.get();
-
-    // Public symbol table for the module
+    
     std::unordered_map<std::string, llvm::Value*> publicMembers;
-
+    
     for (const auto& statement : statements) {
         if (auto moduleStatement = std::dynamic_pointer_cast<CreateModule>(statement)) {
-            // Nested module found - process it separately
+            console.debug("Generating a submodule");
             generateModule(moduleStatement->getName(), moduleStatement->getStatements());
-        } 
-        else if (auto publicStatement = std::dynamic_pointer_cast<PublicMember>(statement)) {
+        } else if (auto publicStatement = std::dynamic_pointer_cast<PublicMember>(statement)) {
+            console.debug("Creating public member " + publicStatement->getName());
             llvm::Value* value = publicStatement->codegen(*this);
-            if (value) publicMembers[publicStatement->getName()] = value;
-        } 
-        else {
-            // Private or global statement - just generate IR
-            statement->codegen(*this);
+            if (value) {
+                if (llvm::GlobalValue* gv = llvm::dyn_cast<llvm::GlobalValue>(value)) {
+                    gv->setLinkage(llvm::GlobalValue::ExternalLinkage);  // Ensure it's visible externally
+                    publicMembers[publicStatement->getName()] = gv;
+                } else {
+                    console.warn("Warning: Public statement '" + publicStatement->getName() + "' is not a global value and cannot have linkage visibility set to private or public.");
+                }
+            }
+        } else if (auto privateStatement = std::dynamic_pointer_cast<PrivateMember>(statement)) {
+            console.debug("Creating private member " + privateStatement->getName());
+            llvm::Value* value = privateStatement->codegen(*this);
+            if (value) {
+                if (llvm::GlobalValue* gv = llvm::dyn_cast<llvm::GlobalValue>(value)) {
+                    gv->setLinkage(llvm::GlobalValue::InternalLinkage);
+                } else {
+                    console.warn("Warning: Private statement '" + privateStatement->getName() + "' is not a global value and cannot have linkage visibility set to private or public.");
+                }
+            }
+        } else {
+            console.debug("Creating an unnamed instruction inside " + modulePath);
+            llvm::Value* value = statement->codegen(*this);
+            if (llvm::GlobalValue* gv = llvm::dyn_cast<llvm::GlobalValue>(value)) {
+                gv->setLinkage(llvm::GlobalValue::InternalLinkage);
+            }            
         }
     }
+    
+    printErrors(*CurrentModule);
 
-    // Restore previous module
     CurrentModule = previousModule;
-
-    // Store the module with its public members
-    generatedModules[moduleName] = std::move(newModule);
-    modulePublicSymbols[moduleName] = std::move(publicMembers);
-
+    modulePublicSymbols[modulePath] = std::move(publicMembers);
+    
     if (llvm::Linker::linkModules(*Module, std::move(newModule))) {
         llvm::errs() << "Error: Linking failed!\n";
     }
 }
 
 
-void IRGenerator::importModule(const std::string& moduleName) {
-    if (modulePublicSymbols.find(moduleName) == modulePublicSymbols.end()) {
-        console.error("Module '" + moduleName + "' not found or has no public symbols.");
+bool IRGenerator::isLoadedModule(const std::string& modulePath) {
+    if (generatedModules.find(modulePath) != generatedModules.end()) {
+        return true;
+    }
+    return false;
+}
+
+bool IRGenerator::isLoadedModuleMember(const std::string& modulePath, const std::string& memberName) {
+    return true;
+}
+
+void IRGenerator::activateModuleMembers(const std::vector<std::string>& members) {
+    return;
+}
+
+void IRGenerator::linkModules() {
+
+}
+
+void IRGenerator::importModule(const std::string& modulePath, const std::vector<std::string>& members) {
+    if (modulePublicSymbols.find(modulePath) == modulePublicSymbols.end()) {
+        console.error("Module '" + modulePath + "' not found or has no public symbols.");
         return;
     }
 
     // Import only public members
-    for (const auto& [name, value] : modulePublicSymbols[moduleName]) {
+    for (const auto& [name, value] : modulePublicSymbols[modulePath]) {
         NamedValues[name] = value;
     }
 }
@@ -163,16 +208,21 @@ llvm::Type* IRGenerator::resolveLLVMType(const std::vector<std::string>& dataTyp
         return llvm::Type::getInt32Ty(context);
     } else if (dataTypes[0] == "i64") {
         return llvm::Type::getInt64Ty(context);
+    } else if (dataTypes[0] == "i128") {
+        return llvm::IntegerType::get(context, 128);
+    } else if (dataTypes[0] == "i256") {
+        return llvm::IntegerType::get(context, 256);
+    } else if (dataTypes[0] == "i1024") {
+        return llvm::IntegerType::get(context, 1024);
     } else if (dataTypes[0] == "f32") {
         return llvm::Type::getFloatTy(context);
     } else if (dataTypes[0] == "f64") {
         return llvm::Type::getDoubleTy(context);
     }
 
-    // console.error("Unknown type: " + dataTypes[0]);
+    std::cerr << "Unknown type: " << dataTypes[0] << std::endl;
     return nullptr;
 }
-
 
 
 // Generate IR for different types
@@ -208,28 +258,105 @@ llvm::Value* IRGenerator::create64BitFloat(double value) {
 }
 
 // Create an arbitrary-precision integer (BigInt)
-llvm::Value* IRGenerator::createBigInt(const std::string& str) {
+llvm::Value* IRGenerator::create128BitBigInt(const std::string& str) {
+    llvm::APInt bigIntValue(128, str, 10); // 1024-bit integer from string (base 10)
+    return llvm::ConstantInt::get(*Context, bigIntValue);
+}
+llvm::Value* IRGenerator::create256BitBigInt(const std::string& str) {
+    llvm::APInt bigIntValue(256, str, 10); // 1024-bit integer from string (base 10)
+    return llvm::ConstantInt::get(*Context, bigIntValue);
+}
+llvm::Value* IRGenerator::create1024BitBigInt(const std::string& str) {
     llvm::APInt bigIntValue(1024, str, 10); // 1024-bit integer from string (base 10)
     return llvm::ConstantInt::get(*Context, bigIntValue);
 }
 
 
-llvm::Value* IRGenerator::createVariable(const std::string& name, llvm::Type* type, llvm::Value* initialValue) {
-    llvm::Function* function = Builder->GetInsertBlock()->getParent();  // Get current function
-    llvm::IRBuilder<> tempBuilder(&function->getEntryBlock(), function->getEntryBlock().begin());
+llvm::Value* IRGenerator::createVariable(
+    const std::string& name, llvm::Type* type, llvm::Value* initialValue, bool isGlobal) {
+
+    llvm::Module* activeModule = CurrentModule; // Get the correct active module
+
+    if (isGlobal) {
+        // Create a global variable inside the active module
+        llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
+            *activeModule,
+            type,
+            false,  // Not constant
+            llvm::GlobalValue::ExternalLinkage,
+            llvm::Constant::getNullValue(type), // Default initializer
+            name
+        );
+
+        // Set the initializer if the value is constant
+        if (llvm::Constant* constValue = llvm::dyn_cast<llvm::Constant>(initialValue)) {
+            gVar->setInitializer(constValue);
+        }
+
+        return gVar;
+    } 
     
+    // LOCAL VARIABLE CASE:
+    llvm::Function* function = Builder->GetInsertBlock()->getParent();  
+    llvm::IRBuilder<> tempBuilder(&function->getEntryBlock(), function->getEntryBlock().begin());
+
     // Place allocation in the entry block
     llvm::AllocaInst* alloca = tempBuilder.CreateAlloca(type, nullptr, name);
+
+    // 🔹 **Set Correct Alignment for Big Integers**
+    unsigned bitWidth = type->getIntegerBitWidth();
+    unsigned align = 1;
+
+    if (bitWidth >= 1024) align = 128;
+    else if (bitWidth >= 256) align = 32;
+    else if (bitWidth >= 128) align = 16;
+    else if (bitWidth >= 64) align = 8;
+    else if (bitWidth >= 32) align = 4;
+    else if (bitWidth >= 16) align = 2;
+
+    alloca->setAlignment(llvm::Align(llvm::MaybeAlign(align).value_or(llvm::Align(1))));
+
     NamedValues[name] = alloca;
 
-    // ✅ Ensure the store is inserted *before* the return statement
+    // Ensure stores happen before the return statement
     llvm::BasicBlock* insertBlock = Builder->GetInsertBlock();
     if (llvm::ReturnInst* retInst = llvm::dyn_cast<llvm::ReturnInst>(insertBlock->getTerminator())) {
-        Builder->SetInsertPoint(retInst);  // Insert before the return
+        Builder->SetInsertPoint(retInst);  // Insert before return
     }
 
-    Builder->CreateStore(initialValue, alloca);
+    // 🔹 **Check if Initial Value Exists Before Storing**
+    if (initialValue) {
+        Builder->CreateStore(initialValue, alloca)->setAlignment(llvm::Align(align));
+    }
+
     return alloca;
+}
+
+
+llvm::GlobalVariable* IRGenerator::createGlobalVariable(
+    const std::string& name, 
+    llvm::Type* type, 
+    llvm::Value* initialValue, 
+    llvm::GlobalValue::LinkageTypes linkage
+) {
+    llvm::Module* activeModule = CurrentModule; // Ensure it's created in the current module
+
+    // Create a global variable inside the active module
+    llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
+        *activeModule, 
+        type,
+        false,  // Not constant
+        linkage, // Use the specified linkage type (default is InternalLinkage)
+        llvm::Constant::getNullValue(type), // Default initializer
+        name
+    );
+
+    // Set the initializer if the value is a constant
+    if (llvm::Constant* constValue = llvm::dyn_cast<llvm::Constant>(initialValue)) {
+        gVar->setInitializer(constValue);
+    }
+
+    return gVar;
 }
 
 

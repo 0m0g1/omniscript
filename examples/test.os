@@ -1,8 +1,13 @@
 import { foreign } from "examples/test2.os";
 // import { string, console } from std;
 
-let a : i8 = 10;
-let b : i32 = 0;
+let a : i8 = 1;
+let b : i16 = 2;
+let c : i32 = 3;
+let d : i64 = 4;
+let e : i128 = 4;
+let f : i256 = 4;
+let g : i1024 = 40000000000000000000000000000000000000000000000000000000;
 // let c : std::string = "hello";
    
 /* This is a function */

@@ -284,20 +284,20 @@ std::shared_ptr<Statement> Parser::parseModule() {
 
         std::shared_ptr<Statement> member = parseStatement();
 
-        if (isPublicMember) {
-            std::string memberName;
-            
-            // Try to extract the name based on statement type
-            if (auto named = std::dynamic_pointer_cast<NamedStatement>(member)) {
-                memberName = named->getName();
-            } else {
-                console.error("Cannot determine name of public member in module: " + moduleName);
-                continue;
-            }
+        std::string memberName;
+        
+        // Try to extract the name based on statement type
+        if (auto named = std::dynamic_pointer_cast<NamedStatement>(member)) {
+            memberName = named->getName();
+        } else {
+            console.error("Cannot determine name of public member in module: " + moduleName);
+            continue;
+        }
 
+        if (isPublicMember) {
             members.push_back(std::make_shared<PublicMember>(memberName, member));
         } else {
-            members.push_back(member);
+            members.push_back(std::make_shared<PrivateMember>(memberName, member));
         }
     }
 
@@ -453,15 +453,14 @@ std::shared_ptr<Statement> Parser::factor() {
             long long value = std::stoll(valueStr);
     
             if (value >= std::numeric_limits<int32_t>::min() && value <= std::numeric_limits<int32_t>::max()) {
-                left = std::make_shared<Int32Bit>(static_cast<int32_t>(value));
+                left = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
             } else if (value >= std::numeric_limits<int64_t>::min() && value <= std::numeric_limits<int64_t>::max()) {
-                left = std::make_shared<Int64Bit>(static_cast<int64_t>(value));
+                left = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
             } else {
                 // Handle BigInt case
                 left = std::make_shared<BigInt>(valueStr);
             }
         } catch (const std::out_of_range&) {
-            // Handle BigInt case for extra-large numbers
             left = std::make_shared<BigInt>(valueStr);
         }
     }
@@ -473,36 +472,36 @@ std::shared_ptr<Statement> Parser::factor() {
 
         // Check for 'f' or 'd' suffix to determine float type
         if (!value.empty() && (value.back() == 'f' || value.back() == 'F')) {
-            left = std::make_shared<Float32Bit>(std::stof(value)); // Float32
+            left = std::make_shared<FloatLiteral>(std::stof(value)); // Float32
         } else {
-            left = std::make_shared<Float64Bit>(std::stod(value)); // Default to Float64
+            left = std::make_shared<FloatLiteral>(std::stod(value)); // Default to Float64
         }
     }
 
     // Handle float literals
     else if (currentToken.getType() == TokenTypes::FloatLiteral) {
         eat(TokenTypes::FloatLiteral);
-        left = std::make_shared<Float32Bit>(std::stof(previousToken.getValue())); // Assuming Float32Bit is your float type
+        left = std::make_shared<FloatLiteral>(std::stof(previousToken.getValue())); // Assuming Float32Bit is your float type
     }
     // Handle integer literals (decimal)
     else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
         eat(TokenTypes::IntegerLiteral);
-        left = std::make_shared<Int32Bit>(std::stoll(previousToken.getValue())); // Assuming Int32Bit is your integer type
+        left = std::make_shared<IntegerLiteral>(std::stoll(previousToken.getValue())); // Assuming Int32Bit is your integer type
     }
     // Handle hexadecimal literals
     else if (currentToken.getType() == TokenTypes::HexLiteral) {
         eat(TokenTypes::HexLiteral);
-        left = std::make_shared<Int32Bit>(std::stoll(previousToken.getValue(), nullptr, 16)); // Base 16
+        left = std::make_shared<IntegerLiteral>(std::stoll(previousToken.getValue(), nullptr, 16)); // Base 16
     }
     // Handle octal literals
     else if (currentToken.getType() == TokenTypes::OctalLiteral) {
         eat(TokenTypes::OctalLiteral);
-        left = std::make_shared<Int32Bit>(std::stoll(previousToken.getValue(), nullptr, 8)); // Base 8
+        left = std::make_shared<IntegerLiteral>(std::stoll(previousToken.getValue(), nullptr, 8)); // Base 8
     }
     // Handle binary literals
     else if (currentToken.getType() == TokenTypes::BinaryLiteral) {
         eat(TokenTypes::BinaryLiteral);
-        left = std::make_shared<Int32Bit>(std::stoll(previousToken.getValue(), nullptr, 2)); // Base 2
+        left = std::make_shared<IntegerLiteral>(std::stoll(previousToken.getValue(), nullptr, 2)); // Base 2
     }
     // Handle big integers (arbitrary-precision)
     else if (currentToken.getType() == TokenTypes::BigInt) {

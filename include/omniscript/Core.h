@@ -17,6 +17,7 @@ namespace Omniscript {
         int col = 0; 
         int line = 0; 
         std::string fileName;
+        std::string filePath;
     };
 
     extern filePosition pos;
