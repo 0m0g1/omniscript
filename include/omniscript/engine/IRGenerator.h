@@ -10,8 +10,15 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/utils.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Constants.h>
 
 class Statement;
+
+struct GlobalInit {
+    llvm::GlobalVariable* variable;
+    llvm::Value* value;
+};
 
 struct DynamicValue {
     enum Type { INT, FLOAT, STRING };
@@ -34,6 +41,7 @@ private:
     std::shared_ptr<SymbolTable> scope = std::make_shared<SymbolTable>();
     std::shared_ptr<SymbolTable> activeScope = scope;
     std::stack<llvm::BasicBlock*> insertionPointStack;
+    std::vector<GlobalInit> globalInitializers;
 
     std::unique_ptr<llvm::LLVMContext> Context;
     std::unique_ptr<llvm::IRBuilder<>> Builder;
@@ -140,6 +148,13 @@ public:
     llvm::Value* createBool(bool value);
 
     // Assignments
+    llvm::Function* getOrCreateGlobalInitFunction();
+    void scheduleGlobalInitialization(
+        const std::string& name,
+        llvm::GlobalVariable* gVar,
+        llvm::Value* initialValue
+    );
+    void finalizeGlobalInitializers();
     llvm::GlobalVariable* createGlobalVariable(
         const std::string& name, 
         llvm::Type* type, 
@@ -150,7 +165,7 @@ public:
         const std::string& name, 
         llvm::Type* type = nullptr, 
         llvm::Value* initialValue = nullptr, 
-        bool isGlobal = false, 
+        bool isGlobal = true, 
         llvm::BasicBlock* activeBlock = nullptr
     );
     llvm::Value* createConstant(const std::string& name, llvm::Type* type, llvm::Value* value);

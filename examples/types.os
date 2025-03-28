@@ -58,7 +58,7 @@
 // // Optional values (if supported)
 // let y : Option<i32> = Some(10);
 // let z : Option<i32> = None;
-
+let variable : int = 10;
 
 function add(a: int, b: int) => i32 {
     return a + b;

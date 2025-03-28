@@ -1,10 +1,10 @@
 - handle constants
-- get the full absolute path of files (if need be)
+- handle global variables they are assigned locally to top level
 - handle nested modules properly
 - canvas rendering apis
 - make it all statically linked
 - fix property and method calls, properties are method calls currently
-
+- get the full absolute path of files (if need be)
 - overloading functions by writing more than one argument list like so ??
 - function print(int value)
               - (string value)

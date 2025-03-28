@@ -329,7 +329,7 @@ public:
 class Assignment : public NamedStatement {
 public:
     void setGlobalVisibilityTo(bool state);
-    bool isGlobal = false;
+    bool isGlobal = true;
 };
 
 class createVariable : public Assignment {

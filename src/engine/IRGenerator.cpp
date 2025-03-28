@@ -8,6 +8,7 @@
 #include <llvm/IR/DataLayout.h>
 #include <llvm/Support/Alignment.h>
 #include <llvm/ADT/StringMap.h>         // Needed for getHostCPUFeatures
+#include <llvm/IR/Constants.h>  // Required for appendToGlobalCtors
 
 #include <omniscript/debuggingtools/console.h>
 
@@ -583,6 +584,141 @@ llvm::Value* IRGenerator::createBool(bool value) {
     return llvm::ConstantInt::get(llvm::Type::getInt1Ty(*Context), value ? 1 : 0, false);
 }
 
+llvm::Function* IRGenerator::getOrCreateGlobalInitFunction() {
+    const char* initName = "__startup__";
+    
+    // First check if function already exists
+    if (auto* existing = Module->getFunction(initName)) {
+        return existing;
+    }
+
+    // Create function type (void -> void)
+    auto* funcType = llvm::FunctionType::get(
+        Builder->getVoidTy(), 
+        false
+    );
+
+    // Create the function
+    auto* func = llvm::Function::Create(
+        funcType,
+        llvm::Function::InternalLinkage,
+        initName,
+        Module.get()
+    );
+
+    // Create entry block
+    auto* entry = llvm::BasicBlock::Create(
+        Module->getContext(), 
+        "entry", 
+        func
+    );
+
+    Builder->SetInsertPoint(entry);
+    Builder->CreateRetVoid(); // Ensure the function has a return
+
+    // Get or create `llvm.global_ctors`
+    llvm::GlobalVariable* globalCtors = Module->getNamedGlobal("llvm.global_ctors");
+    
+    llvm::StructType* ctorStructType = llvm::StructType::get(
+        Builder->getInt32Ty(), // Priority
+        func->getType(),       // Function pointer
+        llvm::PointerType::getUnqual(Module->getContext()) // Data
+    );
+
+    llvm::Constant* ctorEntry = llvm::ConstantStruct::get(
+        ctorStructType,
+        {
+            llvm::ConstantInt::get(Builder->getInt32Ty(), 0), // Priority = 0
+            func,                                            // Function pointer
+            llvm::Constant::getNullValue(
+                llvm::PointerType::getUnqual(Module->getContext())
+            ) // Data (nullptr)
+        }
+    );
+
+    // If `llvm.global_ctors` exists, append the new function
+    if (globalCtors) {
+        auto* arrayType = llvm::dyn_cast<llvm::ArrayType>(globalCtors->getValueType());
+        size_t existingSize = arrayType->getNumElements();
+        
+        std::vector<llvm::Constant*> ctorEntries;
+
+        auto* existingInit = llvm::dyn_cast<llvm::ConstantArray>(globalCtors->getInitializer());
+        for (size_t i = 0; i < existingSize; ++i) {
+            ctorEntries.push_back(existingInit->getOperand(i));
+        }
+
+        // Add new constructor
+        ctorEntries.push_back(ctorEntry);
+
+        auto* newArrayType = llvm::ArrayType::get(ctorStructType, ctorEntries.size());
+        auto* newInit = llvm::ConstantArray::get(newArrayType, ctorEntries);
+
+        // Replace global variable with updated initializer
+        globalCtors->setInitializer(newInit);
+    } else {
+        // If `llvm.global_ctors` doesn't exist, create it
+        auto* arrayType = llvm::ArrayType::get(ctorStructType, 1);
+        auto* globalCtorVar = new llvm::GlobalVariable(
+            *Module,
+            arrayType,
+            false,
+            llvm::GlobalValue::AppendingLinkage,
+            llvm::ConstantArray::get(arrayType, {ctorEntry}),
+            "llvm.global_ctors"
+        );
+
+        globalCtorVar->setAlignment(llvm::Align(8));
+    }
+
+    return func;
+}
+
+void IRGenerator::scheduleGlobalInitialization(
+    const std::string& name,
+    llvm::GlobalVariable* gVar,
+    llvm::Value* initialValue
+) {
+    // Create initialization in global constructor
+    llvm::IRBuilder<> initBuilder(
+        Module->getContext()
+    );
+    auto* initFunc = getOrCreateGlobalInitFunction();
+    auto* entry = &initFunc->getEntryBlock();
+    
+    if (entry->empty()) {
+        initBuilder.SetInsertPoint(entry);
+    } else {
+        initBuilder.SetInsertPoint(
+            entry, 
+            std::prev(entry->end())
+        );
+    }
+
+    // Store the initial value
+    initBuilder.CreateStore(initialValue, gVar);
+}
+
+void IRGenerator::finalizeGlobalInitializers() {
+    if (globalInitializers.empty()) return;
+
+    auto* func = getOrCreateGlobalInitFunction();
+    auto* entry = &func->getEntryBlock();
+    
+    // Set insertion point at end of entry block
+    Builder->SetInsertPoint(entry, entry->end());
+
+    // Emit all initializers
+    for (auto& init : globalInitializers) {
+        if (init.value->getType() != init.variable->getValueType()) {
+            init.value = Builder->CreateBitCast(init.value, init.variable->getValueType());
+        }
+        Builder->CreateStore(init.value, init.variable);
+    }
+
+    globalInitializers.clear();
+}
+
 llvm::Value* IRGenerator::createVariable(
     const std::string& name, 
     llvm::Type* type, 
@@ -594,24 +730,25 @@ llvm::Value* IRGenerator::createVariable(
     llvm::Module* activeModule = CurrentModule; // Get the correct active module
 
     if (isGlobal) {
-        // Create a global variable inside the active module
         llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
             *activeModule,
             type,
-            false,  // Not constant
-            llvm::GlobalValue::PrivateLinkage,
-            llvm::Constant::getNullValue(type), // Default initializer
+            false, // Not constant
+            llvm::GlobalValue::ExternalLinkage, // Make it accessible globally
+            initialValue ? llvm::dyn_cast<llvm::Constant>(initialValue) 
+                         : llvm::Constant::getNullValue(type), // Default init
             name
         );
-
-        // Set the initializer if the value is constant
-        if (llvm::Constant* constValue = llvm::dyn_cast<llvm::Constant>(initialValue)) {
-            gVar->setInitializer(constValue);
+    
+        if (!gVar->hasInitializer() && initialValue) {
+            console.warn("Warning: Global variable '" + name + 
+                         "' requires a constant initializer but received non-constant.");
         }
-
+    
         activeScope->set(name, gVar);
         return gVar;
-    } 
+    }
+    
     
     // LOCAL VARIABLE CASE:
     llvm::Function* function = nullptr;

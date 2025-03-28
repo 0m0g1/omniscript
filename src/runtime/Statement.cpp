@@ -33,6 +33,10 @@ llvm::Value* BlockStatement::codegen(IRGenerator& generator) {
             typed->setType(llvmType);
         }
 
+        if (auto assignment = std::dynamic_pointer_cast<Assignment>(stmt)) {
+            assignment->setGlobalVisibilityTo(false);
+        }
+
         lastValue = stmt->codegen(generator);
         
         // If the current block already has a terminator, stop generating
@@ -197,7 +201,7 @@ llvm::Value* createVariable::codegen(IRGenerator& generator) {
     }
     llvm::Value* result = value->codegen(generator);
     DEBUG_LOG("Created value for " + variable);
-    return generator.createVariable(variable, type, result, isGlobal);
+    return generator.createVariable(variable, type, result, false);
 }
 
 // Constant Assignment

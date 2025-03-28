@@ -31,6 +31,9 @@ void JITCompiler::execute(const std::vector<std::shared_ptr<Statement>>& stateme
         }
     }
 
+    // Add this after IR generation but before optimization
+    irGen.finalizeGlobalInitializers();  // Creates __startup__ if needed
+
     irGen.printIR();
     irGen.printErrors();
     
@@ -38,6 +41,12 @@ void JITCompiler::execute(const std::vector<std::shared_ptr<Statement>>& stateme
     
     llvm::orc::ThreadSafeContext tsContext(irGen.getContext());
     auto module = std::move(irGen.getModule());
+    
+    // Initialize globals
+    if (auto startupSym = jit->lookup("__startup__")) {
+        auto startupFn = startupSym->toPtr<void(*)()>();
+        startupFn();  // Initialize globals first
+    }
 
     // Step 1: Retrieve function metadata before moving module
     std::string entryPoint;
