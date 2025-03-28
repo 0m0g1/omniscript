@@ -1,0 +1,3 @@
+[submodule "vscode-extension"]
+	path = vscode-extension
+	url = https://github.com/0m0g1/omniscript-lang-extension.git

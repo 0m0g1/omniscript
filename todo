@@ -1,0 +1,27 @@
+- handle constants
+- get the full absolute path of files (if need be)
+- handle nested modules properly
+- canvas rendering apis
+- make it all statically linked
+- fix property and method calls, properties are method calls currently
+
+- overloading functions by writing more than one argument list like so ??
+- function print(int value)
+              - (string value)
+              - (object value) { }
+
+- time object
+- file object
+- os object
+- ffmpeg converter api
+- fix unary minus
+
+- operator overloading
+- Runtime and compile time optimizations for big ints
+- Global 1024 bit ints
+- support f128
+- fix pointer depth in resolving llvm types left and right pointer depths
+- fix pointer pointee types. I can point to an i32* in a variable that is supposed to point to a char*
+- resolve void pointer types correctly
+- resolve all string types in statement.cpp
+- multidimentional arrays

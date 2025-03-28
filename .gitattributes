@@ -1,0 +1,5 @@
+*.gch filter=lfs diff=lfs merge=lfs -text
+libLLVM-18.dll filter=lfs diff=lfs merge=lfs -text
+# include/omniscript/omniscript_pch.h.gch filter=lfs diff=lfs merge=lfs -text
+bin/libLLVM-18.dll filter=lfs diff=lfs merge=lfs -text
+# bin/Debug-windows-x86_64/Osengine.exe filter=lfs diff=lfs merge=lfs -text

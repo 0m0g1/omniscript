@@ -1,0 +1,7 @@
+include/omniscript/omniscript_pch.h.gch
+error_log.txt
+example.txt
+*.o
+*.d
+/bin-int
+/bin/*

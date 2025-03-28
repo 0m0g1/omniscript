@@ -1,0 +1,15 @@
+
+- bodmas binary expressions
+- nested multiline comments
+- File extension .os or .os++
+- Floats and integers
+- Can parse basic mathematical expressions
+- Can concatenate strings and ints
+- Dynamic and static variables
+  - Declare static variables with let (should be like that)
+  - Declare dynamic variables with var
+- conditionals 
+    - if
+    - else if
+    - else
+- keywords are case insensitive
