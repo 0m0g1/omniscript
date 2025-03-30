@@ -41,12 +41,13 @@
 // let w : [char] = "Dynamic String"; // Dynamic string (if OmniScript++ supports it)
 
 // // Structs (user-defined types)
-// struct Vector3 {
-//     x: f32;
-//     y: f32;
-//     z: f32;
-// }
+struct Vector3 {
+    x: f64;
+    y: f64;
+    z: f64;
+}
 
+let v1 = Vector3{ x: 1.0, y: 2.0, z: 3.0 };
 // let v1 : Vector3 = { x: 1.0, y: 2.0, z: 3.0 };
 
 // // Function pointers
@@ -57,16 +58,16 @@
 
 // // Optional values (if supported)
 // let y : Option<i32> = Some(10);
-// let z : Option<i32> = None;
-let variable : int = 10;
+// // let z : Option<i32> = None;
+// let variable : int = 10;
 
-function add(a: int, b: int) => i32 {
-    return a + b;
-}
+// function add(a: int, b: int) => i32 {
+//     return a + b;
+// }
 
-function main() => i32 {
-    return add(1, 1);
-}
+// function main() => i32 {
+//     return add(1, 1);
+// }
 
 // let ref : function* = add;
 

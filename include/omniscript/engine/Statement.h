@@ -326,10 +326,11 @@ public:
         
 // ============================== Assignments ============================== //
 // Assignments
-class Assignment : public NamedStatement {
+class Assignment : public virtual NamedStatement, public virtual TypedStatement {
 public:
     void setGlobalVisibilityTo(bool state);
     bool isGlobal = true;
+    virtual std::string toString() const override { return "Assignment"; }
 };
 
 class createVariable : public Assignment {
@@ -341,7 +342,6 @@ public:
 
 private:
     std::string variable;
-    llvm::Type* type;
     std::shared_ptr<Statement> value;
 };
 
@@ -449,7 +449,21 @@ public:
     std::string toString() const override { return "LiteralStatement"; }
     std::shared_ptr<Statement> getDefaultValue();
 };
-    
+
+class ArgumentStatement : public NamedStatement, public TypedStatement {
+public:
+    std::string name;
+    std::shared_ptr<Statement> value;
+
+    ArgumentStatement(std::string name, std::shared_ptr<Statement> value = nullptr)
+        : name(std::move(name)), value(std::move(value)) {}
+
+    std::string getName() const override { return name; }
+    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::string toString() const override { return "ArgumentStatement"; }
+};
+
+// ============================== Struct ============================== //
 class FunctionDeclaration : public NamedStatement, public TypedStatement {
 public:
     std::string name;
@@ -477,7 +491,21 @@ public:
     );
 };
     
+class ConstructStructPrototype : public NamedStatement {
+public:
+    ConstructStructPrototype(const std::string& structName, const std::vector<std::shared_ptr<Statement>>& structBody) : 
+    name(structName), body(structBody) {}
+
     
+    std::string getName() const override { return name; }
+    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::string toString() const override { return "ConstructStructPrototype"; }
+
+    std::vector<std::shared_ptr<Statement>> getBody() const { return body; }
+private:
+    std::string name;
+    std::vector<std::shared_ptr<Statement>> body;
+};
 
 class Call : public TypedStatement, public NamedStatement {
 public:
@@ -699,19 +727,27 @@ public:
     std::string toString() const override { return "LiteralStatement"; }
 };
 
-// class ObjectConstructorStatement : public Statement {
-// private:
-//     std::shared_ptr<Object> obj;
-//     std::vector<std::shared_ptr<Statement>> constructorArgs;
+class ObjectConstructorStatement : public Statement {
+private:
+    std::string objectType;
+    std::string instanceName;
+    std::vector<std::shared_ptr<Statement>> constructorArgs;
 
-// public:
-//     ObjectConstructorStatement(std::shared_ptr<Object> obj,
-//                                std::vector<std::shared_ptr<Statement>> args = {})
-//         : obj(obj), constructorArgs(std::move(args)) {}
+public:
+    ObjectConstructorStatement(
+        const std::string& objectType,
+        const std::string& instanceName,
+        std::vector<std::shared_ptr<Statement>> args = {})
+        : objectType(objectType),
+            instanceName(instanceName),
+            constructorArgs(std::move(args)) {}
 
-//     llvm::Value* codegen(IRGenerator& generator) override;
-//     std::string toString() const override { return "LiteralStatement"; }
-// };
+    llvm::Value* codegen(IRGenerator& generator) override;
+    std::string toString() const override { 
+        return "ObjectConstructor(" + objectType + " " + instanceName + ")"; 
+    }
+    void setInstanceName(const std::string& name) { instanceName = name; }
+};
 
 // class ObjectDestructorStatement : public Statement {
 // private:

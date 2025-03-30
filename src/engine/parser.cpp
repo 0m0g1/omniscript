@@ -1372,14 +1372,43 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     eat(TokenTypes::Identifier);
     
     // Start with the base identifier as the initial statement
+    // Parse function calls with generics
     if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
         if (currentToken.getType() == TokenTypes::LessThan) {
 
         }
 
         std::vector<std::shared_ptr<Statement>> args = parseArguments();
-
         return std::make_shared<Call>(rootIdentifier, args);
+    }
+
+    // Parse object instance constructors
+    if (currentToken.getType() == TokenTypes::LeftBrace) {
+        std::vector<std::shared_ptr<Statement>> args;
+
+        eat(TokenTypes::LeftBrace);
+        
+        while (currentToken.getType() != TokenTypes::RightBrace) {
+            std::string argumentName;
+            std::shared_ptr<Statement> value;
+
+            if (currentToken.getType() == TokenTypes::Comma) {
+                eat(TokenTypes::Comma);
+            }
+
+            if (currentToken.getType() == TokenTypes::Identifier) {
+                argumentName = currentToken.getValue();
+                eat(TokenTypes::Identifier);
+                eat(TokenTypes::Colon);
+            }
+            
+            value = parseExpression();
+            auto arg = std::make_shared<ArgumentStatement>(argumentName, value);
+            args.push_back(arg);
+        }
+
+        eat(TokenTypes::RightBrace);
+        return std::make_shared<ObjectConstructorStatement>(rootIdentifier, "", args);
     }
 
     std::shared_ptr<Statement> previousStatement = std::make_shared<GetVariable>(rootIdentifier);
@@ -1689,35 +1718,37 @@ std::shared_ptr<Statement> Parser::parseStruct() {
     std::string structName = currentToken.getValue();
     eat(TokenTypes::Identifier);
 
-    std::vector<std::string> keys;
-    std::vector<std::shared_ptr<Statement>> values;
+    std::vector<std::shared_ptr<Statement>> body;
 
     eat(TokenTypes::LeftBrace);
-    int i = 0;
     while(currentToken.getType() != TokenTypes::RightBrace) {
         if (currentToken.getType() == TokenTypes::Comma) {
-            i++;
             eat(TokenTypes::Comma);
         }
 
         if (currentToken.getType() == TokenTypes::Identifier) {
-            std::string valueName = currentToken.getValue();
-            keys.push_back(valueName);
+            std::string fieldName = currentToken.getValue();
+            std::vector<std::string> type;
+            std::shared_ptr<Statement> value = nullptr;
+
             eat(TokenTypes::Identifier);
+            eat(TokenTypes::Colon);
+            type.push_back(currentToken.getValue());
+
+            eat(TokenTypes::Identifier);
+
             if (currentToken.getType() == TokenTypes::Assign) {
                 eat(TokenTypes::Assign);
-                std::shared_ptr<Statement> value = parseExpression();
-                values.push_back(value);
-            } else {
-                // values.push_back(std::make_shared<Int32Bit>(i));
+                value = parseExpression();
             }
+
+            auto field = std::make_shared<createVariable>(fieldName, irGen.resolveLLVMType(type), value);
+            body.push_back(field);
+            expectSemicolonOrNewLine();
         }
     }
     eat(TokenTypes::RightBrace);
-    // auto newEnum = std::make_shared<Enum>(enumName, keys, values);
-    // auto constructor = std::make_shared<ObjectConstructorStatement>(newEnum);
-    // return std::make_shared<ConstantAssignment>(enumName, constructor);
-    return nullptr;
+    return std::make_shared<ConstructStructPrototype>(structName, body);
 }
 
 
@@ -1816,6 +1847,17 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
                 dataTypes = namespaceParts;
             }
         }
+    } else if (currentToken.getType() == TokenTypes::Assign) {
+        eat(TokenTypes::Assign);
+        std::string typeName = currentToken.getValue();
+
+        std::shared_ptr<Statement> result = parseExpression();
+
+        if (auto objConstructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(result)) {
+            objConstructor->setInstanceName(variableName);
+            return result;
+        }
+        console.warn("To do...");
     }    
 
     // Resolve LLVM Type with pointer depth

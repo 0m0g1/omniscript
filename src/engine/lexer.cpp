@@ -149,6 +149,8 @@ Token Lexer::getNextToken() {
             return Token(TokenTypes::New, "", line, column, sourceFilePath);
         } else if (identifier == "delete") {
             return Token(TokenTypes::New, "", line, column, sourceFilePath);
+        } else if (identifier == "struct") {
+            return Token(TokenTypes::Struct, "", line, column, sourceFilePath);
         } else if (identifier == "class") {
             return Token(TokenTypes::Class, "", line, column, sourceFilePath);
         } else if (identifier == "extends") {
@@ -208,47 +210,64 @@ Token Lexer::getNextToken() {
     }
 
     // Check for string and char literals
-    if (currentChar == '\'') { // Single quote detected
+    if (currentChar == '\"' || currentChar == '\'') { // Both single and double quotes
         char quoteType = currentChar;
-        std::string stringValue;
+        std::string literalValue;
         currentPosition++; // Move past the opening quote
         column++;
-    
-        // Handle escape sequences and read the character
-        if (currentPosition < source.length() && source[currentPosition] == '\\') {
-            if ((currentPosition + 1) < source.length()) {
-                stringValue += source[currentPosition];     // Backslash
-                stringValue += source[currentPosition + 1]; // Escaped character
+        
+        bool isString = (quoteType == '\"');
+        
+        while (currentPosition < source.length() && 
+            (source[currentPosition] != quoteType || 
+            (source[currentPosition] == quoteType && source[currentPosition-1] == '\\'))) {
+            
+            // Handle escape sequences
+            if (source[currentPosition] == '\\') {
+                if (currentPosition + 1 >= source.length()) {
+                    throw std::runtime_error("Unterminated escape sequence at line " + std::to_string(line));
+                }
+                
+                // Translate escape sequence
+                switch (source[currentPosition+1]) {
+                    case 'n': literalValue += '\n'; break;
+                    case 't': literalValue += '\t'; break;
+                    case 'r': literalValue += '\r'; break;
+                    case '\\': literalValue += '\\'; break;
+                    case '\"': literalValue += '\"'; break;
+                    case '\'': literalValue += '\''; break;
+                    default: 
+                        throw std::runtime_error("Invalid escape sequence at line " + std::to_string(line));
+                }
                 currentPosition += 2;
                 column += 2;
             } else {
-                throw std::runtime_error("Unterminated character literal at line " + std::to_string(line));
+                literalValue += source[currentPosition];
+                currentPosition++;
+                column++;
             }
-        } else if (currentPosition < source.length() && source[currentPosition] != '\'') {
-            stringValue += source[currentPosition]; // Regular character
-            currentPosition++;
-            column++;
-        } else {
-            throw std::runtime_error("Empty character literal at line " + std::to_string(line));
         }
-    
-        // Ensure it is properly closed
-        if (currentPosition < source.length() && source[currentPosition] == '\'') {
-            currentPosition++; // Move past closing quote
-            column++;
-        } else {
-            throw std::runtime_error("Unterminated character literal at line " + std::to_string(line));
+        
+        // Check for closing quote
+        if (currentPosition >= source.length()) {
+            throw std::runtime_error("Unterminated " + std::string(isString ? "string" : "character") + 
+                                " literal at line " + std::to_string(line));
         }
-    
-        // If it's a single character, return as CharLiteral
-        if (stringValue.length() == 1 || (stringValue.length() == 2 && stringValue[0] == '\\')) {
-            return Token(TokenTypes::Character, stringValue, line, column, sourceFilePath);
-        } 
-    
-        // If it's multiple characters, return as StringLiteral
-        return Token(TokenTypes::StringLiteral, stringValue, line, column, sourceFilePath);
+        
+        currentPosition++; // Skip closing quote
+        column++;
+        
+        if (!isString) {
+            // Character literal - must be exactly one character (after escape processing)
+            if (literalValue.length() != 1) {
+                throw std::runtime_error("Invalid character literal at line " + std::to_string(line));
+            }
+            return Token(TokenTypes::Character, literalValue, line, column, sourceFilePath);
+        } else {
+            // String literal
+            return Token(TokenTypes::StringLiteral, literalValue, line, column, sourceFilePath);
+        }
     }
-    
 
     Token numberLiteral = getNumberLiterals(currentChar);
     if (numberLiteral.getType() != TokenTypes::Invalid) {

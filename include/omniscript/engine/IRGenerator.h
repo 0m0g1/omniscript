@@ -200,6 +200,40 @@ public:
     llvm::Value* createUnaryExpression(llvm::Value* operand, TokenTypes op, bool isPostfix);
     llvm::Value* createBinaryExpression(llvm::Value* left, TokenTypes op, llvm::Value* right);
     llvm::Value* createTernaryExpression(llvm::Value* cond, llvm::Value* truthy, llvm::Value* falsey);
+
+    llvm::Value* createObjectInstance(
+        const std::string& objectType,
+        const std::string& instanceName,
+        const std::vector<llvm::Value*>& args = {}
+    );
+    llvm::Value* getMemberPtr(llvm::Value* object,
+        const std::string& objectType,
+        const std::string& fieldName = "",
+        unsigned fieldIndex = 0
+    );
+
+    /// Get a loaded value of a member field
+    llvm::Value* getMemberValue(llvm::Value* object,
+            const std::string& objectType,
+            const std::string& fieldName = "",
+            unsigned fieldIndex = 0
+        );
+    
+    void createStructType(const ConstructStructPrototype& structProto);
+    llvm::Value* createStructInstance(
+        const std::string& structName,
+        const std::string& varName,
+        const std::vector<llvm::Value*>& args);
+    
+    llvm::Value* createClassInstance(
+        const std::string& className,
+        const std::string& varName,
+        const std::vector<llvm::Value*>& args);
+    
+    llvm::Value* createPrimitiveInstance(
+        llvm::Type* type,
+        const std::string& varName,
+        llvm::Value* initValue = nullptr);
 };
 
 #endif

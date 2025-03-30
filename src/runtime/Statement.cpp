@@ -66,7 +66,7 @@ llvm::Value* ImportModule::codegen(IRGenerator& irGen) {
         throw std::runtime_error("ImportModule::codegen - Failed to read module: " + path);
     }
 
-    Lexer lexer(sourceCode);
+    Lexer lexer(sourceCode, path);
     Parser parser(lexer, irGen);
 
     parser.setScopeName(alias.empty() ? moduleName : alias);
@@ -149,13 +149,22 @@ llvm::Value* IntegerLiteral::codegen(IRGenerator& generator) {
 
 
 llvm::Value* FloatLiteral::codegen(IRGenerator& generator) {
-    if (llvmType->isFloatTy()) {
-        return generator.create32BitFloat(static_cast<float>(value));
-    } else if (llvmType->isDoubleTy()) {
+    DEBUG_LOG("Creating a float " + std::to_string(value));
+
+    if (!llvmType) {
+        DEBUG_LOG("No type specified, defaulting to 64-bit float");
         return generator.create64BitFloat(static_cast<double>(value));
     }
 
-    return generator.create64BitFloat(static_cast<double>(value));
+    if (llvmType->isFloatTy()) {
+        DEBUG_LOG("Creating 32 bit float " + std::to_string(value));
+        return generator.create32BitFloat(static_cast<float>(value));
+    } else if (llvmType->isDoubleTy()) {
+        DEBUG_LOG("Creating 64 bit float " + std::to_string(value));
+        return generator.create64BitFloat(static_cast<double>(value));
+    }
+    
+    return nullptr;
 }
 
 
@@ -192,16 +201,18 @@ void Assignment::setGlobalVisibilityTo(bool state) {
 }
 
 createVariable::createVariable(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value)
-    : variable(variable), type(type), value(value) {}
+    : variable(variable), value(value) {
+        setType(type);
+    }
 
 llvm::Value* createVariable::codegen(IRGenerator& generator) {
     DEBUG_LOG("Creating variable " + variable);
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
-        stmt->setType(type);
+        stmt->setType(llvmType);
     }
     llvm::Value* result = value->codegen(generator);
     DEBUG_LOG("Created value for " + variable);
-    return generator.createVariable(variable, type, result, false);
+    return generator.createVariable(variable, llvmType, result, false);
 }
 
 // Constant Assignment
@@ -437,11 +448,38 @@ llvm::Value* ParameterStatement::codegen(IRGenerator& generator) {
     return result;
 }
 
+llvm::Value* ArgumentStatement::codegen(IRGenerator& generator) {
+    DEBUG_LOG("Creating argument " + name);
+    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
+    //     stmt->setType(llvmType);
+    // }
+    llvm::Value* result = value->codegen(generator);
+    DEBUG_LOG("Created value for argument " + name);
+    return result;
+}
+
 std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
         stmt->setType(llvmType);
     }
     return defaultValue;
+}
+
+llvm::Value* ConstructStructPrototype::codegen(IRGenerator& generator) {
+    generator.createStructType(*this);
+    return nullptr;
+}
+
+llvm::Value* ObjectConstructorStatement::codegen(IRGenerator& generator) {
+    DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
+
+    std::vector<llvm::Value*> argValues;
+    for (const auto& arg : constructorArgs) {
+        argValues.push_back(arg->codegen(generator));
+    }
+
+    // 5. Return the allocated instance
+    return generator.createObjectInstance(objectType, instanceName, argValues);
 }
 
 // // Helper function to extract values from statements

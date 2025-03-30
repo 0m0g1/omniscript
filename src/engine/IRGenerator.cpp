@@ -1499,3 +1499,108 @@ llvm::Value* IRGenerator::createTernaryExpression(llvm::Value* cond, llvm::Value
 //     DEBUG_LOG("Allocated struct instance: " + varName);
 //     return instance;
 // }
+
+llvm::Value* IRGenerator::createObjectInstance(
+    const std::string& typeName,
+    const std::string& varName,
+    const std::vector<llvm::Value*>& args)
+{
+    DEBUG_LOG("Creating instance of type: " + typeName);
+    
+    // 1. Check for primitive types first
+    // if (typeName == "int32") {
+    //     return createPrimitiveInstance(
+    //         Builder.getInt32Ty(), 
+    //         varName,
+    //         args.empty() ? nullptr : args[0]);
+    // }
+    // else if (typeName == "float") {
+    //     return createPrimitiveInstance(
+    //         Builder.getFloatTy(),
+    //         varName,
+    //         args.empty() ? nullptr : args[0]);
+    // }
+    // ... other primitives ...
+
+    // 2. Check for struct types
+    if (llvm::StructType::getTypeByName(*Context, typeName)) {
+        return createStructInstance(typeName, varName, args);
+    }
+
+    // 3. Check for class types (might be in a different namespace)
+    // if (/* class exists check */) {
+    //     return createClassInstance(typeName, varName, args);
+    // }
+
+    console.error("Unknown type: " + typeName);
+    return nullptr;
+}
+
+void IRGenerator::createStructType(const ConstructStructPrototype& structProto) {
+    // 🔹 Check if the struct type already exists
+    if (llvm::StructType::getTypeByName(*Context, structProto.getName())) {
+        DEBUG_LOG("Struct " + structProto.getName() + " already exists. Skipping creation.");
+        return;
+    }
+
+    // 🔹 Define struct type
+    llvm::StructType* structType = llvm::StructType::create(*Context, structProto.getName());
+    
+    // 🔹 Collect field types
+    std::vector<llvm::Type*> fieldTypes;
+    for (const auto& field : structProto.getBody()) {
+        if (auto varDecl = std::dynamic_pointer_cast<TypedStatement>(field)) {
+            fieldTypes.push_back(varDecl->getType());
+        } else {
+            console.warn("Skipping non-variable declaration in struct body");
+        }
+    }
+    
+    // 🔹 Set struct element types
+    structType->setBody(fieldTypes);
+    
+    // 🔹 Store struct in symbol table
+    // activeScope->set(structProto.getName(), structType);
+    DEBUG_LOG("Created struct " + structProto.getName());
+}
+
+llvm::Value* IRGenerator::createStructInstance(
+    const std::string& structName,
+    const std::string& varName,
+    const std::vector<llvm::Value*>& args)
+{
+    llvm::StructType* structType = llvm::StructType::getTypeByName(*Context, structName);
+    assert(structType && "Struct type should exist");
+
+    // Get current function and entry block
+    llvm::Function* currentFunc = Builder->GetInsertBlock()->getParent();
+    llvm::BasicBlock* entryBlock = &currentFunc->getEntryBlock();
+
+    // Create a temporary builder for the entry block if needed
+    llvm::IRBuilder<> entryBuilder(entryBlock);
+    if (!entryBlock->empty() && entryBlock->getTerminator()) {
+        // If entry block already has a terminator, insert before it
+        entryBuilder.SetInsertPoint(entryBlock->getTerminator());
+    } else {
+        // Otherwise insert at end of entry block
+        entryBuilder.SetInsertPoint(entryBlock);
+    }
+
+    // Create allocation
+    llvm::AllocaInst* instance = entryBuilder.CreateAlloca(structType, nullptr, varName);
+
+    // Initialize fields using current builder (not entry builder)
+    for (size_t i = 0; i < args.size() && i < structType->getNumElements(); ++i) {
+        // Check if current builder is pointing at a terminator
+        if (Builder->GetInsertBlock()->getTerminator()) {
+            // If so, move insertion point before terminator
+            Builder->SetInsertPoint(Builder->GetInsertBlock()->getTerminator());
+        }
+
+        llvm::Value* fieldPtr = Builder->CreateStructGEP(
+            structType, instance, i, varName + "_field" + std::to_string(i));
+        Builder->CreateStore(args[i], fieldPtr);
+    }
+
+    return instance;
+}
