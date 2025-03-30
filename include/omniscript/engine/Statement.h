@@ -749,6 +749,33 @@ public:
     void setInstanceName(const std::string& name) { instanceName = name; }
 };
 
+class GetMemberValue : public Statement {
+private:
+    std::string objectName;
+    std::string propertyName;
+
+public:
+    GetMemberValue(const std::string& name, const std::string& propertyName)
+    : objectName(name), propertyName(propertyName) {}
+    
+    llvm::Value* codegen(IRGenerator& generator) override;
+    std::string toString() const override { return "GetMember"; }
+};
+
+class SetMemberValue : public Statement {
+private:
+    std::string objectName;
+    std::string propertyName;
+    std::shared_ptr<Statement> newValue;
+
+public:
+    SetMemberValue(const std::string& name, const std::string& prop, std::shared_ptr<Statement> value)
+        : objectName(name), propertyName(prop), newValue(value) {} // ✅ Fixed constructor
+
+    llvm::Value* codegen(IRGenerator& generator) override;
+    std::string toString() const override { return "SetMember"; }
+};
+    
 // class ObjectDestructorStatement : public Statement {
 // private:
 //     std::string variableName; // The variable holding the object reference

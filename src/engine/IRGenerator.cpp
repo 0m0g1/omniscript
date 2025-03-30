@@ -1470,36 +1470,6 @@ llvm::Value* IRGenerator::createTernaryExpression(llvm::Value* cond, llvm::Value
     return phi;
 }
 
-// llvm::StructType* IRGenerator::createStructType(
-//     const std::string& name,
-//     const std::vector<std::pair<std::string, llvm::Type*>>& fields
-// ) {
-//     // Check if struct already exists
-//     if (llvm::StructType* existing = llvm::StructType::getTypeByName(*Context, name)) {
-//         DEBUG_LOG("Struct " + name + " already exists.");
-//         return existing;
-//     }
-
-//     std::vector<llvm::Type*> fieldTypes;
-//     for (const auto& field : fields) {
-//         fieldTypes.push_back(field.second);
-//     }
-
-//     llvm::StructType* structType = llvm::StructType::create(*Context, fieldTypes, name);
-//     DEBUG_LOG("Created struct: " + name);
-//     return structType;
-// }
-
-// llvm::Value* IRGenerator::createStructInstance(
-//     llvm::StructType* structType,
-//     const std::string& varName
-// ) {
-//     llvm::IRBuilder<> builder(*Context);
-//     llvm::AllocaInst* instance = builder.CreateAlloca(structType, nullptr, varName);
-//     DEBUG_LOG("Allocated struct instance: " + varName);
-//     return instance;
-// }
-
 llvm::Value* IRGenerator::createObjectInstance(
     const std::string& typeName,
     const std::string& varName,
@@ -1603,4 +1573,81 @@ llvm::Value* IRGenerator::createStructInstance(
     }
 
     return instance;
+}
+
+// llvm::Value* IRGenerator::getMember(llvm::Value* object, const std::string& memberName) {
+//     if (!object) {
+//         console.error("Object cannot be null");
+//     }
+
+//     llvm::Type* objType = object->getType();
+    
+//     // Handle pointer types (structs and class instances are usually pointers)
+//     if (objType->isPointerTy()) {
+//         objType = objType->getPointerElementType();
+//     }
+
+//     if (auto* structType = llvm::dyn_cast<llvm::StructType>(objType)) {
+//         // 🔹 Lookup field index from struct metadata
+//         auto it = structDefinitions.find(structType->getName().str());
+//         if (it == structDefinitions.end()) {
+//             console.error("Unknown struct: " + structType->getName().str());
+//             return nullptr;
+//         }
+
+//         const auto& fieldMap = it->second; // Map of field names to indices
+//         auto fieldIt = fieldMap.find(memberName);
+//         if (fieldIt == fieldMap.end()) {
+//             console.error("Struct '" + structType->getName().str() + "' has no member '" + memberName + "'");
+//             return nullptr;
+//         }
+
+//         unsigned fieldIndex = fieldIt->second;
+
+//         // 🔹 Get pointer to field
+//         llvm::Value* fieldPtr = Builder->CreateStructGEP(structType, object, fieldIndex, memberName + "_ptr");
+
+//         // 🔹 Load field value
+//         return Builder->CreateLoad(structType->getElementType(fieldIndex), fieldPtr, memberName);
+//     }
+    
+//     // 🔹 Handle class types (assuming they are mapped similarly to structs)
+//     if (auto* classType = llvm::dyn_cast<llvm::StructType>(objType)) {
+//         auto it = classDefinitions.find(classType->getName().str());
+//         if (it == classDefinitions.end()) {
+//             console.error("Unknown class: " + classType->getName().str());
+//             return nullptr;
+//         }
+
+//         const auto& methodMap = it->second;
+//         auto fieldIt = methodMap.find(memberName);
+//         if (fieldIt == methodMap.end()) {
+//             console.error("Class '" + classType->getName().str() + "' has no member '" + memberName + "'");
+//             return nullptr;
+//         }
+
+//         unsigned fieldIndex = fieldIt->second;
+//         llvm::Value* fieldPtr = Builder->CreateStructGEP(classType, object, fieldIndex, memberName + "_ptr");
+//         return Builder->CreateLoad(classType->getElementType(fieldIndex), fieldPtr, memberName);
+//     }
+
+//     console.error("Cannot access member '" + memberName + "' of non-struct/class type.");
+//     return nullptr;
+// }
+
+// Getter: Load a member variable from an object
+llvm::Value* IRGenerator::getMemberValue(
+    llvm::Value* object, 
+    const std::string& memberName
+) {
+    return nullptr;
+}
+
+// Setter: Store a new value in a member variable
+void IRGenerator::setMemberValue(
+    llvm::Value* object, 
+    const std::string& memberName, 
+    llvm::Value* newValue
+) {
+    return;
 }

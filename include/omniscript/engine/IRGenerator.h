@@ -206,19 +206,17 @@ public:
         const std::string& instanceName,
         const std::vector<llvm::Value*>& args = {}
     );
-    llvm::Value* getMemberPtr(llvm::Value* object,
-        const std::string& objectType,
-        const std::string& fieldName = "",
-        unsigned fieldIndex = 0
+    
+    llvm::Value* getMemberValue(
+        llvm::Value* object, 
+        const std::string& memberName
+    );
+    void setMemberValue(
+        llvm::Value* object, 
+        const std::string& memberName, 
+        llvm::Value* newValue
     );
 
-    /// Get a loaded value of a member field
-    llvm::Value* getMemberValue(llvm::Value* object,
-            const std::string& objectType,
-            const std::string& fieldName = "",
-            unsigned fieldIndex = 0
-        );
-    
     void createStructType(const ConstructStructPrototype& structProto);
     llvm::Value* createStructInstance(
         const std::string& structName,
