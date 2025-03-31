@@ -58,6 +58,10 @@ private:
     llvm::Value* createBigIntAVX512(const std::string& str, unsigned bitSize);
     llvm::Value* createBigIntAVX2(const std::string& str, unsigned bitSize);
     llvm::Value* createBigIntAVX(const std::string& str, unsigned bitSize);
+    llvm::Value* loadMemberFromStruct(llvm::Value* structPtr, llvm::StructType* structType, const std::string& memberName);
+    llvm::Value* loadMemberFromClass(llvm::Value* classPtr, llvm::StructType* classType, const std::string& memberName);
+    int getStructMemberIndex(llvm::StructType* structType, const std::string& memberName);
+      
 
 public:
     // Constructor initializes context, builder, and module
@@ -207,10 +211,11 @@ public:
         const std::vector<llvm::Value*>& args = {}
     );
     
-    llvm::Value* getMemberValue(
-        llvm::Value* object, 
+    llvm::Value* loadMemberValue(
+        const std::string& objectName, 
         const std::string& memberName
     );
+
     void setMemberValue(
         llvm::Value* object, 
         const std::string& memberName, 

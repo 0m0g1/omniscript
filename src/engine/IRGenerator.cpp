@@ -1571,7 +1571,8 @@ llvm::Value* IRGenerator::createStructInstance(
             structType, instance, i, varName + "_field" + std::to_string(i));
         Builder->CreateStore(args[i], fieldPtr);
     }
-
+    // Assuming you have a way to add variables to the scope
+    activeScope->set(varName, instance);
     return instance;
 }
 
@@ -1636,12 +1637,73 @@ llvm::Value* IRGenerator::createStructInstance(
 // }
 
 // Getter: Load a member variable from an object
-llvm::Value* IRGenerator::getMemberValue(
-    llvm::Value* object, 
-    const std::string& memberName
-) {
-    return nullptr;
+llvm::Value* IRGenerator::loadMemberValue(const std::string& objectName, const std::string& memberName) { 
+   // Retrieve the object pointer
+   llvm::Value* objectPtr = getVariable(objectName);
+   if (!objectPtr) return nullptr; // Variable not found
+
+   // Ensure it's a pointer
+   llvm::PointerType* pointerType = llvm::dyn_cast<llvm::PointerType>(objectPtr->getType());
+   if (!pointerType) return nullptr; // Not a pointer
+
+   // Get the struct/class type
+   llvm::Type* elementType = pointerType->getContainedType(0);
+   llvm::StructType* structType = llvm::dyn_cast<llvm::StructType>(elementType);
+   if (!structType) return nullptr; // Not a struct/class
+
+   // Get the index of the member
+   int memberIndex = getStructMemberIndex(structType, memberName);
+   if (memberIndex == -1) return nullptr; // Member not found
+
+   // Generate GEP
+   llvm::Value* memberPtr = Builder->CreateStructGEP(structType, objectPtr, memberIndex);
+
+   // Load the value
+   llvm::Type* loadedType = memberPtr->getType()->getContainedType(0);
+   return Builder->CreateLoad(loadedType, memberPtr);
 }
+
+llvm::Value* IRGenerator::loadMemberFromStruct(llvm::Value* structPtr, llvm::StructType* structType, const std::string& memberName) {
+    // Get the index of the member
+    int memberIndex = getStructMemberIndex(structType, memberName);
+    if (memberIndex == -1) return nullptr;
+
+    // Generate a GEP instruction
+    llvm::Value* memberPtr = Builder->CreateStructGEP(structType, structPtr, memberIndex);
+
+    // Load the member value
+    llvm::Type* loadedType = memberPtr->getType()->getContainedType(0);  // Get the type of the element being pointed to
+    return Builder->CreateLoad(loadedType, memberPtr);  // Create the load with the correct type
+}
+
+llvm::Value* IRGenerator::loadMemberFromClass(llvm::Value* classPtr, llvm::StructType* classType, const std::string& memberName) {
+    // Get the index of the member in the class
+    int memberIndex = getStructMemberIndex(classType, memberName);
+    if (memberIndex == -1) return nullptr;
+
+    // Generate GEP instruction to access member
+    llvm::Value* memberPtr = Builder->CreateStructGEP(classType, classPtr, memberIndex);
+
+    // Load the member value
+    llvm::Type* loadedType = memberPtr->getType()->getContainedType(0);  // Get the type of the element being pointed to
+    return Builder->CreateLoad(loadedType, memberPtr);  // Create the load with the correct type
+}
+
+
+int IRGenerator::getStructMemberIndex(llvm::StructType* structType, const std::string& memberName) {
+    const llvm::StructLayout* layout = Module->getDataLayout().getStructLayout(structType);
+    auto structMembers = structType->elements();
+
+    // Check if the member name matches any known struct/class member
+    for (size_t i = 0; i < structMembers.size(); i++) {
+        if (memberName == typeToString(structMembers[i])) {
+            return i;
+        }
+    }
+
+    return -1; // Not found
+}
+
 
 // Setter: Store a new value in a member variable
 void IRGenerator::setMemberValue(

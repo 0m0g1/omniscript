@@ -49,6 +49,8 @@ struct Vector3 {
 }
 
 let v1 = Vector3{ x: 1.0, y: 2.0, z: 3.0 };
+let vx = v1.x;
+// v1.x = 5.0;
 
 // let v1 : Vector3 = { x: 1.0, y: 2.0, z: 3.0 };
 

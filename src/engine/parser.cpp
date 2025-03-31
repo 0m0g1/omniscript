@@ -1410,6 +1410,29 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
         eat(TokenTypes::RightBrace);
         return std::make_shared<ObjectConstructorStatement>(rootIdentifier, "", args);
     }
+    
+    
+    if (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
+        // std::vector<std::string> members;
+        // while (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
+        //     eat(currentToken.getType());
+        //     members.push_back(currentToken.getValue());
+        //     eat(TokenTypes::Identifier);
+        // }
+
+        // auto resolution = std::make_shared<GetMemberValue>(rootIdentifier, members[0]);
+
+        // if (currentToken.getType() == TokenTypes::Assign) {
+        //     for (const auto& member: members) {
+        //         resolution = std::make_shared<GetMemberValue>(rootIdentifier, members[0]);
+        //     }
+        // }
+        eat(currentToken.getType());
+        std::string member = currentToken.getValue();
+        eat(TokenTypes::Identifier);
+
+        return std::make_shared<GetMemberValue>(rootIdentifier, member);
+    }
 
     std::shared_ptr<Statement> previousStatement = std::make_shared<GetVariable>(rootIdentifier);
     std::shared_ptr<Statement> statement = std::make_shared<GetVariable>(rootIdentifier);
@@ -1857,6 +1880,8 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
             objConstructor->setInstanceName(variableName);
             return result;
         }
+        
+        return std::make_shared<createVariable>(variableName, nullptr, result);
         console.warn("To do...");
     }    
 

@@ -207,13 +207,27 @@ createVariable::createVariable(const std::string &variable, llvm::Type* type, st
 
 llvm::Value* createVariable::codegen(IRGenerator& generator) {
     DEBUG_LOG("Creating variable " + variable);
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
-        stmt->setType(llvmType);
+    
+    // Set the type of the value only if llvmType is not null
+    if (llvmType) {
+        if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
+            stmt->setType(llvmType);
+        }
     }
+    
+    // Generate the value for the variable
     llvm::Value* result = value->codegen(generator);
     DEBUG_LOG("Created value for " + variable);
+
+    // Check if llvmType is nullptr and set it to the type of the result if it is
+    if (!llvmType) {
+        llvmType = result->getType();
+    }
+
+    // Create the variable with the appropriate type
     return generator.createVariable(variable, llvmType, result, false);
-}
+}    
+
 
 // Constant Assignment
 createConstant::createConstant(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value)
@@ -480,6 +494,14 @@ llvm::Value* ObjectConstructorStatement::codegen(IRGenerator& generator) {
 
     // 5. Return the allocated instance
     return generator.createObjectInstance(objectType, instanceName, argValues);
+}
+
+llvm::Value* GetMemberValue::codegen(IRGenerator& generator) {
+    DEBUG_LOG("Getting member " + propertyName + " from " + objectName);
+
+    // DEBUG_LOG("Created value for argument " + name);
+    // return result;
+    return generator.loadMemberValue(objectName, propertyName);
 }
 
 // // Helper function to extract values from statements

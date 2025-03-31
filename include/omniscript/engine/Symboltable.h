@@ -1,6 +1,8 @@
 #ifndef SYMBOLTABLE_H
 #define SYMBOLTABLE_H
 
+#include <omniscript/Core.h>
+#include <omniscript/debuggingtools/console.h>
 #include <omniscript/omniscript_pch.h>
 #include <llvm/IR/Value.h>
 
@@ -26,6 +28,7 @@ public:
 
     // Local set functions
     inline void set(const std::string &name, ValueType value) {
+        DEBUG_LOG("Added variable " + name + " to scope ");
         variables[name] = value;
     }
 
@@ -113,10 +116,10 @@ public:
         return modules.find(path) != modules.end();
     }
 
-    inline void setName(const std::string& name) { this->name = name; }
+    inline void setName(const std::string& name) { scopeName = name; }
 
 private:
-    std::string name;
+    std::string scopeName;
     std::shared_ptr<SymbolTable> parent = nullptr;
     std::unordered_map<std::string, ValueType> variables; // Stores LLVM values
     std::unordered_map<std::string, ValueType> constants;
