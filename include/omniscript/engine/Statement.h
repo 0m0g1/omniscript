@@ -239,6 +239,7 @@ public:
         : value(val) {}
 
     llvm::Value* codegen(IRGenerator& generator) override;
+    int getValue() const {return value};
     std::string toString() const override { return "LiteralStatement"; }
 
 private:
@@ -786,3 +787,41 @@ public:
 //     llvm::Value* codegen(IRGenerator& generator) override;
 //     std::string toString() const override { return "LiteralStatement"; }
 // };
+
+class EnumValue : public NamedStatement, public TypedStatement {
+public:
+    EnumValue(const std::string& name, int& index) :
+    valueName(name), valueIndex(index) {}
+
+    llvm::Value* codegen(IRGenerator& generator) override;
+    std::string toString() const override {
+        return "{" + valueName + ":" + std::to_string(valueIndex) + "}";
+    }
+    
+    int getIndex() const { return valueIndex; }
+    std::string getName() const override { return valueName; }
+
+private:
+    std::string valueName;
+    int valueIndex;
+};
+
+class EnumConstructor : public NamedStatement {
+private:
+std::string enumName;
+std::vector<std::shared_ptr<EnumValue>> values;
+bool hasLookup;  // Flag to determine if a lookup table is needed
+
+public:
+    EnumConstructor(
+        const std::string& name,
+        const std::vector<std::shared_ptr<EnumValue>>& values,
+        bool hasLookup = false  // Default: no lookup
+    ) : enumName(name), values(values), hasLookup(hasLookup) {}
+
+    llvm::Value* codegen(IRGenerator& generator) override;
+    std::string toString() const override {
+        return "EnumConstructor for " + enumName + (hasLookup ? " (with lookup)" : "");
+    }
+    std::string getName() const override { return enumName; }
+};

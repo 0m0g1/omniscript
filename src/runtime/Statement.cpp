@@ -221,7 +221,11 @@ llvm::Value* createVariable::codegen(IRGenerator& generator) {
 
     // Check if llvmType is nullptr and set it to the type of the result if it is
     if (!llvmType) {
-        llvmType = result->getType();
+        if (result) {
+            llvmType = result->getType();
+        } else {
+            DEBUG_LOG("The result has no value");
+        }
     }
 
     // Create the variable with the appropriate type
@@ -503,6 +507,32 @@ llvm::Value* GetMemberValue::codegen(IRGenerator& generator) {
     // return result;
     return generator.loadMemberValue(objectName, propertyName);
 }
+
+
+llvm::Value* EnumConstructor::codegen(IRGenerator& generator) {
+    std::vector<std::string> names;
+    std::vector<int> indices;
+
+    for (const auto& val : values) {
+        names.push_back(val->getName());
+        indices.push_back(val->getIndex());
+    }
+
+    if (hasLookup) {
+        generator.createEnumWithLookup(enumName, names, indices);
+    } else {
+        generator.createEnum(enumName, names, indices);
+    }
+     
+    return nullptr;
+}
+
+llvm::Value* EnumValue::codegen(IRGenerator& generator) {
+    llvm::Type* intType = llvm::Type::getInt32Ty(*generator.getContext());
+    return llvm::ConstantInt::get(intType, valueIndex);
+}
+
+
 
 // // Helper function to extract values from statements
 // std::optional<SymbolTable::ValueType> Expression::evaluate(const SymbolTable::ValueType& object, SymbolTable &scope) {

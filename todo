@@ -9,7 +9,7 @@
 - function print(int value)
               - (string value)
               - (object value) { }
-
+- loading member values from objects likes structs and classes
 - time object
 - file object
 - os object

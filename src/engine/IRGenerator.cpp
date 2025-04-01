@@ -1713,3 +1713,104 @@ void IRGenerator::setMemberValue(
 ) {
     return;
 }
+
+void IRGenerator::createEnum(
+    const std::string& enumName,
+    const std::vector<std::string>& valueNames,
+    const std::vector<int>& valueIndices)
+{
+    assert(valueNames.size() == valueIndices.size() && "Enum names and values must match");
+
+    llvm::Type* intType = llvm::Type::getInt32Ty(*Context);
+
+    for (size_t i = 0; i < valueNames.size(); ++i) {
+        llvm::Constant* intValue = llvm::ConstantInt::get(intType, valueIndices[i]);
+
+        // Store the enum value in the symbol table
+        activeScope->set(enumName + "::" + valueNames[i], intValue);
+    }
+}
+
+
+void IRGenerator::createEnumWithLookup(
+    const std::string& enumName,
+    const std::vector<std::string>& valueNames,
+    const std::vector<int>& valueIndices)
+{
+    assert(valueNames.size() == valueIndices.size() && "Enum names and values must match");
+
+    llvm::Type* intType = llvm::Type::getInt32Ty(*Context);
+    llvm::Type* charPtrType = llvm::PointerType::get(llvm::Type::getInt8Ty(*Context), 0);
+
+    // Create an array of {int, string} pairs
+    std::vector<llvm::Constant*> enumEntries;
+    for (size_t i = 0; i < valueNames.size(); ++i) {
+        llvm::Constant* intValue = llvm::ConstantInt::get(intType, valueIndices[i]);
+        llvm::Constant* strValue = Builder->CreateGlobalStringPtr(valueNames[i]);
+
+        llvm::StructType* pairType = llvm::StructType::get(*Context, {intType, charPtrType});
+        enumEntries.push_back(llvm::ConstantStruct::get(pairType, {intValue, strValue}));
+    }
+
+    llvm::ArrayType* arrayType = llvm::ArrayType::get(enumEntries[0]->getType(), enumEntries.size());
+    llvm::Constant* enumArray = llvm::ConstantArray::get(arrayType, enumEntries);
+
+    llvm::GlobalVariable* globalEnumTable = new llvm::GlobalVariable(
+        *Module, arrayType, true, llvm::GlobalValue::ExternalLinkage, enumArray, enumName + "_lookup");
+
+    // Store the lookup table in the symbol table
+    activeScope->set(enumName + "_table", globalEnumTable);
+
+    // Create lookup function: const char* getEnumName(int value)
+    llvm::FunctionType* lookupFuncType = llvm::FunctionType::get(charPtrType, {intType}, false);
+    llvm::Function* lookupFunction = llvm::Function::Create(
+        lookupFuncType, 
+        llvm::Function::ExternalLinkage, 
+        "get" + enumName + "Name", 
+        *Module  // Dereference the unique_ptr to get a reference
+    );
+    
+    // Create function body
+    llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", lookupFunction);
+    Builder->SetInsertPoint(entry);
+
+    llvm::Argument* valueArg = lookupFunction->getArg(0);
+    llvm::Value* tablePtr = Builder->CreateBitCast(globalEnumTable, arrayType->getPointerTo());
+
+    llvm::BasicBlock* loopBody = llvm::BasicBlock::Create(*Context, "loop", lookupFunction);
+    llvm::BasicBlock* notFound = llvm::BasicBlock::Create(*Context, "not_found", lookupFunction);
+    llvm::BasicBlock* exitBlock = llvm::BasicBlock::Create(*Context, "exit", lookupFunction);
+
+    llvm::PHINode* result = Builder->CreatePHI(charPtrType, 2, "result");
+
+    // Loop over the table
+    Builder->CreateBr(loopBody);
+    Builder->SetInsertPoint(loopBody);
+    
+    llvm::PHINode* index = Builder->CreatePHI(intType, 2, "index");
+    index->addIncoming(llvm::ConstantInt::get(intType, 0), entry);
+
+    // Get the struct type from the table entry
+    llvm::Type* structType = enumEntries[0]->getType();  // Use the first enum entry to get the struct type
+    llvm::Type* fieldType = structType->getStructElementType(0);  // Get the type of the first field of the struct
+
+    // Now create the GEP (Get Element Pointer) for the first element (int)
+    llvm::Value* entryPtr = Builder->CreateGEP(structType, tablePtr, {index});  // GEP to access the current enum entry
+    llvm::Value* entryInt = Builder->CreateStructGEP(structType, entryPtr, 0);  // Access the int field
+    llvm::Value* entryStr = Builder->CreateStructGEP(structType, entryPtr, 1);  // Access the string field
+
+    llvm::Value* cmp = Builder->CreateICmpEQ(entryInt, valueArg);
+    Builder->CreateCondBr(cmp, exitBlock, notFound);
+
+    Builder->SetInsertPoint(notFound);
+    llvm::Value* nextIndex = Builder->CreateAdd(index, llvm::ConstantInt::get(intType, 1));
+    llvm::Value* endCond = Builder->CreateICmpEQ(nextIndex, llvm::ConstantInt::get(intType, valueNames.size()));
+    Builder->CreateCondBr(endCond, exitBlock, loopBody);
+
+    index->addIncoming(nextIndex, notFound);
+    result->addIncoming(entryStr, loopBody);
+    result->addIncoming(Builder->CreateGlobalStringPtr("UNKNOWN"), notFound);
+
+    Builder->SetInsertPoint(exitBlock);
+    Builder->CreateRet(result);
+}

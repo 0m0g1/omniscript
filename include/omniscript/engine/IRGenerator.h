@@ -237,6 +237,18 @@ public:
         llvm::Type* type,
         const std::string& varName,
         llvm::Value* initValue = nullptr);
+    
+    void createEnum(
+        const std::string& enumName,
+        const std::vector<std::string>& valueNames,
+        const std::vector<int>& valueIndices
+    );
+
+    void createEnumWithLookup(
+        const std::string& enumName,
+        const std::vector<std::string>& valueNames,
+        const std::vector<int>& valueIndices
+    );
 };
 
 #endif

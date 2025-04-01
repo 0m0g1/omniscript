@@ -1702,38 +1702,57 @@ std::shared_ptr<ReturnStatement> Parser::parseReturnStatement() {
 
 std::shared_ptr<Statement> Parser::parseEnum() {
     eat(TokenTypes::Enum);
+    
+    bool hasLookup = false;
+    if (currentToken.getType() == TokenTypes::LeftParen) {
+        eat(TokenTypes::LeftParen);
+        if (currentToken.getValue() == "lookup") {
+            hasLookup = true;
+            eat(TokenTypes::Identifier);
+        }
+        eat(TokenTypes::RightParen);
+    }
+
     std::string enumName = currentToken.getValue();
     eat(TokenTypes::Identifier);
 
-    std::vector<std::string> keys;
-    std::vector<std::shared_ptr<Statement>> values;
-
+    std::vector<std::shared_ptr<EnumValue>> values;
+    
     eat(TokenTypes::LeftBrace);
-    int i = 0;
-    while(currentToken.getType() != TokenTypes::RightBrace) {
+    int currentIndex = 0;
+    
+    while (currentToken.getType() != TokenTypes::RightBrace) {
         if (currentToken.getType() == TokenTypes::Comma) {
-            i++;
             eat(TokenTypes::Comma);
         }
 
         if (currentToken.getType() == TokenTypes::Identifier) {
             std::string valueName = currentToken.getValue();
-            keys.push_back(valueName);
             eat(TokenTypes::Identifier);
+
+            int assignedIndex = currentIndex; // Default index
+            
             if (currentToken.getType() == TokenTypes::Assign) {
                 eat(TokenTypes::Assign);
-                std::shared_ptr<Statement> value = parseExpression();
-                values.push_back(value);
-            } else {
-                // values.push_back(std::make_shared<Int32Bit>(i));
+                std::shared_ptr<Statement> valueExpr = parseExpression();
+                
+                // Try to evaluate the expression as an integer
+                if (auto intLiteral = std::dynamic_pointer_cast<IntegerLiteral>(valueExpr)) {
+                    assignedIndex = intLiteral->getValue();
+                } else {
+                    throw std::runtime_error("Enum values must be compile-time integers");
+                }
             }
+
+            values.push_back(std::make_shared<EnumValue>(valueName, assignedIndex));
+            currentIndex = assignedIndex + 1; // Auto-increment for the next entry
         }
     }
+
     eat(TokenTypes::RightBrace);
-    // auto newEnum = std::make_shared<Enum>(enumName, keys, values);
-    // auto constructor = std::make_shared<ObjectConstructorStatement>(newEnum);
-    // return std::make_shared<ConstantAssignment>(enumName, constructor);
-    return nullptr;
+    
+    // Create the EnumConstructor with the lookup flag
+    return std::make_shared<EnumConstructor>(enumName, values, hasLookup);
 }
 
 std::shared_ptr<Statement> Parser::parseStruct() {

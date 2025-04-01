@@ -42,14 +42,14 @@
 
 
 // // Structs (user-defined types)
-struct Vector3 {
-    x: f64;
-    y: f64;
-    z: f64;
-}
+// struct Vector3 {
+//     x: f64;
+//     y: f64;
+//     z: f64;
+// }
 
-let v1 = Vector3{ x: 1.0, y: 2.0, z: 3.0 };
-let vx = v1.x;
+// let v1 = Vector3{ x: 1.0, y: 2.0, z: 3.0 };
+// let vx = v1.x;
 // v1.x = 5.0;
 
 // let v1 : Vector3 = { x: 1.0, y: 2.0, z: 3.0 };
@@ -77,3 +77,8 @@ let vx = v1.x;
 
 // let result : int = add(1, 1);
 // let anchor = new heap Particle(x,  y);
+
+enum Fruits {
+    apple,
+    banana
+}
