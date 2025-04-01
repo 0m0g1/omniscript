@@ -239,7 +239,7 @@ public:
         : value(val) {}
 
     llvm::Value* codegen(IRGenerator& generator) override;
-    int getValue() const {return value};
+    int getValue() const {return value; }
     std::string toString() const override { return "LiteralStatement"; }
 
 private:

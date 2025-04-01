@@ -1704,6 +1704,10 @@ std::shared_ptr<Statement> Parser::parseEnum() {
     eat(TokenTypes::Enum);
     
     bool hasLookup = false;
+    
+    std::string enumName = currentToken.getValue();
+    eat(TokenTypes::Identifier);
+    
     if (currentToken.getType() == TokenTypes::LeftParen) {
         eat(TokenTypes::LeftParen);
         if (currentToken.getValue() == "lookup") {
@@ -1712,9 +1716,6 @@ std::shared_ptr<Statement> Parser::parseEnum() {
         }
         eat(TokenTypes::RightParen);
     }
-
-    std::string enumName = currentToken.getValue();
-    eat(TokenTypes::Identifier);
 
     std::vector<std::shared_ptr<EnumValue>> values;
     

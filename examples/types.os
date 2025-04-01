@@ -78,7 +78,7 @@
 // let result : int = add(1, 1);
 // let anchor = new heap Particle(x,  y);
 
-enum Fruits {
+enum Fruits(lookup) {
     apple,
     banana
 }
