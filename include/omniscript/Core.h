@@ -24,7 +24,6 @@
 #endif
 
 namespace Omniscript {
-
     // Global boolean flag to track GLFW initialization state
     extern bool glfwInitialized;
 
@@ -57,6 +56,7 @@ namespace Omniscript {
     inline filePosition getPosition() {
         return pos;
     }
+
     extern bool allThreadsDone;
 } // namespace Omniscript
 

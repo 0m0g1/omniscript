@@ -132,82 +132,80 @@ void IRGenerator::generateModule(
     
     DEBUG_LOG("Generating module: " + modulePath);
     
-    if (scope->moduleExists(modulePath)) {
-        DEBUG_LOG("Module " + modulePath + " is already generated. Skipping.");
-        return;
-    }
+    // if (scope->moduleExists(modulePath)) {
+    //     DEBUG_LOG("Module " + modulePath + " is already generated. Skipping.");
+    //     return;
+    // }
 
     // 🔹 Store public members in a new module symbol table
-    pushScope();
+    // pushScope();
 
-    auto newModule = std::make_unique<llvm::Module>(modulePath, *Context);
-    llvm::Module* previousModule = CurrentModule;
-    CurrentModule = newModule.get();
+    // auto newModule = std::make_unique<llvm::Module>(modulePath, *Context);
+    // llvm::Module* previousModule = CurrentModule;
+    // CurrentModule = newModule.get();
 
-    std::unordered_map<std::string, llvm::Value*> publicMembers;
+    // std::unordered_map<std::string, llvm::Value*> publicMembers;
 
-    for (const auto& statement : statements) {
-        if (auto moduleStatement = std::dynamic_pointer_cast<CreateModule>(statement)) {
-            DEBUG_LOG("Generating submodule: " + moduleStatement->getName());
-            generateModule(moduleStatement->getName(), moduleStatement->getName(), moduleStatement->getStatements(), importedAliases, false);
+    // for (const auto& statement : statements) {
+    //     if (auto moduleStatement = std::dynamic_pointer_cast<CreateModule>(statement)) {
+    //         DEBUG_LOG("Generating submodule: " + moduleStatement->getName());
+    //         generateModule(moduleStatement->getName(), moduleStatement->getName(), moduleStatement->getStatements(), importedAliases, false);
 
-        } else if (auto publicStatement = std::dynamic_pointer_cast<PublicMember>(statement)) {
-            if (auto moduleStatement = std::dynamic_pointer_cast<CreateModule>(publicStatement->getValue())) {
-                DEBUG_LOG("Generating submodule: " + moduleStatement->getName());
-                generateModule(moduleStatement->getName(), moduleStatement->getName(), moduleStatement->getStatements(), importedAliases, false);
-                continue;
-            }
-            std::string originalName = publicStatement->getName();
-            llvm::Value* value = publicStatement->codegen(*this);
-            if (!value) {
-                console.warn("Skipping public statement '" + originalName + "' - no valid IR generated.");
-                continue;
-            }
+    //     } else if (auto publicStatement = std::dynamic_pointer_cast<PublicMember>(statement)) {
+    //         if (auto moduleStatement = std::dynamic_pointer_cast<CreateModule>(publicStatement->getValue())) {
+    //             DEBUG_LOG("Generating submodule: " + moduleStatement->getName());
+    //             generateModule(moduleStatement->getName(), moduleStatement->getName(), moduleStatement->getStatements(), importedAliases, false);
+    //             continue;
+    //         }
+    //         std::string originalName = publicStatement->getName();
+    //         llvm::Value* value = publicStatement->codegen(*this);
+    //         if (!value) {
+    //             console.warn("Skipping public statement '" + originalName + "' - no valid IR generated.");
+    //             continue;
+    //         }
 
-            if (llvm::GlobalValue* gv = llvm::dyn_cast<llvm::GlobalValue>(value)) {
-                if (importAll) {
-                    gv->setLinkage(llvm::GlobalValue::ExternalLinkage);
-                    activeScope->set(originalName, gv);
-                } else {
-                    auto it = importedAliases.find(originalName);
-                    if (it != importedAliases.end()) {
-                        std::string alias = it->second; // Aliased name
-                        gv->setLinkage(llvm::GlobalValue::ExternalLinkage);
-                        activeScope->set(alias, gv);
-                        DEBUG_LOG("Aliased import: " + alias + " -> " + originalName);
-                    } else {
-                        gv->setLinkage(llvm::GlobalValue::InternalLinkage);
-                    }
-                }
-            } else {
-                console.warn("Warning: Public symbol '" + originalName +
-                             "' is not a global value and cannot have linkage visibility set.");
-            }
-        } else if (auto privateStatement = std::dynamic_pointer_cast<PrivateMember>(statement)) {
-            DEBUG_LOG("Creating private member " + privateStatement->getName());
-            llvm::Value* value = privateStatement->codegen(*this);
-            if (importedAliases.find(privateStatement->getName()) != importedAliases.end()) {
-                console.warn("'" + privateStatement->getName() + "' is not a public member of '" + modulePath + "' and cannot be imported");
-            }
-            if (value) {
-                if (llvm::GlobalValue* gv = llvm::dyn_cast<llvm::GlobalValue>(value)) {
-                    gv->setLinkage(llvm::GlobalValue::InternalLinkage);
-                } else {
-                    console.warn("Warning: Private statement '" + privateStatement->getName() + "' is not a global value and cannot have linkage visibility set to private or public.");
-                }
-            }
-        }
-    }
+    //         if (llvm::GlobalValue* gv = llvm::dyn_cast<llvm::GlobalValue>(value)) {
+    //             if (importAll) {
+    //                 gv->setLinkage(llvm::GlobalValue::ExternalLinkage);
+    //                 // activeScope->set(originalName, gv);
+    //             } else {
+    //                 auto it = importedAliases.find(originalName);
+    //                 if (it != importedAliases.end()) {
+    //                     std::string alias = it->second; // Aliased name
+    //                     gv->setLinkage(llvm::GlobalValue::ExternalLinkage);
+    //                     DEBUG_LOG("Aliased import: " + alias + " -> " + originalName);
+    //                 } else {
+    //                     gv->setLinkage(llvm::GlobalValue::InternalLinkage);
+    //                 }
+    //             }
+    //         } else {
+    //             console.warn("Warning: Public symbol '" + originalName +
+    //                          "' is not a global value and cannot have linkage visibility set.");
+    //         }
+    //     } else if (auto privateStatement = std::dynamic_pointer_cast<PrivateMember>(statement)) {
+    //         DEBUG_LOG("Creating private member " + privateStatement->getName());
+    //         llvm::Value* value = privateStatement->codegen(*this);
+    //         if (importedAliases.find(privateStatement->getName()) != importedAliases.end()) {
+    //             console.warn("'" + privateStatement->getName() + "' is not a public member of '" + modulePath + "' and cannot be imported");
+    //         }
+    //         if (value) {
+    //             if (llvm::GlobalValue* gv = llvm::dyn_cast<llvm::GlobalValue>(value)) {
+    //                 gv->setLinkage(llvm::GlobalValue::InternalLinkage);
+    //             } else {
+    //                 console.warn("Warning: Private statement '" + privateStatement->getName() + "' is not a global value and cannot have linkage visibility set to private or public.");
+    //             }
+    //         }
+    //     }
+    // }
 
-    printErrors(*CurrentModule);
-    CurrentModule = previousModule;
+    // printErrors(*CurrentModule);
+    // CurrentModule = previousModule;
 
-    scope->addModule(modulePath, activeScope, alias);
-    popScope();
+    // popScope();
     
-    if (llvm::Linker::linkModules(*Module, std::move(newModule))) {
-        llvm::errs() << "Error: Linking failed for module " << modulePath << "!\n";
-    }
+    // if (llvm::Linker::linkModules(*Module, std::move(newModule))) {
+    //     llvm::errs() << "Error: Linking failed for module " << modulePath << "!\n";
+    // }
 }
 
 bool IRGenerator::isLoadedModule(const std::string& modulePath) {
@@ -744,8 +742,7 @@ llvm::Value* IRGenerator::createVariable(
             console.warn("Warning: Global variable '" + name + 
                          "' requires a constant initializer but received non-constant.");
         }
-    
-        activeScope->set(name, gVar);
+
         return gVar;
     }
     
@@ -853,11 +850,6 @@ llvm::Value* IRGenerator::createVariable(
         }
     }
 
-    if (activeScope->has(name)) {
-        console.error("Variable " + name + " has already been defined in the current scope");
-    }
-
-    activeScope->set(name, alloca);
     return alloca;
 }
 
@@ -888,37 +880,40 @@ llvm::GlobalVariable* IRGenerator::createGlobalVariable(
 }
 
 llvm::Value* IRGenerator::getAddressOf(const std::string& varname) {
-    if (!activeScope->has(varname)) {
-        throw std::runtime_error("Undefined variable: " + varname);
-    }
+    // if (!activeScope->has(varname)) {
+    //     throw std::runtime_error("Undefined variable: " + varname);
+    // }
     
-    // Return the pointer/alloca directly
-    return activeScope->get(varname);
+    // // Return the pointer/alloca directly
+    // return activeScope->get(varname);
+    return nullptr;
 }
 
 llvm::Value* IRGenerator::getReferenceToVariable(const std::string& varname) {
-    if (!activeScope->has(varname)) {
-        throw std::runtime_error("Cannot get reference to: " + varname);
-    }
+    // if (!activeScope->has(varname)) {
+    //     throw std::runtime_error("Cannot get reference to: " + varname);
+    // }
     
-    // Return the pointer/alloca directly
-    return activeScope->get(varname);
+    // // Return the pointer/alloca directly
+    // return activeScope->get(varname);
+    return nullptr;
 }
 
 llvm::Value* IRGenerator::getVariable(const std::string& name) {
-    // Check current scope
-    if (activeScope->exists(name)) {
-        llvm::Value* val = activeScope->get(name);
+    // // Check current scope
+    // if (activeScope->exists(name)) {
+    //     llvm::Value* val = activeScope->get(name);
 
-        if (llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(val)) {
-            // Generate the load operation (no need to change insertion point)
-            return Builder->CreateLoad(alloca->getAllocatedType(), alloca, name + ".val");
-        }
+    //     if (llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(val)) {
+    //         // Generate the load operation (no need to change insertion point)
+    //         return Builder->CreateLoad(alloca->getAllocatedType(), alloca, name + ".val");
+    //     }
 
-        return val;
-    }
+    //     return val;
+    // }
 
-    throw std::runtime_error("Unknown variable name: " + name);
+    // throw std::runtime_error("Unknown variable name: " + name);
+    return nullptr;
 }
 
 
@@ -1038,36 +1033,37 @@ llvm::Value* IRGenerator::createStaticFixedArray(
 
 llvm::Function* IRGenerator::createFunction(const FunctionDeclaration& funcDecl) {
     // Create function type
-    std::vector<llvm::Type*> paramTypes;
-    for (auto& param : funcDecl.parameters) {
-        if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
-            paramTypes.push_back(typed->getType());
-        }
-    }
+    // std::vector<llvm::Type*> paramTypes;
+    // for (auto& param : funcDecl.parameters) {
+    //     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
+    //         paramTypes.push_back(typed->getType());
+    //     }
+    // }
     
-    llvm::FunctionType* funcType = llvm::FunctionType::get(
-        funcDecl.getType(),
-        paramTypes,
-        false
-    );
+    // llvm::FunctionType* funcType = llvm::FunctionType::get(
+    //     funcDecl.getType(),
+    //     paramTypes,
+    //     false
+    // );
     
-    // Create function
-    llvm::Function* function = llvm::Function::Create(
-        funcType,
-        llvm::Function::ExternalLinkage,
-        funcDecl.name,
-        *Module
-    );
+    // // Create function
+    // llvm::Function* function = llvm::Function::Create(
+    //     funcType,
+    //     llvm::Function::ExternalLinkage,
+    //     funcDecl.getName(),
+    //     *Module
+    // );
     
-    // Set parameter names
-    unsigned idx = 0;
-    for (auto& arg : function->args()) {
-        if (auto stmt = std::dynamic_pointer_cast<NamedStatement>(funcDecl.parameters[idx++])) {
-            arg.setName(stmt->getName());
-        }
-    }
-    activeScope->set(funcDecl.getName(), function);
-    return function;
+    // // Set parameter names
+    // unsigned idx = 0;
+    // for (auto& arg : function->args()) {
+    //     if (auto stmt = std::dynamic_pointer_cast<NamedStatement>(funcDecl.parameters[idx++])) {
+    //         arg.setName(stmt->getName());
+    //     }
+    // }
+    // // activeScope->set(funcDecl.getName(), function);
+    // return function;
+    return nullptr;
 }
 
 // When processing a function call:
@@ -1135,64 +1131,64 @@ llvm::Value* IRGenerator::createCall(
 
 void IRGenerator::generateFunctionBody(llvm::Function* function, 
                                        const FunctionDeclaration& funcDecl) {
-    pushActiveBlock();
+    // pushActiveBlock();
 
     // Create entry block
-    llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", function);
-    Builder->SetInsertPoint(entry);
+    // llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", function);
+    // Builder->SetInsertPoint(entry);
     
-    // Create a new scope for function parameters + body
-    pushScope();
+    // // Create a new scope for function parameters + body
+    // pushScope();
     
-    // Create allocas for parameters in the entry block
-    for (auto& arg : function->args()) {
-        std::string argName = arg.getName().str(); // Convert StringRef to std::string
-        llvm::AllocaInst* alloca = createEntryBlockAlloca(function, arg.getType(), argName);
-        Builder->CreateStore(&arg, alloca);
-        activeScope->set(argName, alloca);
-    }
+    // // Create allocas for parameters in the entry block
+    // for (auto& arg : function->args()) {
+    //     std::string argName = arg.getName().str(); // Convert StringRef to std::string
+    //     llvm::AllocaInst* alloca = createEntryBlockAlloca(function, arg.getType(), argName);
+    //     Builder->CreateStore(&arg, alloca);
+    //     // activeScope->set(argName, alloca);
+    // }
     
-    // Generate function body
-    llvm::Value* retVal = funcDecl.body->codegen(*this);
+    // // Generate function body
+    // llvm::Value* retVal = funcDecl.body->codegen(*this);
     
-    // Handle implicit return if needed
-    if (!currentBlockHasTerminator()) {
-        if (function->getReturnType()->isVoidTy()) {
-            Builder->CreateRetVoid();
-        } else if (retVal) {
-            // Ensure return value matches function type
-            if (retVal->getType() != function->getReturnType()) {
-                llvm::Value* castedRet = castValue(retVal, function->getReturnType());
-                if (!castedRet) {
-                    console.error("Failed to cast return value in function: " + function->getName().str());
-                    Builder->CreateUnreachable();
-                    popScope();
-                    popActiveBlock();
-                    function->eraseFromParent();
-                    return;
-                }
-                retVal = castedRet;
-            }
-            Builder->CreateRet(retVal);
-        } else {
-            // Error: Non-void function missing return
-            console.error("Non-void function missing return: " + function->getName().str());
-            Builder->CreateUnreachable();
-            popScope();
-            popActiveBlock();
-            function->eraseFromParent();
-            return;
-        }
-    }
+    // // Handle implicit return if needed
+    // if (!currentBlockHasTerminator()) {
+    //     if (function->getReturnType()->isVoidTy()) {
+    //         Builder->CreateRetVoid();
+    //     } else if (retVal) {
+    //         // Ensure return value matches function type
+    //         if (retVal->getType() != function->getReturnType()) {
+    //             llvm::Value* castedRet = castValue(retVal, function->getReturnType());
+    //             if (!castedRet) {
+    //                 console.error("Failed to cast return value in function: " + function->getName().str());
+    //                 Builder->CreateUnreachable();
+    //                 popScope();
+    //                 popActiveBlock();
+    //                 function->eraseFromParent();
+    //                 return;
+    //             }
+    //             retVal = castedRet;
+    //         }
+    //         Builder->CreateRet(retVal);
+    //     } else {
+    //         // Error: Non-void function missing return
+    //         console.error("Non-void function missing return: " + function->getName().str());
+    //         Builder->CreateUnreachable();
+    //         popScope();
+    //         popActiveBlock();
+    //         function->eraseFromParent();
+    //         return;
+    //     }
+    // }
     
-    popScope();  // Parameters + function body scope
-    popActiveBlock();
+    // popScope();  // Parameters + function body scope
+    // popActiveBlock();
 
-    // Verify the function for consistency
-    if (llvm::verifyFunction(*function, &llvm::errs())) {
-        console.error("Function verification failed: " + function->getName().str());
-        function->eraseFromParent();
-    }
+    // // Verify the function for consistency
+    // if (llvm::verifyFunction(*function, &llvm::errs())) {
+    //     console.error("Function verification failed: " + function->getName().str());
+    //     function->eraseFromParent();
+    // }
 }
 
 
@@ -1520,7 +1516,7 @@ void IRGenerator::createStructType(const ConstructStructPrototype& structProto) 
     std::vector<llvm::Type*> fieldTypes;
     for (const auto& field : structProto.getBody()) {
         if (auto varDecl = std::dynamic_pointer_cast<TypedStatement>(field)) {
-            fieldTypes.push_back(varDecl->getType());
+            // fieldTypes.push_back(varDecl->getType());
         } else {
             console.warn("Skipping non-variable declaration in struct body");
         }
@@ -1572,7 +1568,7 @@ llvm::Value* IRGenerator::createStructInstance(
         Builder->CreateStore(args[i], fieldPtr);
     }
     // Assuming you have a way to add variables to the scope
-    activeScope->set(varName, instance);
+    // activeScope->set(varName, instance);
     return instance;
 }
 
@@ -1638,30 +1634,37 @@ llvm::Value* IRGenerator::createStructInstance(
 
 // Getter: Load a member variable from an object
 llvm::Value* IRGenerator::loadMemberValue(const std::string& objectName, const std::string& memberName) { 
-   // Retrieve the object pointer
-   llvm::Value* objectPtr = getVariable(objectName);
-   if (!objectPtr) return nullptr; // Variable not found
+    // Retrieve the object pointer
+    llvm::Value* objectPtr = getVariable(objectName);
+    if (!objectPtr) return nullptr; // Variable not found
 
-   // Ensure it's a pointer
-   llvm::PointerType* pointerType = llvm::dyn_cast<llvm::PointerType>(objectPtr->getType());
-   if (!pointerType) return nullptr; // Not a pointer
+    // If this is an enum lookup table, use `getEnumValue` instead
+    if (objectName.ends_with("_lookup")) {
+        std::string enumName = objectName.substr(0, objectName.find("_lookup"));
+        return getEnumValue(enumName, memberName);
+    }
 
-   // Get the struct/class type
-   llvm::Type* elementType = pointerType->getContainedType(0);
-   llvm::StructType* structType = llvm::dyn_cast<llvm::StructType>(elementType);
-   if (!structType) return nullptr; // Not a struct/class
+    // Ensure it's a pointer
+    llvm::PointerType* pointerType = llvm::dyn_cast<llvm::PointerType>(objectPtr->getType());
+    if (!pointerType) return nullptr; // Not a pointer
 
-   // Get the index of the member
-   int memberIndex = getStructMemberIndex(structType, memberName);
-   if (memberIndex == -1) return nullptr; // Member not found
+    // Get the struct/class type
+    llvm::Type* elementType = pointerType->getContainedType(0);
+    llvm::StructType* structType = llvm::dyn_cast<llvm::StructType>(elementType);
+    if (!structType) return nullptr; // Not a struct/class
 
-   // Generate GEP
-   llvm::Value* memberPtr = Builder->CreateStructGEP(structType, objectPtr, memberIndex);
+    // Get the index of the member
+    int memberIndex = getStructMemberIndex(structType, memberName);
+    if (memberIndex == -1) return nullptr; // Member not found
 
-   // Load the value
-   llvm::Type* loadedType = memberPtr->getType()->getContainedType(0);
-   return Builder->CreateLoad(loadedType, memberPtr);
+    // Generate GEP
+    llvm::Value* memberPtr = Builder->CreateStructGEP(structType, objectPtr, memberIndex);
+
+    // Load the value
+    llvm::Type* loadedType = memberPtr->getType()->getContainedType(0);
+    return Builder->CreateLoad(loadedType, memberPtr);
 }
+
 
 llvm::Value* IRGenerator::loadMemberFromStruct(llvm::Value* structPtr, llvm::StructType* structType, const std::string& memberName) {
     // Get the index of the member
@@ -1727,7 +1730,7 @@ void IRGenerator::createEnum(
         llvm::Constant* intValue = llvm::ConstantInt::get(intType, valueIndices[i]);
 
         // Store the enum value in the symbol table
-        activeScope->set(enumName + "::" + valueNames[i], intValue);
+        // activeScope->set(enumName + "::" + valueNames[i], intValue);
     }
 }
 
@@ -1759,7 +1762,7 @@ void IRGenerator::createEnumWithLookup(
         *Module, arrayType, true, llvm::GlobalValue::ExternalLinkage, enumArray, enumName + "_lookup");
 
     // Store the lookup table in the symbol table
-    activeScope->set(enumName + "_table", globalEnumTable);
+    // activeScope->set(enumName + "_table", globalEnumTable);
 
     // Create lookup function: const char* getEnumName(int value)
     llvm::FunctionType* lookupFuncType = llvm::FunctionType::get(charPtrType, {intType}, false);
@@ -1813,4 +1816,61 @@ void IRGenerator::createEnumWithLookup(
 
     Builder->SetInsertPoint(exitBlock);
     Builder->CreateRet(result);
+}
+
+
+llvm::Value* IRGenerator::getEnumValue(const std::string& enumName, const std::string& memberName) {
+    // Construct lookup variable name
+    // std::string lookupTableName = enumName + "_lookup";
+
+    // // Retrieve the enum lookup table from the symbol table
+    // llvm::GlobalVariable* lookupTable = dynamic_cast<llvm::GlobalVariable*>(activeScope->get(lookupTableName));
+    // if (!lookupTable) {
+    //     console.error("Enum '" + enumName + "' not found.");
+    //     return nullptr;
+    // }
+
+    // // Get the array type and its length
+    // llvm::ArrayType* arrayType = llvm::dyn_cast<llvm::ArrayType>(lookupTable->getValueType());
+    // if (!arrayType) {
+    //     console.error("Invalid enum lookup table format for '" + enumName + "'.");
+    //     return nullptr;
+    // }
+
+    // size_t numEntries = arrayType->getNumElements();
+    // llvm::Type* structType = arrayType->getElementType(); // Struct { i32, i8* }
+
+    // // Iterate through the lookup table to find the matching member
+    // for (size_t i = 0; i < numEntries; ++i) {
+    //     // Get pointer to entry i
+    //     llvm::Value* entryPtr = Builder->CreateConstGEP2_32(arrayType, lookupTable, 0, i);
+
+    //     // Extract the member name (char*)
+    //     llvm::Value* namePtr = Builder->CreateStructGEP(structType, entryPtr, 1);
+    //     llvm::Value* nameValue = Builder->CreateLoad(namePtr->getType()->getPointerElementType(), namePtr);
+
+    //     // Compare with the requested memberName
+    //     llvm::Value* cmp = Builder->CreateCall(getStrcmpFunction(), {nameValue, Builder->CreateGlobalStringPtr(memberName)});
+    //     llvm::Value* isMatch = Builder->CreateICmpEQ(cmp, llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), 0));
+
+    //     // If matched, return the integer value
+    //     llvm::Value* intPtr = Builder->CreateStructGEP(structType, entryPtr, 0);
+    //     llvm::Value* intValue = Builder->CreateLoad(intPtr->getType()->getPointerElementType(), intPtr);
+
+    //     llvm::BasicBlock* returnBlock = llvm::BasicBlock::Create(*Context, "return_enum", Builder->GetInsertBlock()->getParent());
+    //     llvm::BasicBlock* continueBlock = llvm::BasicBlock::Create(*Context, "continue_enum", Builder->GetInsertBlock()->getParent());
+
+    //     Builder->CreateCondBr(isMatch, returnBlock, continueBlock);
+
+    //     // Set insert point for return
+    //     Builder->SetInsertPoint(returnBlock);
+    //     Builder->CreateRet(intValue);
+
+    //     // Set insert point for continue
+    //     Builder->SetInsertPoint(continueBlock);
+    // }
+
+    // // If no match found, return an error value (-1)
+    // return Builder->CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), -1));
+    return nullptr;
 }

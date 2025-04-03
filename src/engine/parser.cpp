@@ -85,11 +85,6 @@ void Parser::parseProgram() {
 }
 
 
-// Function to change the scope of the current parser
-void Parser::setScope(const SymbolTable &otherScope) {
-    this->scope = otherScope;
-}
-
 // Helper function to consume a token if it matches the expected type
 void Parser::eat(TokenTypes expectedType, const std::string& err) {
     // Keep track of your position in the current file
@@ -351,7 +346,6 @@ std::shared_ptr<Statement> Parser::parseModule() {
 
             Lexer lexer(sourceCode);
             Parser parser(lexer, irGen);
-            parser.setScopeName(moduleAlias);
             
             std::vector<std::shared_ptr<Statement>> moduleStatements = parser.Parse();
             auto moduleStmt = std::make_shared<CreateModule>(moduleAlias, moduleStatements);
@@ -661,7 +655,7 @@ std::shared_ptr<Statement> Parser::factor() {
     else if (currentToken.getType() == TokenTypes::LeftParen) {
         // console.warn(valueToString(left));
         if (checkIfLambdaExpression()) {
-            // left = std::make_shared<Literal>(parseLambdaFunction());
+            left = parseLambdaFunction();
         } else {
             eat(TokenTypes::LeftParen);
             left = parseExpression();  // Parse the expression within parentheses
@@ -1024,29 +1018,80 @@ std::shared_ptr<Statement> Parser::parseClass() {
 //     }
 // }
 
-// std::shared_ptr<Function> Parser::parseLambdaFunction() {
-//     auto [paramNames, params] = parseParameters();
-    
-//     std::shared_ptr<Statement> returnType = parseFunctionArrow();
+std::shared_ptr<Statement> Parser::parseLambdaFunction() {
+    // std::vector<std::pair<std::string, std::shared_ptr<Statement>>> paramNamesAndTypes;
+    std::vector<std::shared_ptr<Statement>> params = parseParameters();
 
-//     std::vector<std::shared_ptr<Statement>> body = parseBlock();
-    
-//     return std::make_shared<Function>("lambda", paramNames, params, body);
-// }
+    // Handle the arrow '=>'
+    eat(TokenTypes::Arrow);
+
+    std::shared_ptr<Omniscript::Type> returnType = nullptr;
+
+    if (currentToken.getType() != TokenTypes::LeftBrace) {
+        std::vector<std::string> returnTypeStrs;
+        returnTypeStrs.push_back(currentToken.getValue());
+        eat(TokenTypes::Identifier);
+        // returnType = irGen.resolveLLVMType(returnTypeStrs);
+        returnType = nullptr;
+    }
+
+    // Parse lambda body
+    auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
+
+    // Return the lambda function as an anonymous function declaration
+    return std::make_shared<FunctionDeclaration>("lambda", params, body, returnType);
+}
+
+
 
 bool Parser::checkIfLambdaExpression() {
     if (currentToken.getType() == TokenTypes::LeftParen) {
         int i = 1;
+        bool hasValidArgument = false;
+
         while (
             lexer.peekToken(i).getType() == TokenTypes::Identifier ||
             lexer.peekToken(i).getType() == TokenTypes::Comma || 
             lexer.peekToken(i).getType() == TokenTypes::Assign ||
             lexer.peekToken(i).getType() == TokenTypes::StringLiteral ||
             lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
-            lexer.peekToken(i).getType() == TokenTypes::FloatLiteral
+            lexer.peekToken(i).getType() == TokenTypes::FloatLiteral ||
+            lexer.peekToken(i).getType() == TokenTypes::Colon // Argument type annotation
             ) {
-            i++; // Skip identifiers and commas
+            
+            // Check for argument name (identifier)
+            if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                hasValidArgument = true;
+                i++;
+            }
+            
+            // Check for argument type annotation (e.g., `a: int`)
+            if (lexer.peekToken(i).getType() == TokenTypes::Colon) {
+                i++; // Skip over the colon
+                if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                    // Argument type is valid, so skip the type token
+                    i++;
+                }
+            }
+            
+            // Check for default value (e.g., `a: int = 1`)
+            if (lexer.peekToken(i).getType() == TokenTypes::Assign) {
+                i++; // Skip over the `=`
+                if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
+                    lexer.peekToken(i).getType() == TokenTypes::FloatLiteral ||
+                    lexer.peekToken(i).getType() == TokenTypes::StringLiteral) {
+                    // Valid default value
+                    i++;
+                }
+            }
+            
+            // Skip commas between arguments
+            if (lexer.peekToken(i).getType() == TokenTypes::Comma) {
+                i++;
+            }
         }
+
+        // Check if we have reached the closing parenthesis and arrow (=>)
         if (lexer.peekToken(i).getType() == TokenTypes::RightParen && lexer.peekToken(i + 1).getType() == TokenTypes::Arrow) {
             return true;
         }
@@ -1128,7 +1173,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
 
     while (currentToken.getType() != TokenTypes::RightParen && currentToken.getType() != TokenTypes::EOI) {
         std::string paramName;
-        llvm::Type* paramType;
+        std::shared_ptr<Omniscript::Type> paramType;
         std::shared_ptr<Statement> defaultValue = nullptr;
 
         // Parse parameter name
@@ -1148,7 +1193,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
                 std::vector<std::string> types;
                 types.push_back(currentToken.getValue());
                 eat(TokenTypes::Identifier);
-                paramType = irGen.resolveLLVMType(types);
+                // paramType = irGen.resolveLLVMType(types);
             } else {
                 throw std::runtime_error("Expected type after ':'.");
             }
@@ -1195,14 +1240,14 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration() {
 
     std::vector<std::shared_ptr<Statement>> parameters = parseParameters();
 
-    llvm::Type* returnType = nullptr;
+    std::shared_ptr<Omniscript::Type> returnType = nullptr;
 
     if (currentToken.getType() != TokenTypes::LeftBrace) {
         eat(TokenTypes::Arrow);
         std::vector<std::string> types;
         types.push_back(currentToken.getValue());
         eat(TokenTypes::Identifier);
-        returnType = irGen.resolveLLVMType(types);
+        // returnType = irGen.resolveLLVMType(types);
     }
 
     auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock()); // Parse function body
@@ -1785,8 +1830,8 @@ std::shared_ptr<Statement> Parser::parseStruct() {
                 value = parseExpression();
             }
 
-            auto field = std::make_shared<createVariable>(fieldName, irGen.resolveLLVMType(type), value);
-            body.push_back(field);
+            // auto field = std::make_shared<createVariable>(fieldName, irGen.resolveLLVMType(type), value);
+            // body.push_back(field);
             expectSemicolonOrNewLine();
         }
     }
@@ -1814,7 +1859,7 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
     std::string variableName;
     std::vector<std::string> dataTypes;
     std::shared_ptr<Statement> value;
-    llvm::Type* type;
+    std::shared_ptr<Omniscript::Type> type;
     std::vector<std::string> namespaceParts;
     bool isReference = false;
     bool isPointer = false;
@@ -1901,12 +1946,19 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
             return result;
         }
         
+        if (auto funcDecl = std::dynamic_pointer_cast<FunctionDeclaration>(result)) {
+            if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
+                named->setName(variableName);
+            }
+            return funcDecl;  // Return the function declaration
+        }
+
         return std::make_shared<createVariable>(variableName, nullptr, result);
         console.warn("To do...");
     }    
 
     // Resolve LLVM Type with pointer depth
-    type = irGen.resolveLLVMType(dataTypes);
+    // type = irGen.resolveLLVMType(dataTypes);
 
     DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " " + variableName +
                   " with type " + dataTypes[dataTypes.size() - 1]);

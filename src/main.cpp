@@ -18,7 +18,7 @@ public:
 void Compiler::compile(const std::vector<std::shared_ptr<Statement>>& statements, const Config &config) {
     DEBUG_LOG("Compiling source code...");
     for (const auto& statement : statements) {
-        llvm::Value* ir = statement->codegen(irGen);
+        // llvm::Value* ir = statement->codegen(irGen);
         // Further compilation logic (e.g., emitting LLVM IR)
     }
     console.log("Compilation completed.");
@@ -121,7 +121,6 @@ public:
 
         Lexer lexer(sourceCode, config.filePath);
         Parser parser(lexer, irGen);
-        parser.setScopeName();
         parser.setDebugMode(config.debugMode);
         std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
         

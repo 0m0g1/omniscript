@@ -1,0 +1,117 @@
+#ifndef Object_H
+#define Object_H
+
+#include <omniscript/Core.h>
+#include <omniscript/engine/Statement.h>
+#include <omniscript/omniscript_pch.h>
+
+/*
+* @author 0m0g1
+*/
+
+
+using ArgumentDefinition = std::vector<std::shared_ptr<Statement>>;
+using MethodDefinition = std::variant<
+                            std::nullptr_t,
+                            // // std::shared_ptr<Function>,
+                            // std::function<SymbolTable::ValueType(const ArgumentDefinition&)>
+                            >;
+                            
+class Object {
+protected:
+    std::string name;
+    std::shared_ptr<SymbolTable> scope;
+    std::string id;
+    std::vector<std::string> classes;
+    std::string className = "Object";
+
+    // Static counter for unique ID generation
+    static std::atomic<unsigned long long> objectCounter;
+
+public:
+    std::unordered_map<std::string, MethodDefinition> methods;
+    std::unordered_map<std::string, SymbolTable::ValueType> properties;
+
+    Object() {
+        // Generate unique ID based on current time and static counter
+        id = generateUniqueId();
+
+        // Initialize with default method
+        addMethod("objectString", [&, this](const ArgumentDefinition& args) -> SymbolTable::ValueType {
+            return objectString();
+        });
+
+        addMethod("setProperty", [this](const ArgumentDefinition& args) -> SymbolTable::ValueType {
+            if (args.size() < 2) {
+                throw std::runtime_error("setProperty requires 2 arguments: name and value");
+            }
+            std::string name = std::get<std::string>(args[0]); // Ensure args[0] is a string
+            setProperty(name, args[1]);
+            return SymbolTable::ValueType{}; // Return type can be adjusted based on requirements
+        });
+
+        addMethod("getProperty", [this](const ArgumentDefinition& args) -> SymbolTable::ValueType {
+            if (args.size() < 1) {
+                throw std::runtime_error("getProperty requires 1 argument: name");
+            }
+            std::string name = std::get<std::string>(args[0]); // Ensure args[0] is a string
+            return getProperty(name);
+        });
+    }
+
+    virtual ~Object() = default;
+
+    std::string getName() {
+        return name;
+    }
+
+    inline virtual void setProperty(std::string name, SymbolTable::ValueType value) {
+        properties[name] = value;
+    }
+
+    inline virtual SymbolTable::ValueType getProperty(const std::string& name) const {
+        // Check if the name exists in properties
+        auto propIt = properties.find(name);
+        if (propIt != properties.end()) {
+            return propIt->second;
+        }
+
+        // Check if the name exists as a method
+        // auto methodIt = methods.find(name);
+        // if (methodIt != methods.end()) {
+        //     auto method = methodIt->second;
+        //     if (std::holds_alternative<std::shared_ptr<Function>>(method)) {
+        //         return std::get<std::shared_ptr<Function>>(method);
+        //     }
+        // }
+
+        // Return null if neither property nor method exists
+        return nullptr;
+    }
+
+
+    inline virtual void addMethod(const std::string& name, MethodDefinition method) {
+        methods[name] = method;
+    }
+
+    inline virtual MethodDefinition getMethod(const std::string& methodName) {
+        auto it = methods.find(methodName);
+        if (it != methods.end()) {
+            return it->second; // Return the found method
+        } 
+        return nullptr;
+    }
+
+    // Convert the whole object and its properties to a string for printing
+    std::string objectString() const;
+
+    // Convert the value of the object to a string for printing
+    virtual std::string toString(int indentLevel = 0) const;
+
+private:
+    std::string generateUniqueId() const;
+
+    inline void addClass(const std::string& className) {
+        classes.push_back(className);
+    }
+};

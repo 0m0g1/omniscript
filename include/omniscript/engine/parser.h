@@ -16,10 +16,7 @@
 class Parser {
     public:
         Parser(Lexer &lexer, IRGenerator& irGen) : lexer(lexer), irGen(irGen), currentToken(lexer.getNextToken()) {}
-        void setScope(const SymbolTable &otherScope);
-        void setScopeName(std::string name = "global") {
-            scope.setName(name);
-        }
+    
         void setDebugMode(bool state) {
             debugMode = state;
         }
@@ -29,7 +26,6 @@ class Parser {
 
         std::vector<std::shared_ptr<Statement>> Parse();
         
-
     private:
         
         std::vector<std::shared_ptr<Statement>> statements;
@@ -40,7 +36,6 @@ class Parser {
         Lexer& lexer;
         Token currentToken;
         Token previousToken;
-        SymbolTable scope;
 
         // Function declarations for parsing different token types
         void parseProgram();                                // To parse a complete program
@@ -72,7 +67,7 @@ class Parser {
         std::shared_ptr<Statement> parseAssignment();          // To parse variable assignments
         std::string parseStringLiteral();                      // To parse string literals
         std::shared_ptr<Statement> parseBlock();
-        // std::shared_ptr<Function> parseLambdaFunction();
+        std::shared_ptr<Statement> parseLambdaFunction();
         bool checkIfLambdaExpression();
         bool checkIfFunctionCall();
         // SymbolTable::ValueType parseFunctionArrow();

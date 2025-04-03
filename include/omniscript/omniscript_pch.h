@@ -30,6 +30,7 @@
 #include <inttypes.h>
 #include <cstddef>
 #include <stack>
+#include <atomic>
 
 // System-Specific Headers
 #ifdef _WIN32

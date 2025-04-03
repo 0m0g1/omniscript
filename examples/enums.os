@@ -1,5 +1,5 @@
 enum Fruits {
-    apple = "p",
+    apple,
     banana
 }
 

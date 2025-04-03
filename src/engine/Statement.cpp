@@ -7,7 +7,6 @@
 #include <omniscript/engine/lexer.h>
 #include <omniscript/engine/Parser.h>
 #include <omniscript/utils.h>
-#include <omniscript/engine/IRGenerator.h>
 
 // #include <omniscript/runtime/object.h>
 // #include <omniscript/runtime/Class.h>
@@ -20,39 +19,40 @@
 // #include <omniscript/runtime/Pointer.h>
 
 
-llvm::Value* BlockStatement::codegen(IRGenerator& generator) {
+std::shared_ptr<Omniscript::Value> BlockStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
     // Create a new scope for this block
-    generator.pushScope();
+    // generator.pushScope();
     
-    llvm::Value* lastValue = nullptr;
+    // std::shared_ptr<Omniscript::Value> lastValue = nullptr;
     
-    // Generate code for each statement in order
-    for (const auto& stmt : statements) {
-        // Handle type propagation if needed
-        if (auto typed = std::dynamic_pointer_cast<TypedStatement>(stmt)) {
-            typed->setType(llvmType);
-        }
+    // // Generate code for each statement in order
+    // for (const auto& stmt : statements) {
+    //     // Handle type propagation if needed
+    //     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(stmt)) {
+    //         typed->setType(llvmType);
+    //     }
 
-        if (auto assignment = std::dynamic_pointer_cast<Assignment>(stmt)) {
-            assignment->setGlobalVisibilityTo(false);
-        }
+    //     if (auto assignment = std::dynamic_pointer_cast<Assignment>(stmt)) {
+    //         assignment->setGlobalVisibilityTo(false);
+    //     }
 
-        lastValue = stmt->codegen(generator);
+    //     lastValue = stmt->codegen(generator, scope);
         
-        // If the current block already has a terminator, stop generating
-        if (generator.currentBlockHasTerminator()) {
-            break;
-        }
-    }
+    //     // If the current block already has a terminator, stop generating
+    //     if (generator.currentBlockHasTerminator()) {
+    //         break;
+    //     }
+    // }
     
-    // Pop the scope we created for this block
-    generator.popScope();
+    // // Pop the scope we created for this block
+    // generator.popScope();
     
-    // Return the last computed value (may be nullptr for statements without values)
-    return lastValue;
+    // // Return the last computed value (may be nullptr for statements without values)
+    // return lastValue;
+    return nullptr;
 }
 
-llvm::Value* ImportModule::codegen(IRGenerator& irGen) {
+std::shared_ptr<Omniscript::Value> ImportModule::codegen(IRGenerator& generator, SymbolTable& scope) {
     if (path.empty()) {
         throw std::runtime_error("ImportModule::codegen - Module path is empty.");
     }
@@ -67,130 +67,140 @@ llvm::Value* ImportModule::codegen(IRGenerator& irGen) {
     }
 
     Lexer lexer(sourceCode, path);
-    Parser parser(lexer, irGen);
+    Parser parser(lexer, generator);
 
-    parser.setScopeName(alias.empty() ? moduleName : alias);
+    // parser.setScopeName(alias.empty() ? moduleName : alias);
+
     std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
 
     console.log("Importing " + (importAll ? "everything" : joinMapKeys(importedAliases)) + " from " + path + ".");
 
     // Ensure module is only loaded once
-    if (!irGen.isLoadedModule(path)) {
-        irGen.generateModule(path, alias, statements, importedAliases, importAll);
+    if (!generator.isLoadedModule(path)) {
+        generator.generateModule(path, alias, statements, importedAliases, importAll);
     }
 
     return nullptr; // No direct IR generation
 }
 
 
-llvm::Value* CreateModule::codegen(IRGenerator& irGen) {
-    // irGen.importModule(moduleName);8
+std::shared_ptr<Omniscript::Value> CreateModule::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // generator.importModule(name);8
     return nullptr; // Modules themselves don't return a value
 }
 
-llvm::Value* PublicMember::codegen(IRGenerator& irGen) {
+std::shared_ptr<Omniscript::Value> PublicMember::codegen(IRGenerator& generator, SymbolTable& scope) {
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }
-    return value->codegen(irGen);
+    return value->codegen(generator, scope);
 }
 
-llvm::Value* PrivateMember::codegen(IRGenerator& irGen) {
+std::shared_ptr<Omniscript::Value> PrivateMember::codegen(IRGenerator& generator, SymbolTable& scope) {
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }
-    return value->codegen(irGen);
+    return value->codegen(generator, scope);
 }
 
-llvm::Value* AddressOf::codegen(IRGenerator& irGen) {
-    return irGen.getAddressOf(variableName);
+std::shared_ptr<Omniscript::Value> AddressOf::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // return generator.getAddressOf(name);
+    return nullptr;
 }
 
-llvm::Value* ReferenceTo::codegen(IRGenerator& irGen) {
-    return irGen.getReferenceToVariable(variableName);
+std::shared_ptr<Omniscript::Value> ReferenceTo::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // return generator.getReferenceToVariable(name);
+    return nullptr;
 }
 
-llvm::Value* Nullptr::codegen(IRGenerator& generator) {
-    return generator.createNullPointer();
+std::shared_ptr<Omniscript::Value> Nullptr::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // return generator.createNullPointer();
+    return nullptr;
 }
 
-llvm::Value* Null::codegen(IRGenerator& generator) {
-    return generator.createNullValue();
+std::shared_ptr<Omniscript::Value> Null::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // return generator.createNullValue();
+    return nullptr;
 }
 
-llvm::Value* IntegerLiteral::codegen(IRGenerator& generator) {
-    DEBUG_LOG("Creating an integer");
+std::shared_ptr<Omniscript::Value> IntegerLiteral::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // DEBUG_LOG("Creating an integer");
     
-    // Default to 32-bit integer if llvmType is null or unknown
-    if (!llvmType || !llvmType->isIntegerTy()) {  
-        DEBUG_LOG("Creating an 32 bit integer");
-        return generator.create32BitInteger(static_cast<int32_t>(value));
-    }
+    // // Default to 32-bit integer if llvmType is null or unknown
+    // if (!llvmType || !llvmType->isIntegerTy()) {  
+    //     DEBUG_LOG("Creating an 32 bit integer");
+    //     return generator.create32BitInteger(static_cast<int32_t>(value));
+    // }
 
-    if (llvmType->isIntegerTy(8)) {
-        DEBUG_LOG("Creating an 8 bit integer");
-        return generator.create8BitInteger(static_cast<int8_t>(value));
-    } else if (llvmType->isIntegerTy(16)) {
-        DEBUG_LOG("Creating an 16 bit integer");
-        return generator.create16BitInteger(static_cast<int16_t>(value));
-    } else if (llvmType->isIntegerTy(32)) {
-        DEBUG_LOG("Creating an 32 bit integer");
-        return generator.create32BitInteger(static_cast<int32_t>(value));
-    } else if (llvmType->isIntegerTy(64)) {
-        DEBUG_LOG("Creating an 64 bit integer");
-        return generator.create64BitInteger(static_cast<int64_t>(value));
-    } 
+    // if (llvmType->isIntegerTy(8)) {
+    //     DEBUG_LOG("Creating an 8 bit integer");
+    //     return generator.create8BitInteger(static_cast<int8_t>(value));
+    // } else if (llvmType->isIntegerTy(16)) {
+    //     DEBUG_LOG("Creating an 16 bit integer");
+    //     return generator.create16BitInteger(static_cast<int16_t>(value));
+    // } else if (llvmType->isIntegerTy(32)) {
+    //     DEBUG_LOG("Creating an 32 bit integer");
+    //     return generator.create32BitInteger(static_cast<int32_t>(value));
+    // } else if (llvmType->isIntegerTy(64)) {
+    //     DEBUG_LOG("Creating an 64 bit integer");
+    //     return generator.create64BitInteger(static_cast<int64_t>(value));
+    // } 
     
-    // Handle BigInt cases (128-bit, 256-bit, 1024-bit)
-    unsigned bitWidth = llvmType->getIntegerBitWidth();
-    DEBUG_LOG("Creating a big int" + std::to_string(bitWidth) + " integer");
-    return generator.createBigInt(std::to_string(value), bitWidth);
+    // // Handle BigInt cases (128-bit, 256-bit, 1024-bit)
+    // unsigned bitWidth = llvmType->getIntegerBitWidth();
+    // DEBUG_LOG("Creating a big int" + std::to_string(bitWidth) + " integer");
+    // return generator.createBigInt(std::to_string(value), bitWidth);
+    return nullptr;
 }
 
 
-llvm::Value* FloatLiteral::codegen(IRGenerator& generator) {
-    DEBUG_LOG("Creating a float " + std::to_string(value));
+std::shared_ptr<Omniscript::Value> FloatLiteral::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // DEBUG_LOG("Creating a float " + std::to_string(value));
 
-    if (!llvmType) {
-        DEBUG_LOG("No type specified, defaulting to 64-bit float");
-        return generator.create64BitFloat(static_cast<double>(value));
-    }
+    // if (!llvmType) {
+    //     DEBUG_LOG("No type specified, defaulting to 64-bit float");
+    //     return generator.create64BitFloat(static_cast<double>(value));
+    // }
 
-    if (llvmType->isFloatTy()) {
-        DEBUG_LOG("Creating 32 bit float " + std::to_string(value));
-        return generator.create32BitFloat(static_cast<float>(value));
-    } else if (llvmType->isDoubleTy()) {
-        DEBUG_LOG("Creating 64 bit float " + std::to_string(value));
-        return generator.create64BitFloat(static_cast<double>(value));
-    }
+    // if (llvmType->isFloatTy()) {
+    //     DEBUG_LOG("Creating 32 bit float " + std::to_string(value));
+    //     return generator.create32BitFloat(static_cast<float>(value));
+    // } else if (llvmType->isDoubleTy()) {
+    //     DEBUG_LOG("Creating 64 bit float " + std::to_string(value));
+    //     return generator.create64BitFloat(static_cast<double>(value));
+    // }
     
     return nullptr;
 }
 
 
 // Arbitrary-precision integer (BigInt)
-llvm::Value* BigInt::codegen(IRGenerator& generator) {
-    DEBUG_LOG("Creating a big int " + value);
+std::shared_ptr<Omniscript::Value> BigInt::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // DEBUG_LOG("Creating a big int " + value);
 
-    unsigned bitWidth = BigInt::determineBitWidth(value);
+    // unsigned bitWidth = BigInt::determineBitWidth(value);
 
-    return generator.createBigInt(value, bitWidth);
+    // return generator.createBigInt(value, bitWidth);
+    return nullptr;
 }
 
-llvm::Value* BoolLiteral::codegen(IRGenerator& generator) {
-    return generator.createBool(value);
+std::shared_ptr<Omniscript::Value> BoolLiteral::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // return generator.createBool(value);
+    return nullptr;
 }
 
-llvm::Value* CharacterLiteral::codegen(IRGenerator& generator) {
-    return generator.createChar(value);
+std::shared_ptr<Omniscript::Value> CharacterLiteral::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // return generator.createChar(value);
+    return nullptr;
 }
 
-llvm::Value* StringLiteral::codegen(IRGenerator& generator) {
-    if (llvmType->isPointerTy()) {
-        return generator.createUTF8String(value); // UTF-8 string
-    } 
+std::shared_ptr<Omniscript::Value> StringLiteral::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // if (llvmType->isPointerTy()) {
+    //     return generator.createUTF8String(value); // UTF-8 string
+    // } 
 
-    return generator.createUTF8String(value);
+    // return generator.createUTF8String(value);
+    return nullptr;
 }
 
 
@@ -200,228 +210,241 @@ void Assignment::setGlobalVisibilityTo(bool state) {
     isGlobal = state;
 }
 
-createVariable::createVariable(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value)
-    : variable(variable), value(value) {
-        setType(type);
-    }
-
-llvm::Value* createVariable::codegen(IRGenerator& generator) {
+std::shared_ptr<Omniscript::Value> createVariable::codegen(IRGenerator& generator, SymbolTable& scope) {
     DEBUG_LOG("Creating variable " + variable);
     
+
+    std::shared_ptr<Omniscript::Value> result = value->codegen(generator, scope);
+    scope.setVariable(variable, result);
+
     // Set the type of the value only if llvmType is not null
-    if (llvmType) {
-        if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
-            stmt->setType(llvmType);
-        }
-    }
+    // if (llvmType) {
+    //     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
+    //         stmt->setType(llvmType);
+    //     }
+    // }
     
-    // Generate the value for the variable
-    llvm::Value* result = value->codegen(generator);
-    DEBUG_LOG("Created value for " + variable);
+    // // Generate the value for the variable
+    // std::shared_ptr<Omniscript::Value> result = value->codegen(generator, scope);
+    // DEBUG_LOG("Created value for " + variable);
 
-    // Check if llvmType is nullptr and set it to the type of the result if it is
-    if (!llvmType) {
-        if (result) {
-            llvmType = result->getType();
-        } else {
-            DEBUG_LOG("The result has no value");
-        }
-    }
+    // // Check if llvmType is nullptr and set it to the type of the result if it is
+    // if (!llvmType) {
+    //     if (result) {
+    //         llvmType = result->getType();
+    //     } else {
+    //         DEBUG_LOG("The result has no value");
+    //     }
+    // }
 
-    // Create the variable with the appropriate type
-    return generator.createVariable(variable, llvmType, result, false);
+    // // Create the variable with the appropriate type
+    // return generator.createVariable(variable, llvmType, result, false);
+    return nullptr;
 }    
 
 
 // Constant Assignment
-createConstant::createConstant(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value)
-: variable(variable), type(type), value(value) {}
-
-llvm::Value* createConstant::codegen(IRGenerator& generator) {
-    return generator.createConstant(variable, type, value->codegen(generator));
+std::shared_ptr<Omniscript::Value> createConstant::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // return generator.createConstant(variable, type, value->codegen(generator, scope));
+    return nullptr;
 }
 
 // Dynamic Assignment
 createDynamicVariable::createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value)
     : variable(variable), value(value) {}
 
-llvm::Value* createDynamicVariable::codegen(IRGenerator& generator) {
-    return generator.assignDynamicVariable(variable, value->codegen(generator));
+std::shared_ptr<Omniscript::Value> createDynamicVariable::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // return generator.assignDynamicVariable(variable, value->codegen(generator, scope));
+    return nullptr;
 }
 
 // Get Variable
-llvm::Value* GetVariable::codegen(IRGenerator& generator) {
-    return generator.getVariable(variable);
+std::shared_ptr<Omniscript::Value> GetVariable::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // return generator.getVariable(variable);
+    return nullptr;
 }
 
 // Get Dynamic Variable
 GetDynamicVariable::GetDynamicVariable(const std::string &variable) : variable(variable) {}
 
-llvm::Value* GetDynamicVariable::codegen(IRGenerator& generator) {
-    return generator.getDynamicVariable(variable);
-}
-
-llvm::Value* BreakStatement::codegen(IRGenerator& generator) {
+std::shared_ptr<Omniscript::Value> GetDynamicVariable::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // return generator.getDynamicVariable(variable);
     return nullptr;
 }
 
-llvm::Value* ContinueStatement::codegen(IRGenerator& generator) {
+std::shared_ptr<Omniscript::Value> BreakStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
     return nullptr;
 }
 
-// llvm::Value* ObjectConstructorStatement::codegen(IRGenerator& generator) {
+std::shared_ptr<Omniscript::Value> ContinueStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+    return nullptr;
+}
+
+// std::shared_ptr<Omniscript::Value> ObjectConstructorStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
 //     return nullptr;
 // }
 
-llvm::Value* ForLoop::codegen(IRGenerator& generator) {
+std::shared_ptr<Omniscript::Value> ForLoop::codegen(IRGenerator& generator, SymbolTable& scope) {
     return nullptr;
 }
 
-llvm::Value* GetProperty::codegen(IRGenerator& generator) {
+std::shared_ptr<Omniscript::Value> GetProperty::codegen(IRGenerator& generator, SymbolTable& scope) {
     return nullptr;
 }
 
-llvm::Value* CallMethod::codegen(IRGenerator& generator) {
+std::shared_ptr<Omniscript::Value> CallMethod::codegen(IRGenerator& generator, SymbolTable& scope) {
     return nullptr;
 }
 
-llvm::Value* WhileStatement::codegen(IRGenerator& generator) {
+std::shared_ptr<Omniscript::Value> WhileStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
     return nullptr;
 }
 
-llvm::Value* TernaryExpression::codegen(IRGenerator& generator) {
+std::shared_ptr<Omniscript::Value> TernaryExpression::codegen(IRGenerator& generator, SymbolTable& scope) {
     // Generate code for condition, truthy, and falsey expressions
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
-        stmt->setType(llvmType);
-    }
+    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
+    //     stmt->setType(llvmType);
+    // }
 
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(falsey)) {
-        stmt->setType(llvmType);
-    }
+    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(falsey)) {
+    //     stmt->setType(llvmType);
+    // }
 
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(condition)) {
-        std::vector<std::string> type = {"bool"};
-        stmt->setType(generator.resolveLLVMType(type));
-    }
+    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(condition)) {
+    //     std::vector<std::string> type = {"bool"};
+    //     stmt->setType(generator.resolveLLVMType(type));
+    // }
 
-    llvm::Value* condValue = condition->codegen(generator);
-    if (!condValue) return nullptr;
+    // std::shared_ptr<Omniscript::Value> condValue = condition->codegen(generator, scope);
+    // if (!condValue) return nullptr;
     
-    llvm::Value* trueValue = truthy->codegen(generator);
-    if (!trueValue) return nullptr;
+    // std::shared_ptr<Omniscript::Value> trueValue = truthy->codegen(generator, scope);
+    // if (!trueValue) return nullptr;
     
-    llvm::Value* falseValue = falsey->codegen(generator);
-    if (!falseValue) return nullptr;
+    // std::shared_ptr<Omniscript::Value> falseValue = falsey->codegen(generator, scope);
+    // if (!falseValue) return nullptr;
     
-    // Use IRGenerator to create the ternary expression
-    return generator.createTernaryExpression(condValue, trueValue, falseValue);
-}
-
-llvm::Value* BinaryExpression::codegen(IRGenerator& generator) {
-    // Generate code for left and right operands
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(left)) {
-        stmt->setType(llvmType);
-    }
-
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(right)) {
-        stmt->setType(llvmType);
-    }
-
-    llvm::Value* leftValue = left->codegen(generator);
-    if (!leftValue) return nullptr;
-    
-    llvm::Value* rightValue = right->codegen(generator);
-    if (!rightValue) return nullptr;
-    
-    // Use IRGenerator to create the binary expression
-    return generator.createBinaryExpression(leftValue, op, rightValue);
-}
-
-llvm::Value* UnaryExpression::codegen(IRGenerator& generator) {
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
-        stmt->setType(llvmType);
-    }
-
-    // Generate code for the operand
-    llvm::Value* operandValue = operand->codegen(generator);
-    if (!operandValue) return nullptr;
-    
-    // Use IRGenerator to create the unary expression
-    bool appendType = position == Position::Postfix ? true : false;
-    return generator.createUnaryExpression(operandValue, op, appendType);
-}
-
-llvm::Value* IfStatement::codegen(IRGenerator& generator) {
+    // // Use IRGenerator to create the ternary expression
+    // return generator.createTernaryExpression(condValue, trueValue, falseValue);
     return nullptr;
 }
 
-llvm::Value* Call::codegen(IRGenerator& generator) {
-    DEBUG_LOG("Calling " + callee );
-    std::vector<llvm::Value*> results;
+std::shared_ptr<Omniscript::Value> BinaryExpression::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // Generate code for left and right operands
+    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(left)) {
+    //     stmt->setType(llvmType);
+    // }
+
+    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(right)) {
+    //     stmt->setType(llvmType);
+    // }
+
+    // std::shared_ptr<Omniscript::Value> leftValue = left->codegen(generator, scope);
+    // if (!leftValue) return nullptr;
     
-    for (auto& arg : args) {
-        // if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
-            //     typed->setType(llvmType);
-            // }
+    // std::shared_ptr<Omniscript::Value> rightValue = right->codegen(generator, scope);
+    // if (!rightValue) return nullptr;
+    
+    // // Use IRGenerator to create the binary expression
+    // return generator.createBinaryExpression(leftValue, op, rightValue);
+    return nullptr;
+}
+
+std::shared_ptr<Omniscript::Value> UnaryExpression::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
+    //     stmt->setType(llvmType);
+    // }
+
+    // // Generate code for the operand
+    // std::shared_ptr<Omniscript::Value> operandValue = operand->codegen(generator, scope);
+    // if (!operandValue) return nullptr;
+    
+    // // Use IRGenerator to create the unary expression
+    // bool appendType = position == Position::Postfix ? true : false;
+    // return generator.createUnaryExpression(operandValue, op, appendType);
+    return nullptr;
+}
+
+std::shared_ptr<Omniscript::Value> IfStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+    return nullptr;
+}
+
+std::shared_ptr<Omniscript::Value> Call::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // DEBUG_LOG("Calling " + callee );
+    // std::vector<std::shared_ptr<Omniscript::Value>> results;
+    
+    // for (auto& arg : args) {
+    //     // if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
+    //         //     typed->setType(llvmType);
+    //         // }
             
-            results.push_back(arg->codegen(generator));
-    }
-    DEBUG_LOG("Genereated results for arguments");
+    //         results.push_back(arg->codegen(generator, scope));
+    // }
+    // DEBUG_LOG("Genereated results for arguments");
 
-    return generator.createCall(callee, results);
+    // return generator.createCall(callee, results);
+    return nullptr;
 }
 
-llvm::Value* ReturnStatement::codegen(IRGenerator& generator) {
-    llvm::Value* retVal = nullptr;
-    if (returnValue) {
-        if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
-            stmt->setType(llvmType);
-        }
-        retVal = returnValue->codegen(generator);
-    }
-    return generator.createReturn(retVal, llvmType);
+std::shared_ptr<Omniscript::Value> ReturnStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // std::shared_ptr<Omniscript::Value> retVal = nullptr;
+    // if (returnValue) {
+    //     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
+    //         stmt->setType(llvmType);
+    //     }
+    //     retVal = returnValue->codegen(generator, scope);
+    // }
+    // return generator.createReturn(retVal, llvmType);
+    return nullptr;
 }
 
-llvm::Value* FixedArray::codegen(IRGenerator& generator) {
-    if (!llvmType) {
-        llvm::errs() << "Error: Unknown element type in FixedArrayStatement.\n";
-        return nullptr;
-    }
+std::shared_ptr<Omniscript::Value> FixedArray::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // if (!llvmType) {
+    //     llvm::errs() << "Error: Unknown element type in FixedArrayStatement.\n";
+    //     return nullptr;
+    // }
 
-    // Generate code for each initializer expression
-    std::vector<llvm::Value*> elementValues;
-    for (const auto& expr : initialValues) {
-        elementValues.push_back(expr->codegen(generator));
-    }
+    // // Generate code for each initializer expression
+    // std::vector<std::shared_ptr<Omniscript::Value>> elementValues;
+    // for (const auto& expr : initialValues) {
+    //     elementValues.push_back(expr->codegen(generator, scope));
+    // }
 
-    // Call the function to create the static fixed array
-    return generator.createStaticFixedArray(llvmType, elementValues.size(), elementValues);
+    // // Call the function to create the static fixed array
+    // return generator.createStaticFixedArray(llvmType, elementValues.size(), elementValues);
+    return nullptr;
 }
 
-llvm::Value* FunctionDeclaration::codegen(IRGenerator& generator) {
-    if (name == "main") {
-        name = "__main";
-    }
-    setReturnTypes(generator);
-    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(body)) {
-        typed->setType(llvmType);
-    }
-    auto func = generator.createFunction(*this);
+std::shared_ptr<Omniscript::Value> FunctionDeclaration::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // DEBUG_LOG("Constructing a function prototype");
+    // if (name == "main") {
+    //     name = "__main";
+    // }
 
-    if (!func) {
-        return nullptr;
-    }
+    // setReturnTypes(generator);
+
+    // DEBUG_LOG("Setting the function's return type");
+    // if (auto typed = std::dynamic_pointer_cast<TypedStatement>(body)) {
+    //     typed->setType(llvmType);
+    // }
+    // DEBUG_LOG("Setting the function's return type");
+    // auto func = generator.createFunction(*this);
+
+    // if (!func) {
+    //     return nullptr;
+    // }
     
-    generator.generateFunctionBody(func, *this);
-    return func;
+    // generator.generateFunctionBody(func, *this);
+    // return func;
+    return nullptr;
 }
 
 void FunctionDeclaration::setReturnTypes(IRGenerator& generator) {
-    llvm::Type* funcReturnType = getType();
-    if (!funcReturnType) {
-        std::vector<std::string> type = {"void"};
-        funcReturnType = generator.resolveLLVMType(type);
-    }
+    // std::shared_ptr<Omniscript::Type> funcReturnType = getType();
+    // if (!funcReturnType) {
+    //     std::vector<std::string> type = {"void"};
+    //     funcReturnType = generator.resolveLLVMType(type);
+    // }
 
     // for (const auto& stmt : body) {
     //     setReturnTypesInStatement(stmt, funcReturnType);
@@ -430,20 +453,20 @@ void FunctionDeclaration::setReturnTypes(IRGenerator& generator) {
 
 void FunctionDeclaration::setReturnTypesInStatement(
     const std::shared_ptr<Statement>& stmt, 
-    llvm::Type* returnType
+    std::shared_ptr<Omniscript::Type> returnType
 ) {
     // Handle ReturnStatement
-    if (auto retStmt = std::dynamic_pointer_cast<ReturnStatement>(stmt)) {
-        retStmt->setType(returnType);
-        return;
-    }
+    // if (auto retStmt = std::dynamic_pointer_cast<ReturnStatement>(stmt)) {
+    //     retStmt->setType(returnType);
+    //     return;
+    // }
 
-    // Handle nested statements
-    if (auto block = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
-        for (const auto& subStmt : block->statements) {
-            setReturnTypesInStatement(subStmt, returnType);
-        }
-    }
+    // // Handle nested statements
+    // if (auto block = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
+    //     for (const auto& subStmt : block->statements) {
+    //         setReturnTypesInStatement(subStmt, returnType);
+    //     }
+    // }
     // else if (auto ifStmt = std::dynamic_pointer_cast<IfStatement>(stmt)) {
     //     setReturnTypesInStatement(ifStmt->thenBranch, returnType);
     //     if (ifStmt->elseBranch) {
@@ -456,90 +479,96 @@ void FunctionDeclaration::setReturnTypesInStatement(
     // Add other control flow statements as needed...
 }
 
-llvm::Value* ParameterStatement::codegen(IRGenerator& generator) {
-    DEBUG_LOG("Creating parameter " + name);
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
-        stmt->setType(llvmType);
-    }
-    llvm::Value* result = defaultValue->codegen(generator);
-    DEBUG_LOG("Created value for parameter " + name);
-    return result;
-}
-
-llvm::Value* ArgumentStatement::codegen(IRGenerator& generator) {
-    DEBUG_LOG("Creating argument " + name);
+std::shared_ptr<Omniscript::Value> ParameterStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // DEBUG_LOG("Creating parameter " + name);
     // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
     //     stmt->setType(llvmType);
     // }
-    llvm::Value* result = value->codegen(generator);
-    DEBUG_LOG("Created value for argument " + name);
-    return result;
-}
-
-std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
-        stmt->setType(llvmType);
-    }
-    return defaultValue;
-}
-
-llvm::Value* ConstructStructPrototype::codegen(IRGenerator& generator) {
-    generator.createStructType(*this);
+    // std::shared_ptr<Omniscript::Value> result = defaultValue->codegen(generator, scope);
+    // DEBUG_LOG("Created value for parameter " + name);
+    // return result;
     return nullptr;
 }
 
-llvm::Value* ObjectConstructorStatement::codegen(IRGenerator& generator) {
-    DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
-
-    std::vector<llvm::Value*> argValues;
-    for (const auto& arg : constructorArgs) {
-        argValues.push_back(arg->codegen(generator));
-    }
-
-    // 5. Return the allocated instance
-    return generator.createObjectInstance(objectType, instanceName, argValues);
-}
-
-llvm::Value* GetMemberValue::codegen(IRGenerator& generator) {
-    DEBUG_LOG("Getting member " + propertyName + " from " + objectName);
-
+std::shared_ptr<Omniscript::Value> ArgumentStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // DEBUG_LOG("Creating argument " + name);
+    // // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
+    // //     stmt->setType(llvmType);
+    // // }
+    // std::shared_ptr<Omniscript::Value> result = value->codegen(generator, scope);
     // DEBUG_LOG("Created value for argument " + name);
     // return result;
-    return generator.loadMemberValue(objectName, propertyName);
+    return nullptr;
+}
+
+std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
+    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
+    //     stmt->setType(llvmType);
+    // }
+    // return defaultValue;
+    return nullptr;
+}
+
+std::shared_ptr<Omniscript::Value> ConstructStructPrototype::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // generator.createStructType(*this);
+    return nullptr;
+}
+
+std::shared_ptr<Omniscript::Value> ObjectConstructorStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
+
+    // std::vector<std::shared_ptr<Omniscript::Value>> argValues;
+    // for (const auto& arg : constructorArgs) {
+        //     argValues.push_back(arg->codegen(generator, scope));
+        // }
+
+    // // 5. Return the allocated instance
+    // return generator.createObjectInstance(objectType, instanceName, argValues);
+    return nullptr;
+}
+
+std::shared_ptr<Omniscript::Value> GetMemberValue::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // DEBUG_LOG("Getting member " + propertyName + " from " + objectName);
+
+    // // DEBUG_LOG("Created value for argument " + name);
+    // // return result;
+    // return generator.loadMemberValue(objectName, propertyName);
+    return nullptr;
 }
 
 
-llvm::Value* EnumConstructor::codegen(IRGenerator& generator) {
-    std::vector<std::string> names;
-    std::vector<int> indices;
+std::shared_ptr<Omniscript::Value> EnumConstructor::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // std::vector<std::string> names;
+    // std::vector<int> indices;
 
-    for (const auto& val : values) {
-        names.push_back(val->getName());
-        indices.push_back(val->getIndex());
-    }
+    // for (const auto& val : values) {
+    //     names.push_back(val->getName());
+    //     indices.push_back(val->getIndex());
+    // }
 
-    if (hasLookup) {
-        generator.createEnumWithLookup(enumName, names, indices);
-    } else {
-        generator.createEnum(enumName, names, indices);
-    }
+    // if (hasLookup) {
+    //     generator.createEnumWithLookup(name, names, indices);
+    // } else {
+    //     generator.createEnum(name, names, indices);
+    // }
      
     return nullptr;
 }
 
-llvm::Value* EnumValue::codegen(IRGenerator& generator) {
-    llvm::Type* intType = llvm::Type::getInt32Ty(*generator.getContext());
-    return llvm::ConstantInt::get(intType, valueIndex);
+std::shared_ptr<Omniscript::Value> EnumValue::codegen(IRGenerator& generator, SymbolTable& scope) {
+    // std::shared_ptr<Omniscript::Type> intType = llvm::Type::getInt32Ty(*generator.getContext());
+    // return llvm::ConstantInt::get(intType, valueIndex);
+    return nullptr;
 }
 
 
 
 // // Helper function to extract values from statements
 // std::optional<SymbolTable::ValueType> Expression::evaluate(const SymbolTable::ValueType& object, SymbolTable &scope) {
-//     // Variable to store the result
-//     SymbolTable::ValueType result;
+    //     // Variable to store the result
+    //     SymbolTable::ValueType result;
 
-//     // Check if the object holds a shared pointer to a Statement
+    //     // Check if the object holds a shared pointer to a Statement
 //     if (auto statement = std::get_if<std::shared_ptr<Statement>>(&object)) {
 //         std::shared_ptr<Statement> stmt = *statement;
 //         Omniscript::setPosition(stmt->getPosition());

@@ -5,6 +5,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <omniscript/runtime/object.h>
 #include <omniscript/Core.h>
+#include <omniscript/Core/Value.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/tokens.h>
@@ -26,7 +27,7 @@ class Statement { // Base class for all statements
         // virtual void execute(SymbolTable &scope) = 0; //Function to execute a statement
         ~Statement() = default;
 
-        virtual llvm::Value* codegen(IRGenerator& generator) { return nullptr; }
+        virtual std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) { return nullptr; }
         virtual std::string toString() const { return "Statement"; }
 
         inline void setPosition(int line, int column, const std::string& file, const std::string& path) {
@@ -54,21 +55,25 @@ class Statement { // Base class for all statements
 class NamedStatement: public virtual Statement {
 public:
     ~NamedStatement() = default;
-    virtual std::string getName() const = 0;
+    virtual std::string getName() const { return name; };
+    void setName(const std::string& newName) { name = newName; }
     virtual std::string toString() const override { return "NamedStatement"; }
+
+protected:
+    std::string name;
 };
 
 class TypedStatement : public virtual Statement {
     public:
-    explicit TypedStatement() : llvmType(nullptr) {}
+    explicit TypedStatement() :type(nullptr) {}
     virtual ~TypedStatement() = default;
 
-    llvm::Type* getType() const { return llvmType; }
-    void setType(llvm::Type* newType) { llvmType = newType; }
+    std::shared_ptr<Omniscript::Type> getType() const { return type; }
+    void setType(std::shared_ptr<Omniscript::Type> newType) { type = newType; }
     virtual std::string toString() const override { return "TypedStatement"; }
 
 protected:
-    llvm::Type* llvmType;  // Store the type at the base level
+    std::shared_ptr<Omniscript::Type> type;
 };
     
 class Terminator: public virtual TypedStatement {
@@ -107,7 +112,7 @@ public:
         statements.push_back(std::move(stmt));
     }
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     
     std::string toString() const override {
         std::string result = "Block {\n";
@@ -134,70 +139,73 @@ public:
                     bool wildcard)
         : moduleName(modName), alias(aliasName), importedAliases(aliases), path(modPath), importAll(wildcard) {}
     
-    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
 };
     
 class CreateModule : public NamedStatement {
 public:
-    std::string moduleName;
     std::vector<std::shared_ptr<Statement>> statements;
 
-    CreateModule(std::string name, std::vector<std::shared_ptr<Statement>> stmts)
-    : moduleName(std::move(name)), statements(std::move(stmts)) {}
+    CreateModule(std::string moduleName, std::vector<std::shared_ptr<Statement>> stmts)
+    : statements(std::move(stmts)) {
+        setName(moduleName);
+    }
     
-    std::string getName() const override { return moduleName; }
+    std::string getName() const override { return name; }
     std::vector<std::shared_ptr<Statement>> getStatements() { return statements; }
-    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
 };
 
 
 class PublicMember : public NamedStatement {
 public:
-    std::string memberName;
     std::shared_ptr<Statement> value;
 
-    PublicMember(std::string name, std::shared_ptr<Statement> value)
-        : memberName(std::move(name)), value(std::move(value)) {}
+    PublicMember(std::string memberName, std::shared_ptr<Statement> value)
+        : value(std::move(value)) {
+            setName(memberName);
+        }
 
-    std::string getName() const override { return memberName; }
+    std::string getName() const override { return name; }
     std::shared_ptr<Statement> getValue() { return value; }
-    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
 };
 
 class PrivateMember : public NamedStatement {
 public:
-    std::string memberName;
     std::shared_ptr<Statement> value;
 
-    PrivateMember(std::string name, std::shared_ptr<Statement> value)
-        : memberName(std::move(name)), value(std::move(value)) {}
+    PrivateMember(std::string memberName, std::shared_ptr<Statement> value)
+        : value(std::move(value)) {
+            setName(memberName);
+        }
 
-    std::string getName() const override { return memberName; }
+    std::string getName() const override { return name; }
     std::string toString() const override { return "PrivateMemberStatement"; }
-    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
 };
 
 
 
 class AddressOf : public NamedStatement {
 public:
-   std::string variableName;
+    AddressOf(const std::string& value) {
+        setName(value);
+    }
 
-    AddressOf(const std::string& value) : variableName(value) {}
-
-    std::string getName() const override { return variableName; }
-    llvm::Value* codegen(IRGenerator& irGen);
-    std::string toString() const override { return "Arddressof"; }
+    std::string getName() const override { return name; }
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope);
+    std::string toString() const override { return "Addressof"; }
 };
 
 class ReferenceTo : public NamedStatement {
 public:
-    std::string variableName;
+    ReferenceTo(const std::string& value) {
+        setName(value);
+    }
 
-    ReferenceTo(const std::string& value) : variableName(value) {}
-
-    std::string getName() const override { return variableName; }
-    llvm::Value* codegen(IRGenerator& irGen);
+    std::string getName() const override { return name; }
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope);
     std::string toString() const override { return "PrivateMemberStatement"; }
 };
 
@@ -212,7 +220,7 @@ class Nullptr : public NullLiteral {
 public:
     Nullptr() {};
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
     
@@ -221,7 +229,7 @@ class Null : public NullLiteral {
 public:
     Null() {};
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
     
@@ -238,7 +246,7 @@ public:
     explicit IntegerLiteral(int64_t val)
         : value(val) {}
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     int getValue() const {return value; }
     std::string toString() const override { return "LiteralStatement"; }
 
@@ -251,7 +259,7 @@ public:
     explicit FloatLiteral(double val) 
         : value(val) {}
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 private:
     double value;
@@ -263,7 +271,7 @@ public:
     BigInt(const std::string& value)
         : value(value) {}
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     #include <cmath>
 
     static unsigned determineBitWidth(const std::string& value) {
@@ -289,7 +297,7 @@ public:
     char value;
 
     explicit CharacterLiteral(char val) : value(std::move(val)) {}
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
     
@@ -299,7 +307,7 @@ public:
     std::string value;
 
     explicit StringLiteral(std::string val) : value(std::move(val)) {}
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
 
@@ -308,7 +316,7 @@ public:
     bool value;
 
     explicit BoolLiteral(bool val) : value(std::move(val)) {}
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
 
@@ -320,7 +328,7 @@ public:
     FixedArray(std::vector<std::shared_ptr<Statement>> values = {})
         : initialValues(std::move(values)) {}
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
 
@@ -336,26 +344,29 @@ public:
 
 class createVariable : public Assignment {
 public:
-    createVariable(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value);
+    createVariable(const std::string &variable, std::shared_ptr<Omniscript::Type> type, std::shared_ptr<Statement> value)
+    : variable(variable), type(type), value(value) {}
     std::string getName() const override {return variable;}
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 
 private:
     std::string variable;
+    std::shared_ptr<Omniscript::Type> type;
     std::shared_ptr<Statement> value;
 };
 
 class createConstant : public Assignment {
 public:
-    createConstant(const std::string &variable, llvm::Type* type, std::shared_ptr<Statement> value);
+    createConstant(const std::string &variable, std::shared_ptr<Omniscript::Type> type, std::shared_ptr<Statement> value)
+    : variable(variable), type(type), value(value) {}
     std::string getName() const override {return variable;}
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 
 private:
     std::string variable;
-    llvm::Type* type;
+    std::shared_ptr<Omniscript::Type> type;
     std::shared_ptr<Statement> value;
 };
 
@@ -363,7 +374,7 @@ class createDynamicVariable : public Assignment {
 public:
     createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value);
     std::string getName() const override {return variable;}
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 
 private:
@@ -379,7 +390,7 @@ public:
 
     std::string getName() const override { return variable; }
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "GetVariable"; }
 
 private:
@@ -391,7 +402,7 @@ class GetDynamicVariable : public NamedStatement {
 public:
     GetDynamicVariable(const std::string &variable);
     std::string getName() const override {return variable;}
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 
 private:
@@ -404,7 +415,7 @@ public:
     GenericAssignment(const std::string &variable, std::shared_ptr<Statement> value) :
         variable(variable), value(value) {}
     std::string getName() const override {return variable;}
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 
 private:
@@ -415,38 +426,40 @@ private:
 
 class ReturnStatement : public Terminator {
 public:
-    ReturnStatement(std::shared_ptr<Statement> value = nullptr, llvm::Type* returnType = nullptr)
+    ReturnStatement(std::shared_ptr<Statement> value = nullptr, std::shared_ptr<Omniscript::Type> returnType = nullptr)
         : returnValue(value) {
             setType(returnType);
         }
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::shared_ptr<Statement> returnValue;
     std::string toString() const override { return "LiteralStatement"; }
 };
 
 class CreateStruct : public NamedStatement {
 public:
-    std::string structName;
     std::vector<std::shared_ptr<Statement>> members; // Store all struct members
 
-    CreateStruct(std::string name, std::vector<std::shared_ptr<Statement>> members)
-    : structName(std::move(name)), members(std::move(members)) {}
+    CreateStruct(std::string structName, std::vector<std::shared_ptr<Statement>> members)
+    : members(std::move(members)) {
+        setName(name);
+    }
 
-    std::string getName() const override { return structName; }
-    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::string getName() const override { return name; }
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
 
 class ParameterStatement : public NamedStatement, public TypedStatement {
 public:
-    std::string name;
     std::shared_ptr<Statement> defaultValue;
 
     ParameterStatement(std::string name, std::shared_ptr<Statement> defaultValue = nullptr)
-        : name(std::move(name)), defaultValue(std::move(defaultValue)) {}
+        : defaultValue(std::move(defaultValue)) {
+            setName(name);
+        }
 
     std::string getName() const override { return name; }
-    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
     std::shared_ptr<Statement> getDefaultValue();
 };
@@ -460,51 +473,51 @@ public:
         : name(std::move(name)), value(std::move(value)) {}
 
     std::string getName() const override { return name; }
-    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "ArgumentStatement"; }
 };
 
 // ============================== Struct ============================== //
 class FunctionDeclaration : public NamedStatement, public TypedStatement {
 public:
-    std::string name;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
     std::vector<std::shared_ptr<Statement>> parameters;
     std::shared_ptr<BlockStatement> body;
 
     FunctionDeclaration(
-        const std::string& name,
+        const std::string& functionName,
         const std::vector<std::shared_ptr<Statement>>& parameters,
         std::shared_ptr<BlockStatement> body,
-        llvm::Type* returnType = nullptr // Default to nullptr if return type is unknown
-    ) : name(name), parameters(parameters), body(body) {
+        std::shared_ptr<Omniscript::Type> returnType = nullptr // Default to nullptr if return type is unknown
+    ) : parameters(parameters), body(body) {
         setType(returnType); // Store the return type using `TypedStatement`
+        setName(functionName);
     }
 
     std::string getName() const override { return name; }
-    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
     
     void setReturnTypes(IRGenerator& generator);
     void setReturnTypesInStatement(
         const std::shared_ptr<Statement>& stmt, 
-        llvm::Type* returnType
+        std::shared_ptr<Omniscript::Type> returnType
     );
 };
     
 class ConstructStructPrototype : public NamedStatement {
 public:
-    ConstructStructPrototype(const std::string& structName, const std::vector<std::shared_ptr<Statement>>& structBody) : 
-    name(structName), body(structBody) {}
-
+    ConstructStructPrototype(const std::string& structName, const std::vector<std::shared_ptr<Statement>>& structBody) :
+    body(structBody) {
+        setName(structName);
+    }
     
     std::string getName() const override { return name; }
-    llvm::Value* codegen(IRGenerator& irGen) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "ConstructStructPrototype"; }
 
     std::vector<std::shared_ptr<Statement>> getBody() const { return body; }
 private:
-    std::string name;
     std::vector<std::shared_ptr<Statement>> body;
 };
 
@@ -513,7 +526,7 @@ public:
     Call(const std::string& calleeName, std::vector<std::shared_ptr<Statement>>& arguments) :
     callee(calleeName), args(arguments) {}
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "CallStatement"; }
     std::string getName() const override { return callee; }
 
@@ -527,7 +540,7 @@ public:
 //     BlockStatement(std::vector<std::shared_ptr<Statement>> statements = {})
 //     : statements(std::move(statements)) {}
 
-//     llvm::Value* codegen(IRGenerator& generator) override;
+//     std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
 
 // private:
 //     std::vector<std::shared_ptr<Statement>> statements;
@@ -541,7 +554,7 @@ public:
                 std::shared_ptr<BlockStatement> falseBranch = {}) 
         : condition(condition), body(body), branches(branches), falseBranch(falseBranch) {}
     
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     
     std::shared_ptr<Statement> condition;
     std::shared_ptr<BlockStatement> body;
@@ -585,7 +598,7 @@ public:
     Position getPosition() const { return position; }
 
     // Code generation method
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "UnaryExpressionStatement"; }
 
 private:
@@ -622,7 +635,7 @@ public:
 
     
     // Method to evaluate the binary expression
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "BinaryStatement"; }
     
 private:
@@ -638,7 +651,7 @@ class TernaryExpression : public TypedStatement {
         TernaryExpression(std::shared_ptr<Statement> condition, std::shared_ptr<Statement> truthy, std::shared_ptr<Statement> falsey) :
         condition(condition), truthy(truthy), falsey(falsey) {}
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "TernaryExpressionStatement"; }
 
     private:
@@ -653,7 +666,7 @@ public:
     WhileStatement(std::shared_ptr<Statement> condition, std::shared_ptr<BlockStatement> body = {})
         : condition(condition), body(body) {}
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::shared_ptr<Statement> condition;
     std::shared_ptr<BlockStatement> body;
     std::string toString() const override { return "WhileStatement"; }
@@ -675,7 +688,7 @@ public:
         : object(object), methodName(methodName), arguments(std::move(args)) {}
     
     
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     
 private:
     std::shared_ptr<Statement> object; // The base object on which the method is called.
@@ -695,7 +708,7 @@ public:
         : object(object), propertyName(propertyName) {}
     
     
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
 
@@ -711,20 +724,20 @@ public:
             std::shared_ptr<Statement> incr, std::shared_ptr<BlockStatement> body)
         :   initialization(std::move(init)), condition(std::move(cond)), 
             increment(std::move(incr)), body(std::move(body)) {}
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
     
 };
 
 class BreakStatement : public Statement {
     public:
-        llvm::Value* codegen(IRGenerator& generator) override;
+        std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
         std::string toString() const override { return "LiteralStatement"; }
 };
 
 class ContinueStatement : public Statement {
 public:
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
 
@@ -743,7 +756,7 @@ public:
             instanceName(instanceName),
             constructorArgs(std::move(args)) {}
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { 
         return "ObjectConstructor(" + objectType + " " + instanceName + ")"; 
     }
@@ -759,7 +772,7 @@ public:
     GetMemberValue(const std::string& name, const std::string& propertyName)
     : objectName(name), propertyName(propertyName) {}
     
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "GetMember"; }
 };
 
@@ -773,7 +786,7 @@ public:
     SetMemberValue(const std::string& name, const std::string& prop, std::shared_ptr<Statement> value)
         : objectName(name), propertyName(prop), newValue(value) {} // ✅ Fixed constructor
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override { return "SetMember"; }
 };
     
@@ -784,44 +797,46 @@ public:
 // public:
 //     explicit ObjectDestructorStatement(const std::string& variableName)
 //         : variableName(variableName) {}
-//     llvm::Value* codegen(IRGenerator& generator) override;
+//     std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
 //     std::string toString() const override { return "LiteralStatement"; }
 // };
 
 class EnumValue : public NamedStatement, public TypedStatement {
 public:
-    EnumValue(const std::string& name, int& index) :
-    valueName(name), valueIndex(index) {}
+    EnumValue(const std::string& valueName, int& index) :
+    valueIndex(index) {
+        setName(valueName);
+    }
 
-    llvm::Value* codegen(IRGenerator& generator) override;
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
     std::string toString() const override {
-        return "{" + valueName + ":" + std::to_string(valueIndex) + "}";
+        return "{" + name + ":" + std::to_string(valueIndex) + "}";
     }
     
     int getIndex() const { return valueIndex; }
-    std::string getName() const override { return valueName; }
+    std::string getName() const override { return name; }
 
 private:
-    std::string valueName;
     int valueIndex;
 };
 
 class EnumConstructor : public NamedStatement {
 private:
-std::string enumName;
-std::vector<std::shared_ptr<EnumValue>> values;
-bool hasLookup;  // Flag to determine if a lookup table is needed
+    std::vector<std::shared_ptr<EnumValue>> values;
+    bool hasLookup;  // Flag to determine if a lookup table is needed
 
 public:
     EnumConstructor(
-        const std::string& name,
+        const std::string& enumName,
         const std::vector<std::shared_ptr<EnumValue>>& values,
         bool hasLookup = false  // Default: no lookup
-    ) : enumName(name), values(values), hasLookup(hasLookup) {}
-
-    llvm::Value* codegen(IRGenerator& generator) override;
-    std::string toString() const override {
-        return "EnumConstructor for " + enumName + (hasLookup ? " (with lookup)" : "");
+    ) : values(values), hasLookup(hasLookup) {
+        setName(enumName);
     }
-    std::string getName() const override { return enumName; }
+
+    std::shared_ptr<Omniscript::Value> codegen(IRGenerator& generator, SymbolTable& scope) override;
+    std::string toString() const override {
+        return "EnumConstructor for " + name + (hasLookup ? " (with lookup)" : "");
+    }
+    std::string getName() const override { return name; }
 };

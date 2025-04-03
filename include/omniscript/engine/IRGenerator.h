@@ -249,6 +249,8 @@ public:
         const std::vector<std::string>& valueNames,
         const std::vector<int>& valueIndices
     );
+
+    llvm::Value* getEnumValue(const std::string& enumName, const std::string& memberName);
 };
 
 #endif

@@ -16,19 +16,19 @@ void JITCompiler::execute(const std::vector<std::shared_ptr<Statement>>& stateme
 
     // Generate IR for all statements
     for (const auto& statement : statements) {
-        llvm::Value* ir = statement->codegen(irGen);
+        // llvm::Value* ir = statement->codegen(irGen, *scope);
         
-        if (!ir) continue;
+        // if (!ir) continue;
 
-        if (auto* func = llvm::dyn_cast<llvm::Function>(ir)) {
-            pendingCalls.push_back([this, func]() {
-                auto symbol = jit->lookup(func->getName().str());
-                if (symbol) {
-                    auto fnPtr = symbol->toPtr<void(*)()>();
-                    fnPtr();
-                }
-            });
-        }
+        // if (auto* func = llvm::dyn_cast<llvm::Function>(ir)) {
+        //     pendingCalls.push_back([this, func]() {
+        //         auto symbol = jit->lookup(func->getName().str());
+        //         if (symbol) {
+        //             auto fnPtr = symbol->toPtr<void(*)()>();
+        //             fnPtr();
+        //         }
+        //     });
+        // }
     }
 
     // Add this after IR generation but before optimization

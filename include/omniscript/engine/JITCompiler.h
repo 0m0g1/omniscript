@@ -5,6 +5,7 @@
 #include <omniscript/engine/IRGenerator.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/EngineConfigs.h>
+#include <omniscript/engine/SymbolTable.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
@@ -14,6 +15,7 @@ class JITCompiler {
 private:
     IRGenerator& irGen;
     std::unique_ptr<llvm::orc::LLJIT> jit;
+    std::shared_ptr<SymbolTable> scope;
 
 public:
     JITCompiler(IRGenerator& generator) : irGen(generator) {

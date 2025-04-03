@@ -1,6 +1,6 @@
 // Basic integer types
 // let aa : int = 1;
-// let a : i8 = 1;
+let a : i8 = 1;
 // let b : i16 = 2;
 // let c : i32 = 3;
 // let d : i64 = 4;
@@ -78,7 +78,18 @@
 // let result : int = add(1, 1);
 // let anchor = new heap Particle(x,  y);
 
-enum Fruits(lookup) {
-    apple,
-    banana
-}
+// enum Fruits {
+//     apple,
+//     banana
+// }
+
+// let Fruits_apple : int = Fruits.apple;
+
+// enum Fruits(lookup) {
+//     apple,
+//     banana
+// }
+
+// let lambda = (a: int = 1, b: int = 1) => i32 {
+//     return a + b;
+// }

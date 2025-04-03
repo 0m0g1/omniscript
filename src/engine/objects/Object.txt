@@ -1,0 +1,114 @@
+// #include <omniscript/engine/object.h>
+// #include <omniscript/engine/Symboltable.h>
+// #include <omniscript/utils.h>
+
+// #include <omniscript/omniscript_pch.h>
+
+// // #ifdef _WIN32
+// // #include <Windows.h>
+// // #endif
+
+// // #if defined(__linux__) || defined(__APPLE__)
+// // #include <sys/resource.h>
+// // #endif
+
+// std::atomic<unsigned long long> Object::objectCounter{0};
+
+// // convert the whole object and its properties to a string for printing
+// // if there is one property put everything on a line
+// std::string Object::objectString() const {
+//     std::ostringstream oss;
+//     // oss << name;
+//     oss << "{";
+
+//     // Iterate over properties
+//     for (const auto& [key, value] : properties) {
+//         oss << "\n\t" << key << ": ";
+//         if (value.index() != std::variant_npos) { // Check if value is valid
+//             oss << valueToString(value);
+//         } else {
+//             oss << "null"; // Handle uninitialized values
+//         }
+//         oss << ",";
+//     }
+
+//      // Todo:: remove the last comma
+//     // if (methods.size() != 1) {
+//         // oss << "\n\t" << "methods: [";
+//     for (const auto& method : methods) {
+//         // italicize f with ansi
+//         oss << "\n\t" << method.first << ": \x1B[3m" << "f" << "\x1B[0m" << "()" << ",";
+//     }
+//         // oss << "\n\t\t]\n";
+//     // }
+//     oss << "\n}";
+
+//     return oss.str();
+// }
+
+// std::string Object::toString(int indentLevel) const {
+//     std::ostringstream oss;
+//     std::string indentation(indentLevel, '\t');
+//     oss << "{";
+
+//     // Get an iterator to the beginning of the properties map
+//     auto it = properties.begin();
+//     // Iterate over properties
+//     while (it != properties.end()) {
+//         oss << "\n" << indentation << "\t" << it->first << ": ";
+//         if (it->second.index() != std::variant_npos) { // Check if value is valid
+//             // oss << valueToString(it->second, indentLevel + 1);
+//             DEBUG_LOG("TO DO HERE");
+//         } else {
+//             oss << "null"; // Handle uninitialized values
+//         }
+//         ++it;
+//         if (it != properties.end()) {
+//             oss << ","; // Add comma if not the last element
+//         }
+//     }
+
+//     oss << "\n" << indentation;
+
+//     //Todo:: space the last bracket the lenth of the object property's name + one space
+//     /*
+//         {
+//             y: 0,
+//             x: {
+//                     x: 0
+//             #here}
+//         }
+//     */
+//     // if (indentLevel != 0) {
+
+//     // }
+
+//     oss << "}";
+//     return oss.str();
+// }
+
+// std::string Object::generateUniqueId() const {
+//     // Get current time as time_point
+//     auto now = std::chrono::system_clock::now();
+
+//     // Convert to time_t to extract time components
+//     std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
+
+//     // Convert to tm structure for local time
+//     std::tm now_tm;
+//     localtime_s(&now_tm, &now_time_t);
+
+//     // Extract milliseconds
+//     auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+//     // Get the static counter value
+//     unsigned long long counterValue = objectCounter.fetch_add(1, std::memory_order_relaxed);
+
+//     // Format the timestamp as YYYYMMDDHHMMSSmmm + Counter
+//     std::ostringstream oss;
+//     oss << std::put_time(&now_tm, "%Y%m%d%H%M%S")
+//         << std::setw(3) << std::setfill('0') << now_ms.count()
+//         << "_" << counterValue;
+
+//     return oss.str();
+// }

@@ -2,130 +2,63 @@
 #define SYMBOLTABLE_H
 
 #include <omniscript/Core.h>
+#include <omniscript/Core/Value.h>
 #include <omniscript/debuggingtools/console.h>
 #include <omniscript/omniscript_pch.h>
-#include <llvm/IR/Value.h>
 
 class SymbolTable {
 public:
-    using ValueType = llvm::Value*;
+    SymbolTable(std::shared_ptr<SymbolTable> parent = nullptr, const std::string& name = "") 
+        : parent_(std::move(parent)), name_(name) {}
 
-    SymbolTable(std::shared_ptr<SymbolTable> parentScope = nullptr) : parent(parentScope) {}
+    // ==================== TYPE MANAGEMENT ====================
+    void addType(const std::string& name, std::shared_ptr<Omniscript::Value> type) {
+        types_[name] = std::move(type);
+    }
+
+    std::shared_ptr<Omniscript::Value> getType(const std::string& name) const {
+        if (auto it = types_.find(name); it != types_.end()) return it->second;
+        return parent_ ? parent_->getType(name) : nullptr;
+    }
+
+    bool typeExists(const std::string& name) const {
+        return types_.count(name) || (parent_ && parent_->typeExists(name));
+    }
+
+    // ==================== VALUE STORAGE ====================
+    void setVariable(const std::string& name, std::shared_ptr<Omniscript::Value> value) {
+        variables_[name] = std::move(value);
+    }
+
+    void setConstant(const std::string& name, std::shared_ptr<Omniscript::Value> value) {
+        constants_[name] = std::move(value);
+    }
+
+    std::shared_ptr<Omniscript::Value> getValue(const std::string& name) const {
+        if (auto it = variables_.find(name); it != variables_.end()) return it->second;
+        if (auto it = constants_.find(name); it != constants_.end()) return it->second;
+        return parent_ ? parent_->getValue(name) : nullptr;
+    }
+
+    // ==================== SCOPE MANAGEMENT ====================
+    std::shared_ptr<SymbolTable> createChildScope() {
+        return std::make_shared<SymbolTable>(*this);
+    }
+
+    std::shared_ptr<SymbolTable> getParent() const { return parent_; }
     
-    inline void setParent(std::shared_ptr<SymbolTable> parentScope) {
-        if (parentScope) {
-            parent = parentScope;
-        }
-    }
-
-    inline std::shared_ptr<SymbolTable> getParent() {
-        return parent;
-    }
-    
-    inline void addMember(const std::string &name, ValueType value) {
-        members[name] = value;
-    }
-
-    // Local set functions
-    inline void set(const std::string &name, ValueType value) {
-        DEBUG_LOG("Added variable " + name + " to scope ");
-        variables[name] = value;
-    }
-
-    inline void setConstant(const std::string &name, ValueType value) {
-        constants[name] = value;
-    }
-
-    // Get functions with recursive lookup
-    inline ValueType get(const std::string &name) {
-        if (variables.find(name) != variables.end()) {
-            return variables[name];
-        }
-        if (constants.find(name) != constants.end()) {
-            return constants[name];
-        }
-        if (parent) {
-            return parent->get(name);
-        }
-        return nullptr;
-    }
-
-    inline bool has(const std::string &name) {
-        return variables.find(name) != variables.end() || constants.find(name) != constants.end();
-    }
-
-    inline bool exists(const std::string &name) {
-        if (variables.find(name) != variables.end()) {
-            return true;
-        }
-        if (constants.find(name) != constants.end()) {
-            return true;
-        }
-        if (parent) {
-            return parent->exists(name);
-        }
-        return false;
-    }
-
-    inline ValueType getConstant(const std::string &name) {
-        if (constants.find(name) != constants.end()) {
-            return constants[name];
-        }
-        if (parent) {
-            return parent->getConstant(name);
-        }
-        return nullptr;
-    }
-
-    // Unset function to remove variables
-    inline void unset(const std::string &name) {
-        variables.erase(name);
-        constants.erase(name);
-    }
-
-    // Create a new nested scope
-    inline std::shared_ptr<SymbolTable> createChildScope() {
-        return std::make_shared<SymbolTable>(std::make_shared<SymbolTable>(*this));
-    }
-    
-    inline void addModule(const std::string& modulePath, std::shared_ptr<SymbolTable> module, const std::string& alias = "") {
-        // Step 1: Always store the module in the top-most table
-        if (parent) {
-            parent->addModule(modulePath, module);
-            // Step 2: Only store alias in the current table (without propagating it)
-            if (!alias.empty()) {
-                moduleAliases[alias] = modulePath;
-            }
-            return;
-        }
-    
-        // Step 3: If the module already exists in the top-most table, do nothing
-        if (modules.find(modulePath) != modules.end()) {
-            return;
-        }
-    
-        // Step 4: Store the module in the top-most table
-        modules[modulePath] = std::move(module);
-    }
-    
-
-    inline bool moduleExists(const std::string& path) {
-        if (parent) {
-            return parent->moduleExists(path);
-        }
-        return modules.find(path) != modules.end();
-    }
-
-    inline void setName(const std::string& name) { scopeName = name; }
+    void setName(const std::string& name) { name_ = name; }
 
 private:
-    std::string scopeName;
-    std::shared_ptr<SymbolTable> parent = nullptr;
-    std::unordered_map<std::string, ValueType> variables; // Stores LLVM values
-    std::unordered_map<std::string, ValueType> constants;
-    std::unordered_map<std::string, ValueType> members; // Stores LLVM values
-    std::unordered_map<std::string, std::shared_ptr<SymbolTable>> modules;
-    std::unordered_map<std::string, std::string> moduleAliases;
+    std::string name_;
+    std::shared_ptr<SymbolTable> parent_;
+    
+    // Type definitions (structs, enums, aliases)
+    std::unordered_map<std::string, std::shared_ptr<Omniscript::Value>> types_;
+    
+    // Variable storage
+    std::unordered_map<std::string, std::shared_ptr<Omniscript::Value>> variables_;
+    std::unordered_map<std::string, std::shared_ptr<Omniscript::Value>> constants_;
 };
 
-#endif // SYMBOLTABLE_H
+#endif
