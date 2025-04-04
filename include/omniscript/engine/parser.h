@@ -15,7 +15,7 @@
 
 class Parser {
     public:
-        Parser(Lexer &lexer, IRGenerator& irGen) : lexer(lexer), irGen(irGen), currentToken(lexer.getNextToken()) {}
+        Parser(Lexer &lexer) : lexer(lexer), currentToken(lexer.getNextToken()) {}
     
         void setDebugMode(bool state) {
             debugMode = state;
@@ -32,7 +32,6 @@ class Parser {
         
         bool executeStatements = true;
         bool debugMode = false;
-        IRGenerator& irGen;
         Lexer& lexer;
         Token currentToken;
         Token previousToken;

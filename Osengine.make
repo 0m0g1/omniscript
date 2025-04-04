@@ -103,6 +103,7 @@ GENERATED += $(OBJDIR)/RenderingContext.o
 GENERATED += $(OBJDIR)/Statement.o
 GENERATED += $(OBJDIR)/String.o
 GENERATED += $(OBJDIR)/Time.o
+GENERATED += $(OBJDIR)/Value.o
 GENERATED += $(OBJDIR)/Window.o
 GENERATED += $(OBJDIR)/canvas.o
 GENERATED += $(OBJDIR)/console.o
@@ -145,6 +146,7 @@ OBJECTS += $(OBJDIR)/RenderingContext.o
 OBJECTS += $(OBJDIR)/Statement.o
 OBJECTS += $(OBJDIR)/String.o
 OBJECTS += $(OBJDIR)/Time.o
+OBJECTS += $(OBJDIR)/Value.o
 OBJECTS += $(OBJDIR)/Window.o
 OBJECTS += $(OBJDIR)/canvas.o
 OBJECTS += $(OBJDIR)/console.o
@@ -220,6 +222,9 @@ endif
 # #############################################
 
 $(OBJDIR)/Core.o: src/Core.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Value.o: src/Core/Value.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Allocator.o: src/engine/Allocator.cpp

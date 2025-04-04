@@ -1,3 +1,4 @@
+
 #include <omniscript/engine/JITCompiler.h>
 
 void JITCompiler::initialize() {
@@ -16,6 +17,7 @@ void JITCompiler::execute(const std::vector<std::shared_ptr<Statement>>& stateme
 
     // Generate IR for all statements
     for (const auto& statement : statements) {
+        std::shared_ptr<Omniscript::Value> result = statement->evaluate(*scope);
         // llvm::Value* ir = statement->codegen(irGen, *scope);
         
         // if (!ir) continue;

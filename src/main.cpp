@@ -120,7 +120,7 @@ public:
         IRGenerator irGen(config.filePath);
 
         Lexer lexer(sourceCode, config.filePath);
-        Parser parser(lexer, irGen);
+        Parser parser(lexer);
         parser.setDebugMode(config.debugMode);
         std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
         

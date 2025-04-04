@@ -345,7 +345,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
             }
 
             Lexer lexer(sourceCode);
-            Parser parser(lexer, irGen);
+            Parser parser(lexer);
             
             std::vector<std::shared_ptr<Statement>> moduleStatements = parser.Parse();
             auto moduleStmt = std::make_shared<CreateModule>(moduleAlias, moduleStatements);
@@ -1957,8 +1957,7 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
         console.warn("To do...");
     }    
 
-    // Resolve LLVM Type with pointer depth
-    // type = irGen.resolveLLVMType(dataTypes);
+    type = Omniscript::resolveType(dataTypes);
 
     DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " " + variableName +
                   " with type " + dataTypes[dataTypes.size() - 1]);

@@ -19,7 +19,7 @@
 // #include <omniscript/runtime/Pointer.h>
 
 
-std::shared_ptr<Omniscript::Value> BlockStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> BlockStatement::evaluate(SymbolTable& scope) {
     // Create a new scope for this block
     // generator.pushScope();
     
@@ -36,7 +36,7 @@ std::shared_ptr<Omniscript::Value> BlockStatement::codegen(IRGenerator& generato
     //         assignment->setGlobalVisibilityTo(false);
     //     }
 
-    //     lastValue = stmt->codegen(generator, scope);
+    //     lastValue = stmt->evaluate(scope);
         
     //     // If the current block already has a terminator, stop generating
     //     if (generator.currentBlockHasTerminator()) {
@@ -52,149 +52,152 @@ std::shared_ptr<Omniscript::Value> BlockStatement::codegen(IRGenerator& generato
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> ImportModule::codegen(IRGenerator& generator, SymbolTable& scope) {
-    if (path.empty()) {
-        throw std::runtime_error("ImportModule::codegen - Module path is empty.");
-    }
+std::shared_ptr<Omniscript::Value> ImportModule::evaluate(SymbolTable& scope) {
+    // if (path.empty()) {
+    //     throw std::runtime_error("ImportModule::codegen - Module path is empty.");
+    // }
 
-    if (path == "std") {
-        path = "standard/1/std.os";
-    }
+    // if (path == "std") {
+    //     path = "standard/1/std.os";
+    // }
 
-    std::string sourceCode = readFile(path);
-    if (sourceCode.empty()) {
-        throw std::runtime_error("ImportModule::codegen - Failed to read module: " + path);
-    }
+    // std::string sourceCode = readFile(path);
+    // if (sourceCode.empty()) {
+    //     throw std::runtime_error("ImportModule::codegen - Failed to read module: " + path);
+    // }
 
-    Lexer lexer(sourceCode, path);
-    Parser parser(lexer, generator);
+    // Lexer lexer(sourceCode, path);
+    // Parser parser(lexer);
 
-    // parser.setScopeName(alias.empty() ? moduleName : alias);
+    // // parser.setScopeName(alias.empty() ? moduleName : alias);
 
-    std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
+    // std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
 
-    console.log("Importing " + (importAll ? "everything" : joinMapKeys(importedAliases)) + " from " + path + ".");
+    // console.log("Importing " + (importAll ? "everything" : joinMapKeys(importedAliases)) + " from " + path + ".");
 
-    // Ensure module is only loaded once
-    if (!generator.isLoadedModule(path)) {
-        generator.generateModule(path, alias, statements, importedAliases, importAll);
-    }
+    // // Ensure module is only loaded once
+    // if (!generator.isLoadedModule(path)) {
+    //     generator.generateModule(path, alias, statements, importedAliases, importAll);
+    // }
 
     return nullptr; // No direct IR generation
 }
 
 
-std::shared_ptr<Omniscript::Value> CreateModule::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> CreateModule::evaluate(SymbolTable& scope) {
     // generator.importModule(name);8
     return nullptr; // Modules themselves don't return a value
 }
 
-std::shared_ptr<Omniscript::Value> PublicMember::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> PublicMember::evaluate(SymbolTable& scope) {
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }
-    return value->codegen(generator, scope);
+    return value->evaluate(scope);
 }
 
-std::shared_ptr<Omniscript::Value> PrivateMember::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> PrivateMember::evaluate(SymbolTable& scope) {
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }
-    return value->codegen(generator, scope);
+    return value->evaluate(scope);
 }
 
-std::shared_ptr<Omniscript::Value> AddressOf::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> AddressOf::evaluate(SymbolTable& scope) {
     // return generator.getAddressOf(name);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> ReferenceTo::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> ReferenceTo::evaluate(SymbolTable& scope) {
     // return generator.getReferenceToVariable(name);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> Nullptr::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> Nullptr::evaluate(SymbolTable& scope) {
     // return generator.createNullPointer();
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> Null::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> Null::evaluate(SymbolTable& scope) {
     // return generator.createNullValue();
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> IntegerLiteral::codegen(IRGenerator& generator, SymbolTable& scope) {
-    // DEBUG_LOG("Creating an integer");
-    
-    // // Default to 32-bit integer if llvmType is null or unknown
-    // if (!llvmType || !llvmType->isIntegerTy()) {  
-    //     DEBUG_LOG("Creating an 32 bit integer");
-    //     return generator.create32BitInteger(static_cast<int32_t>(value));
-    // }
+std::shared_ptr<Omniscript::Value> IntegerLiteral::evaluate(SymbolTable& scope) {
+    DEBUG_LOG("Creating an integer");
 
-    // if (llvmType->isIntegerTy(8)) {
-    //     DEBUG_LOG("Creating an 8 bit integer");
-    //     return generator.create8BitInteger(static_cast<int8_t>(value));
-    // } else if (llvmType->isIntegerTy(16)) {
-    //     DEBUG_LOG("Creating an 16 bit integer");
-    //     return generator.create16BitInteger(static_cast<int16_t>(value));
-    // } else if (llvmType->isIntegerTy(32)) {
-    //     DEBUG_LOG("Creating an 32 bit integer");
-    //     return generator.create32BitInteger(static_cast<int32_t>(value));
-    // } else if (llvmType->isIntegerTy(64)) {
-    //     DEBUG_LOG("Creating an 64 bit integer");
-    //     return generator.create64BitInteger(static_cast<int64_t>(value));
-    // } 
+    // Default to 32-bit integer if Type is null or unknown
+    if (!type || !type->isInteger()) {
+        DEBUG_LOG("Creating a 32-bit integer");
+        return std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
+    }
     
-    // // Handle BigInt cases (128-bit, 256-bit, 1024-bit)
-    // unsigned bitWidth = llvmType->getIntegerBitWidth();
-    // DEBUG_LOG("Creating a big int" + std::to_string(bitWidth) + " integer");
-    // return generator.createBigInt(std::to_string(value), bitWidth);
+    // Check for specific bit-widths using the isInteger function with optional bitwidth argument
+    if (type->isInteger(8)) {
+        DEBUG_LOG("Creating an 8-bit integer");
+        return std::make_shared<Omniscript::Integer<int8_t>>(static_cast<int8_t>(value));
+    } else if (type->isInteger(16)) {
+        DEBUG_LOG("Creating a 16-bit integer");
+        return std::make_shared<Omniscript::Integer<int16_t>>(static_cast<int16_t>(value));
+    } else if (type->isInteger(32)) {
+        DEBUG_LOG("Creating a 32-bit integer");
+        return std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
+    } else if (type->isInteger(64)) {
+        DEBUG_LOG("Creating a 64-bit integer");
+        return std::make_shared<Omniscript::Integer<int64_t>>(static_cast<int64_t>(value));
+    }
+
     return nullptr;
 }
 
 
-std::shared_ptr<Omniscript::Value> FloatLiteral::codegen(IRGenerator& generator, SymbolTable& scope) {
-    // DEBUG_LOG("Creating a float " + std::to_string(value));
 
-    // if (!llvmType) {
-    //     DEBUG_LOG("No type specified, defaulting to 64-bit float");
-    //     return generator.create64BitFloat(static_cast<double>(value));
-    // }
+std::shared_ptr<Omniscript::Value> FloatLiteral::evaluate(SymbolTable& scope) {
+    DEBUG_LOG("Creating a float");
 
-    // if (llvmType->isFloatTy()) {
-    //     DEBUG_LOG("Creating 32 bit float " + std::to_string(value));
-    //     return generator.create32BitFloat(static_cast<float>(value));
-    // } else if (llvmType->isDoubleTy()) {
-    //     DEBUG_LOG("Creating 64 bit float " + std::to_string(value));
-    //     return generator.create64BitFloat(static_cast<double>(value));
-    // }
+    // Default to 64-bit float if type is null or unknown
+    if (!type || !type->isFloat()) {
+        DEBUG_LOG("Creating a 64-bit float");
+        return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));  // Default to double (64-bit)
+    }
+
+    // Check if the type is a 32-bit float
+    if (type->isFloat(32)) {
+        DEBUG_LOG("Creating a 32-bit float");
+        return std::make_shared<Omniscript::Float<float>>(static_cast<float>(value));  // 32-bit float
+    }
+
+    // Check if the type is a 64-bit float
+    if (type->isFloat(64)) {
+        DEBUG_LOG("Creating a 64-bit float");
+        return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));  // 64-bit double
+    }
+
+    // For larger floating-point types, add similar checks here (if needed)
+    // If necessary, handle custom floating-point types such as FP128, etc.
     
     return nullptr;
 }
 
 
 // Arbitrary-precision integer (BigInt)
-std::shared_ptr<Omniscript::Value> BigInt::codegen(IRGenerator& generator, SymbolTable& scope) {
-    // DEBUG_LOG("Creating a big int " + value);
+std::shared_ptr<Omniscript::Value> BigInt::evaluate(SymbolTable& scope) {
+    DEBUG_LOG("Creating a big int " + value);
 
-    // unsigned bitWidth = BigInt::determineBitWidth(value);
-
-    // return generator.createBigInt(value, bitWidth);
-    return nullptr;
+    return std::make_shared<Omniscript::BigInt>(value);
 }
 
-std::shared_ptr<Omniscript::Value> BoolLiteral::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> BoolLiteral::evaluate(SymbolTable& scope) {
     // return generator.createBool(value);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> CharacterLiteral::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> CharacterLiteral::evaluate(SymbolTable& scope) {
     // return generator.createChar(value);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> StringLiteral::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> StringLiteral::evaluate(SymbolTable& scope) {
     // if (llvmType->isPointerTy()) {
     //     return generator.createUTF8String(value); // UTF-8 string
     // } 
@@ -210,11 +213,11 @@ void Assignment::setGlobalVisibilityTo(bool state) {
     isGlobal = state;
 }
 
-std::shared_ptr<Omniscript::Value> createVariable::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable& scope) {
     DEBUG_LOG("Creating variable " + variable);
     
 
-    std::shared_ptr<Omniscript::Value> result = value->codegen(generator, scope);
+    std::shared_ptr<Omniscript::Value> result = value->evaluate(scope);
     scope.setVariable(variable, result);
 
     // Set the type of the value only if llvmType is not null
@@ -225,7 +228,7 @@ std::shared_ptr<Omniscript::Value> createVariable::codegen(IRGenerator& generato
     // }
     
     // // Generate the value for the variable
-    // std::shared_ptr<Omniscript::Value> result = value->codegen(generator, scope);
+    // std::shared_ptr<Omniscript::Value> result = value->evaluate(scope);
     // DEBUG_LOG("Created value for " + variable);
 
     // // Check if llvmType is nullptr and set it to the type of the result if it is
@@ -244,8 +247,8 @@ std::shared_ptr<Omniscript::Value> createVariable::codegen(IRGenerator& generato
 
 
 // Constant Assignment
-std::shared_ptr<Omniscript::Value> createConstant::codegen(IRGenerator& generator, SymbolTable& scope) {
-    // return generator.createConstant(variable, type, value->codegen(generator, scope));
+std::shared_ptr<Omniscript::Value> createConstant::evaluate(SymbolTable& scope) {
+    // return generator.createConstant(variable, type, value->evaluate(scope));
     return nullptr;
 }
 
@@ -253,13 +256,13 @@ std::shared_ptr<Omniscript::Value> createConstant::codegen(IRGenerator& generato
 createDynamicVariable::createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value)
     : variable(variable), value(value) {}
 
-std::shared_ptr<Omniscript::Value> createDynamicVariable::codegen(IRGenerator& generator, SymbolTable& scope) {
-    // return generator.assignDynamicVariable(variable, value->codegen(generator, scope));
+std::shared_ptr<Omniscript::Value> createDynamicVariable::evaluate(SymbolTable& scope) {
+    // return generator.assignDynamicVariable(variable, value->evaluate(scope));
     return nullptr;
 }
 
 // Get Variable
-std::shared_ptr<Omniscript::Value> GetVariable::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> GetVariable::evaluate(SymbolTable& scope) {
     // return generator.getVariable(variable);
     return nullptr;
 }
@@ -267,40 +270,40 @@ std::shared_ptr<Omniscript::Value> GetVariable::codegen(IRGenerator& generator, 
 // Get Dynamic Variable
 GetDynamicVariable::GetDynamicVariable(const std::string &variable) : variable(variable) {}
 
-std::shared_ptr<Omniscript::Value> GetDynamicVariable::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> GetDynamicVariable::evaluate(SymbolTable& scope) {
     // return generator.getDynamicVariable(variable);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> BreakStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> BreakStatement::evaluate(SymbolTable& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> ContinueStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> ContinueStatement::evaluate(SymbolTable& scope) {
     return nullptr;
 }
 
-// std::shared_ptr<Omniscript::Value> ObjectConstructorStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+// std::shared_ptr<Omniscript::Value> ObjectConstructorStatement::evaluate(SymbolTable& scope) {
 //     return nullptr;
 // }
 
-std::shared_ptr<Omniscript::Value> ForLoop::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> ForLoop::evaluate(SymbolTable& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> GetProperty::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> GetProperty::evaluate(SymbolTable& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> CallMethod::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> CallMethod::evaluate(SymbolTable& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> WhileStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> WhileStatement::evaluate(SymbolTable& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> TernaryExpression::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> TernaryExpression::evaluate(SymbolTable& scope) {
     // Generate code for condition, truthy, and falsey expressions
     // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
     //     stmt->setType(llvmType);
@@ -315,13 +318,13 @@ std::shared_ptr<Omniscript::Value> TernaryExpression::codegen(IRGenerator& gener
     //     stmt->setType(generator.resolveLLVMType(type));
     // }
 
-    // std::shared_ptr<Omniscript::Value> condValue = condition->codegen(generator, scope);
+    // std::shared_ptr<Omniscript::Value> condValue = condition->evaluate(scope);
     // if (!condValue) return nullptr;
     
-    // std::shared_ptr<Omniscript::Value> trueValue = truthy->codegen(generator, scope);
+    // std::shared_ptr<Omniscript::Value> trueValue = truthy->evaluate(scope);
     // if (!trueValue) return nullptr;
     
-    // std::shared_ptr<Omniscript::Value> falseValue = falsey->codegen(generator, scope);
+    // std::shared_ptr<Omniscript::Value> falseValue = falsey->evaluate(scope);
     // if (!falseValue) return nullptr;
     
     // // Use IRGenerator to create the ternary expression
@@ -329,7 +332,7 @@ std::shared_ptr<Omniscript::Value> TernaryExpression::codegen(IRGenerator& gener
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> BinaryExpression::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> BinaryExpression::evaluate(SymbolTable& scope) {
     // Generate code for left and right operands
     // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(left)) {
     //     stmt->setType(llvmType);
@@ -339,10 +342,10 @@ std::shared_ptr<Omniscript::Value> BinaryExpression::codegen(IRGenerator& genera
     //     stmt->setType(llvmType);
     // }
 
-    // std::shared_ptr<Omniscript::Value> leftValue = left->codegen(generator, scope);
+    // std::shared_ptr<Omniscript::Value> leftValue = left->evaluate(scope);
     // if (!leftValue) return nullptr;
     
-    // std::shared_ptr<Omniscript::Value> rightValue = right->codegen(generator, scope);
+    // std::shared_ptr<Omniscript::Value> rightValue = right->evaluate(scope);
     // if (!rightValue) return nullptr;
     
     // // Use IRGenerator to create the binary expression
@@ -350,13 +353,13 @@ std::shared_ptr<Omniscript::Value> BinaryExpression::codegen(IRGenerator& genera
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> UnaryExpression::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> UnaryExpression::evaluate(SymbolTable& scope) {
     // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
     //     stmt->setType(llvmType);
     // }
 
     // // Generate code for the operand
-    // std::shared_ptr<Omniscript::Value> operandValue = operand->codegen(generator, scope);
+    // std::shared_ptr<Omniscript::Value> operandValue = operand->evaluate(scope);
     // if (!operandValue) return nullptr;
     
     // // Use IRGenerator to create the unary expression
@@ -365,11 +368,11 @@ std::shared_ptr<Omniscript::Value> UnaryExpression::codegen(IRGenerator& generat
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> IfStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> IfStatement::evaluate(SymbolTable& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> Call::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> Call::evaluate(SymbolTable& scope) {
     // DEBUG_LOG("Calling " + callee );
     // std::vector<std::shared_ptr<Omniscript::Value>> results;
     
@@ -378,7 +381,7 @@ std::shared_ptr<Omniscript::Value> Call::codegen(IRGenerator& generator, SymbolT
     //         //     typed->setType(llvmType);
     //         // }
             
-    //         results.push_back(arg->codegen(generator, scope));
+    //         results.push_back(arg->evaluate(scope));
     // }
     // DEBUG_LOG("Genereated results for arguments");
 
@@ -386,19 +389,19 @@ std::shared_ptr<Omniscript::Value> Call::codegen(IRGenerator& generator, SymbolT
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> ReturnStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> ReturnStatement::evaluate(SymbolTable& scope) {
     // std::shared_ptr<Omniscript::Value> retVal = nullptr;
     // if (returnValue) {
     //     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
     //         stmt->setType(llvmType);
     //     }
-    //     retVal = returnValue->codegen(generator, scope);
+    //     retVal = returnValue->evaluate(scope);
     // }
     // return generator.createReturn(retVal, llvmType);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> FixedArray::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> FixedArray::evaluate(SymbolTable& scope) {
     // if (!llvmType) {
     //     llvm::errs() << "Error: Unknown element type in FixedArrayStatement.\n";
     //     return nullptr;
@@ -407,7 +410,7 @@ std::shared_ptr<Omniscript::Value> FixedArray::codegen(IRGenerator& generator, S
     // // Generate code for each initializer expression
     // std::vector<std::shared_ptr<Omniscript::Value>> elementValues;
     // for (const auto& expr : initialValues) {
-    //     elementValues.push_back(expr->codegen(generator, scope));
+    //     elementValues.push_back(expr->evaluate(scope));
     // }
 
     // // Call the function to create the static fixed array
@@ -415,7 +418,7 @@ std::shared_ptr<Omniscript::Value> FixedArray::codegen(IRGenerator& generator, S
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> FunctionDeclaration::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable& scope) {
     // DEBUG_LOG("Constructing a function prototype");
     // if (name == "main") {
     //     name = "__main";
@@ -479,23 +482,23 @@ void FunctionDeclaration::setReturnTypesInStatement(
     // Add other control flow statements as needed...
 }
 
-std::shared_ptr<Omniscript::Value> ParameterStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> ParameterStatement::evaluate(SymbolTable& scope) {
     // DEBUG_LOG("Creating parameter " + name);
     // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
     //     stmt->setType(llvmType);
     // }
-    // std::shared_ptr<Omniscript::Value> result = defaultValue->codegen(generator, scope);
+    // std::shared_ptr<Omniscript::Value> result = defaultValue->evaluate(scope);
     // DEBUG_LOG("Created value for parameter " + name);
     // return result;
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> ArgumentStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> ArgumentStatement::evaluate(SymbolTable& scope) {
     // DEBUG_LOG("Creating argument " + name);
     // // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
     // //     stmt->setType(llvmType);
     // // }
-    // std::shared_ptr<Omniscript::Value> result = value->codegen(generator, scope);
+    // std::shared_ptr<Omniscript::Value> result = value->evaluate(scope);
     // DEBUG_LOG("Created value for argument " + name);
     // return result;
     return nullptr;
@@ -509,17 +512,17 @@ std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> ConstructStructPrototype::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> ConstructStructPrototype::evaluate(SymbolTable& scope) {
     // generator.createStructType(*this);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> ObjectConstructorStatement::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> ObjectConstructorStatement::evaluate(SymbolTable& scope) {
     // DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
 
     // std::vector<std::shared_ptr<Omniscript::Value>> argValues;
     // for (const auto& arg : constructorArgs) {
-        //     argValues.push_back(arg->codegen(generator, scope));
+        //     argValues.push_back(arg->evaluate(scope));
         // }
 
     // // 5. Return the allocated instance
@@ -527,7 +530,7 @@ std::shared_ptr<Omniscript::Value> ObjectConstructorStatement::codegen(IRGenerat
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> GetMemberValue::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> GetMemberValue::evaluate(SymbolTable& scope) {
     // DEBUG_LOG("Getting member " + propertyName + " from " + objectName);
 
     // // DEBUG_LOG("Created value for argument " + name);
@@ -537,7 +540,7 @@ std::shared_ptr<Omniscript::Value> GetMemberValue::codegen(IRGenerator& generato
 }
 
 
-std::shared_ptr<Omniscript::Value> EnumConstructor::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> EnumConstructor::evaluate(SymbolTable& scope) {
     // std::vector<std::string> names;
     // std::vector<int> indices;
 
@@ -555,7 +558,7 @@ std::shared_ptr<Omniscript::Value> EnumConstructor::codegen(IRGenerator& generat
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> EnumValue::codegen(IRGenerator& generator, SymbolTable& scope) {
+std::shared_ptr<Omniscript::Value> EnumValue::evaluate(SymbolTable& scope) {
     // std::shared_ptr<Omniscript::Type> intType = llvm::Type::getInt32Ty(*generator.getContext());
     // return llvm::ConstantInt::get(intType, valueIndex);
     return nullptr;
