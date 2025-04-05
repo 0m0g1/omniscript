@@ -70,16 +70,18 @@ void Parser::initializeFunctions() {
 
 // Parse a complete program
 void Parser::parseProgram() {
-    if (debugMode) {
-        showDebugSection("Parsing the script");
-    }   
-
+    DEBUG_LOG();
+    DEBUG_LOG("Parsing the script");
+    DEBUG_LOG("==================");
+    DEBUG_LOG();
+    
     while (currentToken.getType() != TokenTypes::EOI) {
         statements.push_back(parseStatement()); // Parse each statement in the program
     }
-
-
-    showDebugSection("Done parsing the script");
+    
+    DEBUG_LOG();
+    DEBUG_LOG("Done parsing the script");
+    DEBUG_LOG("=======================");
     DEBUG_LOG();
 }
 

@@ -12,6 +12,7 @@
 #include <omniscript/utils.h>
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Constants.h>
+#include <omniscript/Core/Value.h>
 
 class Statement;
 
@@ -71,6 +72,7 @@ public:
     std::unique_ptr<llvm::LLVMContext> getContext() { return std::move(Context); }
     llvm::IRBuilder<>* getBuilder() { return Builder.get(); }
     
+    
     bool supportsAVX512();
     bool supportsAVX2();
 
@@ -125,21 +127,28 @@ public:
     // bool isModuleUpdated(const std::string& moduleName);
     // void unloadModule(const std::string& moduleName);
 
-    llvm::Type* resolveLLVMType(std::vector<std::string>& dataTypes);
-
+    
     // Generate IR for different types
+    llvm::Value* codegen(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable> scope);
+    llvm::Value* codegenPrimitive(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable> scope);
+    llvm::Type* resolveLLVMType(std::shared_ptr<Omniscript::Type> type);
+    
     llvm::Value* createNullPointer();
     llvm::Value* createNullValue();
-
+    
     // Number types
-    llvm::Value* create8BitInteger(int value);
-    llvm::Value* create16BitInteger(int value);
-    llvm::Value* create32BitInteger(int value);
-    llvm::Value* create64BitInteger(int value);
-
+    llvm::Value* create8BitInteger(int8_t value);
+    llvm::Value* create16BitInteger(int16_t value);
+    llvm::Value* create32BitInteger(int32_t value);
+    llvm::Value* create64BitInteger(int64_t value);
+    llvm::Value* createUnsigned8BitInteger(uint8_t value);
+    llvm::Value* createUnsigned16BitInteger(uint16_t value);
+    llvm::Value* createUnsigned32BitInteger(uint32_t value);
+    llvm::Value* createUnsigned64BitInteger(uint64_t value);
+    
     llvm::Value* create32BitFloat(float value);
     llvm::Value* create64BitFloat(double value);
-
+    
     llvm::Value* createBigInt(const std::string& str, unsigned bitWidth); // Arbitrary precision integer
 
     llvm::Value* createChar(char value);

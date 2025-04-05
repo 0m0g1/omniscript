@@ -1,4 +1,4 @@
-#include <omniscript/engine/Backends/JIT/llvm/IRGenerator.h>
+#include <omniscript/engine/Backends/llvm/IRGenerator.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
@@ -122,6 +122,87 @@ void IRGenerator::optimizeModule(int level) {
     // printErrors();
 }
 
+llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable> scope) {
+    llvm::Value* result = codegenPrimitive(value, scope);
+
+    if (result) {
+        return result;
+    }
+
+    if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(value)) {
+        DEBUG_LOG("Assigning variable " + varAssign->variableName);
+        llvm::Type* type = resolveLLVMType(varAssign->getType());
+        llvm::Value* value = codegen(varAssign->getValue(), scope);
+        return createVariable(
+            varAssign->variableName,
+            type,
+            value, 
+            false
+        );
+    }
+
+    return nullptr;
+}
+
+llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable> scope) {
+
+    // Handle 8-bit integer (int8_t)
+    if (auto integer8 = std::dynamic_pointer_cast<Omniscript::Integer<int8_t>>(value)) {
+        return create8BitInteger(integer8->getValue());
+    }
+    // Handle 16-bit integer (int16_t)
+    else if (auto integer16 = std::dynamic_pointer_cast<Omniscript::Integer<int16_t>>(value)) {
+        return create16BitInteger(integer16->getValue());
+    }
+    // Handle 32-bit integer (int32_t)
+    else if (auto integer32 = std::dynamic_pointer_cast<Omniscript::Integer<int32_t>>(value)) {
+        return create32BitInteger(integer32->getValue());
+    }
+    // Handle 64-bit integer (int64_t)
+    else if (auto integer64 = std::dynamic_pointer_cast<Omniscript::Integer<int64_t>>(value)) {
+        return create64BitInteger(integer64->getValue());
+    } else if (auto unsignedInteger8 = std::dynamic_pointer_cast<Omniscript::Integer<uint8_t>>(value)) {
+        return createUnsigned8BitInteger(unsignedInteger8->getValue());
+    }
+    // Handle unsigned 16-bit integer
+    else if (auto unsignedInteger16 = std::dynamic_pointer_cast<Omniscript::Integer<uint16_t>>(value)) {
+        return createUnsigned16BitInteger(unsignedInteger16->getValue());
+    }
+    // Handle unsigned 32-bit integer
+    else if (auto unsignedInteger32 = std::dynamic_pointer_cast<Omniscript::Integer<uint32_t>>(value)) {
+        return createUnsigned32BitInteger(unsignedInteger32->getValue());
+    }
+    // Handle unsigned 64-bit integer
+    else if (auto unsignedInteger64 = std::dynamic_pointer_cast<Omniscript::Integer<uint64_t>>(value)) {
+        return createUnsigned64BitInteger(unsignedInteger64->getValue());
+    }
+    // Handle boolean (bool)
+    else if (auto boolean = std::dynamic_pointer_cast<Omniscript::Primitive<bool>>(value)) {
+        return createBool(boolean->getValue());
+    }
+    // Handle float (float)
+    else if (auto floatPrimitive = std::dynamic_pointer_cast<Omniscript::Primitive<float>>(value)) {
+        return create32BitFloat(floatPrimitive->getValue());
+    }
+    // Handle double (double)
+    else if (auto doublePrimitive = std::dynamic_pointer_cast<Omniscript::Primitive<double>>(value)) {
+        return create64BitFloat(doublePrimitive->getValue());
+    }
+    // Handle string (std::string)
+    else if (auto stringPrimitive = std::dynamic_pointer_cast<Omniscript::Primitive<std::string>>(value)) {
+        return createUTF8String(stringPrimitive->getValue());
+    }
+    // Handle BigInt (std::string for now)
+    else if (auto bigInt = std::dynamic_pointer_cast<Omniscript::BigInt>(value)) {
+        return createBigInt(bigInt->getValue(), bigInt->getBitWidth());
+    }
+
+    // Return nullptr if no matching type was found
+    return nullptr;
+}
+
+
+
 void IRGenerator::generateModule(
     const std::string& modulePath,
     const std::string& alias,
@@ -240,146 +321,96 @@ void IRGenerator::importModule(const std::string& modulePath, const std::vector<
 }
 
 
-llvm::Type* IRGenerator::resolveLLVMType(std::vector<std::string>& dataTypes) {
-    if (dataTypes.empty()) {
-        return llvm::Type::getInt32Ty(*Context); // Default to i32
+llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type) {
+    if (!type) {
+        std::cerr << "[ERROR] Type is null!" << std::endl;
+        return nullptr;
     }
 
     llvm::LLVMContext& context = *Context;
-    int totalPointerDepth = 0;
-    int totalReferenceDepth = 0;
-    bool isArray = false;
-    uint64_t arraySize = 0;
-    std::string baseType;
-    size_t index = 0;
 
-    // Detect array syntax: ["[", "size", "]", "type"] or dynamic array ["[", "type", "]"]
-    if (index < dataTypes.size() && dataTypes[index] == "[") {
-        if (index + 1 < dataTypes.size() && std::all_of(dataTypes[index + 1].begin(), dataTypes[index + 1].end(), ::isdigit)) {
-            // Fixed-size array
-            try {
-                arraySize = std::stoull(dataTypes[index + 1]);
-                index += 3; // Skip "[", "size", "]"
-            } catch (...) {
-                std::cerr << "[ERROR] Invalid array size: " << dataTypes[index + 1] << std::endl;
-                return nullptr;
-            }
-        } else {
-            // Dynamic array (size 0)
-            arraySize = 0;
-            index += 3; // Skip "[", "type", "]"
-        }
-        isArray = true;
-    }
-
-    // Count leading references ("&")
-    while (index < dataTypes.size() && dataTypes[index] == "&") {
-        totalReferenceDepth++;
-        index++;
-    }
-
-    // Count leading pointers ("*")
-    while (index < dataTypes.size() && dataTypes[index] == "*") {
-        totalPointerDepth++;
-        index++;
-    }
-
-    // Check for base type
-    if (index >= dataTypes.size()) {
-        std::cerr << "[ERROR] No base type found after modifiers!" << std::endl;
+    // If the type is an array, resolve the base type first.
+    if (type->isArray()) {
+        // Resolve base type and array size.
+        // auto elementType = resolveLLVMType(type->getElementType());
+        // uint64_t arraySize = type->getArraySize();
+        // return llvm::ArrayType::get(elementType, arraySize);
         return nullptr;
     }
-    baseType = dataTypes[index++];
 
-    // Count trailing pointers ("*")
-    while (index < dataTypes.size() && dataTypes[index] == "*") {
-        totalPointerDepth++;
-        index++;
-    }
+    // If the type is a pointer, resolve the base type and add pointer depth.
+    if (type->isPointer()) {
+        int pointerDepth;
+        llvm::Type* pointeeType;
 
-    llvm::Type* type = nullptr;
-
-    // Handle integer types (i followed by digits)
-    if (baseType.size() > 1 && baseType[0] == 'i') {
-        std::string numStr = baseType.substr(1);
-        if (std::all_of(numStr.begin(), numStr.end(), ::isdigit)) {
-            try {
-                unsigned bits = std::stoul(numStr);
-                if (bits >= 1 && bits <= 8388608) { // LLVM constraint
-                    type = llvm::IntegerType::get(context, bits);
-                } else {
-                    std::cerr << "[ERROR] Invalid integer bit width: " << bits << std::endl;
-                    return nullptr;
-                }
-            } catch (...) {
-                std::cerr << "[ERROR] Invalid integer type: " << baseType << std::endl;
-                return nullptr;
-            }
+        if (auto pointer = std::dynamic_pointer_cast<Omniscript::PointerType>(type)) {
+            pointeeType = resolveLLVMType(pointer->getBasePointeeType());
+            pointerDepth = pointer->getPointerDepth();
         }
+
+        return llvm::PointerType::get(pointeeType, pointerDepth);
     }
 
-    // Handle other types if not an integer
-    // add support for simd vector types
-    if (!type) {
-        if (baseType == "char") {
-            type = llvm::Type::getInt8Ty(context);
-        } else if (baseType == "int") { // Alias for i32
-            type = llvm::Type::getInt32Ty(context);
-        } else if (baseType == "half" || baseType == "f16") {
-            type = llvm::Type::getHalfTy(context);
-        } else if (baseType == "float" || baseType == "f32") {
-            type = llvm::Type::getFloatTy(context);
-        } else if (baseType == "double" || baseType == "f64") {
-            type = llvm::Type::getDoubleTy(context);
-        } else if (baseType == "fp128") {
-            type = llvm::Type::getFP128Ty(context);
-        } else if (baseType == "x86_fp80") {
-            type = llvm::Type::getX86_FP80Ty(context);
-        } else if (baseType == "ppc_fp128") {
-            type = llvm::Type::getPPC_FP128Ty(context);
-        } else if (baseType == "bool") {
-            type = llvm::Type::getInt1Ty(context);
-        } else if (baseType == "string" || baseType == "str" || baseType == "utf8") {
-            type = llvm::Type::getInt8Ty(context);
-            totalPointerDepth++; // +1 pointer depth for strings
-        } else if (baseType == "utf16") {
-            type = llvm::Type::getInt16Ty(context);
-            totalPointerDepth++;
-        } else if (baseType == "utf32") {
-            type = llvm::Type::getInt32Ty(context);
-            totalPointerDepth++;
-        } else if (baseType == "void") {
-            if (totalPointerDepth > 0) {
-                // void* is represented as i8*
-                type = llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0);
-                totalPointerDepth--;
-            } else {
-                type = llvm::Type::getVoidTy(context);
-            }
-        } else {
-            std::cerr << "[ERROR] Unknown type: " << baseType << std::endl;
+    // If the type is a reference, treat it as a pointer.
+    if (type->isReference()) {
+        auto referencedType = resolveLLVMType(type->getReferencedType());
+        return llvm::PointerType::get(referencedType, 0);
+    }
+
+    // Resolve the base type kind
+    llvm::Type* llvmType = nullptr;
+
+    switch (type->getKind()) {
+        case Omniscript::Kind::Int8:
+            llvmType = llvm::Type::getInt8Ty(context);
+            break;
+        case Omniscript::Kind::Int16:
+            llvmType = llvm::Type::getInt16Ty(context);
+            break;
+        case Omniscript::Kind::Int32:
+            llvmType = llvm::Type::getInt32Ty(context);
+            break;
+        case Omniscript::Kind::Int64:
+            llvmType = llvm::Type::getInt64Ty(context);
+            break;
+        case Omniscript::Kind::BigInt:
+            llvmType = llvm::IntegerType::get(context, 128); // or 256, 512, etc.
+            break;        
+        case Omniscript::Kind::UInt8:
+            llvmType = llvm::Type::getInt8Ty(context);
+            break;
+        case Omniscript::Kind::UInt16:
+            llvmType = llvm::Type::getInt16Ty(context);
+            break;
+        case Omniscript::Kind::UInt32:
+            llvmType = llvm::Type::getInt32Ty(context);
+            break;
+        case Omniscript::Kind::UInt64:
+            llvmType = llvm::Type::getInt64Ty(context);
+            break;
+        case Omniscript::Kind::Float:
+            llvmType = llvm::Type::getFloatTy(context);
+            break;
+        case Omniscript::Kind::Double:
+            llvmType = llvm::Type::getDoubleTy(context);
+            break;
+        case Omniscript::Kind::FP128:
+            llvmType = llvm::Type::getFP128Ty(context);
+            break;
+        case Omniscript::Kind::Bool:
+            llvmType = llvm::Type::getInt1Ty(context);
+            break;
+        case Omniscript::Kind::Void:
+            llvmType = llvm::Type::getVoidTy(context);
+            break;
+        default:
+            std::cerr << "[ERROR] Unknown type: " << static_cast<int>(type->getKind()) << std::endl;
             return nullptr;
-        }
     }
 
-    // Apply array type
-    if (isArray) {
-        type = llvm::ArrayType::get(type, arraySize);
-    }
-
-    // Apply references (as non-null pointers)
-    if (totalReferenceDepth > 0) {
-        type = llvm::PointerType::get(type, 0);
-    }
-
-    // Apply pointers
-    while (totalPointerDepth > 0) {
-        type = llvm::PointerType::get(type, 0);
-        totalPointerDepth--;
-    }
-
-    return type;
+    return llvmType;
 }
+
 
 // llvm::Type* IRGenerator::resolveLLVMType(std::vector<std::string>& dataTypes) {
 //     if (dataTypes.empty()) {
@@ -464,22 +495,22 @@ llvm::Value* IRGenerator::createNullValue() {
 // Generate IR for different types
 // ============================== Generate IR for Numeric Types ============================== //
 // Create an 8-bit integer (i8)
-llvm::Value* IRGenerator::create8BitInteger(int value) {
+llvm::Value* IRGenerator::create8BitInteger(int8_t value) {
     return llvm::ConstantInt::get(llvm::Type::getInt8Ty(*Context), value, true);
 }
 
 // Create a 16-bit integer (i16)
-llvm::Value* IRGenerator::create16BitInteger(int value) {
+llvm::Value* IRGenerator::create16BitInteger(int16_t value) {
     return llvm::ConstantInt::get(llvm::Type::getInt16Ty(*Context), value, true);
 }
 
 // Create a 32-bit integer (i32)
-llvm::Value* IRGenerator::create32BitInteger(int value) {
+llvm::Value* IRGenerator::create32BitInteger(int32_t value) {
     return llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), value, true);
 }
 
 // Create a 64-bit integer (i64)
-llvm::Value* IRGenerator::create64BitInteger(int value) {
+llvm::Value* IRGenerator::create64BitInteger(int64_t value) {
     return llvm::ConstantInt::get(llvm::Type::getInt64Ty(*Context), value, true);
 }
 
@@ -523,6 +554,23 @@ llvm::Value* IRGenerator::createBigIntAVX(const std::string& str, unsigned bitSi
     __m128i bigIntVec = _mm_setzero_si128(); // Zero-initialize 128-bit register
     return createBigInt(str, 128);
 }
+
+llvm::Value* IRGenerator::createUnsigned8BitInteger(uint8_t value) {
+    return llvm::ConstantInt::get(llvm::Type::getInt8Ty(*Context), value, false);  // Unsigned 8-bit integer
+}
+
+llvm::Value* IRGenerator::createUnsigned16BitInteger(uint16_t value) {
+    return llvm::ConstantInt::get(llvm::Type::getInt16Ty(*Context), value, false);  // Unsigned 16-bit integer
+}
+
+llvm::Value* IRGenerator::createUnsigned32BitInteger(uint32_t value) {
+    return llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), value, false);  // Unsigned 32-bit integer
+}
+
+llvm::Value* IRGenerator::createUnsigned64BitInteger(uint64_t value) {
+    return llvm::ConstantInt::get(llvm::Type::getInt64Ty(*Context), value, false);  // Unsigned 64-bit integer
+}
+
 
 // Create an 8-bit character (char)
 llvm::Value* IRGenerator::createChar(char value) {
@@ -1473,7 +1521,7 @@ llvm::Value* IRGenerator::createObjectInstance(
 {
     DEBUG_LOG("Creating instance of type: " + typeName);
     
-    // 1. Check for primitive types first
+    // 1. Check for value types first
     // if (typeName == "int32") {
     //     return createPrimitiveInstance(
     //         Builder.getInt32Ty(), 

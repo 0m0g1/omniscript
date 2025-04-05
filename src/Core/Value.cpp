@@ -17,7 +17,7 @@ std::string Type::kindName() const {
         case Kind::Int16:       return "Int16";
         case Kind::Int32:       return "Int32";
         case Kind::Int64:       return "Int64";
-        case Kind::Int128:      return "Int128";
+        case Kind::BigInt:      return "BigInt";
         case Kind::UInt8:       return "UInt8";
         case Kind::UInt16:      return "UInt16";
         case Kind::UInt32:      return "UInt32";
@@ -41,7 +41,7 @@ std::string Type::kindName() const {
         case Kind::Function:    return "Function";
         case Kind::String:      return "String";
         case Kind::WideString:  return "WideString";
-        default:                               return "Unknown";
+        default:                return "Unknown";
     }
 }
 
@@ -54,8 +54,8 @@ std::shared_ptr<Type> Type::createPrimitiveType(Kind kind) {
     return std::make_shared<PrimitiveType>(kind);
 }
 
-std::shared_ptr<Type> Type::createPointerType(std::shared_ptr<Type> pointee, bool isConst, bool isVolatile) {
-    return std::make_shared<PointerType>(std::move(pointee), isConst, isVolatile);
+std::shared_ptr<Type> Type::createPointerType(std::shared_ptr<Type> pointee) {
+    return std::make_shared<PointerType>(std::move(pointee));
 }
 
 std::shared_ptr<Type> Type::createReferenceType(std::shared_ptr<Type> referent) {

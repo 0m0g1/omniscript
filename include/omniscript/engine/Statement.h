@@ -267,7 +267,6 @@ public:
         : value(value) {}
 
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable& scope) override;
-    #include <cmath>
 
     static unsigned determineBitWidth(const std::string& value) {
         unsigned numBits = std::ceil(value.length() * 3.32); // log2(10) ≈ 3.32 bits per decimal digit

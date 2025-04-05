@@ -18,7 +18,7 @@ enum class Kind {
     Nullptr, Null,
     Bool,
     Char,
-    Int8, Int16, Int32, Int64, Int128, BigInt,
+    Int8, Int16, Int32, Int64, BigInt,
     UInt8, UInt16, UInt32, UInt64, UInt128,
     Half, Float, Double, FP128, X86_FP80, PPC_FP128,
 
@@ -56,6 +56,7 @@ public:
     bool isReference() const { return kind == Kind::Reference; }
     bool isFunction() const { return kind == Kind::Function; }
     bool isPrimitive() const { return kind == Kind::Primitive; }
+    bool isArray() const { return kind == Kind::Array; }
 
     bool isNumericLiteral() const {
         return isInteger() || isFloat();
@@ -65,9 +66,10 @@ public:
         // If no bitwidth is specified, just check if the kind is an integer
         if (bitwidth == -1) {
             return kind == Kind::Int8 || kind == Kind::Int16 || kind == Kind::Int32 ||
-                   kind == Kind::Int64 || kind == Kind::Int128 ||
+                   kind == Kind::Int64 ||
                    kind == Kind::UInt8 || kind == Kind::UInt16 ||
-                   kind == Kind::UInt32 || kind == Kind::UInt64 || kind == Kind::UInt128;
+                   kind == Kind::UInt32 || kind == Kind::UInt64 || kind == Kind::UInt128 ||
+                   kind == Kind::BigInt;
         }
 
         // Otherwise, check the bitwidth against the kind of integer
@@ -81,7 +83,10 @@ public:
             case 64:
                 return kind == Kind::Int64 || kind == Kind::UInt64;
             case 128:
-                return kind == Kind::Int128 || kind == Kind::UInt128;
+            case 256:
+            case 512:
+            case 1024:
+                return kind == Kind::BigInt;
             default:
                 return false;  // Unsupported bitwidth
         }
@@ -142,7 +147,7 @@ public:
     // ----- Static factory methods -----
     static std::shared_ptr<Type> createInvalid();
     static std::shared_ptr<Type> createPrimitiveType(Kind kind);
-    static std::shared_ptr<Type> createPointerType(std::shared_ptr<Type> pointee, bool isConst = false, bool isVolatile = false);
+    static std::shared_ptr<Type> createPointerType(std::shared_ptr<Type> pointee);
     static std::shared_ptr<Type> createReferenceType(std::shared_ptr<Type> referent);
     static std::shared_ptr<Type> createFunctionType(Kind returnKind, std::vector<std::shared_ptr<Type>> params, bool isVarArg = false);
     static std::shared_ptr<Type> createStringType();
@@ -162,7 +167,6 @@ public:
         if constexpr (std::is_same_v<T, int16_t>) return Kind::Int16;
         if constexpr (std::is_same_v<T, int32_t>) return Kind::Int32;
         if constexpr (std::is_same_v<T, int64_t>) return Kind::Int64;
-        if constexpr (std::is_same_v<T, __int128>) return Kind::Int128;
 
         if constexpr (std::is_same_v<T, uint8_t>) return Kind::UInt8;
         if constexpr (std::is_same_v<T, uint16_t>) return Kind::UInt16;
@@ -192,17 +196,44 @@ public:
 };
     
 
-class PointerType : public Type {
+class PointerType : public Omniscript::Type {
 public:
-    std::shared_ptr<Type> pointeeType;
-    bool isConst;
-    bool isVolatile;
+    std::shared_ptr<Omniscript::Type> pointee;
 
-    PointerType(std::shared_ptr<Type> pointeeType, bool isConst, bool isVolatile)
-        : pointeeType(std::move(pointeeType)), isConst(isConst), isVolatile(isVolatile) {
-        kind = Kind::Pointer;
+    // Constructor
+    PointerType(std::shared_ptr<Omniscript::Type> pointeeType)
+        : pointee(pointeeType) {}
+
+    // Get the pointee type (directly)
+    std::shared_ptr<Omniscript::Type> getPointee() const {
+        return pointee;
+    }
+
+    // Method to get the pointer depth recursively
+    int getPointerDepth() const {
+        int depth = 0;
+        auto currentPointee = pointee;
+
+        while (currentPointee->isPointer()) {
+            depth++;
+            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointee();
+        }
+
+        return depth;
+    }
+
+    // Method to get the base pointee type (the deepest pointee type)
+    std::shared_ptr<Omniscript::Type> getBasePointeeType() const {
+        auto currentPointee = pointee;
+
+        while (currentPointee->isPointer()) {
+            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointee();
+        }
+
+        return currentPointee;
     }
 };
+
 
 class ReferenceType : public Type {
 public:
@@ -284,23 +315,41 @@ inline std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
 
     if (!type) {
         DEBUG_LOG("Resolving base type: " + baseType);
+    
+        // Signed integers
         if (baseType == "int" || baseType == "i32" || baseType == "int32") type = Type::createPrimitiveType(Kind::Int32);
         else if (baseType == "int8" || baseType == "i8") type = Type::createPrimitiveType(Kind::Int8);
         else if (baseType == "int16" || baseType == "i16") type = Type::createPrimitiveType(Kind::Int16);
         else if (baseType == "int64" || baseType == "i64") type = Type::createPrimitiveType(Kind::Int64);
-        else if (baseType == "int128" || baseType == "i128") type = Type::createPrimitiveType(Kind::Int128);
-        // else if (baseType == "int16" || baseType == "i16") type = Type::createPrimitiveType(Kind::Int256);
-        // else if (baseType == "int16" || baseType == "i16") type = Type::createPrimitiveType(Kind::Int512);
-        // else if (baseType == "int16" || baseType == "i16") type = Type::createPrimitiveType(Kind::Int1024;
+        else if (baseType == "int128" || baseType == "i128") type = Type::createPrimitiveType(Kind::BigInt);
+        else if (baseType == "int256" || baseType == "i256") type = Type::createPrimitiveType(Kind::BigInt);
+        else if (baseType == "int512" || baseType == "i512") type = Type::createPrimitiveType(Kind::BigInt);
+        else if (baseType == "int1024" || baseType == "i1024") type = Type::createPrimitiveType(Kind::BigInt);
+    
+        // Unsigned integers
+        else if (baseType == "uint" || baseType == "u32" || baseType == "uint32") type = Type::createPrimitiveType(Kind::UInt32);
+        else if (baseType == "uint8" || baseType == "u8") type = Type::createPrimitiveType(Kind::UInt8);
+        else if (baseType == "uint16" || baseType == "u16") type = Type::createPrimitiveType(Kind::UInt16);
+        else if (baseType == "uint64" || baseType == "u64") type = Type::createPrimitiveType(Kind::UInt64);
+        else if (baseType == "uint128" || baseType == "u128") type = Type::createPrimitiveType(Kind::BigInt);
+        else if (baseType == "uint256" || baseType == "u256") type = Type::createPrimitiveType(Kind::BigInt);
+        else if (baseType == "uint512" || baseType == "u512") type = Type::createPrimitiveType(Kind::BigInt);
+        else if (baseType == "uint1024" || baseType == "u1024") type = Type::createPrimitiveType(Kind::BigInt);
+    
+        // Other primitives
         else if (baseType == "bool") type = Type::createPrimitiveType(Kind::Bool);
         else if (baseType == "char") type = Type::createPrimitiveType(Kind::Char);
         else if (baseType == "void") type = Type::createPrimitiveType(Kind::Void);
+    
+        // Floating point
         else if (baseType == "half" || baseType == "f16") type = Type::createPrimitiveType(Kind::Half);
         else if (baseType == "float" || baseType == "f32") type = Type::createPrimitiveType(Kind::Float);
         else if (baseType == "double" || baseType == "f64") type = Type::createPrimitiveType(Kind::Double);
         else if (baseType == "fp128") type = Type::createPrimitiveType(Kind::FP128);
         else if (baseType == "x86_fp80") type = Type::createPrimitiveType(Kind::X86_FP80);
         else if (baseType == "ppc_fp128") type = Type::createPrimitiveType(Kind::PPC_FP128);
+    
+        // Strings / UTF
         else if (baseType == "string" || baseType == "str" || baseType == "utf8") {
             type = Type::createPrimitiveType(Kind::Char);
             totalPointerDepth++;
@@ -313,11 +362,14 @@ inline std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
             type = Type::createPrimitiveType(Kind::UInt32);
             totalPointerDepth++;
         }
+    
+        // Fallback
         else {
-            std::cerr << "[ERROR] Unknown type: " << baseType << std::endl;
+            console.error("Type: '" + baseType + "' is supported in omniscript");
             return nullptr;
         }
     }
+    
 
     // Wrap in array if needed
     if (isArray) {
@@ -340,11 +392,14 @@ inline std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
 
 // ====================================== Values ====================================== //
 struct Value {
+public:
+    virtual ~Value() = default;  // Polymorphic base
+    
+    std::shared_ptr<Type> getType() const { return type; }
+    virtual std::string toString() const { return "Value"; }
+
     std::shared_ptr<Type> type = Type::createInvalid();  // Holds a full Type object now
 
-    virtual ~Value() = default;  // Polymorphic base
-
-    virtual std::string toString() const { return "Value"; } 
 };
 
 template <typename T>
@@ -352,38 +407,41 @@ std::shared_ptr<T> make_value(auto&&... args) {
     return std::make_shared<T>(std::forward<decltype(args)>(args)...);
 }
 
-// Primitive Types (e.g., Int8, Bool)
-struct PrimitiveValue : public Value {
-    explicit PrimitiveValue(Kind primitiveKind) {
-        type = Type::createPrimitiveType(primitiveKind);
-    }
-    std::string toString() const override { return "PrimitiveValue"; } 
-};
-
-// Base class for all numeric values
+// Template class for Primitive Types (e.g., Int8, Bool)
 template <typename T>
-class NumericValue : public PrimitiveValue {
-public:
-    NumericValue(T value)
-        : PrimitiveValue(PrimitiveType::get<T>()), value(value) {}  // Auto-detect type
+struct Primitive : public Value {
+    explicit Primitive(T value) : value(value) {
+        type = Type::createPrimitiveType(PrimitiveType::get<T>());
+    }
 
-    virtual ~NumericValue() = default;
-
-    T getValue() const { return value; }
     std::string toString() const override {
         if constexpr (std::is_same_v<T, std::string>) {
-            return "NumericLiteral: " + value;
+            return "Primitive: " + value;
+        } else if constexpr (std::is_same_v<T, bool>) {
+            return std::string("Primitive: ") + (value ? "true" : "false");
         } else {
-            return "NumericLiteral: " + std::to_string(value);
+            return "Primitive: " + std::to_string(value);
         }
-    }     
+    }
+
+    T getValue() const { return value; }
 
 protected:
     T value;
 };
 
 
-// Specialized IntegerValue template class inheriting from NumericValue
+// Base class for all numeric values
+template <typename T>
+class NumericValue : public Primitive<T> {
+public:
+    NumericValue(T value)
+        : Primitive<T>(value) {}
+
+    virtual ~NumericValue() = default;
+};
+
+// Specialized Integer template class inheriting from NumericValue
 template <typename T>
 class Integer : public NumericValue<T> {
 public:
@@ -393,7 +451,7 @@ public:
     ~Integer() override = default;
 };
 
-// Specialized FloatValue template class inheriting from NumericValue
+// Specialized Float template class inheriting from NumericValue
 template <typename T>
 class Float : public NumericValue<T> {
 public:
@@ -403,15 +461,19 @@ public:
     ~Float() override = default;
 };
 
-// Specialized BigIntValue for handling large integers
+// Specialized BigInt class inheriting from NumericValue for handling large integers
 class BigInt : public NumericValue<std::string> {
 public:
-    explicit BigInt(const std::string& value)
-        : NumericValue<std::string>(value) {}  // Explicitly pass type
+    explicit BigInt(std::string value, unsigned bitWidth)
+        : NumericValue<std::string>(value), bitWidth(bitWidth) {}  // Pass value to base class constructor
 
     ~BigInt() override = default;
-};
 
+    unsigned getBitWidth() const { return bitWidth; }
+
+private:
+    unsigned bitWidth;
+};
 
 
 // Pointer Types
@@ -422,7 +484,7 @@ struct PointerValue : public Value {
 
     PointerValue(std::shared_ptr<Value> pointee, bool isConst = false, bool isVolatile = false)
         : pointee(std::move(pointee)), isConst(isConst), isVolatile(isVolatile) {
-        type = Type::createPointerType(this->pointee->type, isConst, isVolatile);
+        type = Type::createPointerType(this->pointee->type);
     }
 
     std::string toString() const override { return "Pointer"; } 
@@ -504,8 +566,31 @@ struct VariableAssignment : public Value {
         type = assignedValue->type;  // Same type as the assigned value
     }
 
+    std::shared_ptr<Value> getValue() const { return assignedValue; }
     std::string toString() const override {
         return "Assign: " + variableName + " = " + assignedValue->toString();
+    }
+};
+
+struct VariableAccess : public Value {
+    std::string variableName;
+
+    explicit VariableAccess(std::string name)
+        : variableName(std::move(name)) {}
+
+    // std::shared_ptr<Value> evaluate(SymbolTable& scope) override {
+    //     if (!scope.contains(variableName)) {
+    //         std::cerr << "[ERROR] Variable '" << variableName << "' is not defined in the current scope." << std::endl;
+    //         return nullptr;
+    //     }
+
+    //     std::shared_ptr<Value> value = scope.get(variableName);
+    //     type = value->type; // Propagate type info
+    //     return value;
+    // }
+
+    std::string toString() const override {
+        return "Variable: " + variableName;
     }
 };
 

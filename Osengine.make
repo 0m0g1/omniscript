@@ -234,13 +234,13 @@ $(OBJDIR)/Value.o: src/Core/Value.cpp
 $(OBJDIR)/Allocator.o: src/engine/Allocator.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/JITBackend.o: src/engine/Backends/JIT/JITBackend.cpp
+$(OBJDIR)/JITBackend.o: src/engine/Backends/JITBackend.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGenerator.o: src/engine/Backends/JIT/llvm/IRGenerator.cpp
+$(OBJDIR)/IRGenerator.o: src/engine/Backends/llvm/IRGenerator.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/LLVMJITBackend.o: src/engine/Backends/JIT/llvm/LLVMJITBackend.cpp
+$(OBJDIR)/LLVMJITBackend.o: src/engine/Backends/llvm/LLVMJITBackend.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/EngineConfigs.o: src/engine/EngineConfigs.cpp

@@ -1,23 +1,23 @@
 // Basic integer types
-// let aa : int = 1;
+let aa : int = 1;
 let a : i8 = 1;
-// let b : i16 = 2;
-// let c : i32 = 3;
-// let d : i64 = 4;
+let b : i16 = 2;
+let c : i32 = 3;
+let d : i64 = 4;
 // let e : i128 = 4;
 // let f : i256 = 4;
 // let g : i512 = 4;
 // let h : i1024 = 40000000000000000000000000000000000000000000000000000000;
 
-// // Character and boolean
+// Character and boolean
 // let i : char = 'a';
-// let j : bool = true;
-// let k : bool = false;
+let j : bool = true;
+let k : bool = false;
 
-// // Floating-point types
-// let l : f32 = 3.14;
-// let m : f64 = 2.718;
-// // let n : f128 = 1.6180339887;
+// Floating-point types
+let l : f32 = 3.14;
+let m : f64 = 2.718;
+// let n : f128 = 1.6180339887;
 
 // // // Pointers
 // let o : i32* = &c; // Pointer to an i32

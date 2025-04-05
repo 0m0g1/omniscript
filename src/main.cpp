@@ -4,8 +4,8 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/JITCompiler.h>
-#include <omniscript/engine/Backends/JIT/JITBackend.h>
-#include <omniscript/engine/Backends/JIT/llvm/LLVMJITBackend.h>
+#include <omniscript/engine/Backends/JITBackend.h>
+#include <omniscript/engine/Backends/llvm/LLVMJITBackend.h>
 #include <omniscript/engine/EngineConfigs.h>
 
 class Compiler {
@@ -109,9 +109,7 @@ public:
         buffer << file.rdbuf();
         std::string sourceCode = buffer.str();
 
-        if (config.debugMode) {
-            DEBUG_LOG("Source code loaded:\n" + sourceCode);
-        }
+        // DEBUG_LOG("Source code loaded:\n" + sourceCode);
         return sourceCode;
     }
 

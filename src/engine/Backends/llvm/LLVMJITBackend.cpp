@@ -1,5 +1,5 @@
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/engine/Backends/JIT/llvm/LLVMJITBackend.h>
+#include <omniscript/engine/Backends/llvm/LLVMJITBackend.h>
 
 void LLVMJITBackend::initialize() {
     // This can be expanded to include any JIT-specific initialization logic
@@ -13,6 +13,9 @@ void LLVMJITBackend::initialize() {
 
 void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& statements, const Config& config) {
     DEBUG_LOG("Executing with LLVM JIT Backend");
+    DEBUG_LOG("===============================");
+    DEBUG_LOG();
+
     irGen = std::make_shared<IRGenerator>(config.filePath);
 
     std::vector<std::function<void()>> pendingCalls;
@@ -20,27 +23,30 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     // Generate IR for all statements
     for (const auto& statement : statements) {
         std::shared_ptr<Omniscript::Value> result = statement->evaluate(*scope);
-        DEBUG_LOG(result->toString());
+        DEBUG_LOG("Generating LLVM IR for '" + result->toString() + "'.");
+        
         if (!result) continue;
 
         // Generate LLVM IR for each statement
-        // llvm::Value* ir = statement->codegen(irGen, *scope);
-        // if (!ir) continue;
+        llvm::Value* ir = irGen->codegen(result, scope);
+        if (!ir) continue;
 
         // If the IR generated is a function, add it to the list of pending calls
-        // if (auto* func = llvm::dyn_cast<llvm::Function>(ir)) {
-        //     pendingCalls.push_back([this, func]() {
-        //         auto symbol = jit->lookup(func->getName().str());
-        //         if (symbol) {
-        //             auto fnPtr = symbol->toPtr<void(*)()>();
-        //             fnPtr();  // Execute the function via JIT
-        //         }
-        //     });
-        // }
+        if (auto* func = llvm::dyn_cast<llvm::Function>(ir)) {
+            pendingCalls.push_back([this, func]() {
+                auto symbol = jit->lookup(func->getName().str());
+                if (symbol) {
+                    auto fnPtr = symbol->toPtr<void(*)()>();
+                    fnPtr();  // Execute the function via JIT
+                }
+            });
+        }
     }
 
     // Finalize global initializers, print the IR, and optimize the module
     irGen->finalizeGlobalInitializers();
+
+    DEBUG_LOG();
     irGen->printIR();
     irGen->printErrors();
     

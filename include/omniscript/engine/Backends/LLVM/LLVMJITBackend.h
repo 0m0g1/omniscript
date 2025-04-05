@@ -1,10 +1,10 @@
 #pragma once
 
-#include <omniscript/engine/Backends/JIT/llvm/IRGenerator.h>
+#include <omniscript/engine/Backends/llvm/IRGenerator.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/EngineConfigs.h>
-#include <omniscript/engine/Backends/JIT/JITBackend.h>
+#include <omniscript/engine/Backends/JITBackend.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>

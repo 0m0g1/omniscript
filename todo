@@ -1,4 +1,6 @@
 - handle constants
+- fix missing support for big ints 128, 25, 512 and 1024
+- switching backends
 - handle global variables they are assigned locally to top level
 - handle nested modules properly
 - canvas rendering apis

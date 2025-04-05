@@ -148,6 +148,18 @@ std::shared_ptr<Omniscript::Value> IntegerLiteral::evaluate(SymbolTable& scope) 
     } else if (type->isInteger(64)) {
         DEBUG_LOG("Creating a 64-bit integer");
         return std::make_shared<Omniscript::Integer<int64_t>>(static_cast<int64_t>(value));
+    } else if (type->isInteger(128)) {
+        DEBUG_LOG("Creating a 128-bit integer");
+        return std::make_shared<Omniscript::BigInt>(std::to_string(value), 128);
+    } else if (type->isInteger(256)) {
+        DEBUG_LOG("Creating a 256-bit integer");
+        return std::make_shared<Omniscript::BigInt>(std::to_string(value), 256);
+    } else if (type->isInteger(512)) {
+        DEBUG_LOG("Creating a 512-bit integer");
+        return std::make_shared<Omniscript::BigInt>(std::to_string(value), 512);
+    } else if (type->isInteger(1024)) {
+        DEBUG_LOG("Creating a 1024-bit integer");
+        return std::make_shared<Omniscript::BigInt>(std::to_string(value), 1024);
     }
 
     return nullptr;
@@ -186,18 +198,18 @@ std::shared_ptr<Omniscript::Value> FloatLiteral::evaluate(SymbolTable& scope) {
 // Arbitrary-precision integer (BigInt)
 std::shared_ptr<Omniscript::Value> BigInt::evaluate(SymbolTable& scope) {
     DEBUG_LOG("Creating a big int " + value);
-
-    return std::make_shared<Omniscript::BigInt>(value);
+    unsigned bitWidth = BigInt::determineBitWidth(value);
+    return std::make_shared<Omniscript::BigInt>(value, bitWidth);
 }
 
 std::shared_ptr<Omniscript::Value> BoolLiteral::evaluate(SymbolTable& scope) {
-    // return generator.createBool(value);
-    return nullptr;
+    // DEBUG_LOG("Bool value " + value);
+    return std::make_shared<Omniscript::Primitive<bool>>(value);
 }
 
 std::shared_ptr<Omniscript::Value> CharacterLiteral::evaluate(SymbolTable& scope) {
-    // return generator.createChar(value);
-    return nullptr;
+    DEBUG_LOG("Char value " + value);
+    return std::make_shared<Omniscript::Primitive<char>>(value);
 }
 
 std::shared_ptr<Omniscript::Value> StringLiteral::evaluate(SymbolTable& scope) {

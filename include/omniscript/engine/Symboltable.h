@@ -27,11 +27,11 @@ public:
 
     // ==================== VALUE STORAGE ====================
     void setVariable(const std::string& name, std::shared_ptr<Omniscript::Value> value) {
-        variables_[name] = value;
+        variables_[name] = std::move(value);
     }
 
     void setConstant(const std::string& name, std::shared_ptr<Omniscript::Value> value) {
-        constants_[name] = value;
+        constants_[name] = std::move(value);
     }
 
     std::shared_ptr<Omniscript::Value> getValue(const std::string& name) const {
