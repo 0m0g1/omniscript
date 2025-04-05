@@ -131,10 +131,7 @@ public:
 
     virtual std::shared_ptr<Type> getReturnType() const { return nullptr; }
 
-    std::string kindName() const {
-        return std::to_string(static_cast<int>(kind)); // Replace with actual string conversion if needed
-    }
-
+    std::string kindName() const;
     Kind getKind() const { return kind; }
 
     // Access underlying types
@@ -185,8 +182,8 @@ public:
 
     Kind primitiveKind;
 
-    explicit PrimitiveType(Kind kind) : primitiveKind(kind) { 
-        kind = Kind::Primitive;
+    explicit PrimitiveType(Kind kind_) : primitiveKind(kind_) { 
+        kind = kind_;
     }
 
     static std::shared_ptr<Type> create(Kind kind) {
@@ -346,6 +343,8 @@ struct Value {
     std::shared_ptr<Type> type = Type::createInvalid();  // Holds a full Type object now
 
     virtual ~Value() = default;  // Polymorphic base
+
+    virtual std::string toString() const { return "Value"; } 
 };
 
 template <typename T>
@@ -358,6 +357,7 @@ struct PrimitiveValue : public Value {
     explicit PrimitiveValue(Kind primitiveKind) {
         type = Type::createPrimitiveType(primitiveKind);
     }
+    std::string toString() const override { return "PrimitiveValue"; } 
 };
 
 // Base class for all numeric values
@@ -370,6 +370,13 @@ public:
     virtual ~NumericValue() = default;
 
     T getValue() const { return value; }
+    std::string toString() const override {
+        if constexpr (std::is_same_v<T, std::string>) {
+            return "NumericLiteral: " + value;
+        } else {
+            return "NumericLiteral: " + std::to_string(value);
+        }
+    }     
 
 protected:
     T value;
@@ -397,16 +404,6 @@ public:
 };
 
 // Specialized BigIntValue for handling large integers
-class BigIntValue : public NumericValue<std::string> {
-public:
-    explicit BigIntValue(const std::string& value)
-        : NumericValue<std::string>(value) {}  // Explicitly pass type
-
-    ~BigIntValue() override = default;
-};
-
-
-// Specialized BigIntValue for handling large integers
 class BigInt : public NumericValue<std::string> {
 public:
     explicit BigInt(const std::string& value)
@@ -427,6 +424,8 @@ struct PointerValue : public Value {
         : pointee(std::move(pointee)), isConst(isConst), isVolatile(isVolatile) {
         type = Type::createPointerType(this->pointee->type, isConst, isVolatile);
     }
+
+    std::string toString() const override { return "Pointer"; } 
 };
 
 
@@ -438,6 +437,8 @@ struct ReferenceValue : public Value {
         : referent(std::move(referent)) {
         type = Type::createReferenceType(this->referent->type);
     }
+
+    std::string toString() const override { return "Reference"; } 
 };
 
 
@@ -455,6 +456,8 @@ struct FunctionValue : public Value {
 
         type = Type::createFunctionType(returnValue->type->getKind(), std::move(paramTypes), isVarArg);
     }
+
+    std::string toString() const override { return "Function"; } 
 };
 
 
@@ -472,6 +475,8 @@ struct AggregateValue : public Value {
 
         // type = Type::createStructType(elementTypes, this->elementNames);
     }
+
+    std::string toString() const override { return "Aggregate"; } 
 };
 
 
@@ -480,11 +485,27 @@ struct StringValue : public Value {
     StringValue() {
         type = Type::createStringType();
     }
+    std::string toString() const override { return "String"; } 
 };
 
 struct WideStringValue : public Value {
     WideStringValue() {
         type = Type::createWideStringType();
+    }
+    std::string toString() const override { return "WideString"; } 
+};
+
+struct VariableAssignment : public Value {
+    std::string variableName;
+    std::shared_ptr<Value> assignedValue;
+
+    VariableAssignment(std::string name, std::shared_ptr<Value> value)
+        : variableName(std::move(name)), assignedValue(std::move(value)) {
+        type = assignedValue->type;  // Same type as the assigned value
+    }
+
+    std::string toString() const override {
+        return "Assign: " + variableName + " = " + assignedValue->toString();
     }
 };
 

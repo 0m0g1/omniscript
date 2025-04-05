@@ -8,7 +8,6 @@
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/mainthreadrunner.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/engine/IRGenerator.h>
 
 // built - in objects
 // // #include <omniscript/runtime/Function.h>
@@ -1959,8 +1958,7 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
 
     type = Omniscript::resolveType(dataTypes);
 
-    DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " " + variableName +
-                  " with type " + dataTypes[dataTypes.size() - 1]);
+    DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " '" + variableName + "' with type '" + type->kindName() + "'.");
 
     if (currentToken.getType() != TokenTypes::Semicolon) {
         if (currentToken.getType() == TokenTypes::Increment || currentToken.getType() == TokenTypes::Decrement) {

@@ -3,15 +3,16 @@
 #include <omniscript/engine/parser.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
-#include <omniscript/engine/IRGenerator.h>
 #include <omniscript/engine/JITCompiler.h>
+#include <omniscript/engine/Backends/JIT/JITBackend.h>
+#include <omniscript/engine/Backends/JIT/llvm/LLVMJITBackend.h>
 #include <omniscript/engine/EngineConfigs.h>
 
 class Compiler {
 private:
-    IRGenerator& irGen;
+
 public:
-    Compiler(IRGenerator& generator) : irGen(generator) {}
+    Compiler() {}
     void compile(const std::vector<std::shared_ptr<Statement>>& statements, const Config &config);
 };
 
@@ -117,18 +118,17 @@ public:
     static void run(const Config& config) {
         std::string sourceCode = readSourceCode(config);
         
-        IRGenerator irGen(config.filePath);
-
         Lexer lexer(sourceCode, config.filePath);
         Parser parser(lexer);
         parser.setDebugMode(config.debugMode);
         std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
         
         if (config.useCompiler) {
-            Compiler compiler(irGen);
-            compiler.compile(statements, config);
+            // Compiler compiler();
+            // compiler.compile(statements, config);
         } else {
-            JITCompiler jit(irGen);
+            auto backend = std::make_shared<LLVMJITBackend>();
+            JITCompiler jit(backend);
             jit.execute(statements, config);
         }
     }

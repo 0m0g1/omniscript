@@ -89,9 +89,11 @@ GENERATED += $(OBJDIR)/FileAccess.o
 GENERATED += $(OBJDIR)/Function.o
 GENERATED += $(OBJDIR)/Http.o
 GENERATED += $(OBJDIR)/IRGenerator.o
+GENERATED += $(OBJDIR)/JITBackend.o
 GENERATED += $(OBJDIR)/JITCompiler.o
 GENERATED += $(OBJDIR)/Json.o
 GENERATED += $(OBJDIR)/KeyEvent.o
+GENERATED += $(OBJDIR)/LLVMJITBackend.o
 GENERATED += $(OBJDIR)/Math.o
 GENERATED += $(OBJDIR)/MouseEvent.o
 GENERATED += $(OBJDIR)/Namespace.o
@@ -132,9 +134,11 @@ OBJECTS += $(OBJDIR)/FileAccess.o
 OBJECTS += $(OBJDIR)/Function.o
 OBJECTS += $(OBJDIR)/Http.o
 OBJECTS += $(OBJDIR)/IRGenerator.o
+OBJECTS += $(OBJDIR)/JITBackend.o
 OBJECTS += $(OBJDIR)/JITCompiler.o
 OBJECTS += $(OBJDIR)/Json.o
 OBJECTS += $(OBJDIR)/KeyEvent.o
+OBJECTS += $(OBJDIR)/LLVMJITBackend.o
 OBJECTS += $(OBJDIR)/Math.o
 OBJECTS += $(OBJDIR)/MouseEvent.o
 OBJECTS += $(OBJDIR)/Namespace.o
@@ -230,10 +234,16 @@ $(OBJDIR)/Value.o: src/Core/Value.cpp
 $(OBJDIR)/Allocator.o: src/engine/Allocator.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/EngineConfigs.o: src/engine/EngineConfigs.cpp
+$(OBJDIR)/JITBackend.o: src/engine/Backends/JIT/JITBackend.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGenerator.o: src/engine/IRGenerator.cpp
+$(OBJDIR)/IRGenerator.o: src/engine/Backends/JIT/llvm/IRGenerator.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/LLVMJITBackend.o: src/engine/Backends/JIT/llvm/LLVMJITBackend.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/EngineConfigs.o: src/engine/EngineConfigs.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/JITCompiler.o: src/engine/JITCompiler.cpp

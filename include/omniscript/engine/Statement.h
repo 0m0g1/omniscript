@@ -1,8 +1,5 @@
 #pragma once
 
-#include <llvm/IR/Module.h>
-#include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/LLVMContext.h>
 #include <omniscript/runtime/object.h>
 #include <omniscript/Core.h>
 #include <omniscript/Core/Value.h>
@@ -11,8 +8,6 @@
 #include <omniscript/engine/tokens.h>
 #include <omniscript/debuggingtools/console.h>
 #include <omniscript/engine/Symboltable.h>
-
-class IRGenerator;
 
 class Statement { // Base class for all statements
     public:
@@ -345,7 +340,7 @@ public:
 class createVariable : public Assignment {
 public:
     createVariable(const std::string &variable, std::shared_ptr<Omniscript::Type> type, std::shared_ptr<Statement> value)
-    : variable(variable), type(type), value(value) {}
+    : variable(variable), type(std::move(type)), value(std::move(value)) {}
     std::string getName() const override {return variable;}
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
@@ -498,7 +493,7 @@ public:
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
     
-    void setReturnTypes(IRGenerator& generator);
+    void setReturnTypes();
     void setReturnTypesInStatement(
         const std::shared_ptr<Statement>& stmt, 
         std::shared_ptr<Omniscript::Type> returnType

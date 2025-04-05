@@ -3,7 +3,6 @@
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/engine/IRGenerator.h>
 #include <omniscript/engine/lexer.h>
 #include <omniscript/engine/Parser.h>
 #include <omniscript/utils.h>
@@ -124,7 +123,11 @@ std::shared_ptr<Omniscript::Value> Null::evaluate(SymbolTable& scope) {
 }
 
 std::shared_ptr<Omniscript::Value> IntegerLiteral::evaluate(SymbolTable& scope) {
-    DEBUG_LOG("Creating an integer");
+    if (!type->isInteger()) {
+        console.error("The specified type is " + type->kindName() + " but this should return an integer.");
+    } else {
+        DEBUG_LOG("Creating an '" + type->kindName() + "' integer");
+    }
 
     // Default to 32-bit integer if Type is null or unknown
     if (!type || !type->isInteger()) {
@@ -215,34 +218,16 @@ void Assignment::setGlobalVisibilityTo(bool state) {
 
 std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable& scope) {
     DEBUG_LOG("Creating variable " + variable);
-    
+
+    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
+        typed->setType(type);
+    }
 
     std::shared_ptr<Omniscript::Value> result = value->evaluate(scope);
+    DEBUG_LOG("The result is " + result->toString());
     scope.setVariable(variable, result);
 
-    // Set the type of the value only if llvmType is not null
-    // if (llvmType) {
-    //     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
-    //         stmt->setType(llvmType);
-    //     }
-    // }
-    
-    // // Generate the value for the variable
-    // std::shared_ptr<Omniscript::Value> result = value->evaluate(scope);
-    // DEBUG_LOG("Created value for " + variable);
-
-    // // Check if llvmType is nullptr and set it to the type of the result if it is
-    // if (!llvmType) {
-    //     if (result) {
-    //         llvmType = result->getType();
-    //     } else {
-    //         DEBUG_LOG("The result has no value");
-    //     }
-    // }
-
-    // // Create the variable with the appropriate type
-    // return generator.createVariable(variable, llvmType, result, false);
-    return nullptr;
+    return Omniscript::make_value<Omniscript::VariableAssignment>(variable, result);
 }    
 
 
@@ -442,7 +427,7 @@ std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable& sc
     return nullptr;
 }
 
-void FunctionDeclaration::setReturnTypes(IRGenerator& generator) {
+void FunctionDeclaration::setReturnTypes() {
     // std::shared_ptr<Omniscript::Type> funcReturnType = getType();
     // if (!funcReturnType) {
     //     std::vector<std::string> type = {"void"};

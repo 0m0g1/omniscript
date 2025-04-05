@@ -8,7 +8,6 @@
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/runtime/Class.h>
-#include <omniscript/engine/IRGenerator.h>
 
 //Include llvm headers
 // #include <llvm-c/...

@@ -1,0 +1,136 @@
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/engine/Backends/JIT/llvm/LLVMJITBackend.h>
+
+void LLVMJITBackend::initialize() {
+    // This can be expanded to include any JIT-specific initialization logic
+    // If needed, for example, adding dynamic library search generators:
+    // jit->getMainJITDylib().addGenerator(
+    //     llvm::cantFail(llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
+    //     jit->getDataLayout().getGlobalPrefix()
+    //     ))
+    // );
+}
+
+void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& statements, const Config& config) {
+    DEBUG_LOG("Executing with LLVM JIT Backend");
+    irGen = std::make_shared<IRGenerator>(config.filePath);
+
+    std::vector<std::function<void()>> pendingCalls;
+
+    // Generate IR for all statements
+    for (const auto& statement : statements) {
+        std::shared_ptr<Omniscript::Value> result = statement->evaluate(*scope);
+        DEBUG_LOG(result->toString());
+        if (!result) continue;
+
+        // Generate LLVM IR for each statement
+        // llvm::Value* ir = statement->codegen(irGen, *scope);
+        // if (!ir) continue;
+
+        // If the IR generated is a function, add it to the list of pending calls
+        // if (auto* func = llvm::dyn_cast<llvm::Function>(ir)) {
+        //     pendingCalls.push_back([this, func]() {
+        //         auto symbol = jit->lookup(func->getName().str());
+        //         if (symbol) {
+        //             auto fnPtr = symbol->toPtr<void(*)()>();
+        //             fnPtr();  // Execute the function via JIT
+        //         }
+        //     });
+        // }
+    }
+
+    // Finalize global initializers, print the IR, and optimize the module
+    irGen->finalizeGlobalInitializers();
+    irGen->printIR();
+    irGen->printErrors();
+    
+    irGen->optimizeModule();
+
+    llvm::orc::ThreadSafeContext tsContext(irGen->getContext());
+    auto module = std::move(irGen->getModule());
+    
+    // Initialize globals
+    if (auto startupSym = jit->lookup("__startup__")) {
+        auto startupFn = startupSym->toPtr<void(*)()>();
+        startupFn();  // Initialize globals first
+    }
+
+    // Retrieve the entry point function
+    std::string entryPoint;
+    llvm::Function* func = nullptr;
+
+    if (!config.entry.empty()) {
+        func = module->getFunction(config.entry);
+        entryPoint = config.entry;
+    } else {
+        func = module->getFunction("__main");
+        if (!func) {
+            func = module->getFunction("__top_level__");
+            entryPoint = "__top_level__";
+        } else {
+            entryPoint = "__main";
+        }
+    }
+
+    if (!func) {
+        throw std::runtime_error("No valid entry function found (expected '__main' or '__top_level__').");
+    }
+
+    // Add the module to the JIT
+    llvm::orc::ThreadSafeModule tsm(std::move(module), tsContext);
+    if (auto err = jit->addIRModule(std::move(tsm))) {
+        throw std::runtime_error("Failed to add IR module to JIT");
+    }
+
+    // Look up the entry point function
+    auto entrySymbol = jit->lookup(entryPoint);
+    if (!entrySymbol) {
+        llvm::logAllUnhandledErrors(entrySymbol.takeError(), llvm::errs(), "JIT Lookup Error: ");
+        throw std::runtime_error("Failed to find entry symbol: " + entryPoint);
+    }
+
+    llvm::Type* returnType = func->getReturnType();
+
+    // Execute the entry function based on its return type
+    if (entryPoint == "__top_level__") {
+        if (!returnType->isVoidTy()) {
+            throw std::runtime_error("__top_level__ must return void.");
+        }
+        console.log("Executing top-level code (__top_level__)...");
+        auto entryFunc = entrySymbol->toPtr<void(*)()>();
+        entryFunc();
+        console.log("Execution Completed (void function).");
+
+    } else if (entryPoint == "__main") {
+        if (!returnType->isIntegerTy(32)) {
+            throw std::runtime_error("__main must return int.");
+        }
+        console.log("Executing __main function...");
+        auto entryFunc = entrySymbol->toPtr<int(*)()>();
+        int result = entryFunc();
+        console.log("Execution Result: " + std::to_string(result));
+
+    } else { // Custom entry function
+        console.log("Executing custom entry function: " + entryPoint + "...");
+
+        if (returnType->isIntegerTy(32)) {
+            auto entryFunc = entrySymbol->toPtr<int(*)()>();
+            int result = entryFunc();
+            console.log("Execution Result: " + std::to_string(result));
+        } else if (returnType->isVoidTy()) {
+            auto entryFunc = entrySymbol->toPtr<void(*)()>();
+            entryFunc();
+            console.log("Execution Completed (void function).");
+        } else {
+            throw std::runtime_error("Unsupported return type for custom entry function.");
+        }
+    }
+
+    // Execute any pending calls if needed
+    if (config.entry.empty() && !jit->lookup("__main")) {
+        console.log("Executing pending calls...");
+        for (auto& call : pendingCalls) {
+            call();
+        }
+    }
+}
