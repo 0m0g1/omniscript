@@ -103,12 +103,18 @@ std::shared_ptr<Omniscript::Value> PrivateMember::evaluate(SymbolTable& scope) {
 }
 
 std::shared_ptr<Omniscript::Value> AddressOf::evaluate(SymbolTable& scope) {
-    // return generator.getAddressOf(name);
-    return nullptr;
+    return std::make_shared<Omniscript::AddressOfValue>(name);
 }
 
 std::shared_ptr<Omniscript::Value> ReferenceTo::evaluate(SymbolTable& scope) {
-    // return generator.getReferenceToVariable(name);
+    // Look up the value in the scope to get the variable
+    auto variable = scope.getValue(name);
+    if (variable) {
+        return std::make_shared<Omniscript::ReferenceValue>(name, variable);
+    }
+    
+    // If the variable isn't found, handle the error (e.g., return nullptr)
+    console.error("Error: Variable " + name + " not found.\n");
     return nullptr;
 }
 

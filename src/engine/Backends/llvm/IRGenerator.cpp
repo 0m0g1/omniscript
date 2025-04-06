@@ -129,6 +129,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
         return result;
     }
 
+    // Handle VariableAssignment
     if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(value)) {
         DEBUG_LOG("Assigning variable " + varAssign->variableName);
         llvm::Type* type = resolveLLVMType(varAssign->getType());
@@ -139,6 +140,17 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
             value, 
             false
         );
+    }
+
+    // Handle ReferenceValue
+    if (auto refValue = std::dynamic_pointer_cast<Omniscript::ReferenceValue>(value)) {
+        DEBUG_LOG("Creating reference to variable " + refValue->referentName);
+        return getReferenceToVariable(refValue->referentName);
+    }
+    
+    if (auto addressOf = std::dynamic_pointer_cast<Omniscript::AddressOfValue>(value)) {
+        DEBUG_LOG("Getting the address of variable " + addressOf->variableName);
+        return getAddressOf(addressOf->variableName);
     }
 
     return nullptr;
@@ -373,8 +385,20 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         case Omniscript::Kind::Int64:
             llvmType = llvm::Type::getInt64Ty(context);
             break;
+        case Omniscript::Kind::Int128:
+            llvmType = llvm::IntegerType::get(context, 128);
+            break;
+        case Omniscript::Kind::Int256:
+            llvmType = llvm::IntegerType::get(context, 256);
+            break;
+        case Omniscript::Kind::Int512:
+            llvmType = llvm::IntegerType::get(context, 512);
+            break;
+        case Omniscript::Kind::Int1024:
+            llvmType = llvm::IntegerType::get(context, 1024);
+            break;
         case Omniscript::Kind::BigInt:
-            llvmType = llvm::IntegerType::get(context, 128); // or 256, 512, etc.
+            llvmType = llvm::IntegerType::get(context, 1024); // or 256, 512, etc.
             break;        
         case Omniscript::Kind::UInt8:
             llvmType = llvm::Type::getInt8Ty(context);
@@ -388,6 +412,18 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         case Omniscript::Kind::UInt64:
             llvmType = llvm::Type::getInt64Ty(context);
             break;
+            case Omniscript::Kind::UInt128:
+            llvmType = llvm::IntegerType::get(context, 128);
+            break;
+        case Omniscript::Kind::UInt256:
+            llvmType = llvm::IntegerType::get(context, 256);
+            break;
+        case Omniscript::Kind::UInt512:
+            llvmType = llvm::IntegerType::get(context, 512);
+            break;
+        case Omniscript::Kind::UInt1024:
+            llvmType = llvm::IntegerType::get(context, 1024);
+            break;
         case Omniscript::Kind::Float:
             llvmType = llvm::Type::getFloatTy(context);
             break;
@@ -396,6 +432,9 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             break;
         case Omniscript::Kind::FP128:
             llvmType = llvm::Type::getFP128Ty(context);
+            break;
+        case Omniscript::Kind::Char:
+            llvmType = llvm::Type::getInt8Ty(context);  // Char type is represented as an 8-bit integer
             break;
         case Omniscript::Kind::Bool:
             llvmType = llvm::Type::getInt1Ty(context);

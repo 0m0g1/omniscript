@@ -201,7 +201,7 @@ public:
 
     std::string getName() const override { return name; }
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable& scope);
-    std::string toString() const override { return "PrivateMemberStatement"; }
+    std::string toString() const override { return "ReferenceTo: " + name; }
 };
 
 class NullLiteral : public Literal {

@@ -10,7 +10,7 @@ let d : i64 = 4;
 // let h : i1024 = 40000000000000000000000000000000000000000000000000000000;
 
 // Character and boolean
-// let i : char = 'a';
+let i : char = 'a';
 let j : bool = true;
 let k : bool = false;
 
@@ -20,8 +20,8 @@ let m : f64 = 2.718;
 // let n : f128 = 1.6180339887;
 
 // // // Pointers
-// let o : i32* = &c; // Pointer to an i32
-// let p : char* = &i; // Pointer to a character
+let o : i32* = &c; // Pointer to an i32
+let p : char* = &i; // Pointer to a character
 // let oo : i32** = &o;
 // let pp : char** = &p;
 // let q : void* = nullptr; // Void pointer

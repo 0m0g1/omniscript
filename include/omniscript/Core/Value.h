@@ -18,8 +18,8 @@ enum class Kind {
     Nullptr, Null,
     Bool,
     Char,
-    Int8, Int16, Int32, Int64, BigInt,
-    UInt8, UInt16, UInt32, UInt64, UInt128,
+    Int8, Int16, Int32, Int64, Int128, Int256, Int512, Int1024, BigInt,
+    UInt8, UInt16, UInt32, UInt64, UInt128, UInt256, UInt512, UInt1024,
     Half, Float, Double, FP128, X86_FP80, PPC_FP128,
 
     // Special Types
@@ -66,9 +66,11 @@ public:
         // If no bitwidth is specified, just check if the kind is an integer
         if (bitwidth == -1) {
             return kind == Kind::Int8 || kind == Kind::Int16 || kind == Kind::Int32 ||
-                   kind == Kind::Int64 ||
+                   kind == Kind::Int64 || kind == Kind::Int128 || kind == Kind::Int256 ||
+                   kind == Kind::Int512 || kind == Kind::Int1024 ||
                    kind == Kind::UInt8 || kind == Kind::UInt16 ||
                    kind == Kind::UInt32 || kind == Kind::UInt64 || kind == Kind::UInt128 ||
+                   kind == Kind::UInt256 || kind == Kind::UInt512 || kind == Kind::UInt1024 ||
                    kind == Kind::BigInt;
         }
 
@@ -83,10 +85,15 @@ public:
             case 64:
                 return kind == Kind::Int64 || kind == Kind::UInt64;
             case 128:
+                return kind == Kind::Int128 || kind == Kind::UInt128;
             case 256:
+                return kind == Kind::Int256;
             case 512:
+                return kind == Kind::Int512;
             case 1024:
-                return kind == Kind::BigInt;
+                return kind == Kind::Int1024;
+            // case 1024:
+                // return kind == Kind::BigInt;
             default:
                 return false;  // Unsupported bitwidth
         }
@@ -167,6 +174,10 @@ public:
         if constexpr (std::is_same_v<T, int16_t>) return Kind::Int16;
         if constexpr (std::is_same_v<T, int32_t>) return Kind::Int32;
         if constexpr (std::is_same_v<T, int64_t>) return Kind::Int64;
+        if constexpr (std::is_same_v<T, __int128>) return Kind::Int128;
+        // if constexpr (std::is_same_v<T, __int256>) return Kind::Int256;
+        // if constexpr (std::is_same_v<T, __int512>) return Kind::Int512;
+        // if constexpr (std::is_same_v<T, __int1024>) return Kind::Int1024;
 
         if constexpr (std::is_same_v<T, uint8_t>) return Kind::UInt8;
         if constexpr (std::is_same_v<T, uint16_t>) return Kind::UInt16;
@@ -321,20 +332,21 @@ inline std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
         else if (baseType == "int8" || baseType == "i8") type = Type::createPrimitiveType(Kind::Int8);
         else if (baseType == "int16" || baseType == "i16") type = Type::createPrimitiveType(Kind::Int16);
         else if (baseType == "int64" || baseType == "i64") type = Type::createPrimitiveType(Kind::Int64);
-        else if (baseType == "int128" || baseType == "i128") type = Type::createPrimitiveType(Kind::BigInt);
-        else if (baseType == "int256" || baseType == "i256") type = Type::createPrimitiveType(Kind::BigInt);
-        else if (baseType == "int512" || baseType == "i512") type = Type::createPrimitiveType(Kind::BigInt);
-        else if (baseType == "int1024" || baseType == "i1024") type = Type::createPrimitiveType(Kind::BigInt);
+        else if (baseType == "int128" || baseType == "i128") type = Type::createPrimitiveType(Kind::Int128);
+        else if (baseType == "int256" || baseType == "i256") type = Type::createPrimitiveType(Kind::Int256);
+        else if (baseType == "int512" || baseType == "i512") type = Type::createPrimitiveType(Kind::Int512);
+        else if (baseType == "int1024" || baseType == "i1024") type = Type::createPrimitiveType(Kind::Int1024);
+        else if (baseType == "BigInt") type = Type::createPrimitiveType(Kind::BigInt);
     
         // Unsigned integers
         else if (baseType == "uint" || baseType == "u32" || baseType == "uint32") type = Type::createPrimitiveType(Kind::UInt32);
         else if (baseType == "uint8" || baseType == "u8") type = Type::createPrimitiveType(Kind::UInt8);
         else if (baseType == "uint16" || baseType == "u16") type = Type::createPrimitiveType(Kind::UInt16);
         else if (baseType == "uint64" || baseType == "u64") type = Type::createPrimitiveType(Kind::UInt64);
-        else if (baseType == "uint128" || baseType == "u128") type = Type::createPrimitiveType(Kind::BigInt);
-        else if (baseType == "uint256" || baseType == "u256") type = Type::createPrimitiveType(Kind::BigInt);
-        else if (baseType == "uint512" || baseType == "u512") type = Type::createPrimitiveType(Kind::BigInt);
-        else if (baseType == "uint1024" || baseType == "u1024") type = Type::createPrimitiveType(Kind::BigInt);
+        else if (baseType == "uint128" || baseType == "u128") type = Type::createPrimitiveType(Kind::UInt128);
+        else if (baseType == "uint256" || baseType == "u256") type = Type::createPrimitiveType(Kind::UInt256);
+        else if (baseType == "uint512" || baseType == "u512") type = Type::createPrimitiveType(Kind::UInt512);
+        else if (baseType == "uint1024" || baseType == "u1024") type = Type::createPrimitiveType(Kind::UInt1024);
     
         // Other primitives
         else if (baseType == "bool") type = Type::createPrimitiveType(Kind::Bool);
@@ -345,9 +357,10 @@ inline std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
         else if (baseType == "half" || baseType == "f16") type = Type::createPrimitiveType(Kind::Half);
         else if (baseType == "float" || baseType == "f32") type = Type::createPrimitiveType(Kind::Float);
         else if (baseType == "double" || baseType == "f64") type = Type::createPrimitiveType(Kind::Double);
-        else if (baseType == "fp128") type = Type::createPrimitiveType(Kind::FP128);
-        else if (baseType == "x86_fp80") type = Type::createPrimitiveType(Kind::X86_FP80);
-        else if (baseType == "ppc_fp128") type = Type::createPrimitiveType(Kind::PPC_FP128);
+        else if (baseType == "fp128" || baseType == "f128" || baseType == "long double") type = Type::createPrimitiveType(Kind::FP128);
+        else if (baseType == "x86_fp80" || baseType == "x86_80bit" || baseType == "x87_FP80" || baseType == "Intel_FP80") type = Type::createPrimitiveType(Kind::X86_FP80);
+        else if (baseType == "ppc_fp128" || baseType == "PPC_double_extended" || baseType == "PPC_F128" || baseType == "PPC_Quad") type = Type::createPrimitiveType(Kind::PPC_FP128);
+
     
         // Strings / UTF
         else if (baseType == "string" || baseType == "str" || baseType == "utf8") {
@@ -490,13 +503,29 @@ struct PointerValue : public Value {
     std::string toString() const override { return "Pointer"; } 
 };
 
+struct AddressOfValue : public Value {
+    std::shared_ptr<Value> referent;  // The variable whose address is being stored
+    std::string variableName;
+
+    explicit AddressOfValue(const std::string& variableName, std::shared_ptr<Value> referent = nullptr)
+        : variableName(variableName), referent(std::move(referent)) {
+        // We assume AddressOf value is of type Pointer to the referent's type
+        type = Type::createPointerType(this->referent->type); 
+    }
+
+    // Return a string representation of the AddressOf value
+    std::string toString() const override {
+        return "AddressOf(" + referent->toString() + ")";
+    }
+};
 
 // Reference Types
 struct ReferenceValue : public Value {
     std::shared_ptr<Value> referent;
+    std::string referentName;
 
-    explicit ReferenceValue(std::shared_ptr<Value> referent)
-        : referent(std::move(referent)) {
+    explicit ReferenceValue(const std::string& referentName, std::shared_ptr<Value> referent = nullptr)
+        : referentName(referentName), referent(std::move(referent)) {
         type = Type::createReferenceType(this->referent->type);
     }
 
