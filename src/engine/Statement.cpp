@@ -269,7 +269,7 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
                     } else if (auto addr = std::dynamic_pointer_cast<Omniscript::AddressOfValue>(result)) {
                         if (addr->getType()->getBasePointeeType()->getKind() != type->getBasePointeeType()->getKind()) {
                             console.error("Pointer '" + variable + "' should point to a '" + type->pointerDescription() + "' but is pointing to a '" +
-                            addr->pointerDescription() + "' instead.");
+                            addr->getType()->pointerDescription() + "' instead.");
                         }
                     } else {
                         console.error("Pointer '" + variable + "' is pointing to an invalid pointer type '" + result->toString() + "'.");
