@@ -213,10 +213,12 @@ public:
 
     // Constructor
     PointerType(std::shared_ptr<Omniscript::Type> pointeeType)
-        : pointee(pointeeType) {}
+        : pointee(pointeeType) {
+            kind = Kind::Pointer;
+        }
 
     // Get the pointee type (directly)
-    std::shared_ptr<Omniscript::Type> getPointee() const {
+    std::shared_ptr<Omniscript::Type> getPointeeType() const {
         return pointee;
     }
 
@@ -227,7 +229,7 @@ public:
 
         while (currentPointee->isPointer()) {
             depth++;
-            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointee();
+            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointeeType();
         }
 
         return depth;
@@ -238,7 +240,7 @@ public:
         auto currentPointee = pointee;
 
         while (currentPointee->isPointer()) {
-            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointee();
+            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointeeType();
         }
 
         return currentPointee;

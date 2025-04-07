@@ -7,6 +7,8 @@ namespace Omniscript {
 std::string Type::kindName() const {
     switch (kind) {
         case Kind::Invalid:     return "Invalid";
+
+        // Primitive Types
         case Kind::Primitive:   return "Primitive";
         case Kind::Void:        return "Void";
         case Kind::Nullptr:     return "Nullptr";
@@ -17,33 +19,54 @@ std::string Type::kindName() const {
         case Kind::Int16:       return "Int16";
         case Kind::Int32:       return "Int32";
         case Kind::Int64:       return "Int64";
+        case Kind::Int128:      return "Int128";
+        case Kind::Int256:      return "Int256";
+        case Kind::Int512:      return "Int512";
+        case Kind::Int1024:     return "Int1024";
         case Kind::BigInt:      return "BigInt";
+
         case Kind::UInt8:       return "UInt8";
         case Kind::UInt16:      return "UInt16";
         case Kind::UInt32:      return "UInt32";
         case Kind::UInt64:      return "UInt64";
         case Kind::UInt128:     return "UInt128";
+        case Kind::UInt256:     return "UInt256";
+        case Kind::UInt512:     return "UInt512";
+        case Kind::UInt1024:    return "UInt1024";
+
         case Kind::Half:        return "Half";
         case Kind::Float:       return "Float";
         case Kind::Double:      return "Double";
         case Kind::FP128:       return "FP128";
         case Kind::X86_FP80:    return "X86_FP80";
         case Kind::PPC_FP128:   return "PPC_FP128";
+
+        // Special Types
         case Kind::Label:       return "Label";
         case Kind::Token:       return "Token";
         case Kind::Metadata:    return "Metadata";
+
+        // Aggregate Types
         case Kind::Struct:      return "Struct";
         case Kind::Enum:        return "Enum";
         case Kind::Array:       return "Array";
         case Kind::Vector:      return "Vector";
+
+        // Pointer/Reference Types
         case Kind::Pointer:     return "Pointer";
         case Kind::Reference:   return "Reference";
+
+        // Function Types
         case Kind::Function:    return "Function";
+
+        // Custom Types
         case Kind::String:      return "String";
         case Kind::WideString:  return "WideString";
+
         default:                return "Unknown";
     }
 }
+
 
 
 std::shared_ptr<Type> Type::createInvalid() {

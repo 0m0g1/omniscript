@@ -122,7 +122,7 @@ void IRGenerator::optimizeModule(int level) {
     // printErrors();
 }
 
-llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable> scope) {
+llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope) {
     llvm::Value* result = codegenPrimitive(value, scope);
 
     if (result) {
@@ -134,6 +134,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
         DEBUG_LOG("Assigning variable " + varAssign->variableName);
         llvm::Type* type = resolveLLVMType(varAssign->getType());
         llvm::Value* value = codegen(varAssign->getValue(), scope);
+        DEBUG_LOG("HERE");
         return createVariable(
             varAssign->variableName,
             type,
@@ -156,7 +157,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
     return nullptr;
 }
 
-llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable> scope) {
+llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope) {
 
     // Handle 8-bit integer (int8_t)
     if (auto integer8 = std::dynamic_pointer_cast<Omniscript::Integer<int8_t>>(value)) {
@@ -328,7 +329,7 @@ void IRGenerator::importModule(const std::string& modulePath, const std::vector<
 
     // Import only public members
     for (const auto& [name, value] : modulePublicSymbols[modulePath]) {
-        NamedValues[name] = value;
+        activeScope->set(name, value);
     }
 }
 
@@ -443,7 +444,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             llvmType = llvm::Type::getVoidTy(context);
             break;
         default:
-            std::cerr << "[ERROR] Unknown type: " << static_cast<int>(type->getKind()) << std::endl;
+            std::cerr << "[ERROR] Unknown type: " << type->kindName() << std::endl;
             return nullptr;
     }
 
@@ -937,6 +938,7 @@ llvm::Value* IRGenerator::createVariable(
         }
     }
 
+    activeScope->set(name, alloca);
     return alloca;
 }
 
@@ -967,14 +969,9 @@ llvm::GlobalVariable* IRGenerator::createGlobalVariable(
 }
 
 llvm::Value* IRGenerator::getAddressOf(const std::string& varname) {
-    // if (!activeScope->has(varname)) {
-    //     throw std::runtime_error("Undefined variable: " + varname);
-    // }
-    
-    // // Return the pointer/alloca directly
-    // return activeScope->get(varname);
-    return nullptr;
+    return activeScope->get(varname);
 }
+
 
 llvm::Value* IRGenerator::getReferenceToVariable(const std::string& varname) {
     // if (!activeScope->has(varname)) {
@@ -1005,7 +1002,7 @@ llvm::Value* IRGenerator::getVariable(const std::string& name) {
 
 
 llvm::Value* IRGenerator::createConstant(const std::string& name, llvm::Type* type, llvm::Value* value) {
-    NamedValues[name] = value;
+    activeScope->setConstant(name, value);
     return value;
 }
 
@@ -1013,21 +1010,18 @@ llvm::Value* IRGenerator::createDynamicVariable(const std::string& name, llvm::V
     llvm::IRBuilder<> builder(Builder->GetInsertBlock());
     llvm::AllocaInst* alloca = builder.CreateAlloca(value->getType(), nullptr, name);
     builder.CreateStore(value, alloca);
-    NamedValues[name] = alloca;
+    activeScope->set(name, alloca);
     return alloca;
 }
 
 llvm::Value* IRGenerator::reassign(const std::string& name, llvm::Value* newValue) {
-    if (NamedValues.find(name) == NamedValues.end()) {
-        throw std::runtime_error("Variable not found: " + name);
-    }
-    Builder->CreateStore(newValue, NamedValues[name]);
+    Builder->CreateStore(newValue, activeScope->get(name));
     return newValue;
 }
 
 
 llvm::Value* IRGenerator::createDynamicConstant(const std::string& name, llvm::Value* value) {
-    NamedValues[name] = value;
+    activeScope->setConstant(name, value);
     return value;
 }
 
@@ -1051,7 +1045,7 @@ llvm::Value* IRGenerator::assignDynamicVariable(const std::string& name, llvm::V
 
 
 llvm::Value* IRGenerator::getDynamicVariable(const std::string& name) {
-    llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(NamedValues[name]);
+    llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(activeScope->get(name));
     if (!alloca) {
         throw std::runtime_error("Variable is not an AllocaInst: " + name);
     }
@@ -1065,7 +1059,7 @@ llvm::Value* IRGenerator::generateOpaqueDynamicVariable(const std::string& name,
     llvm::AllocaInst* alloca = Builder->CreateAlloca(int8PtrType, nullptr, name);
     Builder->CreateStore(castedValue, alloca);
 
-    NamedValues[name] = alloca;
+    activeScope->set(name, alloca);
     return alloca;
 }
 

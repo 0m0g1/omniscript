@@ -12,21 +12,26 @@ void LLVMJITBackend::initialize() {
 }
 
 void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& statements, const Config& config) {
+    DEBUG_LOG();
     DEBUG_LOG("Executing with LLVM JIT Backend");
     DEBUG_LOG("===============================");
-    DEBUG_LOG();
-
+    
     irGen = std::make_shared<IRGenerator>(config.filePath);
 
     std::vector<std::function<void()>> pendingCalls;
 
     // Generate IR for all statements
+    DEBUG_LOG("Evaluating statements");
+    DEBUG_LOG("====================");
+    
     for (const auto& statement : statements) {
+        DEBUG_LOG("1. Evaluating a " + statement->toString());
         std::shared_ptr<Omniscript::Value> result = statement->evaluate(*scope);
-        DEBUG_LOG("Generating LLVM IR for '" + result->toString() + "'.");
+        DEBUG_LOG();
+        DEBUG_LOG("2. Generating LLVM IR for '" + result->toString() + "'.");
         
         if (!result) continue;
-
+        
         // Generate LLVM IR for each statement
         llvm::Value* ir = irGen->codegen(result, scope);
         if (!ir) continue;
@@ -41,7 +46,15 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
                 }
             });
         }
+
+        DEBUG_LOG("Done Generating IR for " + result->toString() + "'.");
+        DEBUG_LOG();
+        DEBUG_LOG();
     }
+    DEBUG_LOG();
+    DEBUG_LOG("Done evaluating statements");
+    DEBUG_LOG("==========================");
+    DEBUG_LOG();
 
     // Finalize global initializers, print the IR, and optimize the module
     irGen->finalizeGlobalInitializers();

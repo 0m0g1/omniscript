@@ -1,3 +1,4 @@
+- setting an int var with a char like a returns its ascii '97'
 - get the type of a reference from the symbol table before getting its address or creating a variable from it
 - handle constants
 - fix missing support for big ints 256, 512 and 1024 in value.h

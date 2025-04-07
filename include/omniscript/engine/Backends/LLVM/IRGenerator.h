@@ -39,15 +39,14 @@ struct DynamicValue {
 
 class IRGenerator {
 private:
-    std::shared_ptr<SymbolTable> scope = std::make_shared<SymbolTable>();
-    std::shared_ptr<SymbolTable> activeScope = scope;
+    std::shared_ptr<SymbolTable<llvm::Value*>> scope = std::make_shared<SymbolTable<llvm::Value*>>();
+    std::shared_ptr<SymbolTable<llvm::Value*>> activeScope = scope;
     std::stack<llvm::BasicBlock*> insertionPointStack;
     std::vector<GlobalInit> globalInitializers;
 
     std::unique_ptr<llvm::LLVMContext> Context;
     std::unique_ptr<llvm::IRBuilder<>> Builder;
     std::unique_ptr<llvm::Module> Module;
-    std::map<std::string, llvm::Value*> NamedValues;
     std::unordered_map<std::string, DynamicValue*> runtimeVariables;
     std::unordered_map<std::string, std::unique_ptr<llvm::Module>> loadedModules;
     std::unordered_map<std::string, std::unique_ptr<llvm::Module>> generatedModules;
@@ -107,7 +106,7 @@ public:
     }
 
     inline void pushScope() {
-        activeScope = std::make_shared<SymbolTable>(activeScope);
+        activeScope = std::make_shared<SymbolTable<llvm::Value*>>(activeScope);
     }
     
     inline void popScope() {
@@ -129,8 +128,13 @@ public:
 
     
     // Generate IR for different types
-    llvm::Value* codegen(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable> scope);
-    llvm::Value* codegenPrimitive(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable> scope);
+    llvm::Value* codegen(
+        std::shared_ptr<Omniscript::Value> value,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
+    );
+    llvm::Value* codegenPrimitive(
+        std::shared_ptr<Omniscript::Value> value,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope);
     llvm::Type* resolveLLVMType(std::shared_ptr<Omniscript::Type> type);
     
     llvm::Value* createNullPointer();
