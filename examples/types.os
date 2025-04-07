@@ -22,8 +22,8 @@ let m : f64 = 2.718;
 // // // Pointers
 let o : i32* = &c; // Pointer to an i32
 let p : char* = &i; // Pointer to a character
-// let oo : i32** = &o;
-// let pp : char** = &p;
+let oo : i32** = &p;
+let pp : char** = &p;
 // let q : void* = nullptr; // Void pointer
 
 // // References

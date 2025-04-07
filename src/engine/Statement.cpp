@@ -260,10 +260,19 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
                 if (auto addressOf = std::dynamic_pointer_cast<AddressOf>(value)) {
                     result = addressOf->evaluate(scope);
                     if (auto ptr = std::dynamic_pointer_cast<Omniscript::PointerValue>(result)) {
+                        console.info("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->kindName() + "' and is pointing to a '" +
+                        ptr->getType()->getPointeeType()->kindName() + "'.");
                         if (ptr->getType()->getPointeeType()->getKind() != type->getPointeeType()->getKind()) {
                             console.error("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->kindName() + "' but is pointing to a '" +
                             ptr->getType()->getPointeeType()->kindName() + "' instead.");
                         }
+                    } else if (auto addr = std::dynamic_pointer_cast<Omniscript::AddressOfValue>(result)) {
+                        if (addr->getType()->getBasePointeeType()->getKind() != type->getBasePointeeType()->getKind()) {
+                            console.error("Pointer '" + variable + "' should point to a '" + type->pointerDescription() + "' but is pointing to a '" +
+                            addr->pointerDescription() + "' instead.");
+                        }
+                    } else {
+                        console.error("Pointer '" + variable + "' is pointing to an invalid pointer type '" + result->toString() + "'.");
                     }
                 }
                 // else if (auto referenceTo = std::dynamic_pointer_cast<ReferenceTo>(value)) {

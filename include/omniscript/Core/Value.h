@@ -147,7 +147,9 @@ public:
     Kind getKind() const { return kind; }
 
     // Access underlying types
+    virtual std::string pointerDescription() const { return ""; }
     virtual std::shared_ptr<Type> getPointeeType() const { return nullptr; }
+    virtual std::shared_ptr<Type> getBasePointeeType() const { return nullptr; }
     virtual std::shared_ptr<Type> getReferencedType() const { return nullptr; }
     virtual std::shared_ptr<Type> getElementType() const { return nullptr; }
 
@@ -207,18 +209,18 @@ public:
 };
     
 
-class PointerType : public Omniscript::Type {
+class PointerType : public Type {
 public:
-    std::shared_ptr<Omniscript::Type> pointee;
+    std::shared_ptr<Type> pointee;
 
     // Constructor
-    PointerType(std::shared_ptr<Omniscript::Type> pointeeType)
+    PointerType(std::shared_ptr<Type> pointeeType)
         : pointee(pointeeType) {
             kind = Kind::Pointer;
         }
 
     // Get the pointee type (directly)
-    std::shared_ptr<Omniscript::Type> getPointeeType() const {
+    std::shared_ptr<Type> getPointeeType() const {
         return pointee;
     }
 
@@ -236,7 +238,7 @@ public:
     }
 
     // Method to get the base pointee type (the deepest pointee type)
-    std::shared_ptr<Omniscript::Type> getBasePointeeType() const {
+    std::shared_ptr<Type> getBasePointeeType() const override {
         auto currentPointee = pointee;
 
         while (currentPointee->isPointer()) {
@@ -245,6 +247,32 @@ public:
 
         return currentPointee;
     }
+
+    std::string pointerDescription() const override {
+        std::vector<std::string> parts;
+        std::shared_ptr<Type> current = pointee;  // start from the first pointee
+    
+        // Walk through all pointer levels
+        while (current->isPointer()) {
+            parts.push_back("pointer to");
+            current = std::dynamic_pointer_cast<PointerType>(current)->getPointeeType();
+        }
+    
+        // Add the base type at the end
+        parts.push_back(current->kindName());
+    
+        // Reverse to get natural order (base type first)
+        std::reverse(parts.begin(), parts.end());
+    
+        // Join with spaces
+        std::string description;
+        for (const auto& part : parts) {
+            if (!description.empty()) description += " ";
+            description += part;
+        }
+    
+        return description;
+    }    
 };
 
 
