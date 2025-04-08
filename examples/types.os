@@ -15,20 +15,52 @@ let j : bool = true;
 let k : bool = false;
 
 // Floating-point types
-let l : f32 = 3.14;
-let m : f64 = 2.718;
-// let n : f128 = 1.6180339887;
+// Assignments for each floating-point type, using both base and alternative type names
+
+// Half Precision
+// let half : f16 = 3.14;  // Using 'f16'
+// let half_alt : half = 2.718;  // Using 'half' (alternative name)
+
+// Single Precision (float or f32)
+let single : f32 = 3.14;  // Using 'f32'
+let single_alt : float = 2.718;  // Using 'float' (alternative name)
+
+// Double Precision (double or f64)
+let double_val : f64 = 3.14;  // Using 'f64'
+let double_alt : double = 2.718;  // Using 'double' (alternative name)
+
+// Quad Precision (f128, fp128, or long double)
+let quad : f128 = 1.6180339887;  // Using 'f128'
+let quad_alt : fp128 = 2.718;    // Using 'fp128' (alternative name)
+let quad_alt2 : long_double = 3.14159;  // Using 'long double' (alternative name)
+
+// Extended Precision (x86_fp80 or x87_FP80)
+let extended : x86_fp80 = 2.718;  // Using 'x86_fp80'
+let extended_alt : x86_80bit = 3.14;  // Using 'x86_80bit' (alternative name)
+let extended_alt2 : x87_FP80 = 1.618;  // Using 'x87_FP80' (alternative name)
+let extended_alt3 : Intel_FP80 = 2.718;  // Using 'Intel_FP80' (alternative name)
+
+// PPC 128-bit Precision (PPC_FP128 or PPC_Quad)
+let ppc_quad : ppc_fp128 = 3.14159;  // Using 'ppc_fp128'
+let ppc_quad_alt2 : PPC_Quad = 2.718;  // Using 'PPC_Quad' (alternative name)
 
 // // // Pointers
 let o : i32* = &c; // Pointer to an i32
 let p : char* = &i; // Pointer to a character
-let oo : i32** = &p;
+let oo : i32** = &o;
 let pp : char** = &p;
-// let q : void* = nullptr; // Void pointer
+let ooo : i32*** = &oo; // Pointer to an i32
+let ppp : char*** = &pp; // Pointer to a character
+let oooo : i32**** = &ooo;
+let pppp : char**** = &ppp;
+let q : void* = nullptr; // Void pointer
+let nullpointer : char**** = nullptr;
 
 // // References
-// let r : &i32 = c; // Reference to an i32
-// let s : &bool = j; // Reference to a bool
+let r : &i32 = c; // Reference to an i32
+// let rr : &&i32 = &r; // Reference to an i32
+let s : &bool = j; // Reference to a bool
+// let ss : &&bool = s; // Reference to a bool
 
 // String and character arrays
 // let t : char* = "Hello, OmniScript++!"; // String (C-style)

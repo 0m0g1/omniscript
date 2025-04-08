@@ -216,7 +216,7 @@ public:
     Nullptr() {};
 
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "NullpointerStatement"; }
 };
     
 // Represents null for generic types (like JavaScript)
@@ -225,7 +225,7 @@ public:
     Null() {};
 
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "NullLiteralStatement"; }
 };
     
 

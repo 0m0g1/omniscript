@@ -1,4 +1,6 @@
--check if references are properly gotten
+- check if references are properly gotten
+- add support for 16 bit floats
+- add support for dynamic variables
 - setting an int var with a char like a returns its ascii '97'
 - get the type of a reference from the symbol table before getting its address or creating a variable from it
 - handle constants

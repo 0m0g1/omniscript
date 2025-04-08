@@ -150,8 +150,10 @@ public:
     llvm::Value* createUnsigned32BitInteger(uint32_t value);
     llvm::Value* createUnsigned64BitInteger(uint64_t value);
     
+    // llvm::Value* create16BitFloat(__half value);
     llvm::Value* create32BitFloat(float value);
     llvm::Value* create64BitFloat(double value);
+    llvm::Value* create128BitFloat(__float128 value);
     
     llvm::Value* createBigInt(const std::string& str, unsigned bitWidth); // Arbitrary precision integer
 

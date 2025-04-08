@@ -131,10 +131,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
 
     // Handle VariableAssignment
     if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(value)) {
-        DEBUG_LOG("Assigning variable " + varAssign->variableName);
+        DEBUG_LOG("Assigning variable " + varAssign->variableName + " of type " + varAssign->getType()->kindName());
         llvm::Type* type = resolveLLVMType(varAssign->getType());
-        llvm::Value* value = codegen(varAssign->getValue(), scope);
         DEBUG_LOG("HERE");
+        llvm::Value* value = codegen(varAssign->getValue(), scope);
+        DEBUG_LOG("HERE 1");
         return createVariable(
             varAssign->variableName,
             type,
@@ -152,6 +153,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
     if (auto addressOf = std::dynamic_pointer_cast<Omniscript::AddressOfValue>(value)) {
         DEBUG_LOG("Getting the address of variable " + addressOf->variableName);
         return getAddressOf(addressOf->variableName);
+    }
+
+    if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerValue>(value)) {
+        DEBUG_LOG("Creating a null pointer");
+        return createNullPointer();
     }
 
     return nullptr;
@@ -174,6 +180,7 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> va
     // Handle 64-bit integer (int64_t)
     else if (auto integer64 = std::dynamic_pointer_cast<Omniscript::Integer<int64_t>>(value)) {
         return create64BitInteger(integer64->getValue());
+
     } else if (auto unsignedInteger8 = std::dynamic_pointer_cast<Omniscript::Integer<uint8_t>>(value)) {
         return createUnsigned8BitInteger(unsignedInteger8->getValue());
     }
@@ -193,13 +200,21 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> va
     else if (auto boolean = std::dynamic_pointer_cast<Omniscript::Primitive<bool>>(value)) {
         return createBool(boolean->getValue());
     }
-    // Handle float (float)
-    else if (auto floatPrimitive = std::dynamic_pointer_cast<Omniscript::Primitive<float>>(value)) {
+    // Handle half (16-bit floating-point)
+    // else if (auto halfPrimitive = std::dynamic_pointer_cast<Omniscript::Float<__half>>(value)) {
+    //     return create16BitFloat(halfPrimitive->getValue());
+    // }
+    // Handle float (32-bit floating-point)
+    else if (auto floatPrimitive = std::dynamic_pointer_cast<Omniscript::Float<float>>(value)) {
         return create32BitFloat(floatPrimitive->getValue());
     }
-    // Handle double (double)
-    else if (auto doublePrimitive = std::dynamic_pointer_cast<Omniscript::Primitive<double>>(value)) {
+    // Handle double (64-bit floating-point)
+    else if (auto doublePrimitive = std::dynamic_pointer_cast<Omniscript::Float<double>>(value)) {
         return create64BitFloat(doublePrimitive->getValue());
+    }
+    // Handle FP128 (128-bit floating-point)
+    else if (auto fp128Primitive = std::dynamic_pointer_cast<Omniscript::Float<__float128>>(value)) {
+        return create128BitFloat(fp128Primitive->getValue());
     }
     // Handle string (std::string)
     else if (auto stringPrimitive = std::dynamic_pointer_cast<Omniscript::Primitive<std::string>>(value)) {
@@ -353,15 +368,18 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
 
     // If the type is a pointer, resolve the base type and add pointer depth.
     if (type->isPointer()) {
-        int pointerDepth;
-        llvm::Type* pointeeType;
-
         if (auto pointer = std::dynamic_pointer_cast<Omniscript::PointerType>(type)) {
+            int pointerDepth;
+            llvm::Type* pointeeType;
             pointeeType = resolveLLVMType(pointer->getBasePointeeType());
             pointerDepth = pointer->getPointerDepth();
+            return llvm::PointerType::get(pointeeType, pointerDepth);
         }
 
-        return llvm::PointerType::get(pointeeType, pointerDepth);
+        if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerType>(type)) {
+            return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context));
+        }
+        
     }
 
     // If the type is a reference, treat it as a pointer.
@@ -425,6 +443,9 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         case Omniscript::Kind::UInt1024:
             llvmType = llvm::IntegerType::get(context, 1024);
             break;
+        case Omniscript::Kind::Half:
+            llvmType = llvm::Type::getHalfTy(context);
+            break;
         case Omniscript::Kind::Float:
             llvmType = llvm::Type::getFloatTy(context);
             break;
@@ -434,6 +455,12 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         case Omniscript::Kind::FP128:
             llvmType = llvm::Type::getFP128Ty(context);
             break;
+        case Omniscript::Kind::X86_FP80: 
+            llvmType = llvm::Type::getX86_FP80Ty(context);
+            break;
+        case Omniscript::Kind::PPC_FP128:
+            llvmType = llvm::Type::getPPC_FP128Ty(context);
+            break;
         case Omniscript::Kind::Char:
             llvmType = llvm::Type::getInt8Ty(context);  // Char type is represented as an 8-bit integer
             break;
@@ -442,6 +469,9 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             break;
         case Omniscript::Kind::Void:
             llvmType = llvm::Type::getVoidTy(context);
+            break;
+        case Omniscript::Kind::Null:
+            llvmType = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context));
             break;
         default:
             std::cerr << "[ERROR] Unknown type: " << type->kindName() << std::endl;
@@ -554,6 +584,11 @@ llvm::Value* IRGenerator::create64BitInteger(int64_t value) {
     return llvm::ConstantInt::get(llvm::Type::getInt64Ty(*Context), value, true);
 }
 
+// Create a 16-bit floating-point (half)
+// llvm::Value* IRGenerator::create16BitFloat(__half value) {
+//     return llvm::ConstantFP::get(llvm::Type::getHalfTy(*Context), static_cast<float>(value));  // Half precision needs to be converted to float
+// }
+
 // Create a 32-bit floating-point (float)
 llvm::Value* IRGenerator::create32BitFloat(float value) {
     return llvm::ConstantFP::get(llvm::Type::getFloatTy(*Context), value);
@@ -562,6 +597,11 @@ llvm::Value* IRGenerator::create32BitFloat(float value) {
 // Create a 64-bit floating-point (double)
 llvm::Value* IRGenerator::create64BitFloat(double value) {
     return llvm::ConstantFP::get(llvm::Type::getDoubleTy(*Context), value);
+}
+
+// Create a 128-bit floating-point (FP128)
+llvm::Value* IRGenerator::create128BitFloat(__float128 value) {
+    return llvm::ConstantFP::get(llvm::Type::getFP128Ty(*Context), static_cast<double>(value));  // FP128 is typically represented as a double in LLVM
 }
 
 // Create an arbitrary-precision integer (BigInt)
@@ -913,26 +953,70 @@ llvm::Value* IRGenerator::createVariable(
             if (retInst) store->moveBefore(retInst);
         }
     } else if (type->isFloatingPointTy()) {
-        // Handle alignment for floating-point types appropriately
-        unsigned align = type->isFloatTy() ? 4 : 8; // Assuming f32 = 4-byte alignment, f64 = 8-byte alignment
+        unsigned align = 1;  // Default alignment in case no match is found
+    
+        // Handle specific floating-point types and their alignments
+        if (type->isHalfTy()) {
+            align = 2;  // Half type (16-bit) typically has 2-byte alignment
+        } else if (type->isFloatTy()) {
+            align = 4;  // Float (32-bit) has 4-byte alignment
+        } else if (type->isDoubleTy()) {
+            align = 8;  // Double (64-bit) has 8-byte alignment
+        } else if (type->isFP128Ty()) {
+            align = 16;  // FP128 (128-bit) typically has 16-byte alignment
+        } else if (type->isX86_FP80Ty() || type->isPPC_FP128Ty()) {
+            align = 16;  // X86_FP80 (80-bit) and PPC_FP128 (128-bit) have 16-byte alignment
+        }
+    
+        // Set the alignment for the alloca
         alloca->setAlignment(llvm::Align(align));
+    
+        // If there is an initial value, store it with the correct alignment
         if (initialValue) {
             llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
             store->setAlignment(llvm::Align(align));
+    
+            // If there's a return instruction, move the store before it
             if (retInst) store->moveBefore(retInst);
         }
-    } else if (type->isPointerTy()) {
+    }  else if (type->isPointerTy()) {
         if (initialValue) {
             llvm::Type* initType = initialValue->getType();
             if (!initType->isPointerTy()) {
                 llvm::errs() << "Error: Attempting to store a non-pointer value into a pointer variable.\n";
-            } else if (initType != type) {
-                // Ensure the stored pointer matches the expected pointer type
-                llvm::Value* castedValue = Builder->CreateBitCast(initialValue, type);
-                llvm::StoreInst* store = Builder->CreateStore(castedValue, alloca);
-                if (retInst) store->moveBefore(retInst);
             } else {
-                llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
+                llvm::PointerType* targetPtrType = llvm::cast<llvm::PointerType>(type);
+                llvm::PointerType* sourcePtrType = llvm::cast<llvm::PointerType>(initType);
+                
+                llvm::Value* castedValue = initialValue;
+                
+                if (sourcePtrType->getAddressSpace() != targetPtrType->getAddressSpace()) {
+                    // Create addrspacecast before the terminator
+                    castedValue = Builder->CreateAddrSpaceCast(
+                        initialValue, 
+                        targetPtrType,
+                        "addrspace.cast"
+                    );
+                    if (retInst) {
+                        if (auto* castInst = llvm::dyn_cast<llvm::Instruction>(castedValue)) {
+                            castInst->moveBefore(retInst);
+                        }
+                    }
+                } else if (initType != type) {
+                    // Create bitcast before the terminator
+                    castedValue = Builder->CreateBitCast(
+                        initialValue, 
+                        type,
+                        "bit.cast"
+                    );
+                    if (retInst) {
+                        if (auto* castInst = llvm::dyn_cast<llvm::Instruction>(castedValue)) {
+                            castInst->moveBefore(retInst);
+                        }
+                    }
+                }
+                
+                llvm::StoreInst* store = Builder->CreateStore(castedValue, alloca);
                 if (retInst) store->moveBefore(retInst);
             }
         }

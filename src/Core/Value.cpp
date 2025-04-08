@@ -81,6 +81,10 @@ std::shared_ptr<Type> Type::createPointerType(std::shared_ptr<Type> pointee) {
     return std::make_shared<PointerType>(std::move(pointee));
 }
 
+std::shared_ptr<Type> Type::createNullPointerType() {
+    return std::make_shared<Omniscript::NullPointerType>();
+}
+
 std::shared_ptr<Type> Type::createReferenceType(std::shared_ptr<Type> referent) {
     return std::make_shared<ReferenceType>(std::move(referent));
 }

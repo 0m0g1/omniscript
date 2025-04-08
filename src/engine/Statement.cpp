@@ -121,8 +121,7 @@ std::shared_ptr<Omniscript::Value> ReferenceTo::evaluate(SymbolTable<std::shared
 }
 
 std::shared_ptr<Omniscript::Value> Nullptr::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // return generator.createNullPointer();
-    return nullptr;
+    return Omniscript::make_value<Omniscript::NullPointerValue>();
 }
 
 std::shared_ptr<Omniscript::Value> Null::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
@@ -176,7 +175,11 @@ std::shared_ptr<Omniscript::Value> IntegerLiteral::evaluate(SymbolTable<std::sha
 
 
 std::shared_ptr<Omniscript::Value> FloatLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    DEBUG_LOG("Creating a float");
+    if (!type->isFloat()) {
+        console.error("The specified type is " + type->kindName() + " but this should return a float.");
+    } else {
+        DEBUG_LOG("Creating an '" + type->kindName() + "' float.");
+    }
 
     // Default to 64-bit float if type is null or unknown
     if (!type || !type->isFloat()) {
@@ -185,6 +188,19 @@ std::shared_ptr<Omniscript::Value> FloatLiteral::evaluate(SymbolTable<std::share
     }
 
     // Check if the type is a 32-bit float
+    #ifdef __ARM_ARCH
+        // ARM platforms using __fp16
+        if (type->isFloat(16)) {
+            DEBUG_LOG("Creating a 16-bit float (__fp16 for ARM)");
+            return std::make_shared<Omniscript::Float<__fp16>>(static_cast<__fp16>(value));  // ARM __fp16 type
+        }
+    #elif defined(__x86_64__) || defined(__i386__)
+        // x86 platforms using _Float16
+        if (type->isFloat(16)) {
+            DEBUG_LOG("Creating a 16-bit float (_Float16 for x86)");
+            return std::make_shared<Omniscript::Float<_Float16>>(static_cast<_Float16>(value));  // x86 _Float16 type
+        }
+    #endif
     if (type->isFloat(32)) {
         DEBUG_LOG("Creating a 32-bit float");
         return std::make_shared<Omniscript::Float<float>>(static_cast<float>(value));  // 32-bit float
@@ -196,12 +212,28 @@ std::shared_ptr<Omniscript::Value> FloatLiteral::evaluate(SymbolTable<std::share
         return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));  // 64-bit double
     }
 
-    // For larger floating-point types, add similar checks here (if needed)
-    // If necessary, handle custom floating-point types such as FP128, etc.
-    
-    return nullptr;
-}
+    // Check if the type is FP128 (128-bit floating point)
+    if (type->isFloat(128)) {
+        DEBUG_LOG("Creating a 128-bit float (FP128)");
+        return std::make_shared<Omniscript::Float<__float128>>(static_cast<__float128>(value));  // FP128 (128-bit)
+    }
 
+    // Check if the type is X86_FP80 (80-bit floating point)
+    if (type->isFloat(80)) {
+        DEBUG_LOG("Creating an 80-bit float (X86_FP80)");
+        return std::make_shared<Omniscript::Float<long double>>(static_cast<long double>(value));  // X86_FP80 (80-bit)
+    }
+
+    // Check if the type is PPC_FP128 (128-bit floating point)
+    if (type->isFloat(128)) {
+        DEBUG_LOG("Creating a 128-bit float (PPC_FP128)");
+        return std::make_shared<Omniscript::Float<__float128>>(static_cast<__float128>(value));  // PPC_FP128 (128-bit)
+    }
+
+    // If necessary, handle other custom floating-point types (e.g., Half, etc.)
+    
+    return nullptr;  // If no valid type matches, return nullptr
+}
 
 // Arbitrary-precision integer (BigInt)
 std::shared_ptr<Omniscript::Value> BigInt::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
@@ -257,7 +289,9 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
             }
         } else {
             if (type->isPointer()) {
-                if (auto addressOf = std::dynamic_pointer_cast<AddressOf>(value)) {
+                if (auto nullpointer = std::dynamic_pointer_cast<Nullptr>(value)) {
+                    result = nullpointer->evaluate(scope);
+                } else if (auto addressOf = std::dynamic_pointer_cast<AddressOf>(value)) {
                     result = addressOf->evaluate(scope);
                     if (auto ptr = std::dynamic_pointer_cast<Omniscript::PointerValue>(result)) {
                         console.info("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->kindName() + "' and is pointing to a '" +
@@ -274,25 +308,72 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
                     } else {
                         console.error("Pointer '" + variable + "' is pointing to an invalid pointer type '" + result->toString() + "'.");
                     }
-                }
-                // else if (auto referenceTo = std::dynamic_pointer_cast<ReferenceTo>(value)) {
-                //     result = referenceTo->evaluate(scope);
+                } else if (auto referenceTo = std::dynamic_pointer_cast<ReferenceTo>(value)) {
+                    result = referenceTo->evaluate(scope);
                     
-                //     if (result->getType()->getKind() != type->getPointeeType()->getKind()) {
-                //         console.error("Pointer '" + variable + "' should point to a '" + type->kindName() + "' but is pointing to a '" +
-                //         type->getPointeeType()->kindName() + "' instead.");
-                //     }
-
-                // } 
-                else if (auto integer = std::dynamic_pointer_cast<IntegerLiteral>(value)) {
-                    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(integer)) {
-                        typed->setType(type);
+                    if (result->getType()->getKind() != type->getPointeeType()->getKind()) {
+                        console.error("Pointer '" + variable + "' should point to a '" + type->kindName() + "' but is pointing to a '" +
+                        type->getPointeeType()->kindName() + "' instead.");
                     }
-                    result = integer->evaluate(scope);
                 } else {
-                    console.error("Pointer '" + variable + "' can only be created from an integer or reference to an already existing variable.");
+                    console.error("Pointer '" + variable + "' can only be created from an integer or a reference to an already existing variable or nullptr.");
                 }
-            }
+            } else if (type->isReference()) {
+                DEBUG_LOG("HERE");
+                if (auto referenceTo = std::dynamic_pointer_cast<ReferenceTo>(value)) {
+                    DEBUG_LOG("HERE 1");
+                    auto ptr = scope.getPointerToValue(referenceTo->getName());
+                    DEBUG_LOG("HERE 2");
+                    if (!ptr || !*ptr) {
+                        DEBUG_LOG("HERE 2.1");
+                        console.error("Cannot create reference to undefined variable '" + referenceTo->getName() + "'.");
+                    } else {
+                        DEBUG_LOG("HERE 2.2");
+                        // Get the ultimate base types for comparison
+                        auto expectedBaseType = type->getBaseReferencedType();
+                        DEBUG_LOG("HERE 2.3");
+                        auto actualBaseType = (*ptr)->getType()->getBaseReferencedType();
+
+                        if (!actualBaseType) {
+                            actualBaseType = (*ptr)->getType();
+                        }
+
+                        DEBUG_LOG("HERE 2.4");
+                        
+                        DEBUG_LOG(expectedBaseType->kindName() + " " + actualBaseType->kindName());
+                        if (expectedBaseType->getKind() != actualBaseType->getKind()) {
+                            DEBUG_LOG("HERE 2.4.1");
+                            console.error("Reference '" + variable + "' expects base type '" +
+                                expectedBaseType->kindName() + "' but got '" +
+                                actualBaseType->kindName() + "' instead.");
+                        }
+                        DEBUG_LOG("HERE 2.5");
+                        // Check reference depth matches
+                        int expectedDepth = type->getReferenceDepth() - 1;
+                        DEBUG_LOG("HERE 2.6");
+                        int actualDepth = (*ptr)->getType()->getReferenceDepth();
+                        DEBUG_LOG("HERE 2.7");
+                        
+                        if (expectedDepth != actualDepth) {
+                            DEBUG_LOG("HERE 2.7.1");
+                            console.error("Reference '" + variable + "' expects " + 
+                                std::to_string(expectedDepth) + " level(s) of reference but got " +
+                                std::to_string(actualDepth) + " level(s) instead.");
+                        }
+                        DEBUG_LOG("HERE 2.8");
+                        result = Omniscript::make_value<Omniscript::ReferenceValue>(referenceTo->getName(), ptr);
+                        DEBUG_LOG("HERE 2.9");
+                    }
+                    DEBUG_LOG("HERE 3");
+                } else if (auto addressOf = std::dynamic_pointer_cast<AddressOf>(value)) {
+                    console.error("Cannot create reference from address-of expression for '" + variable + "'.");
+                } else if (auto nullpointer = std::dynamic_pointer_cast<Nullptr>(value)) {
+                    console.error("Cannot create reference from nullptr for '" + variable + "'.");
+                } else {
+                    console.error("Cannot bind reference '" + variable + "' to a non-variable.");
+                }
+                DEBUG_LOG("HERE 4");
+            } 
         }
     }
 
@@ -320,7 +401,7 @@ std::shared_ptr<Omniscript::Value> createDynamicVariable::evaluate(SymbolTable<s
 
 // Get Variable
 std::shared_ptr<Omniscript::Value> GetVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // return generator.getVariable(variable);
+    
     return nullptr;
 }
 

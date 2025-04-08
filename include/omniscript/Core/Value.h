@@ -52,7 +52,9 @@ public:
     virtual ~Type() = default;
 
     // ----- Instance methods -----
-    bool isPointer() const { return kind == Kind::Pointer; }
+    bool isPointer() const { return kind == Kind::Pointer || kind == Kind::Nullptr; }
+    bool isNull() const { return kind == Kind::Null || kind == Kind::Nullptr; }
+    bool isNullPointer() const { return kind == Kind::Nullptr; }
     bool isReference() const { return kind == Kind::Reference; }
     bool isFunction() const { return kind == Kind::Function; }
     bool isPrimitive() const { return kind == Kind::Primitive; }
@@ -124,22 +126,27 @@ public:
     bool isFloat(int bitWidth = -1) const {
         if (bitWidth == -1) {
             return kind == Kind::Half || kind == Kind::Float ||
-               kind == Kind::Double || kind == Kind::FP128 ||
-               kind == Kind::X86_FP80 || kind == Kind::PPC_FP128;
+                   kind == Kind::Double || kind == Kind::FP128 ||
+                   kind == Kind::X86_FP80 || kind == Kind::PPC_FP128;
         }
-        
+    
         // Check if the type matches the specified bit width for floats
-        if (bitWidth == 32) {
+        if (bitWidth == 16) {
+            return kind == Kind::Half;
+        } else if (bitWidth == 32) {
             return kind == Kind::Float;
         } else if (bitWidth == 64) {
             return kind == Kind::Double;
         } else if (bitWidth == 128) {
-            return kind == Kind::FP128;
+            return kind == Kind::FP128 || kind == Kind::PPC_FP128;  // PPC_FP128 also matches 128 bits
+        } else if (bitWidth == 80) {
+            return kind == Kind::X86_FP80;
         }
-        // Add more checks if necessary for other float types like X86_FP80 or PPC_FP128
+    
+        // If needed, you can add further checks for other non-standard float types
+    
         return false;
-    }
-
+    }    
 
     virtual std::shared_ptr<Type> getReturnType() const { return nullptr; }
 
@@ -147,15 +154,19 @@ public:
     Kind getKind() const { return kind; }
 
     // Access underlying types
+    virtual int getReferenceDepth() const { return 0; }
+    virtual int getPointerDepth() const { return 0; }
     virtual std::string pointerDescription() const { return ""; }
     virtual std::shared_ptr<Type> getPointeeType() const { return nullptr; }
     virtual std::shared_ptr<Type> getBasePointeeType() const { return nullptr; }
     virtual std::shared_ptr<Type> getReferencedType() const { return nullptr; }
+    virtual std::shared_ptr<Type> getBaseReferencedType() const { return nullptr; }
     virtual std::shared_ptr<Type> getElementType() const { return nullptr; }
 
     // ----- Static factory methods -----
     static std::shared_ptr<Type> createInvalid();
     static std::shared_ptr<Type> createPrimitiveType(Kind kind);
+    static std::shared_ptr<Type> createNullPointerType();
     static std::shared_ptr<Type> createPointerType(std::shared_ptr<Type> pointee);
     static std::shared_ptr<Type> createReferenceType(std::shared_ptr<Type> referent);
     static std::shared_ptr<Type> createFunctionType(Kind returnKind, std::vector<std::shared_ptr<Type>> params, bool isVarArg = false);
@@ -189,6 +200,7 @@ public:
 
         if constexpr (std::is_same_v<T, float>) return Kind::Float;
         if constexpr (std::is_same_v<T, double>) return Kind::Double;
+        if constexpr (std::is_same_v<T, __float128>) return Kind::FP128;
         if constexpr (std::is_same_v<T, long double>) return Kind::FP128;
 
         if constexpr (std::is_same_v<T, std::string>) return Kind::String;
@@ -225,7 +237,7 @@ public:
     }
 
     // Method to get the pointer depth recursively
-    int getPointerDepth() const {
+    int getPointerDepth() const override {
         int depth = 0;
         auto currentPointee = pointee;
 
@@ -254,7 +266,7 @@ public:
     
         // Walk through all pointer levels
         while (current->isPointer()) {
-            parts.push_back("pointer to");
+            parts.push_back("pointer");
             current = std::dynamic_pointer_cast<PointerType>(current)->getPointeeType();
         }
     
@@ -275,16 +287,77 @@ public:
     }    
 };
 
+class NullPointerType : public Type {
+public:
+    NullPointerType() {  // You can use any default 'unknown' type
+        kind = Kind::Nullptr;
+    }
+
+    std::string pointerDescription() const override {
+        return "nullptr";
+    }
+};
+
 
 class ReferenceType : public Type {
 public:
     std::shared_ptr<Type> referentType;
 
     explicit ReferenceType(std::shared_ptr<Type> referentType)
-        : referentType(std::move(referentType)) {
+        : referentType(referentType) {
         kind = Kind::Reference;
     }
+
+    std::shared_ptr<Type> getReferencedType() const override { 
+        return referentType; 
+    }
+
+    // Get depth of reference levels (e.g., &&var is depth 2)
+    int getReferenceDepth() const override {
+        int depth = 1;  // start from 1 since this is already a reference
+        auto current = referentType;
+
+        while (current->isReference()) {
+            depth++;
+            current = std::dynamic_pointer_cast<ReferenceType>(current)->getReferencedType();
+        }
+
+        return depth;
+    }
+
+    // Get the ultimate base type (i.e., the non-reference type at the bottom)
+    std::shared_ptr<Type> getBaseReferencedType() const override {
+        auto current = referentType;
+
+        while (current->isReference()) {
+            current = std::dynamic_pointer_cast<ReferenceType>(current)->getReferencedType();
+        }
+
+        return current;
+    }
+
+    std::string referenceDescription() const {
+        std::vector<std::string> parts;
+        std::shared_ptr<Type> current = referentType;
+
+        while (current->isReference()) {
+            parts.push_back("reference");
+            current = std::dynamic_pointer_cast<ReferenceType>(current)->getReferencedType();
+        }
+
+        parts.push_back(current->kindName());
+        std::reverse(parts.begin(), parts.end());
+
+        std::string desc;
+        for (const auto& part : parts) {
+            if (!desc.empty()) desc += " ";
+            desc += part;
+        }
+
+        return desc;
+    }
 };
+
 
 class FunctionType : public Type {
 public:
@@ -387,7 +460,7 @@ inline std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
         else if (baseType == "half" || baseType == "f16") type = Type::createPrimitiveType(Kind::Half);
         else if (baseType == "float" || baseType == "f32") type = Type::createPrimitiveType(Kind::Float);
         else if (baseType == "double" || baseType == "f64") type = Type::createPrimitiveType(Kind::Double);
-        else if (baseType == "fp128" || baseType == "f128" || baseType == "long double") type = Type::createPrimitiveType(Kind::FP128);
+        else if (baseType == "fp128" || baseType == "f128" || baseType == "long_double") type = Type::createPrimitiveType(Kind::FP128);
         else if (baseType == "x86_fp80" || baseType == "x86_80bit" || baseType == "x87_FP80" || baseType == "Intel_FP80") type = Type::createPrimitiveType(Kind::X86_FP80);
         else if (baseType == "ppc_fp128" || baseType == "PPC_double_extended" || baseType == "PPC_F128" || baseType == "PPC_Quad") type = Type::createPrimitiveType(Kind::PPC_FP128);
 
@@ -462,6 +535,14 @@ struct Primitive : public Value {
             return "Primitive: " + value;
         } else if constexpr (std::is_same_v<T, bool>) {
             return std::string("Primitive: ") + (value ? "true" : "false");
+        } else if constexpr (std::is_same_v<T, __float128>) {
+            // Custom handling for __float128 type
+            char buffer[128];  // Allocate enough space for the representation
+            snprintf(buffer, sizeof(buffer), "%.*Lf", 36, (long double)value); // Print with long double format
+            return std::string("Primitive: ") + buffer;
+        } else if constexpr (std::is_same_v<T, _Float16>) {
+            // Custom handling for _Float16 type
+            return "Primitive: " + std::to_string(static_cast<float>(value)); // Convert _Float16 to float
         } else {
             return "Primitive: " + std::to_string(value);
         }
@@ -533,6 +614,14 @@ struct PointerValue : public Value {
     std::string toString() const override { return "Pointer"; } 
 };
 
+struct NullPointerValue : public Value {
+    NullPointerValue() {
+        type = Type::createNullPointerType();
+    }
+
+    std::string toString() const override { return "NullPointer"; } 
+};
+
 struct AddressOfValue : public Value {
     std::shared_ptr<Value> referent;  // The variable whose address is being stored
     std::string variableName;
@@ -551,15 +640,39 @@ struct AddressOfValue : public Value {
 
 // Reference Types
 struct ReferenceValue : public Value {
-    std::shared_ptr<Value> referent;
     std::string referentName;
+    std::shared_ptr<Value>* referentPtr = nullptr;  // Pointer to a reference
+    std::shared_ptr<Value> referent = nullptr;     // Pointer to a value (for regular pointers)
 
+    // Constructor for pointers (original)
     explicit ReferenceValue(const std::string& referentName, std::shared_ptr<Value> referent = nullptr)
-        : referentName(referentName), referent(std::move(referent)) {
+        : referentName(referentName), referent(referent) {
         type = Type::createReferenceType(this->referent->type);
     }
 
-    std::string toString() const override { return "Reference"; } 
+    // Constructor for references (using a reference pointer)
+    explicit ReferenceValue(const std::string& name, std::shared_ptr<Value>* referentPtr)
+        : referentName(name), referentPtr(referentPtr) {
+        if (referentPtr && *referentPtr) {
+            type = Type::createReferenceType((*referentPtr)->type);
+        }
+    }
+
+    // Getter for value, works for both pointers and references
+    std::shared_ptr<Value> getValue() const {
+        if (referent) {
+            return referent;  // Regular pointer, just return the referent
+        }
+        return (referentPtr && *referentPtr) ? *referentPtr : nullptr;  // Dereference reference pointer
+    }
+
+    // String representation for both pointers and references
+    std::string toString() const override {
+        if (referent) {
+            return "Pointer to(" + referent->toString() + ")";
+        }
+        return "Reference to(" + (referentPtr && *referentPtr ? (*referentPtr)->toString() : "null") + ")";
+    }
 };
 
 
@@ -636,17 +749,6 @@ struct VariableAccess : public Value {
 
     explicit VariableAccess(std::string name)
         : variableName(std::move(name)) {}
-
-    // std::shared_ptr<Value> evaluate(SymbolTable& scope) override {
-    //     if (!scope.contains(variableName)) {
-    //         std::cerr << "[ERROR] Variable '" << variableName << "' is not defined in the current scope." << std::endl;
-    //         return nullptr;
-    //     }
-
-    //     std::shared_ptr<Value> value = scope.get(variableName);
-    //     type = value->type; // Propagate type info
-    //     return value;
-    // }
 
     std::string toString() const override {
         return "Variable: " + variableName;

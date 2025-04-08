@@ -55,6 +55,13 @@ public:
         return result;
     }
 
+    T* getPointerToValue(const std::string& name) {
+        if (auto it = variables_.find(name); it != variables_.end()) return &it->second;
+        if (auto it = constants_.find(name); it != constants_.end()) return &it->second;
+        return parent_ ? parent_->getPointerToValue(name) : nullptr;
+    }
+    
+
     // ==================== SCOPE MANAGEMENT ====================
     std::shared_ptr<SymbolTable<T>> createChildScope() {
         return std::make_shared<SymbolTable<T>>(*this);

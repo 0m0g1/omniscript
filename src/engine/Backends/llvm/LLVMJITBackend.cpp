@@ -27,10 +27,10 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     for (const auto& statement : statements) {
         DEBUG_LOG("1. Evaluating a " + statement->toString());
         std::shared_ptr<Omniscript::Value> result = statement->evaluate(*scope);
+        if (!result) continue;
+
         DEBUG_LOG();
         DEBUG_LOG("2. Generating LLVM IR for '" + result->toString() + "'.");
-        
-        if (!result) continue;
         
         // Generate LLVM IR for each statement
         llvm::Value* ir = irGen->codegen(result, scope);

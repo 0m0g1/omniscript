@@ -47,20 +47,23 @@ public:
                 Omniscript::filePosition position = Omniscript::getPosition();
 
                 // Format the error message
-                std::string errorMessage = std::string("\033[1;31m") + "ERROR in file: '" + position.filePath + 
-                                        "' line: " + std::to_string(position.line) + 
-                                        ", column: " + std::to_string(position.col) + ".\033[0m\n\n" + 
+                std::string errorMessage = std::string("\033[1;31m") + "ERROR in file: '" + 
+                                        position.filePath + ":" + std::to_string(position.col) + ":" +
+                                        std::to_string(position.line) + ":'" +
+                                        " column: " + std::to_string(position.col) +
+                                        ", line: " + std::to_string(position.line) + ".\033[0m\n\n" + 
                                         message + "\n\nPress Enter to terminate...\n";
 
                 // Print to the console
                 std::cerr << errorMessage;
 
                 // Log the error to a file (append mode)
-                std::ofstream logFile("error_log.txt", std::ios::app);
+                std::ofstream logFile("error_log.txt", std::ios::out | std::ios::trunc);
                 if (logFile.is_open()) {
-                    logFile << "ERROR in file: '" << position.fileName
-                            << "' line: " << position.line
-                            << ", column: " << position.col << ".\n"
+                    logFile << "ERROR in file: '" << position.fileName << ":"
+                            << position.col << ":" << position.line << ":"
+                            << "' column: " << position.col << ".\n"
+                            << ", line: " << position.line
                             << message << "\n\n";
                     logFile.close();
                 } else {
