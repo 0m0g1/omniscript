@@ -302,7 +302,7 @@ public:
 
     explicit StringLiteral(std::string val) : value(std::move(val)) {}
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "StringLiteralStatement"; }
 };
 
 class BoolLiteral : public Literal {

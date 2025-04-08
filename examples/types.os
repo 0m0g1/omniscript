@@ -63,7 +63,7 @@ let s : &bool = j; // Reference to a bool
 // let ss : &&bool = s; // Reference to a bool
 
 // String and character arrays
-// let t : char* = "Hello, OmniScript++!"; // String (C-style)
+let t : char* = "Hello, OmniScript++!"; // String (C-style)
 // let u : [5]char = ['H', 'e', 'l', 'l', 'o']; // Character array
 // let uu : [5]i32 = [1,2,3,4,5]; // Character array
 // let uuu : [5]i32 = [1,2,3,4,5]; // multidimentional array

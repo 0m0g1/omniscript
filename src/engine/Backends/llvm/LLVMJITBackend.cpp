@@ -1,3 +1,4 @@
+#include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Backends/llvm/LLVMJITBackend.h>
 
@@ -26,6 +27,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     
     for (const auto& statement : statements) {
         DEBUG_LOG("1. Evaluating a " + statement->toString());
+        Omniscript::setPosition(statement->getPosition());
         std::shared_ptr<Omniscript::Value> result = statement->evaluate(*scope);
         if (!result) continue;
 

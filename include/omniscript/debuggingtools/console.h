@@ -50,8 +50,8 @@ public:
                 std::string errorMessage = std::string("\033[1;31m") + "ERROR in file: '" + 
                                         position.filePath + ":" + std::to_string(position.col) + ":" +
                                         std::to_string(position.line) + ":'" +
-                                        " column: " + std::to_string(position.col) +
-                                        ", line: " + std::to_string(position.line) + ".\033[0m\n\n" + 
+                                        "' line: " + std::to_string(position.line) + 
+                                        ", column: " + std::to_string(position.col) +".\033[0m\n\n" + 
                                         message + "\n\nPress Enter to terminate...\n";
 
                 // Print to the console
@@ -62,8 +62,8 @@ public:
                 if (logFile.is_open()) {
                     logFile << "ERROR in file: '" << position.fileName << ":"
                             << position.col << ":" << position.line << ":"
-                            << "' column: " << position.col << ".\n"
-                            << ", line: " << position.line
+                            << "' line: " << position.line
+                            << ", column: " << position.col << ".\n"
                             << message << "\n\n";
                     logFile.close();
                 } else {

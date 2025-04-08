@@ -618,6 +618,13 @@ std::shared_ptr<Statement> Parser::factor() {
     else if (currentToken.getType() == TokenTypes::StringLiteral) {
         eat(TokenTypes::StringLiteral);
         left = std::make_shared<StringLiteral>(previousToken.getValue());
+    } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
+        eat(TokenTypes::BitwiseAnd);
+        if (currentToken.getType() == TokenTypes::Identifier) {
+            std::string varName = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+            left = std::make_shared<AddressOf>(varName);
+        }
     } else if (currentToken.getType() == TokenTypes::Nullptr) {
         eat(TokenTypes::Nullptr);
         left = std::make_shared<Nullptr>();
@@ -1992,10 +1999,7 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
                         eat(TokenTypes::Nullptr);
                         value = std::make_shared<Nullptr>();
                     } else {
-                        eat(TokenTypes::BitwiseAnd);
-                        std::string varName = currentToken.getValue();
-                        eat(TokenTypes::Identifier);
-                        value = std::make_shared<AddressOf>(varName);
+                        value = factor();
                     }
                 } else {
                     eat(TokenTypes::Semicolon);

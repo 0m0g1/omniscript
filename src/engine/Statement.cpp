@@ -315,8 +315,15 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
                         console.error("Pointer '" + variable + "' should point to a '" + type->kindName() + "' but is pointing to a '" +
                         type->getPointeeType()->kindName() + "' instead.");
                     }
+                } else if (auto referenceTo = std::dynamic_pointer_cast<StringLiteral>(value)) {
+                    // result = referenceTo->evaluate(scope);
+                    
+                    // if (result->getType()->getKind() != type->getPointeeType()->getKind()) {
+                    //     console.error("Pointer '" + variable + "' should point to a '" + type->kindName() + "' but is pointing to a '" +
+                    //     type->getPointeeType()->kindName() + "' instead.");
+                    // }
                 } else {
-                    console.error("Pointer '" + variable + "' can only be created from an integer or a reference to an already existing variable or nullptr.");
+                    console.error("Pointer '" + variable + "' can only be created from an integer, a reference to an already existing variable, nullptr or a string from a (char*).");
                 }
             } else if (type->isReference()) {
                 DEBUG_LOG("HERE");
