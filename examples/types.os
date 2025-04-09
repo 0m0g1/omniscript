@@ -63,11 +63,11 @@
 // // let ss : &&bool = s; // Reference to a bool
 
 // String and character arrays
-let t : char* = "Hello, OmniScript++!"; // String (C-style)
-let tt : utf8 = "Hello, OmniScript++!"; // String (C-style)
-let ttt : utf16 = "Hello, OmniScript++!"; // String (C-style)
-let tttt : utf32 = "Hello, OmniScript++!"; // String (C-style)
-// let u : [5]char = ['H', 'e', 'l', 'l', 'o']; // Character array
+// let t : char* = "Hello, OmniScript++!"; // String (C-style)
+// let tt : utf8 = "Hello, OmniScript++!"; // String (C-style)
+// let ttt : utf16 = "Hello, OmniScript++!"; // String (C-style)
+// let tttt : utf32 = "Hello, OmniScript++!"; // String (C-style)
+let u : [5] = ['H', 'e', 'l', 'l', 'o']; // Character array
 // let uu : [5]i32 = [1,2,3,4,5]; // Character array
 // let uuu : [5]i32 = [1,2,3,4,5]; // multidimentional array
 

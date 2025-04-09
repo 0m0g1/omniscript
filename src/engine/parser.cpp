@@ -655,7 +655,7 @@ std::shared_ptr<Statement> Parser::factor() {
         eat(TokenTypes::RightBracket);  // Consume the closing bracket "]"
 
         // Store the array directly as a value
-        left = std::make_shared<FixedArray>(items);
+        left = std::make_shared<Array>(items);
     }
 
     // Handle expressions within parentheses
@@ -1937,7 +1937,7 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
             if (currentToken.getType() == TokenTypes::Identifier) {
                 dataTypes.push_back(currentToken.getValue());
                 eat(TokenTypes::Identifier);
-            } else {
+            } else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
                 dataTypes.push_back(currentToken.getValue());
                 eat(TokenTypes::IntegerLiteral);
             }
@@ -1972,7 +1972,6 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
         }
 
         return std::make_shared<createVariable>(variableName, nullptr, result);
-        console.warn("To do...");
     }    
 
     type = Omniscript::resolveType(dataTypes);
@@ -2021,13 +2020,13 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
                 eat(TokenTypes::Assign);
                 value = parseExpression();
 
-                if (auto arry = std::dynamic_pointer_cast<FixedArray>(value)) {
+                if (auto arry = std::dynamic_pointer_cast<Array>(value)) {
                     arry->setType(type);
-                    for (const auto& element : arry->initialValues) {
-                        if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(element)) {
-                            stmt->setType(type);
-                        }
-                    }
+                //     for (const auto& element : arry->initialValues) {
+                //         if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(element)) {
+                //             stmt->setType(type);
+                //         }
+                //     }
                 }
             } else {
                 DEBUG_LOG("Assigning a binary or ternary expression");

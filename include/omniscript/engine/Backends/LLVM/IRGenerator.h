@@ -201,7 +201,7 @@ public:
     llvm::Value* getDynamicVariable(const std::string& name);
     llvm::Value* generateOpaqueDynamicVariable(const std::string& name, llvm::Value* value);
 
-    llvm::Value* createStaticFixedArray(llvm::Type* elementType, size_t arraySize, const std::vector<llvm::Value*>& elements);
+    llvm::Value* createFixedArray(llvm::Type* elementType, size_t arraySize, const std::vector<llvm::Value*>& elements);
     llvm::Function* createFunction(const FunctionDeclaration& funcDecl);
     void generateFunctionBody(llvm::Function* function, const FunctionDeclaration& funcDecl);
     llvm::AllocaInst* createEntryBlockAlloca(llvm::Function* function,llvm::Type* type, const std::string& name);

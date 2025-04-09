@@ -293,7 +293,7 @@ public:
 
     explicit CharacterLiteral(char val) : value(std::move(val)) {}
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "CharacterLiteralStatement"; }
 };
     
 
@@ -312,19 +312,19 @@ public:
 
     explicit BoolLiteral(bool val) : value(std::move(val)) {}
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "BoolLiteralStatement"; }
 };
 
-class FixedArray : public Literal {
+class Array : public Literal {
 public:
     size_t arraySize;
     std::vector<std::shared_ptr<Statement>> initialValues; // Optional initial values
 
-    FixedArray(std::vector<std::shared_ptr<Statement>> values = {})
+    Array(std::vector<std::shared_ptr<Statement>> values = {})
         : initialValues(std::move(values)) {}
 
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "ArrayStatement"; }
 };
 
         

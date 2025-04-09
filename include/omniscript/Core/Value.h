@@ -45,12 +45,19 @@ enum class Kind {
     Utf8,
     Utf16,
     Utf32,
+
+    //ArrayTypes
+    FixedArray,       // e.g., [4]i32
+    DynamicArray,     // e.g., [i32]
+    HeterogeneousArray // e.g., []
 };
 
 // Base class for all type representations
 class Type {
 public:
     Kind kind = Kind::Invalid;
+    std::shared_ptr<Type> elementType;
+    size_t fixedSize = 0;
     virtual ~Type() = default;
 
     // ----- Instance methods -----
@@ -61,8 +68,11 @@ public:
     bool isReference() const { return kind == Kind::Reference; }
     bool isFunction() const { return kind == Kind::Function; }
     bool isPrimitive() const { return kind == Kind::Primitive; }
-    bool isArray() const { return kind == Kind::Array; }
-    
+    bool isArray() const { return kind == Kind::FixedArray || kind == Kind::DynamicArray || kind == Kind::HeterogeneousArray; }
+    bool isFixedArray() const { return kind == Kind::FixedArray; }
+    bool isDynamicArray() const { return kind == Kind::DynamicArray; }
+    bool isHeterogeneousArray() const { return kind == Kind::HeterogeneousArray; }
+
     bool isNumericLiteral() const {
         return isInteger() || isFloat();
     }
@@ -197,6 +207,9 @@ public:
     static std::shared_ptr<Type> createReferenceType(std::shared_ptr<Type> referent);
     static std::shared_ptr<Type> createFunctionType(Kind returnKind, std::vector<std::shared_ptr<Type>> params, bool isVarArg = false);
     static std::shared_ptr<Type> createStringType(Kind stringKind = Kind::String);
+    static std::shared_ptr<Type> createFixedArrayType(std::shared_ptr<Type> elementType, size_t size);
+    static std::shared_ptr<Type> createDynamicArrayType(std::shared_ptr<Type> elementType);
+    static std::shared_ptr<Type> createHeterogeneousArrayType();
 };
 
 // --- Derived Types ---
@@ -402,134 +415,7 @@ public:
 };
 
 
-inline std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
-    if (dataTypes.empty()) {
-        return Type::createPrimitiveType(Kind::Int32); // Default to i32
-    }
-
-    size_t index = 0;
-    int totalPointerDepth = 0;
-    int totalReferenceDepth = 0;
-    bool isArray = false;
-    uint64_t arraySize = 0;
-    std::string baseType;
-
-    // Array detection
-    if (dataTypes[index] == "[") {
-        if (index + 2 < dataTypes.size() && std::all_of(dataTypes[index + 1].begin(), dataTypes[index + 1].end(), ::isdigit)) {
-            arraySize = std::stoull(dataTypes[index + 1]);
-            index += 3; // Skip "[", "size", "]"
-        } else {
-            arraySize = 0; // Dynamic array
-            index += 3;
-        }
-        isArray = true;
-    }
-
-    // References
-    while (index < dataTypes.size() && dataTypes[index] == "&") {
-        totalReferenceDepth++;
-        index++;
-    }
-
-    // Pointers
-    while (index < dataTypes.size() && dataTypes[index] == "*") {
-        totalPointerDepth++;
-        index++;
-    }
-
-    if (index >= dataTypes.size()) {
-        std::cerr << "[ERROR] No base type found after modifiers!" << std::endl;
-        return nullptr;
-    }
-
-    baseType = dataTypes[index++];
-
-    // Post-type pointer depth
-    while (index < dataTypes.size() && dataTypes[index] == "*") {
-        totalPointerDepth++;
-        index++;
-    }
-
-    std::shared_ptr<Type> type;
-
-    if (!type) {
-        DEBUG_LOG("Resolving base type: " + baseType);
-    
-        // Signed integers
-        if (baseType == "int" || baseType == "i32" || baseType == "int32") type = Type::createPrimitiveType(Kind::Int32);
-        else if (baseType == "int8" || baseType == "i8") type = Type::createPrimitiveType(Kind::Int8);
-        else if (baseType == "int16" || baseType == "i16") type = Type::createPrimitiveType(Kind::Int16);
-        else if (baseType == "int64" || baseType == "i64") type = Type::createPrimitiveType(Kind::Int64);
-        else if (baseType == "int128" || baseType == "i128") type = Type::createPrimitiveType(Kind::Int128);
-        else if (baseType == "int256" || baseType == "i256") type = Type::createPrimitiveType(Kind::Int256);
-        else if (baseType == "int512" || baseType == "i512") type = Type::createPrimitiveType(Kind::Int512);
-        else if (baseType == "int1024" || baseType == "i1024") type = Type::createPrimitiveType(Kind::Int1024);
-        else if (baseType == "BigInt") type = Type::createPrimitiveType(Kind::BigInt);
-    
-        // Unsigned integers
-        else if (baseType == "uint" || baseType == "u32" || baseType == "uint32") type = Type::createPrimitiveType(Kind::UInt32);
-        else if (baseType == "uint8" || baseType == "u8") type = Type::createPrimitiveType(Kind::UInt8);
-        else if (baseType == "uint16" || baseType == "u16") type = Type::createPrimitiveType(Kind::UInt16);
-        else if (baseType == "uint64" || baseType == "u64") type = Type::createPrimitiveType(Kind::UInt64);
-        else if (baseType == "uint128" || baseType == "u128") type = Type::createPrimitiveType(Kind::UInt128);
-        else if (baseType == "uint256" || baseType == "u256") type = Type::createPrimitiveType(Kind::UInt256);
-        else if (baseType == "uint512" || baseType == "u512") type = Type::createPrimitiveType(Kind::UInt512);
-        else if (baseType == "uint1024" || baseType == "u1024") type = Type::createPrimitiveType(Kind::UInt1024);
-    
-        // Other primitives
-        else if (baseType == "bool") type = Type::createPrimitiveType(Kind::Bool);
-        else if (baseType == "char") type = Type::createPrimitiveType(Kind::Char);
-        else if (baseType == "void") type = Type::createPrimitiveType(Kind::Void);
-    
-        // Floating point
-        else if (baseType == "half" || baseType == "f16") type = Type::createPrimitiveType(Kind::Half);
-        else if (baseType == "float" || baseType == "f32") type = Type::createPrimitiveType(Kind::Float);
-        else if (baseType == "double" || baseType == "f64") type = Type::createPrimitiveType(Kind::Double);
-        else if (baseType == "fp128" || baseType == "f128" || baseType == "long_double") type = Type::createPrimitiveType(Kind::FP128);
-        else if (baseType == "x86_fp80" || baseType == "x86_80bit" || baseType == "x87_FP80" || baseType == "Intel_FP80") type = Type::createPrimitiveType(Kind::X86_FP80);
-        else if (baseType == "ppc_fp128" || baseType == "PPC_double_extended" || baseType == "PPC_F128" || baseType == "PPC_Quad") type = Type::createPrimitiveType(Kind::PPC_FP128);
-
-    
-        // Strings / UTF
-        else if (baseType == "string" || baseType == "str" || baseType == "utf8") {
-            type = Type::createPrimitiveType(Kind::Char);
-            totalPointerDepth++;
-        }
-        else if (baseType == "utf16") {
-            type = Type::createPrimitiveType(Kind::Utf16);
-            totalPointerDepth++;
-        }
-        else if (baseType == "utf32") {
-            type = Type::createPrimitiveType(Kind::Utf32);
-            totalPointerDepth++;
-        }
-    
-        // Fallback
-        else {
-            console.error("Type: '" + baseType + "' is supported in omniscript");
-            return nullptr;
-        }
-    }
-    
-
-    // Wrap in array if needed
-    if (isArray) {
-        // type = std::make_shared<ArrayType>(type, arraySize);
-    }
-
-    // Wrap in references
-    for (int i = 0; i < totalReferenceDepth; ++i) {
-        type = Type::createReferenceType(type);
-    }
-
-    // Wrap in pointers
-    for (int i = 0; i < totalPointerDepth; ++i) {
-        type = Type::createPointerType(type);
-    }
-
-    return type;
-}
+std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes);
 
 
 // ====================================== Values ====================================== //
@@ -782,6 +668,59 @@ struct VariableAccess : public Value {
     }
 };
 
+struct ArrayValue : public Value {
+    std::vector<std::shared_ptr<Value>> elements;
+
+    explicit ArrayValue(std::shared_ptr<Type> type, std::vector<std::shared_ptr<Value>> elements)
+        : elements(std::move(elements)) {
+        this->type = std::move(type);
+    }
+
+    std::string toString() const override {
+        std::string s = "[";
+        for (size_t i = 0; i < elements.size(); ++i) {
+            s += elements[i] ? elements[i]->toString() : "null";
+            if (i + 1 < elements.size()) s += ", ";
+        }
+        return s + "]";
+    }
+
+    void push(std::shared_ptr<Value> val) {
+        elements.push_back(std::move(val));
+    }
+
+    std::shared_ptr<Value> get(size_t index) const {
+        return index < elements.size() ? elements[index] : nullptr;
+    }
+
+    const std::vector<std::shared_ptr<Value>>& getElements() const {
+        return elements;
+    }
+};
+
+class FixedArrayValue : public Value {
+public:
+    std::vector<std::shared_ptr<Value>> elements;
+    std::shared_ptr<Type> elementType;
+
+    FixedArrayValue(std::vector<std::shared_ptr<Value>> elems, std::shared_ptr<Type> elemType)
+        : elements(std::move(elems)), elementType(std::move(elemType)) {
+            type = Type::createFixedArrayType(elemType, elems.size());
+        }
+
+    std::string typeName() const {
+        return "FixedArray<" + (elementType ? elementType->kindName() : "unknown") + ">";
+    }
+
+    std::string toString() const override {
+        std::string result = "[";
+        for (size_t i = 0; i < elements.size(); ++i) {
+            result += elements[i]->toString();
+            if (i < elements.size() - 1) result += ", ";
+        }
+        return result + "]";
+    }
+};
 
 }
 

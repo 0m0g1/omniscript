@@ -173,7 +173,6 @@ std::shared_ptr<Omniscript::Value> IntegerLiteral::evaluate(SymbolTable<std::sha
 }
 
 
-
 std::shared_ptr<Omniscript::Value> FloatLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
     if (!type->isFloat()) {
         console.error("The specified type is " + type->kindName() + " but this should return a float.");
@@ -565,20 +564,106 @@ std::shared_ptr<Omniscript::Value> ReturnStatement::evaluate(SymbolTable<std::sh
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> FixedArray::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // if (!llvmType) {
-    //     llvm::errs() << "Error: Unknown element type in FixedArrayStatement.\n";
-    //     return nullptr;
-    // }
+std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+    DEBUG_LOG("Creating an array");
+    if (!type) {
+        DEBUG_LOG("The array has no type");
+        std::vector<std::shared_ptr<Omniscript::Value>> values;
+        std::shared_ptr<Omniscript::Type> inferredType = nullptr;
+        bool allSameType = true;
+        
+        for (const auto& expr : initialValues) {
+            auto val = expr->evaluate(scope);
+            if (!val) continue;
+    
+            auto valType = val->getType();
+            if (!inferredType) {
+                inferredType = valType; // Infer from first element
+            } else if (valType->getKind() != inferredType->getKind()) {
+                allSameType = false;
+            }
+            
+            values.push_back(val);
+        }
+        
+        if (!allSameType) {
+            // Future: return DynamicArrayValue(values)
+            DEBUG_LOG("Creating a Heterogeneous Dynamic Array");
+            return nullptr;
+        }
 
-    // // Generate code for each initializer expression
-    // std::vector<std::shared_ptr<Omniscript::Value>> elementValues;
-    // for (const auto& expr : initialValues) {
-    //     elementValues.push_back(expr->evaluate(scope));
-    // }
+        DEBUG_LOG("Creating a fixed Array");
+        return std::make_shared<Omniscript::FixedArrayValue>(values, inferredType);
+    }
+    
+    DEBUG_LOG("The array has a type " + type->kindName());
+    if (type->isFixedArray()) {
+        DEBUG_LOG("Creating a fixed Array");
+        std::vector<std::shared_ptr<Omniscript::Value>> values;
+        std::shared_ptr<Omniscript::Type> expectedElementType = type->getElementType();  // Assume you have this method
 
-    // // Call the function to create the static fixed array
-    // return generator.createStaticFixedArray(llvmType, elementValues.size(), elementValues);
+        for (const auto& expr : initialValues) {
+            std::shared_ptr<Omniscript::Value> val;
+
+            if (auto typed = std::dynamic_pointer_cast<TypedStatement>(expr)) {
+                if (!typed->getType()) {
+                    typed->setType(type);
+                }
+            }
+            
+            val = expr->evaluate(scope);
+
+            if (!val) continue;
+            std::shared_ptr<Omniscript::Type> actualType = val->getType();
+
+            bool isMatch = false;
+            
+            // Check for pointer type compatibility
+            if (expectedElementType->isPointer() && actualType->isPointer()) {
+                isMatch =
+                    expectedElementType->getPointerDepth() == actualType->getPointerDepth() &&
+                    expectedElementType->getBasePointeeType()->getKind() == actualType->getBasePointeeType()->getKind();
+            }
+            // Check for reference type compatibility
+            else if (expectedElementType->isReference() && actualType->isReference()) {
+                isMatch =
+                    expectedElementType->getReferenceDepth() == actualType->getReferenceDepth() &&
+                    expectedElementType->getBaseReferencedType()->getKind() == actualType->getBaseReferencedType()->getKind();
+            }
+            // Fallback to simple kind match
+            else {
+                isMatch = actualType->getKind() == expectedElementType->getKind();
+            }
+
+
+            if (!isMatch) {
+                if (type->isPointer()) {
+                    console.error("Array element is of type " + actualType->pointerDescription() +
+                                  " but expected type " + expectedElementType->pointerDescription());
+                } else {
+                    console.error("Array element is of type " + actualType->kindName() +
+                                  " but expected type " + expectedElementType->kindName());
+                }
+            }
+
+            values.push_back(val);
+        }
+        
+        return std::make_shared<Omniscript::FixedArrayValue>(values, expectedElementType);
+    }
+    
+    if (type->isDynamicArray()) {
+        DEBUG_LOG("Creating a dynamic Array");
+        // Dynamic arrays logic here
+        return nullptr;
+    }
+    
+    if (type->isHeterogeneousArray()) {
+        DEBUG_LOG("Creating a heterogeneous dynamic Array");
+        // Heterogeneous arrays logic here
+        return nullptr;
+    }
+
     return nullptr;
 }
 

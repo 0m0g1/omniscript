@@ -231,6 +231,17 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> va
     else if (auto bigInt = std::dynamic_pointer_cast<Omniscript::BigInt>(value)) {
         return createBigInt(bigInt->getValue(), bigInt->getBitWidth());
     }
+    else if (auto arry = std::dynamic_pointer_cast<Omniscript::FixedArrayValue>(value)) {
+        std::vector<llvm::Value*> elems;
+
+        for (const auto elem : arry->elements) {
+            elems.push_back(this->codegen(elem, scope));
+        }
+        
+        llvm::Type* elementType = resolveLLVMType(arry->getType());
+
+        return createFixedArray(elementType, elems.size(), elems);
+    }
 
     // Return nullptr if no matching type was found
     return nullptr;
@@ -1163,7 +1174,7 @@ llvm::Value* IRGenerator::generateOpaqueDynamicVariable(const std::string& name,
     return alloca;
 }
 
-llvm::Value* IRGenerator::createStaticFixedArray(
+llvm::Value* IRGenerator::createFixedArray(
     llvm::Type* elementType, 
     size_t size, 
     const std::vector<llvm::Value*>& elements) {
