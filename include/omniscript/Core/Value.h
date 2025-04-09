@@ -42,7 +42,9 @@ enum class Kind {
 
     // Custom Types
     String,
-    WideString
+    Utf8,
+    Utf16,
+    Utf32,
 };
 
 // Base class for all type representations
@@ -52,6 +54,7 @@ public:
     virtual ~Type() = default;
 
     // ----- Instance methods -----
+    bool isChar() const { return kind == Kind::Char; }
     bool isPointer() const { return kind == Kind::Pointer || kind == Kind::Nullptr; }
     bool isNull() const { return kind == Kind::Null || kind == Kind::Nullptr; }
     bool isNullPointer() const { return kind == Kind::Nullptr; }
@@ -59,11 +62,34 @@ public:
     bool isFunction() const { return kind == Kind::Function; }
     bool isPrimitive() const { return kind == Kind::Primitive; }
     bool isArray() const { return kind == Kind::Array; }
-
+    
     bool isNumericLiteral() const {
         return isInteger() || isFloat();
     }
     
+    bool isString(int bitwidth = -1) const {
+        if (bitwidth == -1) {
+            return kind == Kind::String || 
+            kind == Kind::Utf8 || 
+            kind == Kind::Utf16 || 
+            kind == Kind::Utf32;
+        }
+
+        switch (bitwidth) {
+            case 8:
+                return kind == Kind::String || kind == Kind::Utf8;
+                break;
+            case 16:
+                return kind == Kind::Utf16;
+                break;
+            case 32:
+                return kind == Kind::Utf32;
+                break;
+            default:
+                return false;
+        }
+    }
+
     bool isInteger(int bitwidth = -1) const {
         // If no bitwidth is specified, just check if the kind is an integer
         if (bitwidth == -1) {
@@ -170,8 +196,7 @@ public:
     static std::shared_ptr<Type> createPointerType(std::shared_ptr<Type> pointee);
     static std::shared_ptr<Type> createReferenceType(std::shared_ptr<Type> referent);
     static std::shared_ptr<Type> createFunctionType(Kind returnKind, std::vector<std::shared_ptr<Type>> params, bool isVarArg = false);
-    static std::shared_ptr<Type> createStringType();
-    static std::shared_ptr<Type> createWideStringType();
+    static std::shared_ptr<Type> createStringType(Kind stringKind = Kind::String);
 };
 
 // --- Derived Types ---
@@ -203,8 +228,9 @@ public:
         if constexpr (std::is_same_v<T, __float128>) return Kind::FP128;
         if constexpr (std::is_same_v<T, long double>) return Kind::FP128;
 
-        if constexpr (std::is_same_v<T, std::string>) return Kind::String;
-        if constexpr (std::is_same_v<T, std::wstring>) return Kind::WideString;
+        if constexpr (std::is_same_v<T, std::string>) return Kind::Utf8;
+        if constexpr (std::is_same_v<T, std::u16string>) return Kind::Utf16;
+        if constexpr (std::is_same_v<T, std::u32string>) return Kind::Utf32;
 
         return Kind::Invalid;  // Default case if type isn't handled
     }
@@ -471,11 +497,11 @@ inline std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
             totalPointerDepth++;
         }
         else if (baseType == "utf16") {
-            type = Type::createPrimitiveType(Kind::UInt16);
+            type = Type::createPrimitiveType(Kind::Utf16);
             totalPointerDepth++;
         }
         else if (baseType == "utf32") {
-            type = Type::createPrimitiveType(Kind::UInt32);
+            type = Type::createPrimitiveType(Kind::Utf32);
             totalPointerDepth++;
         }
     
@@ -532,19 +558,24 @@ struct Primitive : public Value {
 
     std::string toString() const override {
         if constexpr (std::is_same_v<T, std::string>) {
-            return "Primitive: " + value;
+            if (PrimitiveType::get<T>() != Kind::Utf8)
+                return "Primitive: " + value;
+            else
+                return "String: \"" + this->getValue() + "\"";
+        } else if constexpr (std::is_same_v<T, std::u16string>) {
+            return "UTF-16 String";
+        } else if constexpr (std::is_same_v<T, std::u32string>) {
+            return "UTF-32 String";
         } else if constexpr (std::is_same_v<T, bool>) {
             return std::string("Primitive: ") + (value ? "true" : "false");
         } else if constexpr (std::is_same_v<T, __float128>) {
-            // Custom handling for __float128 type
-            char buffer[128];  // Allocate enough space for the representation
-            snprintf(buffer, sizeof(buffer), "%.*Lf", 36, (long double)value); // Print with long double format
+            char buffer[128];
+            snprintf(buffer, sizeof(buffer), "%.*Lf", 36, (long double)value);
             return std::string("Primitive: ") + buffer;
         } else if constexpr (std::is_same_v<T, _Float16>) {
-            // Custom handling for _Float16 type
-            return "Primitive: " + std::to_string(static_cast<float>(value)); // Convert _Float16 to float
+            return "Primitive: (Float16 not yet printable)";
         } else {
-            return "Primitive: " + std::to_string(value);
+            return "Primitive: " + std::to_string(value); // works for int, float, etc.
         }
     }
 
@@ -715,18 +746,14 @@ struct AggregateValue : public Value {
 
 
 // Custom String and WideString Types
-struct StringValue : public Value {
-    StringValue() {
-        type = Type::createStringType();
-    }
-    std::string toString() const override { return "String"; } 
-};
+template <typename T>
+class StringValue : public Primitive<T> {
+public:
+    StringValue(T value)
+        : Primitive<T>(value) {}
 
-struct WideStringValue : public Value {
-    WideStringValue() {
-        type = Type::createWideStringType();
-    }
-    std::string toString() const override { return "WideString"; } 
+    virtual ~StringValue() = default;
+
 };
 
 struct VariableAssignment : public Value {

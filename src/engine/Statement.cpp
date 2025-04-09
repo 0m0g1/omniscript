@@ -253,11 +253,24 @@ std::shared_ptr<Omniscript::Value> CharacterLiteral::evaluate(SymbolTable<std::s
 }
 
 std::shared_ptr<Omniscript::Value> StringLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // if (llvmType->isPointerTy()) {
-    //     return generator.createUTF8String(value); // UTF-8 string
-    // } 
+    if (!type) {
+        DEBUG_LOG("Creating a string value");
+        return std::make_shared<Omniscript::StringValue<std::string>>(value); 
+    }
 
-    // return generator.createUTF8String(value);
+    if (type->isString(8)) {
+        DEBUG_LOG("Creating UTF-8 string");
+        return std::make_shared<Omniscript::StringValue<std::string>>(value);
+    } else if (type->isString(16)) {
+        DEBUG_LOG("Creating UTF-16 string");
+        std::u16string utf16_value(value.begin(), value.end());
+        return std::make_shared<Omniscript::StringValue<std::u16string>>(utf16_value);
+    } else if (type->isString(32)) {
+        DEBUG_LOG("Creating UTF-32 string");
+        std::u32string utf32_value(value.begin(), value.end());
+        return std::make_shared<Omniscript::StringValue<std::u32string>>(utf32_value);
+    }
+    
     return nullptr;
 }
 
@@ -315,8 +328,16 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
                         console.error("Pointer '" + variable + "' should point to a '" + type->kindName() + "' but is pointing to a '" +
                         type->getPointeeType()->kindName() + "' instead.");
                     }
-                } else if (auto referenceTo = std::dynamic_pointer_cast<StringLiteral>(value)) {
-                    // result = referenceTo->evaluate(scope);
+                } else if (auto string = std::dynamic_pointer_cast<StringLiteral>(value)) {
+                    if (!type->getPointeeType()->isChar() && !type->getPointeeType()->isString()) {
+                        console.error("A string's can be character pointer (let " + variable + " : char* = \"foo bar\";) or 'utf8', 'utf16; or 'utf32' not a '" + type->pointerDescription() + "'.");
+                    }
+                    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
+                        if (!type->getPointeeType()->isChar()) {
+                            typed->setType(type->getPointeeType());
+                        }
+                    }
+                    result = string->evaluate(scope);
                     
                     // if (result->getType()->getKind() != type->getPointeeType()->getKind()) {
                     //     console.error("Pointer '" + variable + "' should point to a '" + type->kindName() + "' but is pointing to a '" +
@@ -326,11 +347,8 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
                     console.error("Pointer '" + variable + "' can only be created from an integer, a reference to an already existing variable, nullptr or a string from a (char*).");
                 }
             } else if (type->isReference()) {
-                DEBUG_LOG("HERE");
                 if (auto referenceTo = std::dynamic_pointer_cast<ReferenceTo>(value)) {
-                    DEBUG_LOG("HERE 1");
                     auto ptr = scope.getPointerToValue(referenceTo->getName());
-                    DEBUG_LOG("HERE 2");
                     if (!ptr || !*ptr) {
                         DEBUG_LOG("HERE 2.1");
                         console.error("Cannot create reference to undefined variable '" + referenceTo->getName() + "'.");
@@ -382,6 +400,7 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
                 DEBUG_LOG("HERE 4");
             } 
         }
+        DEBUG_LOG("HEREEE");
     }
 
     DEBUG_LOG("The result is " + result->toString());

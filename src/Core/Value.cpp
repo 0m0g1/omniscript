@@ -61,7 +61,9 @@ std::string Type::kindName() const {
 
         // Custom Types
         case Kind::String:      return "String";
-        case Kind::WideString:  return "WideString";
+        case Kind::Utf8:      return "Utf8String";
+        case Kind::Utf16:      return "Utf16String";
+        case Kind::Utf32:      return "Utf32String";
 
         default:                return "Unknown";
     }
@@ -93,15 +95,9 @@ std::shared_ptr<Type> Type::createFunctionType(Kind returnKind, std::vector<std:
     return std::make_shared<FunctionType>(returnKind, std::move(params), isVarArg);
 }
 
-std::shared_ptr<Type> Type::createStringType() {
+std::shared_ptr<Type> Type::createStringType(Kind stringKind) {
     auto t = std::make_shared<Type>();
-    t->kind = Kind::String;
-    return t;
-}
-
-std::shared_ptr<Type> Type::createWideStringType() {
-    auto t = std::make_shared<Type>();
-    t->kind = Kind::WideString;
+    t->kind = stringKind;
     return t;
 }
 

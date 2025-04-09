@@ -94,12 +94,12 @@ void Parser::eat(TokenTypes expectedType, const std::string& err) {
         previousToken = currentToken;
         currentToken = lexer.getNextToken(); // Move to the next token
     } else {
-        std::string errorMessage = "[Parser Error] \n Expected token type: " 
+        std::string errorMessage = "[Parser Error]\nExpected token type: " 
         + getTokenTypeName(expectedType) 
         + " at line: " + std::to_string(currentToken.getLine()) 
         + " column: " + std::to_string(currentToken.getColumn()) 
         + " got token type " + getTokenTypeName(currentToken.getType()) 
-        + " instead. \n\n";
+        + " instead.\n";
 
         
         if (err != "") {
@@ -1944,6 +1944,11 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
     
             dataTypes.push_back("]");
             eat(TokenTypes::RightBracket);
+
+            if (currentToken.getType() == TokenTypes::Identifier) {
+                dataTypes.push_back(currentToken.getValue());
+                eat(TokenTypes::Identifier);
+            }
         }
     
         // Combine the namespace parts into a final type

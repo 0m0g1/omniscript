@@ -36,6 +36,7 @@ class Statement { // Base class for all statements
             pos.line = position.line;
             pos.col = position.col;
             pos.fileName = position.fileName;
+            pos.filePath = position.filePath;
         }
 
         inline Omniscript::filePosition getPosition() {

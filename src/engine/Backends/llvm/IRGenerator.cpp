@@ -217,9 +217,16 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> va
         return create128BitFloat(fp128Primitive->getValue());
     }
     // Handle string (std::string)
-    else if (auto stringPrimitive = std::dynamic_pointer_cast<Omniscript::Primitive<std::string>>(value)) {
-        return createUTF8String(stringPrimitive->getValue());
-    }
+    else if (auto stringPrimitiveUTF8 = std::dynamic_pointer_cast<Omniscript::Primitive<std::string>>(value)) {
+        DEBUG_LOG("Creating UTF-8 string from Primitive<std::string>");
+        return createUTF8String(stringPrimitiveUTF8->getValue());
+    } else if (auto stringPrimitiveUTF16 = std::dynamic_pointer_cast<Omniscript::Primitive<std::u16string>>(value)) {
+        DEBUG_LOG("Creating UTF-16 string from Primitive<std::u16string>");
+        return createUTF16String(stringPrimitiveUTF16->getValue());
+    } else if (auto stringPrimitiveUTF32 = std::dynamic_pointer_cast<Omniscript::Primitive<std::u32string>>(value)) {
+        DEBUG_LOG("Creating UTF-32 string from Primitive<std::u32string>");
+        return createUTF32String(stringPrimitiveUTF32->getValue());
+    }    
     // Handle BigInt (std::string for now)
     else if (auto bigInt = std::dynamic_pointer_cast<Omniscript::BigInt>(value)) {
         return createBigInt(bigInt->getValue(), bigInt->getBitWidth());
@@ -472,6 +479,15 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             break;
         case Omniscript::Kind::Null:
             llvmType = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context));
+            break;
+        case Omniscript::Kind::Utf8: 
+            llvmType = llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0);
+            break;
+        case Omniscript::Kind::Utf16:
+            llvmType = llvm::PointerType::get(llvm::Type::getInt16Ty(context), 0);
+            break;
+        case Omniscript::Kind::Utf32: 
+            llvmType = llvm::PointerType::get(llvm::Type::getInt32Ty(context), 0);
             break;
         default:
             std::cerr << "[ERROR] Unknown type: " << type->kindName() << std::endl;
