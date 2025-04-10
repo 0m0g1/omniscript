@@ -134,16 +134,17 @@ std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
 
     // Stack of arrays (outermost first)
     std::vector<std::optional<uint64_t>> arrayStack;
-    std::vector<Type> arrayTypeStack;
+    // std::vector<Type> arrayTypeStack;
     // Parse nested arrays like [4][3][]
     // [5]char
-    // if (index < dataTypes.size() && dataTypes[index] == "[") {
-    //     index += 1;
-    //     arrayStack.push_back(std::stoull(dataTypes[index]));
-    //     if (dataTypes[index] == "]") {
-    //         index += 1;
-    //     }
-    // }
+    if (index < dataTypes.size() && dataTypes[index] == "[") {
+        index += 1;
+        arrayStack.push_back(std::stoull(dataTypes[index]));
+        index += 1;
+        if (dataTypes[index] == "]") {
+            index += 1;
+        }
+    }
     // while (index < dataTypes.size() && dataTypes[index] == "[") {
     //     if (index + 2 < dataTypes.size() && dataTypes[index + 2] == "]") {
     //         std::string sizeStr = dataTypes[index + 1];
@@ -252,13 +253,13 @@ std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
     
 
    // Wrap in arrays (from innermost to outermost)
-//    for (auto it = arrayStack.rbegin(); it != arrayStack.rend(); ++it) {
-//         if (it->has_value()) {
-//             type = Type::createFixedArrayType(type, it->value());  // Fixed array
-//         } else {
-//             type = Type::createDynamicArrayType(type);             // Dynamic array
-//         }
-//     }
+   for (auto it = arrayStack.rbegin(); it != arrayStack.rend(); ++it) {
+        if (it->has_value()) {
+            type = Type::createFixedArrayType(type, it->value());  // Fixed array
+        } else {
+            type = Type::createDynamicArrayType(type);             // Dynamic array
+        }
+    }
 
     // Wrap in references
     for (int i = 0; i < totalReferenceDepth; ++i) {

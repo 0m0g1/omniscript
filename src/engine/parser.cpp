@@ -1867,7 +1867,6 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
     std::vector<std::string> dataTypes;
     std::shared_ptr<Statement> value;
     std::shared_ptr<Omniscript::Type> type;
-    std::vector<std::string> namespaceParts;
     bool isReference = false;
     bool isPointer = false;
     bool isArray = false;
@@ -1894,23 +1893,23 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
         while (currentToken.getType() == TokenTypes::Multiply || currentToken.getType() == TokenTypes::BitwiseAnd) {
             if (currentToken.getType() == TokenTypes::Multiply) {
                 isPointer = true;
-                namespaceParts.push_back("*");
+                dataTypes.push_back("*");
             } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
                 isReference = true;
-                namespaceParts.push_back("&");
+                dataTypes.push_back("&");
             }
             eat(currentToken.getType());
         }
     
         // Now check for the base type (identifier or array)
         if (currentToken.getType() == TokenTypes::Identifier) {
-            namespaceParts.push_back(currentToken.getValue());
+            dataTypes.push_back(currentToken.getValue());
             eat(TokenTypes::Identifier);
             
             // Handle namespaced types like `Numbers.i8`
             while (currentToken.getType() == TokenTypes::Dot) {
                 eat(TokenTypes::Dot);
-                namespaceParts.push_back(currentToken.getValue());
+                dataTypes.push_back(currentToken.getValue());
                 eat(TokenTypes::Identifier);
             }
         }
@@ -1919,10 +1918,10 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
         while (currentToken.getType() == TokenTypes::Multiply || currentToken.getType() == TokenTypes::BitwiseAnd) {
             if (currentToken.getType() == TokenTypes::Multiply) {
                 isPointer = true;
-                namespaceParts.push_back("*");
+                dataTypes.push_back("*");
             } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
                 isReference = true;
-                namespaceParts.push_back("&");
+                dataTypes.push_back("&");
             }
             eat(currentToken.getType());
         }
@@ -1952,7 +1951,7 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
         }
     
         // Combine the namespace parts into a final type
-        dataTypes = namespaceParts;
+        // dataTypes = dataTypes;
     } else if (currentToken.getType() == TokenTypes::Assign) {
         eat(TokenTypes::Assign);
         std::string typeName = currentToken.getValue();

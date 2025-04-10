@@ -1,4 +1,4 @@
-// Basic integer types
+// // Basic integer types
 // let aa : int = 1;
 // let a : i8 = 1;
 // let b : i16 = 2;
@@ -44,7 +44,7 @@
 // let ppc_quad : ppc_fp128 = 3.14159;  // Using 'ppc_fp128'
 // let ppc_quad_alt2 : PPC_Quad = 2.718;  // Using 'PPC_Quad' (alternative name)
 
-// // // // Pointers
+// // Pointers
 // let o : i32* = &c; // Pointer to an i32
 // let p : char* = &i; // Pointer to a character
 // let oo : i32** = &o;
@@ -56,18 +56,18 @@
 // let q : void* = nullptr; // Void pointer
 // let nullpointer : char**** = nullptr;
 
-// // // References
+// // References
 // let r : &i32 = c; // Reference to an i32
 // // let rr : &&i32 = &r; // Reference to an i32
 // let s : &bool = j; // Reference to a bool
 // // let ss : &&bool = s; // Reference to a bool
 
-// String and character arrays
+// // String and character arrays
 // let t : char* = "Hello, OmniScript++!"; // String (C-style)
 // let tt : utf8 = "Hello, OmniScript++!"; // String (C-style)
 // let ttt : utf16 = "Hello, OmniScript++!"; // String (C-style)
 // let tttt : utf32 = "Hello, OmniScript++!"; // String (C-style)
-let u : [5] = ['H', 'e', 'l', 'l', 'o']; // Character array
+let u : [5]char = ['H', 'e', 'l', 'l', 'o']; // Character array
 // let uu : [5]i32 = [1,2,3,4,5]; // Character array
 // let uuu : [5]i32 = [1,2,3,4,5]; // multidimentional array
 
