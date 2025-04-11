@@ -30,7 +30,7 @@ project "Osengine"
     }
 
     links {
-        "LLVM-19",
+        "LLVM-20",
         "pthread"
     }
 
@@ -43,4 +43,12 @@ project "Osengine"
         defines { "PLATFORM_WINDOWS" }
         systemversion "latest"
 
+        postbuildcommands {
+            -- # Create the target directory if it doesn't exist
+            "powershell -Command \"if (-not (Test-Path -Path 'bin/Debug-windows-x86_64')) { New-Item -ItemType Directory -Force -Path 'bin/Debug-windows-x86_64' }\"",
+        
+            -- # Copy DLL files using Copy-Item in PowerShell (no -u flag)
+            "powershell -Command \"Copy-Item 'dependencies/llvm/bin/*.dll' -Destination 'bin/Debug-windows-x86_64'\""
+        }        
+        
     filter {}

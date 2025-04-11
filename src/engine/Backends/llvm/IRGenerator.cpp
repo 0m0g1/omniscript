@@ -229,9 +229,11 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> va
     }    
     // Handle BigInt (std::string for now)
     else if (auto bigInt = std::dynamic_pointer_cast<Omniscript::BigInt>(value)) {
+        DEBUG_LOG("Creating a Big int");
         return createBigInt(bigInt->getValue(), bigInt->getBitWidth());
-    }
-    else if (auto arry = std::dynamic_pointer_cast<Omniscript::FixedArrayValue>(value)) {
+    
+    } else if (auto arry = std::dynamic_pointer_cast<Omniscript::FixedArrayValue>(value)) {
+        DEBUG_LOG("Creating a fixed array");
         std::vector<llvm::Value*> elems;
 
         for (const auto elem : arry->elements) {
@@ -373,15 +375,17 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         return nullptr;
     }
 
+    DEBUG_LOG("Resolving a '" + type->kindName() + "'.");
     llvm::LLVMContext& context = *Context;
 
     // If the type is an array, resolve the base type first.
     if (type->isArray()) {
+        DEBUG_LOG("The array is of size '" + std::to_string(type->fixedSize) + "'.");
         // Resolve base type and array size.
-        // auto elementType = resolveLLVMType(type->getElementType());
-        // uint64_t arraySize = type->getArraySize();
-        // return llvm::ArrayType::get(elementType, arraySize);
-        return nullptr;
+        DEBUG_LOG("The element type is '" + type->elementType->kindName() + "'.");
+        auto elementType = resolveLLVMType(type->elementType);
+        uint64_t arraySize = type->fixedSize;
+        return llvm::ArrayType::get(elementType, arraySize);
     }
 
     // If the type is a pointer, resolve the base type and add pointer depth.

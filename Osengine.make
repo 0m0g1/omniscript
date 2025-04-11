@@ -32,7 +32,7 @@ INCLUDES += -Iinclude -Idependencies/llvm/include
 FORCE_INCLUDE +=
 ALL_CPPFLAGS += $(CPPFLAGS) -MD -MP $(DEFINES) $(INCLUDES)
 ALL_RESFLAGS += $(RESFLAGS) $(DEFINES) $(INCLUDES)
-LIBS += -lLLVM-19 -lpthread
+LIBS += -lLLVM-20 -lpthread
 LDDEPS +=
 LINKCMD = $(CXX) -o "$@" $(OBJECTS) $(RESOURCES) $(ALL_LDFLAGS) $(LIBS)
 define PREBUILDCMDS
@@ -40,6 +40,9 @@ endef
 define PRELINKCMDS
 endef
 define POSTBUILDCMDS
+	@echo Running postbuild commands
+	powershell -Command "if (-not (Test-Path -Path 'bin/Debug-windows-x86_64')) { New-Item -ItemType Directory -Force -Path 'bin/Debug-windows-x86_64' }"
+	powershell -Command "Copy-Item 'dependencies/llvm/bin/*.dll' -Destination 'bin/Debug-windows-x86_64'"
 endef
 
 ifeq ($(config),debug)

@@ -596,18 +596,19 @@ std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<O
         return std::make_shared<Omniscript::FixedArrayValue>(values, inferredType);
     }
     
-    DEBUG_LOG("The array has a type " + type->kindName());
+    DEBUG_LOG("The array has a type '" + type->kindName() + "' of element types '" + type->elementType->kindName() + "'.");
+    size_t n = 0;
     if (type->isFixedArray()) {
         DEBUG_LOG("Creating a fixed Array");
         std::vector<std::shared_ptr<Omniscript::Value>> values;
-        std::shared_ptr<Omniscript::Type> expectedElementType = type->getElementType();  // Assume you have this method
-
+        std::shared_ptr<Omniscript::Type> expectedElementType = type->elementType;  // Assume you have this method
+        DEBUG_LOG("The expected element kind is '" + expectedElementType->kindName() + "'.");
         for (const auto& expr : initialValues) {
             std::shared_ptr<Omniscript::Value> val;
 
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(expr)) {
                 if (!typed->getType()) {
-                    typed->setType(type);
+                    typed->setType(type->elementType);
                 }
             }
             
@@ -646,7 +647,9 @@ std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<O
                 }
             }
 
+            DEBUG_LOG("Value '" + std::to_string(n) + "' is '" + val->toString() + "'.");
             values.push_back(val);
+            n++;
         }
         
         return std::make_shared<Omniscript::FixedArrayValue>(values, expectedElementType);
