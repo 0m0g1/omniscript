@@ -109,7 +109,7 @@
 #define LLVM_HAS_SPARC_TARGET 1
 
 /* Define if the SPIRV target is built in */
-#define LLVM_HAS_SPIRV_TARGET 0
+#define LLVM_HAS_SPIRV_TARGET 1
 
 /* Define if the SystemZ target is built in */
 #define LLVM_HAS_SYSTEMZ_TARGET 1
@@ -142,16 +142,16 @@
 #define LLVM_USE_PERF 0
 
 /* Major version of the LLVM API */
-#define LLVM_VERSION_MAJOR 19
+#define LLVM_VERSION_MAJOR 20
 
 /* Minor version of the LLVM API */
 #define LLVM_VERSION_MINOR 1
 
 /* Patch version of the LLVM API */
-#define LLVM_VERSION_PATCH 7
+#define LLVM_VERSION_PATCH 2
 
 /* LLVM version string */
-#define LLVM_VERSION_STRING "19.1.7"
+#define LLVM_VERSION_STRING "20.1.2"
 
 /* Whether LLVM records statistics for use with GetStatistics(),
  * PrintStatistics() or PrintStatisticsJSON()
