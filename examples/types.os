@@ -68,7 +68,7 @@
 // let ttt : utf16 = "Hello, OmniScript++!"; // String (C-style)
 // let tttt : utf32 = "Hello, OmniScript++!"; // String (C-style)
 // let u : [5]char = ['H', 'e', 'l', 'l', 'o']; // Character array
-let uu : [5]i32 = [1,2,3,4,5]; // integer arrays
+// let uu : [5]i32 = [1,2,3,4,5]; // integer arrays
 // let uuu : [5]i32 = [1,2,3,4,5]; // multidimentional array
 
 // // Dynamic arrays (if supported)
@@ -100,9 +100,9 @@ let uu : [5]i32 = [1,2,3,4,5]; // integer arrays
 // // let z : Option<i32> = None;
 // let variable : int = 10;
 
-// function add(a: int, b: int) => i32 {
-//     return a + b;
-// }
+function add(a: int, b: int) => i32 {
+    return a + b;
+}
 
 // function main() => i32 {
 //     return add(1, 1);

@@ -88,12 +88,16 @@ std::shared_ptr<Type> Type::createNullPointerType() {
     return std::make_shared<Omniscript::NullPointerType>();
 }
 
+std::shared_ptr<Type> Type::createNullType() {
+    return std::make_shared<Omniscript::NullType>();
+}
+
 std::shared_ptr<Type> Type::createReferenceType(std::shared_ptr<Type> referent) {
     return std::make_shared<ReferenceType>(std::move(referent));
 }
 
-std::shared_ptr<Type> Type::createFunctionType(Kind returnKind, std::vector<std::shared_ptr<Type>> params, bool isVarArg) {
-    return std::make_shared<FunctionType>(returnKind, std::move(params), isVarArg);
+std::shared_ptr<Type> Type::createFunctionType(std::shared_ptr<Type> returnType, std::vector<std::shared_ptr<Type>> params, bool isVarArg) {
+    return std::make_shared<FunctionType>(returnType, std::move(params), isVarArg);
 }
 
 std::shared_ptr<Type> Type::createStringType(Kind stringKind) {

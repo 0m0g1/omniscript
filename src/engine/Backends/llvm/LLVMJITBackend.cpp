@@ -63,6 +63,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
 
     DEBUG_LOG();
     irGen->printIR();
+    DEBUG_LOG();
     irGen->printErrors();
     DEBUG_LOG();
     

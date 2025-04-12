@@ -1194,18 +1194,9 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
         // Expect colon for type annotation
         if (currentToken.getType() == TokenTypes::Colon) {
             eat(TokenTypes::Colon);
-
-            // Expect a type identifier
-            if (currentToken.getType() == TokenTypes::Identifier) {
-                std::vector<std::string> types;
-                types.push_back(currentToken.getValue());
-                eat(TokenTypes::Identifier);
-                // paramType = irGen.resolveLLVMType(types);
-            } else {
-                throw std::runtime_error("Expected type after ':'.");
-            }
-        } else {
-            throw std::runtime_error("Expected ':' after parameter name.");
+            
+            std::vector<std::string> types = parseType();
+            paramType = Omniscript::resolveType(types);
         }
 
         // Check for default value
@@ -1251,10 +1242,8 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration() {
 
     if (currentToken.getType() != TokenTypes::LeftBrace) {
         eat(TokenTypes::Arrow);
-        std::vector<std::string> types;
-        types.push_back(currentToken.getValue());
-        eat(TokenTypes::Identifier);
-        // returnType = irGen.resolveLLVMType(types);
+        std::vector<std::string> types = parseType();
+        returnType = Omniscript::resolveType(types);
     }
 
     auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock()); // Parse function body
@@ -1396,6 +1385,67 @@ std::vector<std::pair<std::string, std::string>> Parser::parseTypeParametersForD
     return typeParams;
 }
 
+std::vector<std::string> Parser::parseType() {
+    std::vector<std::string> dataTypes;
+
+     // First, check for any pointer/reference symbols before the base type
+     while (currentToken.getType() == TokenTypes::Multiply || currentToken.getType() == TokenTypes::BitwiseAnd) {
+        if (currentToken.getType() == TokenTypes::Multiply) {
+            dataTypes.push_back("*");
+        } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
+            dataTypes.push_back("&");
+        }
+        eat(currentToken.getType());
+    }
+
+    // Now check for the base type (identifier or array)
+    if (currentToken.getType() == TokenTypes::Identifier) {
+        dataTypes.push_back(currentToken.getValue());
+        eat(TokenTypes::Identifier);
+        
+        // Handle namespaced types like `Numbers.i8`
+        while (currentToken.getType() == TokenTypes::Dot) {
+            eat(TokenTypes::Dot);
+            dataTypes.push_back(currentToken.getValue());
+            eat(TokenTypes::Identifier);
+        }
+    }
+
+    // After processing the base type, check for pointers or references after the type
+    while (currentToken.getType() == TokenTypes::Multiply || currentToken.getType() == TokenTypes::BitwiseAnd) {
+        if (currentToken.getType() == TokenTypes::Multiply) {
+            dataTypes.push_back("*");
+        } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
+            dataTypes.push_back("&");
+        }
+        eat(currentToken.getType());
+    }
+
+    // Handle array notation (e.g., [N])
+    if (currentToken.getType() == TokenTypes::LeftBracket) {
+        dataTypes.push_back("[");
+        eat(TokenTypes::LeftBracket);
+        
+        // Handle array size, either an identifier or an integer literal
+        if (currentToken.getType() == TokenTypes::Identifier) {
+            dataTypes.push_back(currentToken.getValue());
+            eat(TokenTypes::Identifier);
+        } else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
+            dataTypes.push_back(currentToken.getValue());
+            eat(TokenTypes::IntegerLiteral);
+        }
+
+        dataTypes.push_back("]");
+        eat(TokenTypes::RightBracket);
+
+        if (currentToken.getType() == TokenTypes::Identifier) {
+            dataTypes.push_back(currentToken.getValue());
+            eat(TokenTypes::Identifier);
+        }
+    }
+
+    return dataTypes;
+}
 
 std::vector<std::string> Parser::parseTypeParametersForCall() {
     std::vector<std::string> typeParams;
@@ -1413,7 +1463,6 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
         }
         eat(TokenTypes::GreaterThan); // `>`
     }
-    // console.log(valueToString(typeParams));
     return typeParams;
 }
 
@@ -1864,13 +1913,12 @@ std::shared_ptr<Statement> Parser::parseNamespace() {
 std::shared_ptr<Statement> Parser::parseAssignment() {
     TokenTypes variableType;
     std::string variableName;
-    std::vector<std::string> dataTypes;
     std::shared_ptr<Statement> value;
     std::shared_ptr<Omniscript::Type> type;
     bool isReference = false;
     bool isPointer = false;
     bool isArray = false;
-
+    
     // Parse variable declarations (let or const)
     if (currentToken.getType() == TokenTypes::Let) {
         eat(TokenTypes::Let);
@@ -1881,77 +1929,17 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
     } else {
         variableName = previousToken.getValue();
     }
-
+    
     variableName = currentToken.getValue();
     eat(TokenTypes::Identifier);
-
+    
     // Handle type annotation before variable name
+    std::vector<std::string> dataTypes;
     if (currentToken.getType() == TokenTypes::Colon) {
         eat(TokenTypes::Colon);
-    
-        // First, check for any pointer/reference symbols before the base type
-        while (currentToken.getType() == TokenTypes::Multiply || currentToken.getType() == TokenTypes::BitwiseAnd) {
-            if (currentToken.getType() == TokenTypes::Multiply) {
-                isPointer = true;
-                dataTypes.push_back("*");
-            } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
-                isReference = true;
-                dataTypes.push_back("&");
-            }
-            eat(currentToken.getType());
-        }
-    
-        // Now check for the base type (identifier or array)
-        if (currentToken.getType() == TokenTypes::Identifier) {
-            dataTypes.push_back(currentToken.getValue());
-            eat(TokenTypes::Identifier);
-            
-            // Handle namespaced types like `Numbers.i8`
-            while (currentToken.getType() == TokenTypes::Dot) {
-                eat(TokenTypes::Dot);
-                dataTypes.push_back(currentToken.getValue());
-                eat(TokenTypes::Identifier);
-            }
-        }
-    
-        // After processing the base type, check for pointers or references after the type
-        while (currentToken.getType() == TokenTypes::Multiply || currentToken.getType() == TokenTypes::BitwiseAnd) {
-            if (currentToken.getType() == TokenTypes::Multiply) {
-                isPointer = true;
-                dataTypes.push_back("*");
-            } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
-                isReference = true;
-                dataTypes.push_back("&");
-            }
-            eat(currentToken.getType());
-        }
-    
-        // Handle array notation (e.g., [N])
-        if (currentToken.getType() == TokenTypes::LeftBracket) {
-            isArray = true;
-            dataTypes.push_back("[");
-            eat(TokenTypes::LeftBracket);
-            
-            // Handle array size, either an identifier or an integer literal
-            if (currentToken.getType() == TokenTypes::Identifier) {
-                dataTypes.push_back(currentToken.getValue());
-                eat(TokenTypes::Identifier);
-            } else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
-                dataTypes.push_back(currentToken.getValue());
-                eat(TokenTypes::IntegerLiteral);
-            }
-    
-            dataTypes.push_back("]");
-            eat(TokenTypes::RightBracket);
 
-            if (currentToken.getType() == TokenTypes::Identifier) {
-                dataTypes.push_back(currentToken.getValue());
-                eat(TokenTypes::Identifier);
-            }
-        }
+        dataTypes = parseType();
     
-        // Combine the namespace parts into a final type
-        // dataTypes = dataTypes;
     } else if (currentToken.getType() == TokenTypes::Assign) {
         eat(TokenTypes::Assign);
         std::string typeName = currentToken.getValue();
@@ -1992,69 +1980,31 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
             }
             eat(currentToken.getType());
         } else {
-            if (isPointer) {
-                DEBUG_LOG("Assigning a pointer");
-
-                if (currentToken.getType() == TokenTypes::Assign) {
-                    eat(TokenTypes::Assign);
-
-                    if (currentToken.getType() == TokenTypes::Nullptr) {
-                        eat(TokenTypes::Nullptr);
-                        value = std::make_shared<Nullptr>();
-                    } else {
-                        value = factor();
-                    }
-                } else {
-                    eat(TokenTypes::Semicolon);
-                    value = std::make_shared<Nullptr>();
-                }
-            } else if (isReference) {
-                DEBUG_LOG("Assigning a reference");
-                eat(TokenTypes::Assign);
-                std::string varName = currentToken.getValue();
-                eat(TokenTypes::Identifier);
-                
-                value = std::make_shared<ReferenceTo>(varName);
-            } else if (isArray) {
-                eat(TokenTypes::Assign);
-                value = parseExpression();
-
-                if (auto arry = std::dynamic_pointer_cast<Array>(value)) {
-                    arry->setType(type);
-                //     for (const auto& element : arry->initialValues) {
-                //         if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(element)) {
-                //             stmt->setType(type);
-                //         }
-                //     }
-                }
-            } else {
-                DEBUG_LOG("Assigning a binary or ternary expression");
-                Token currentAssignmentOperation = currentToken;
-                eat(currentToken.getType());
-                
-                value = parseExpression(); // Parse right-hand side
-                
-                switch (currentAssignmentOperation.getType()) {
-                    case TokenTypes::Assign:
-                        break;
-                    case TokenTypes::PlusAssign:
-                        value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Plus, value);
-                        break;
-                    case TokenTypes::MinusAssign:
-                        value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Minus, value);
-                        break;
-                    case TokenTypes::DivideAssign:
-                        value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Divide, value);
-                        break;
-                    case TokenTypes::MultiplyAssign:
-                        value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Multiply, value);
-                        break;
-                    default:
-                        eat(TokenTypes::Assign, "Invalid assignment operator: " + getTokenTypeName(currentAssignmentOperation.getType()));
-                        break;
-                }
+            DEBUG_LOG("Assigning a binary or ternary expression");
+            Token currentAssignmentOperation = currentToken;
+            eat(currentToken.getType());
+            
+            value = parseExpression(); // Parse right-hand side
+            
+            switch (currentAssignmentOperation.getType()) {
+                case TokenTypes::Assign:
+                    break;
+                case TokenTypes::PlusAssign:
+                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Plus, value);
+                    break;
+                case TokenTypes::MinusAssign:
+                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Minus, value);
+                    break;
+                case TokenTypes::DivideAssign:
+                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Divide, value);
+                    break;
+                case TokenTypes::MultiplyAssign:
+                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Multiply, value);
+                    break;
+                default:
+                    eat(TokenTypes::Assign, "Invalid assignment operator: " + getTokenTypeName(currentAssignmentOperation.getType()));
+                    break;
             }
-
         }
     } else {
         value = nullptr; // Handle cases like `let a;`

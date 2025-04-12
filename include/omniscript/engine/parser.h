@@ -77,10 +77,13 @@ class Parser {
             const std::string &baseName, 
             const std::vector<std::pair<std::string, std::string>> &types
         );
+        
         std::string generateSpecializedNameForCall(
             const std::string &baseName, 
             const std::vector<std::string> &typeParams
         );
+
+        std::vector<std::string> parseType();
         std::vector<std::string> parseTypeParametersForCall();
         std::vector<std::pair<std::string, std::string>> parseTypeParametersForDeclaration();
         

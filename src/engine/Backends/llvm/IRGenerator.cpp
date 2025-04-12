@@ -176,9 +176,57 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
         return getAddressOf(addressOf->variableName);
     }
 
+    if (auto null = std::dynamic_pointer_cast<Omniscript::NullValue>(value)) {
+        DEBUG_LOG("Creating a null value");
+        return createNullValue();
+    }
+
     if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerValue>(value)) {
         DEBUG_LOG("Creating a null pointer");
         return createNullPointer();
+    }
+
+    if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionValue>(value)) {
+        DEBUG_LOG("Creating a function");
+        llvm::Type* returnType = resolveLLVMType(func->getType()->getReturnType());
+        return createFunction(func->name, func->body, returnType, func->params, scope);
+    }
+
+    if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnValue>(value)) {
+        DEBUG_LOG("Creating a return statement");
+
+        llvm::Type* type = resolveLLVMType(ret->getType());
+        llvm::Value* val = codegen(ret->value, scope);
+        return createReturn(val, type);
+    }
+
+    if (auto unary = std::dynamic_pointer_cast<Omniscript::UnaryExpressionValue>(value)) {
+        DEBUG_LOG("Creating a unary expression");
+        llvm::Value* operandVal = codegen(unary->operand, scope);
+        if (!operandVal) return nullptr;
+        return createUnaryExpression(operandVal, unary->op, unary->position);
+    }
+
+    if (auto binary = std::dynamic_pointer_cast<Omniscript::BinaryExpressionValue>(value)) {
+        DEBUG_LOG("Creating a binary expression");
+        llvm::Value* lhs = codegen(binary->left, scope);
+        llvm::Value* rhs = codegen(binary->right, scope);
+        if (!lhs || !rhs) return nullptr;
+        return createBinaryExpression(lhs, binary->op, rhs);
+    }
+
+    if (auto ternary = std::dynamic_pointer_cast<Omniscript::TernaryExpressionValue>(value)) {
+        DEBUG_LOG("Creating a ternary expression");
+        llvm::Value* cond = codegen(ternary->condition, scope);
+        llvm::Value* truthy = codegen(ternary->truthy, scope);
+        llvm::Value* falsey = codegen(ternary->falsey, scope);
+        if (!cond || !truthy || !falsey) return nullptr;
+        return createTernaryExpression(cond, truthy, falsey);
+    }
+
+    if (auto var = std::dynamic_pointer_cast<Omniscript::VariableAccess>(value)) {
+        DEBUG_LOG("Accessing variable: " + var->variableName);
+        return getVariable(var->variableName);
     }
 
     return nullptr;
@@ -1150,14 +1198,14 @@ llvm::Value* IRGenerator::getReferenceToVariable(const std::string& varname) {
 llvm::Value* IRGenerator::getVariable(const std::string& name) {
     // // Check current scope
     // if (activeScope->exists(name)) {
-    //     llvm::Value* val = activeScope->get(name);
+    llvm::Value* val = activeScope->get(name);
 
-    //     if (llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(val)) {
-    //         // Generate the load operation (no need to change insertion point)
-    //         return Builder->CreateLoad(alloca->getAllocatedType(), alloca, name + ".val");
-    //     }
+    if (llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(val)) {
+//         // Generate the load operation (no need to change insertion point)
+        return Builder->CreateLoad(alloca->getAllocatedType(), alloca, name + ".val");
+    }
 
-    //     return val;
+    return val;
     // }
 
     // throw std::runtime_error("Unknown variable name: " + name);
@@ -1292,39 +1340,41 @@ llvm::Value* IRGenerator::createFixedArray(
 }
 
 
-llvm::Function* IRGenerator::createFunction(const FunctionDeclaration& funcDecl) {
+llvm::Function* IRGenerator::createFunction(
+    const std::string& name,
+    std::vector<std::shared_ptr<Omniscript::Value>>& body,
+    llvm::Type* returnType,
+    std::vector<std::shared_ptr<Omniscript::Value>>& params,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
+) {
     // Create function type
-    // std::vector<llvm::Type*> paramTypes;
-    // for (auto& param : funcDecl.parameters) {
-    //     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
-    //         paramTypes.push_back(typed->getType());
-    //     }
-    // }
+    std::vector<llvm::Type*> paramTypes;
+    for (auto& param : params) {
+        paramTypes.push_back(resolveLLVMType(param->getType()));
+    }
     
-    // llvm::FunctionType* funcType = llvm::FunctionType::get(
-    //     funcDecl.getType(),
-    //     paramTypes,
-    //     false
-    // );
+    llvm::FunctionType* funcType = llvm::FunctionType::get(
+        returnType,
+        paramTypes,
+        false
+    );
     
-    // // Create function
-    // llvm::Function* function = llvm::Function::Create(
-    //     funcType,
-    //     llvm::Function::ExternalLinkage,
-    //     funcDecl.getName(),
-    //     *Module
-    // );
+    // Create function
+    llvm::Function* function = llvm::Function::Create(
+        funcType,
+        llvm::Function::ExternalLinkage,
+        name,
+        CurrentModule
+    );
     
-    // // Set parameter names
-    // unsigned idx = 0;
-    // for (auto& arg : function->args()) {
-    //     if (auto stmt = std::dynamic_pointer_cast<NamedStatement>(funcDecl.parameters[idx++])) {
-    //         arg.setName(stmt->getName());
-    //     }
-    // }
-    // // activeScope->set(funcDecl.getName(), function);
-    // return function;
-    return nullptr;
+    // Set parameter names
+    unsigned idx = 0;
+    for (auto& arg : function->args()) {
+            arg.setName(params[idx++]->name);
+    }
+    activeScope->set(name, function);
+    generateFunctionBody(function, body, scope);
+    return function;
 }
 
 // When processing a function call:
@@ -1390,66 +1440,72 @@ llvm::Value* IRGenerator::createCall(
     return callInst;
 }
 
-void IRGenerator::generateFunctionBody(llvm::Function* function, 
-                                       const FunctionDeclaration& funcDecl) {
-    // pushActiveBlock();
+void IRGenerator::generateFunctionBody(
+    llvm::Function* function,
+    std::vector<std::shared_ptr<Omniscript::Value>>& body,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
+) {
+    pushActiveBlock();
 
     // Create entry block
-    // llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", function);
-    // Builder->SetInsertPoint(entry);
+    llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", function);
+    Builder->SetInsertPoint(entry);
     
     // // Create a new scope for function parameters + body
-    // pushScope();
+    pushScope();
     
     // // Create allocas for parameters in the entry block
-    // for (auto& arg : function->args()) {
-    //     std::string argName = arg.getName().str(); // Convert StringRef to std::string
-    //     llvm::AllocaInst* alloca = createEntryBlockAlloca(function, arg.getType(), argName);
-    //     Builder->CreateStore(&arg, alloca);
-    //     // activeScope->set(argName, alloca);
-    // }
+    for (auto& arg : function->args()) {
+        std::string argName = arg.getName().str(); // Convert StringRef to std::string
+        llvm::AllocaInst* alloca = createEntryBlockAlloca(function, arg.getType(), argName);
+        Builder->CreateStore(&arg, alloca);
+        activeScope->set(argName, alloca);
+    }
     
     // // Generate function body
-    // llvm::Value* retVal = funcDecl.body->codegen(*this);
+    llvm::Value* retVal = nullptr;
+    for (const auto& expr : body) {
+        retVal = codegen(expr, scope);
+    }
     
-    // // Handle implicit return if needed
-    // if (!currentBlockHasTerminator()) {
-    //     if (function->getReturnType()->isVoidTy()) {
-    //         Builder->CreateRetVoid();
-    //     } else if (retVal) {
-    //         // Ensure return value matches function type
-    //         if (retVal->getType() != function->getReturnType()) {
-    //             llvm::Value* castedRet = castValue(retVal, function->getReturnType());
-    //             if (!castedRet) {
-    //                 console.error("Failed to cast return value in function: " + function->getName().str());
-    //                 Builder->CreateUnreachable();
-    //                 popScope();
-    //                 popActiveBlock();
-    //                 function->eraseFromParent();
-    //                 return;
-    //             }
-    //             retVal = castedRet;
-    //         }
-    //         Builder->CreateRet(retVal);
-    //     } else {
-    //         // Error: Non-void function missing return
-    //         console.error("Non-void function missing return: " + function->getName().str());
-    //         Builder->CreateUnreachable();
-    //         popScope();
-    //         popActiveBlock();
-    //         function->eraseFromParent();
-    //         return;
-    //     }
-    // }
+    // Handle implicit return if needed
+    if (!currentBlockHasTerminator()) {
+        if (function->getReturnType()->isVoidTy()) {
+            Builder->CreateRetVoid();
+        } else if (retVal) {
+            // Ensure return value matches function type
+            if (retVal->getType() != function->getReturnType()) {
+                llvm::Value* castedRet = castValue(retVal, function->getReturnType());
+                if (!castedRet) {
+                    console.error("Failed to cast return value in function: " + function->getName().str());
+                    Builder->CreateUnreachable();
+                    popScope();
+                    popActiveBlock();
+                    function->eraseFromParent();
+                    return;
+                }
+                retVal = castedRet;
+            }
+            Builder->CreateRet(retVal);
+        } else {
+            // Error: Non-void function missing return
+            console.error("Non-void function missing return: " + function->getName().str());
+            Builder->CreateUnreachable();
+            popScope();
+            popActiveBlock();
+            function->eraseFromParent();
+            return;
+        }
+    }
     
-    // popScope();  // Parameters + function body scope
-    // popActiveBlock();
+    popScope();  // Parameters + function body scope
+    popActiveBlock();
 
-    // // Verify the function for consistency
-    // if (llvm::verifyFunction(*function, &llvm::errs())) {
-    //     console.error("Function verification failed: " + function->getName().str());
-    //     function->eraseFromParent();
-    // }
+    // Verify the function for consistency
+    if (llvm::verifyFunction(*function, &llvm::errs())) {
+        console.error("Function verification failed: " + function->getName().str());
+        function->eraseFromParent();
+    }
 }
 
 

@@ -2,6 +2,7 @@
 #ifndef VALUE_H
 #define VALUE_H
 
+#include <omniscript/engine/tokens.h>
 #include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/debuggingtools/console.h>
@@ -56,6 +57,7 @@ enum class Kind {
 class Type {
 public:
     Kind kind = Kind::Invalid;
+    std::shared_ptr<Type> returnType;
     std::shared_ptr<Type> elementType;
     size_t fixedSize = 0;
     virtual ~Type() = default;
@@ -63,7 +65,8 @@ public:
     // ----- Instance methods -----
     bool isChar() const { return kind == Kind::Char; }
     bool isPointer() const { return kind == Kind::Pointer || kind == Kind::Nullptr; }
-    bool isNull() const { return kind == Kind::Null || kind == Kind::Nullptr; }
+    bool isNullType() const { return kind == Kind::Null || kind == Kind::Nullptr; }
+    bool isNull() const { return kind == Kind::Null; }
     bool isNullPointer() const { return kind == Kind::Nullptr; }
     bool isReference() const { return kind == Kind::Reference; }
     bool isFunction() const { return kind == Kind::Function; }
@@ -202,10 +205,11 @@ public:
     // ----- Static factory methods -----
     static std::shared_ptr<Type> createInvalid();
     static std::shared_ptr<Type> createPrimitiveType(Kind kind);
+    static std::shared_ptr<Type> createNullType();
     static std::shared_ptr<Type> createNullPointerType();
     static std::shared_ptr<Type> createPointerType(std::shared_ptr<Type> pointee);
     static std::shared_ptr<Type> createReferenceType(std::shared_ptr<Type> referent);
-    static std::shared_ptr<Type> createFunctionType(Kind returnKind, std::vector<std::shared_ptr<Type>> params, bool isVarArg = false);
+    static std::shared_ptr<Type> createFunctionType(std::shared_ptr<Type> returnType, std::vector<std::shared_ptr<Type>> params, bool isVarArg = false);
     static std::shared_ptr<Type> createStringType(Kind stringKind = Kind::String);
     static std::shared_ptr<Type> createFixedArrayType(std::shared_ptr<Type> elementType, size_t size);
     static std::shared_ptr<Type> createDynamicArrayType(std::shared_ptr<Type> elementType);
@@ -326,6 +330,17 @@ public:
     }    
 };
 
+class NullType : public Type {
+public:
+    NullType() {  // You can use any default 'unknown' type
+        kind = Kind::Null;
+    }
+
+    std::string pointerDescription() const override {
+        return "null";
+    }
+};
+
 class NullPointerType : public Type {
 public:
     NullPointerType() {  // You can use any default 'unknown' type
@@ -400,17 +415,17 @@ public:
 
 class FunctionType : public Type {
 public:
-    Kind returnKind;
     std::vector<std::shared_ptr<Type>> paramTypes;
     bool isVarArg;
 
-    FunctionType(Kind returnKind, std::vector<std::shared_ptr<Type>> paramTypes, bool isVarArg)
-        : returnKind(returnKind), paramTypes(std::move(paramTypes)), isVarArg(isVarArg) {
+    FunctionType(std::shared_ptr<Type> returnType, std::vector<std::shared_ptr<Type>> paramTypes, bool isVarArg)
+        : paramTypes(std::move(paramTypes)), isVarArg(isVarArg) {
+        this->returnType = std::move(returnType);
         kind = Kind::Function;
     }
 
     std::shared_ptr<Type> getReturnType() const override {
-        return std::make_shared<PrimitiveType>(returnKind); // You may replace this with actual type resolution
+        return returnType; // You may replace this with actual type resolution
     }
 };
 
@@ -426,8 +441,8 @@ public:
     std::shared_ptr<Type> getType() const { return type; }
     virtual std::string toString() const { return "Value"; }
 
+    std::string name;
     std::shared_ptr<Type> type = Type::createInvalid();  // Holds a full Type object now
-
 };
 
 template <typename T>
@@ -531,6 +546,14 @@ struct PointerValue : public Value {
     std::string toString() const override { return "Pointer"; } 
 };
 
+struct NullValue : public Value {
+    NullValue() {
+        type = Type::createNullType();
+    }
+
+    std::string toString() const override { return "NullPointer"; } 
+};
+
 struct NullPointerValue : public Value {
     NullPointerValue() {
         type = Type::createNullPointerType();
@@ -594,21 +617,103 @@ struct ReferenceValue : public Value {
 
 
 // Function Types
-struct FunctionValue : public Value {
-    std::vector<std::shared_ptr<Value>> args;
-    std::shared_ptr<Value> returnValue;
-    bool isVarArg;
+struct ReturnValue : public Value {
+    std::shared_ptr<Value> value;
+    ReturnValue(std::shared_ptr<Value> value, std::shared_ptr<Type> returnType) : value(std::move(value)) {
+        type = returnType;
+    }
+};
 
-    FunctionValue(std::shared_ptr<Value> returnValue, std::vector<std::shared_ptr<Value>> args, bool isVarArg = false)
-        : returnValue(std::move(returnValue)), args(std::move(args)), isVarArg(isVarArg) {
-        std::vector<std::shared_ptr<Type>> paramTypes;
-        for (auto& arg : this->args)
-            paramTypes.push_back(arg->type);
+struct BinaryExpressionValue : public Value {
+    std::shared_ptr<Value> left;
+    std::shared_ptr<Value> right;
+    TokenTypes op;
 
-        type = Type::createFunctionType(returnValue->type->getKind(), std::move(paramTypes), isVarArg);
+    BinaryExpressionValue(std::shared_ptr<Value> lhs, TokenTypes op, std::shared_ptr<Value> rhs, std::shared_ptr<Type> resultType)
+        : left(std::move(lhs)), right(std::move(rhs)), op(std::move(op)) {
+        this->type = resultType;
     }
 
-    std::string toString() const override { return "Function"; } 
+    std::string toString() const override {
+        // return "(" + left->toString() + " " + op + " " + right->toString() + ")";
+        return "(" + left->toString() + " op " + right->toString() + ")";
+        // return "(bin expr)";
+    }
+};
+
+struct TernaryExpressionValue : public Value {
+    std::shared_ptr<Value> condition;
+    std::shared_ptr<Value> truthy;
+    std::shared_ptr<Value> falsey;
+
+    TernaryExpressionValue(std::shared_ptr<Value> cond,
+                           std::shared_ptr<Value> ifTrue,
+                           std::shared_ptr<Value> ifFalse,
+                           std::shared_ptr<Type> resultType)
+        : condition(std::move(cond)), truthy(std::move(ifTrue)), falsey(std::move(ifFalse)) {
+        this->type = resultType;
+    }
+
+    std::string toString() const override {
+        return "(" + condition->toString() + " ? " + truthy->toString() + " : " + falsey->toString() + ")";
+    }
+};
+
+
+struct UnaryExpressionValue : public Value {
+    TokenTypes op;
+    std::shared_ptr<Value> operand;
+    bool position;
+
+    UnaryExpressionValue(TokenTypes op,
+                         std::shared_ptr<Value> operand,
+                         std::shared_ptr<Type> resultType,
+                         bool position)
+        : op(op), operand(std::move(operand)), position(position) {
+        this->type = resultType;
+    }
+
+    std::string toString() const override {
+        TokenTypes opStr = op;
+        return "(unaryexpr)";
+        // return (position)
+        //     ? (opStr + operand->toString())
+        //     : (operand->toString() + opStr);
+    }
+};
+
+
+//params & args
+struct FunctionInput : public Value {
+    bool isConstant = false;
+    std::shared_ptr<Value> value;
+
+    FunctionInput(const std::string& name, std::shared_ptr<Type> type = nullptr, std::shared_ptr<Value> value = nullptr, bool isConst = false) :
+    value(std::move(value)), isConstant(isConst) {
+        this->name = name;
+        this->type = std::move(type);
+    }
+    
+    std::string toString() const override { return "(FunctionInput: " + name + ", value: " + value->toString() + ")"; } 
+};
+
+struct FunctionValue : public Value {
+    std::vector<std::shared_ptr<Value>> params;
+    std::vector<std::shared_ptr<Value>> body;
+    std::shared_ptr<Type> returnType;
+    bool isVarArg;
+
+    FunctionValue(const std::string& name, std::shared_ptr<Type> returnType, std::vector<std::shared_ptr<Value>> body, std::vector<std::shared_ptr<Value>> params, bool isVarArg = false)
+        : body(std::move(body)), params(std::move(params)), isVarArg(isVarArg) {
+        std::vector<std::shared_ptr<Type>> paramTypes;
+        for (auto& param : this->params)
+            paramTypes.push_back(param->type);
+            
+        this->name = name;
+        type = Type::createFunctionType(returnType, std::move(paramTypes), isVarArg);
+    }
+
+    std::string toString() const override { return "Function: " + name; } 
 };
 
 

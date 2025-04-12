@@ -22,26 +22,26 @@ std::shared_ptr<Omniscript::Value> BlockStatement::evaluate(SymbolTable<std::sha
     // Create a new scope for this block
     // generator.pushScope();
     
-    // std::shared_ptr<Omniscript::Value> lastValue = nullptr;
+    std::shared_ptr<Omniscript::Value> lastValue = nullptr;
     
     // // Generate code for each statement in order
-    // for (const auto& stmt : statements) {
-    //     // Handle type propagation if needed
-    //     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(stmt)) {
-    //         typed->setType(llvmType);
-    //     }
+    for (const auto& stmt : statements) {
+        // Handle type propagation if needed
+        if (auto typed = std::dynamic_pointer_cast<TypedStatement>(stmt)) {
+            typed->setType(type);
+        }
 
-    //     if (auto assignment = std::dynamic_pointer_cast<Assignment>(stmt)) {
-    //         assignment->setGlobalVisibilityTo(false);
-    //     }
+        if (auto assignment = std::dynamic_pointer_cast<Assignment>(stmt)) {
+            assignment->setGlobalVisibilityTo(false);
+        }
 
-    //     lastValue = stmt->evaluate(scope);
+        lastValue = stmt->evaluate(scope);
         
-    //     // If the current block already has a terminator, stop generating
-    //     if (generator.currentBlockHasTerminator()) {
-    //         break;
-    //     }
-    // }
+        // // If the current block already has a terminator, stop generating
+        // if (generator.currentBlockHasTerminator()) {
+        //     break;
+        // }
+    }
     
     // // Pop the scope we created for this block
     // generator.popScope();
@@ -293,9 +293,9 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
                     result = value->evaluate(scope);
                 } else {
                     result = value->evaluate(scope);
-                    if (type->getKind() != result->getType()->getKind()) {
-                        console.error("The variable '" + variable + "' expects type '" + type->kindName() +
-                        "' but got '" + result->getType()->kindName() + "' instead.");
+                    if (type->getKind() != result->getType()->getKind() && !result->getType()->isNull()) {
+                        console.error("The variable '" + variable + "' expects type '" + type->kindName() + "' or 'null' "+ 
+                        " but got '" + result->getType()->kindName() + "' instead.");
                     }
                 }
             }
@@ -430,8 +430,7 @@ std::shared_ptr<Omniscript::Value> createDynamicVariable::evaluate(SymbolTable<s
 
 // Get Variable
 std::shared_ptr<Omniscript::Value> GetVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    
-    return nullptr;
+    return std::make_shared<Omniscript::VariableAccess>(name);
 }
 
 // Get Dynamic Variable
@@ -471,69 +470,72 @@ std::shared_ptr<Omniscript::Value> WhileStatement::evaluate(SymbolTable<std::sha
 }
 
 std::shared_ptr<Omniscript::Value> TernaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // Generate code for condition, truthy, and falsey expressions
-    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
-    //     stmt->setType(llvmType);
-    // }
+    // Assign types
+    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
+        stmt->setType(type);
+    }
 
-    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(falsey)) {
-    //     stmt->setType(llvmType);
-    // }
+    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(falsey)) {
+        stmt->setType(type);
+    }
 
-    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(condition)) {
-    //     std::vector<std::string> type = {"bool"};
-    //     stmt->setType(generator.resolveLLVMType(type));
-    // }
+    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(condition)) {
+        std::vector<std::string> typeStr = {"bool"};
+        stmt->setType(Omniscript::resolveType(typeStr));
+    }
 
-    // std::shared_ptr<Omniscript::Value> condValue = condition->evaluate(scope);
-    // if (!condValue) return nullptr;
-    
-    // std::shared_ptr<Omniscript::Value> trueValue = truthy->evaluate(scope);
-    // if (!trueValue) return nullptr;
-    
-    // std::shared_ptr<Omniscript::Value> falseValue = falsey->evaluate(scope);
-    // if (!falseValue) return nullptr;
-    
-    // // Use IRGenerator to create the ternary expression
-    // return generator.createTernaryExpression(condValue, trueValue, falseValue);
-    return nullptr;
+    // Evaluate condition, then branches
+    std::shared_ptr<Omniscript::Value> condValue = condition->evaluate(scope);
+    if (!condValue) return nullptr;
+
+    std::shared_ptr<Omniscript::Value> trueValue = truthy->evaluate(scope);
+    if (!trueValue) return nullptr;
+
+    std::shared_ptr<Omniscript::Value> falseValue = falsey->evaluate(scope);
+    if (!falseValue) return nullptr;
+
+    return std::make_shared<Omniscript::TernaryExpressionValue>(
+        condValue, trueValue, falseValue, type
+    );
 }
 
+
 std::shared_ptr<Omniscript::Value> BinaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // Generate code for left and right operands
-    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(left)) {
-    //     stmt->setType(llvmType);
-    // }
+    // Set the expected result type for child expressions
+    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(left)) {
+        stmt->setType(type);
+    }
 
-    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(right)) {
-    //     stmt->setType(llvmType);
-    // }
+    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(right)) {
+        stmt->setType(type);
+    }
 
-    // std::shared_ptr<Omniscript::Value> leftValue = left->evaluate(scope);
-    // if (!leftValue) return nullptr;
-    
-    // std::shared_ptr<Omniscript::Value> rightValue = right->evaluate(scope);
-    // if (!rightValue) return nullptr;
-    
-    // // Use IRGenerator to create the binary expression
-    // return generator.createBinaryExpression(leftValue, op, rightValue);
-    return nullptr;
+    // Evaluate left and right operands
+    std::shared_ptr<Omniscript::Value> leftValue = left->evaluate(scope);
+    if (!leftValue) return nullptr;
+
+    std::shared_ptr<Omniscript::Value> rightValue = right->evaluate(scope);
+    if (!rightValue) return nullptr;
+
+    // Wrap both evaluated values into a BinaryExpressionValue
+    return std::make_shared<Omniscript::BinaryExpressionValue>(leftValue, op, rightValue, type);
 }
 
 std::shared_ptr<Omniscript::Value> UnaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
-    //     stmt->setType(llvmType);
-    // }
+    // Set the expected type on the operand
+    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
+        stmt->setType(type);
+    }
 
-    // // Generate code for the operand
-    // std::shared_ptr<Omniscript::Value> operandValue = operand->evaluate(scope);
-    // if (!operandValue) return nullptr;
-    
-    // // Use IRGenerator to create the unary expression
-    // bool appendType = position == Position::Postfix ? true : false;
-    // return generator.createUnaryExpression(operandValue, op, appendType);
-    return nullptr;
+    // Evaluate the operand
+    std::shared_ptr<Omniscript::Value> operandValue = operand->evaluate(scope);
+    if (!operandValue) return nullptr;
+
+    bool isPrefix = position == Position::Prefix;
+
+    return std::make_shared<Omniscript::UnaryExpressionValue>(op, operandValue, type, isPrefix);
 }
+
 
 std::shared_ptr<Omniscript::Value> IfStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
     return nullptr;
@@ -545,7 +547,7 @@ std::shared_ptr<Omniscript::Value> Call::evaluate(SymbolTable<std::shared_ptr<Om
     
     // for (auto& arg : args) {
     //     // if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
-    //         //     typed->setType(llvmType);
+    //         //     typed->setType(type);
     //         // }
             
     //         results.push_back(arg->evaluate(scope));
@@ -557,15 +559,17 @@ std::shared_ptr<Omniscript::Value> Call::evaluate(SymbolTable<std::shared_ptr<Om
 }
 
 std::shared_ptr<Omniscript::Value> ReturnStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // std::shared_ptr<Omniscript::Value> retVal = nullptr;
-    // if (returnValue) {
-    //     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
-    //         stmt->setType(llvmType);
-    //     }
-    //     retVal = returnValue->evaluate(scope);
-    // }
-    // return generator.createReturn(retVal, llvmType);
-    return nullptr;
+    DEBUG_LOG("Creating a return value of kind '" + type->kindName() + "'.");
+    std::shared_ptr<Omniscript::Value> result = nullptr;
+    if (returnValue) {
+        if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
+            stmt->setType(type);
+        }
+        result = returnValue->evaluate(scope);
+    }
+    
+    DEBUG_LOG("The result of the return value is '" + result->toString() + "'.");
+    return std::make_shared<Omniscript::ReturnValue>(result, type);
 }
 
 std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
@@ -675,39 +679,59 @@ std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<O
 }
 
 std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // DEBUG_LOG("Constructing a function prototype");
-    // if (name == "main") {
-    //     name = "__main";
-    // }
+    DEBUG_LOG("Constructing a function prototype");
 
-    // setReturnTypes(generator);
+    if (name == "main") {
+        name = "__main";
+    }
 
-    // DEBUG_LOG("Setting the function's return type");
-    // if (auto typed = std::dynamic_pointer_cast<TypedStatement>(body)) {
-    //     typed->setType(llvmType);
-    // }
-    // DEBUG_LOG("Setting the function's return type");
-    // auto func = generator.createFunction(*this);
+    setReturnTypes(); // This sets the returnType field and its type in the body
 
-    // if (!func) {
-    //     return nullptr;
-    // }
-    
-    // generator.generateFunctionBody(func, *this);
-    // return func;
-    return nullptr;
+    DEBUG_LOG("Setting the function's return type");
+    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(body)) {
+        typed->setType(returnType);
+    }
+
+    auto bod = body->evaluate(scope);
+
+    DEBUG_LOG("Extracting argument values for function type construction");
+    std::vector<std::shared_ptr<Omniscript::Value>> argValues;
+    bool isVarArg = false;
+
+    for (const auto& param : parameters) {
+        if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
+            auto paramType = typed->getType();
+        }
+        argValues.push_back(param->evaluate(scope));
+        // You could also check for variadic parameter patterns here if you support that
+        // e.g., if (param->isVariadic()) isVarArg = true;
+    }
+
+    std::vector<std::shared_ptr<Omniscript::Value>> functionBody;
+
+    for (auto &stmt : body->statements) {
+        functionBody.push_back(stmt->evaluate(scope));
+    }
+
+    DEBUG_LOG("Creating FunctionValue");
+    auto functionVal = std::make_shared<Omniscript::FunctionValue>(name, returnType, functionBody, argValues, isVarArg);
+
+    DEBUG_LOG("Storing function in symbol table: " + name);
+    scope.set(name, functionVal);
+
+    return functionVal;
 }
 
 void FunctionDeclaration::setReturnTypes() {
-    // std::shared_ptr<Omniscript::Type> funcReturnType = getType();
-    // if (!funcReturnType) {
-    //     std::vector<std::string> type = {"void"};
-    //     funcReturnType = generator.resolveLLVMType(type);
-    // }
+    std::shared_ptr<Omniscript::Type> funcReturnType = getType();
+    if (!funcReturnType) {
+        std::vector<std::string> type = {"void"};
+        funcReturnType = Omniscript::resolveType(type);
+    }
 
-    // for (const auto& stmt : body) {
-    //     setReturnTypesInStatement(stmt, funcReturnType);
-    // }
+    for (const auto& stmt : body->statements) {
+        setReturnTypesInStatement(stmt, funcReturnType);
+    }
 }
 
 void FunctionDeclaration::setReturnTypesInStatement(
@@ -739,20 +763,30 @@ void FunctionDeclaration::setReturnTypesInStatement(
 }
 
 std::shared_ptr<Omniscript::Value> ParameterStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // DEBUG_LOG("Creating parameter " + name);
-    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
-    //     stmt->setType(llvmType);
-    // }
-    // std::shared_ptr<Omniscript::Value> result = defaultValue->evaluate(scope);
-    // DEBUG_LOG("Created value for parameter " + name);
-    // return result;
-    return nullptr;
+    DEBUG_LOG("Creating parameter " + name);
+    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
+        stmt->setType(type);
+    }
+
+    std::shared_ptr<Omniscript::Value> result;
+    
+    if (defaultValue) {
+        defaultValue->evaluate(scope);
+     } else {
+        if (type->isPointer()) {
+            result = std::make_shared<Omniscript::NullPointerValue>();
+        } else {
+            result = std::make_shared<Omniscript::NullValue>();
+        }
+     }
+    DEBUG_LOG("Created value for parameter " + name);
+    return std::make_shared<Omniscript::FunctionInput>(name, type, result);
 }
 
 std::shared_ptr<Omniscript::Value> ArgumentStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
     // DEBUG_LOG("Creating argument " + name);
     // // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
-    // //     stmt->setType(llvmType);
+    // //     stmt->setType(type);
     // // }
     // std::shared_ptr<Omniscript::Value> result = value->evaluate(scope);
     // DEBUG_LOG("Created value for argument " + name);
@@ -762,7 +796,7 @@ std::shared_ptr<Omniscript::Value> ArgumentStatement::evaluate(SymbolTable<std::
 
 std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
     // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
-    //     stmt->setType(llvmType);
+    //     stmt->setType(type);
     // }
     // return defaultValue;
     return nullptr;

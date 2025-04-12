@@ -381,9 +381,11 @@ private:
 // Variable Retrieval
 class GetVariable : public NamedStatement, public TypedStatement {
 public:
-    explicit GetVariable(const std::string &var) : variable(var) {}
+    explicit GetVariable(const std::string &var) {
+        setName(var);
+    }
 
-    std::string getName() const override { return variable; }
+    std::string getName() const override { return name; }
 
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
     std::string toString() const override { return "GetVariable"; }
@@ -455,7 +457,7 @@ public:
 
     std::string getName() const override { return name; }
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "ParameterStatement"; }
     std::shared_ptr<Statement> getDefaultValue();
 };
 
@@ -475,6 +477,7 @@ public:
 // ============================== Struct ============================== //
 class FunctionDeclaration : public NamedStatement, public TypedStatement {
 public:
+    std::shared_ptr<Omniscript::Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
     std::vector<std::shared_ptr<Statement>> parameters;
     std::shared_ptr<BlockStatement> body;
@@ -484,14 +487,14 @@ public:
         const std::vector<std::shared_ptr<Statement>>& parameters,
         std::shared_ptr<BlockStatement> body,
         std::shared_ptr<Omniscript::Type> returnType = nullptr // Default to nullptr if return type is unknown
-    ) : parameters(parameters), body(body) {
+    ) : parameters(parameters), body(body), returnType(returnType) {
         setType(returnType); // Store the return type using `TypedStatement`
         setName(functionName);
     }
 
     std::string getName() const override { return name; }
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "FunctionDeclerationStatement"; }
     
     void setReturnTypes();
     void setReturnTypesInStatement(

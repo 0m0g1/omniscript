@@ -203,8 +203,18 @@ public:
     llvm::Value* generateOpaqueDynamicVariable(const std::string& name, llvm::Value* value);
 
     llvm::Value* createFixedArray(llvm::Type* elementType, size_t arraySize, const std::vector<llvm::Value*>& elements);
-    llvm::Function* createFunction(const FunctionDeclaration& funcDecl);
-    void generateFunctionBody(llvm::Function* function, const FunctionDeclaration& funcDecl);
+    llvm::Function* createFunction(
+        const std::string& name,
+        std::vector<std::shared_ptr<Omniscript::Value>>& body,
+        llvm::Type* returnType,
+        std::vector<std::shared_ptr<Omniscript::Value>>& params,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
+    );
+    void generateFunctionBody(
+        llvm::Function* function,
+        std::vector<std::shared_ptr<Omniscript::Value>>& funcBody,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
+    );
     llvm::AllocaInst* createEntryBlockAlloca(llvm::Function* function,llvm::Type* type, const std::string& name);
     // llvm::Value* createCall(const std::string& callee, std::vector<llvm::Value*>& args);
     llvm::Value* createCall(
