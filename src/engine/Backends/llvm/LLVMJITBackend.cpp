@@ -64,6 +64,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     DEBUG_LOG();
     irGen->printIR();
     irGen->printErrors();
+    DEBUG_LOG();
     
     irGen->optimizeModule();
     
@@ -112,7 +113,6 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     
     llvm::Type* returnType = func->getReturnType();
     
-    DEBUG_LOG();
     // Execute the entry function based on its return type
     if (entryPoint == "__top_level__") {
         if (!returnType->isVoidTy()) {

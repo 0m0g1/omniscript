@@ -9,6 +9,13 @@
 #include <llvm/Support/Alignment.h>
 #include <llvm/ADT/StringMap.h>         // Needed for getHostCPUFeatures
 #include <llvm/IR/Constants.h>  // Required for appendToGlobalCtors
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/MC/TargetRegistry.h>
+#include <llvm/TargetParser/Host.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/IR/DataLayout.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <optional>
 
 #include <omniscript/debuggingtools/console.h>
 
@@ -34,39 +41,44 @@ bool IRGenerator::supportsAVX2() {
 }
 
 void IRGenerator::initialize() {
-    if (!Context) {
+    // Create context, module, builder if not yet created
+    if (!Context)
         Context = std::make_unique<llvm::LLVMContext>();
-    }
-    if (!Module) {
+
+    if (!Module)
         Module = std::make_unique<llvm::Module>("OmniScript", *Context);
-    }
-    if (!Builder) {
+
+    if (!Builder)
         Builder = std::make_unique<llvm::IRBuilder<>>(*Context);
+
+    // Initialize target
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+
+    std::string error;
+    std::string triple = llvm::sys::getDefaultTargetTriple();
+
+    Module->setTargetTriple(triple);
+
+    const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple, error);
+    if (!target) {
+        llvm::errs() << "Target lookup failed: " << error << "\n";
+        return;
     }
 
-    // Check if there are any functions in the module
-    if (Module->empty()) {
-        // No functions exist, create a top-level entry block for global execution
-        llvm::FunctionType* funcType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
-        llvm::Function* topLevelFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "__top_level__", Module.get());
-        llvm::BasicBlock* entryBlock = llvm::BasicBlock::Create(*Context, "entry", topLevelFunc);
-        Builder->SetInsertPoint(entryBlock);
-        Builder->CreateRetVoid(); 
-    } else {
-        // There are existing functions, check if "main" exists
-        llvm::Function* function = Module->getFunction("main");
-        if (function && function->empty()) {
-            // If main exists but is empty, create an entry block
-            llvm::BasicBlock* entryBlock = llvm::BasicBlock::Create(*Context, "entry", function);
-            Builder->SetInsertPoint(entryBlock);
-        } else if (function) {
-            // If main already has an entry block, set the insert point there
-            Builder->SetInsertPoint(&function->getEntryBlock());
-        } else {
-            // If other functions exist, set insert point to the first function's entry
-            Builder->SetInsertPoint(&Module->begin()->getEntryBlock());
-        }
-    }
+    llvm::TargetOptions options;
+    auto targetMachine = std::unique_ptr<llvm::TargetMachine>(
+        target->createTargetMachine(triple, "generic", "", options, std::nullopt)
+    );
+
+    Module->setDataLayout(targetMachine->createDataLayout());
+
+    // Optional: Setup main or top-level function
+    llvm::FunctionType* funcType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
+    llvm::Function* topFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "__top_level__", Module.get());
+    llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", topFunc);
+    Builder->SetInsertPoint(entry);
+    Builder->CreateRetVoid(); // placeholder
 
     CurrentModule = Module.get();
 }
