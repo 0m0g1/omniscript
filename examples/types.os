@@ -104,6 +104,14 @@ function add(a: int, b: int) => i32 {
     return a + b;
 }
 
+// function add<T>(a: T, b: T) => T {
+//     return a + b;
+// }
+
+// function add<T, I>(a: int, b: int) => i32 {
+//     return a + b;
+// }
+
 // function main() => i32 {
 //     return add(1, 1);
 // }

@@ -1,3 +1,4 @@
+- work on generics
 - rename all omniscript values to Expressions
 - check if references are properly gotten
 - add support for 16 bit floats
