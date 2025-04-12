@@ -705,7 +705,7 @@ public:
 
     FixedArrayValue(std::vector<std::shared_ptr<Value>> elems, std::shared_ptr<Type> elemType)
         : elements(std::move(elems)), elementType(std::move(elemType)) {
-            type = Type::createFixedArrayType(elemType, elems.size());
+            type = Type::createFixedArrayType(elementType, elements.size());
         }
 
     std::string typeName() const {

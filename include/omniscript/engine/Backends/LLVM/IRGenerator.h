@@ -80,6 +80,7 @@ public:
     void printIR();
     void printErrors();
     void printErrors(llvm::Module& module);
+    std::string debugType(llvm::Type* type);
     void optimizeModule(int level = 2); // Define optimization logic
 
     bool isLoadedModule(const std::string& modulePath);

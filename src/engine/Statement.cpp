@@ -402,7 +402,11 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
         DEBUG_LOG("HEREEE");
     }
 
-    DEBUG_LOG("The result is " + result->toString());
+    DEBUG_LOG(
+                "The result is " + variable + " " + 
+                (result->getType()->elementType ? result->getType()->elementType->kindName() + " " + result->getType()->kindName() : result->getType()->kindName())
+                + " = " + result->toString()
+            );
     scope.setVariable(variable, result);
 
     return Omniscript::make_value<Omniscript::VariableAssignment>(variable, result);
@@ -647,7 +651,7 @@ std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<O
                 }
             }
 
-            DEBUG_LOG("Value '" + std::to_string(n) + "' is '" + val->toString() + "'.");
+            DEBUG_LOG("Value '" + std::to_string(n) + "' is '" + expectedElementType->kindName() + " " + val->toString() + "'.");
             values.push_back(val);
             n++;
         }

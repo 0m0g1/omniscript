@@ -67,6 +67,8 @@ void IRGenerator::initialize() {
             Builder->SetInsertPoint(&Module->begin()->getEntryBlock());
         }
     }
+
+    CurrentModule = Module.get();
 }
 
 void IRGenerator::printIR() {
@@ -88,6 +90,13 @@ void IRGenerator::printErrors(llvm::Module& module) {
     } else {
         llvm::errs() << "No errors found in: '" << module.getModuleIdentifier() << "'.\n";
     }
+}
+
+std::string IRGenerator::debugType(llvm::Type* type) {
+    std::string str;
+    llvm::raw_string_ostream rso(str);
+    type->print(rso);
+    return rso.str();
 }
 
 void IRGenerator::optimizeModule(int level) {
@@ -133,9 +142,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
     if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(value)) {
         DEBUG_LOG("Assigning variable " + varAssign->variableName + " of type " + varAssign->getType()->kindName());
         llvm::Type* type = resolveLLVMType(varAssign->getType());
-        DEBUG_LOG("HERE");
+        DEBUG_LOG("Variable '" + varAssign->variableName + "' has type '" + debugType(type) + "'.");
         llvm::Value* value = codegen(varAssign->getValue(), scope);
-        DEBUG_LOG("HERE 1");
+        DEBUG_LOG("Got variable '" + varAssign->variableName + "''s value.");
         return createVariable(
             varAssign->variableName,
             type,
@@ -216,6 +225,10 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> va
     else if (auto fp128Primitive = std::dynamic_pointer_cast<Omniscript::Float<__float128>>(value)) {
         return create128BitFloat(fp128Primitive->getValue());
     }
+    else if (auto charPrimitive = std::dynamic_pointer_cast<Omniscript::Primitive<char>>(value)) {
+        DEBUG_LOG("Creating and int8 char from Primitive<char>");
+        return createChar(charPrimitive->getValue());
+    }
     // Handle string (std::string)
     else if (auto stringPrimitiveUTF8 = std::dynamic_pointer_cast<Omniscript::Primitive<std::string>>(value)) {
         DEBUG_LOG("Creating UTF-8 string from Primitive<std::string>");
@@ -237,10 +250,11 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> va
         std::vector<llvm::Value*> elems;
 
         for (const auto elem : arry->elements) {
+            DEBUG_LOG("Creating an array element");
             elems.push_back(this->codegen(elem, scope));
         }
         
-        llvm::Type* elementType = resolveLLVMType(arry->getType());
+        llvm::Type* elementType = resolveLLVMType(arry->elementType);
 
         return createFixedArray(elementType, elems.size(), elems);
     }
@@ -380,9 +394,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
 
     // If the type is an array, resolve the base type first.
     if (type->isArray()) {
-        DEBUG_LOG("The array is of size '" + std::to_string(type->fixedSize) + "'.");
-        // Resolve base type and array size.
-        DEBUG_LOG("The element type is '" + type->elementType->kindName() + "'.");
+        DEBUG_LOG("The array is of size '" + std::to_string(type->fixedSize) + "' and holds type " + type->elementType->kindName() + "'.");
         auto elementType = resolveLLVMType(type->elementType);
         uint64_t arraySize = type->fixedSize;
         return llvm::ArrayType::get(elementType, arraySize);
@@ -415,99 +427,130 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
 
     switch (type->getKind()) {
         case Omniscript::Kind::Int8:
+            DEBUG_LOG("Generating LLVM type: Int8");
             llvmType = llvm::Type::getInt8Ty(context);
             break;
         case Omniscript::Kind::Int16:
+            DEBUG_LOG("Generating LLVM type: Int16");
             llvmType = llvm::Type::getInt16Ty(context);
             break;
         case Omniscript::Kind::Int32:
+            DEBUG_LOG("Generating LLVM type: Int32");
             llvmType = llvm::Type::getInt32Ty(context);
             break;
         case Omniscript::Kind::Int64:
+            DEBUG_LOG("Generating LLVM type: Int64");
             llvmType = llvm::Type::getInt64Ty(context);
             break;
         case Omniscript::Kind::Int128:
+            DEBUG_LOG("Generating LLVM type: Int128");
             llvmType = llvm::IntegerType::get(context, 128);
             break;
         case Omniscript::Kind::Int256:
+            DEBUG_LOG("Generating LLVM type: Int256");
             llvmType = llvm::IntegerType::get(context, 256);
             break;
         case Omniscript::Kind::Int512:
+            DEBUG_LOG("Generating LLVM type: Int512");
             llvmType = llvm::IntegerType::get(context, 512);
             break;
         case Omniscript::Kind::Int1024:
+            DEBUG_LOG("Generating LLVM type: Int1024");
             llvmType = llvm::IntegerType::get(context, 1024);
             break;
         case Omniscript::Kind::BigInt:
-            llvmType = llvm::IntegerType::get(context, 1024); // or 256, 512, etc.
-            break;        
+            DEBUG_LOG("Generating LLVM type: BigInt (treated as Int1024)");
+            llvmType = llvm::IntegerType::get(context, 1024);
+            break;
         case Omniscript::Kind::UInt8:
+            DEBUG_LOG("Generating LLVM type: UInt8");
             llvmType = llvm::Type::getInt8Ty(context);
             break;
         case Omniscript::Kind::UInt16:
+            DEBUG_LOG("Generating LLVM type: UInt16");
             llvmType = llvm::Type::getInt16Ty(context);
             break;
         case Omniscript::Kind::UInt32:
+            DEBUG_LOG("Generating LLVM type: UInt32");
             llvmType = llvm::Type::getInt32Ty(context);
             break;
         case Omniscript::Kind::UInt64:
+            DEBUG_LOG("Generating LLVM type: UInt64");
             llvmType = llvm::Type::getInt64Ty(context);
             break;
-            case Omniscript::Kind::UInt128:
+        case Omniscript::Kind::UInt128:
+            DEBUG_LOG("Generating LLVM type: UInt128");
             llvmType = llvm::IntegerType::get(context, 128);
             break;
         case Omniscript::Kind::UInt256:
+            DEBUG_LOG("Generating LLVM type: UInt256");
             llvmType = llvm::IntegerType::get(context, 256);
             break;
         case Omniscript::Kind::UInt512:
+            DEBUG_LOG("Generating LLVM type: UInt512");
             llvmType = llvm::IntegerType::get(context, 512);
             break;
         case Omniscript::Kind::UInt1024:
+            DEBUG_LOG("Generating LLVM type: UInt1024");
             llvmType = llvm::IntegerType::get(context, 1024);
             break;
         case Omniscript::Kind::Half:
+            DEBUG_LOG("Generating LLVM type: Half");
             llvmType = llvm::Type::getHalfTy(context);
             break;
         case Omniscript::Kind::Float:
+            DEBUG_LOG("Generating LLVM type: Float");
             llvmType = llvm::Type::getFloatTy(context);
             break;
         case Omniscript::Kind::Double:
+            DEBUG_LOG("Generating LLVM type: Double");
             llvmType = llvm::Type::getDoubleTy(context);
             break;
         case Omniscript::Kind::FP128:
+            DEBUG_LOG("Generating LLVM type: FP128");
             llvmType = llvm::Type::getFP128Ty(context);
             break;
-        case Omniscript::Kind::X86_FP80: 
+        case Omniscript::Kind::X86_FP80:
+            DEBUG_LOG("Generating LLVM type: X86_FP80");
             llvmType = llvm::Type::getX86_FP80Ty(context);
             break;
         case Omniscript::Kind::PPC_FP128:
+            DEBUG_LOG("Generating LLVM type: PPC_FP128");
             llvmType = llvm::Type::getPPC_FP128Ty(context);
             break;
         case Omniscript::Kind::Char:
-            llvmType = llvm::Type::getInt8Ty(context);  // Char type is represented as an 8-bit integer
+            DEBUG_LOG("Generating LLVM type: Char (as Int8)");
+            llvmType = llvm::Type::getInt8Ty(context);
             break;
         case Omniscript::Kind::Bool:
+            DEBUG_LOG("Generating LLVM type: Bool (as Int1)");
             llvmType = llvm::Type::getInt1Ty(context);
             break;
         case Omniscript::Kind::Void:
+            DEBUG_LOG("Generating LLVM type: Void");
             llvmType = llvm::Type::getVoidTy(context);
             break;
         case Omniscript::Kind::Null:
+            DEBUG_LOG("Generating LLVM type: Null (as pointer to i8)");
             llvmType = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context));
             break;
-        case Omniscript::Kind::Utf8: 
+        case Omniscript::Kind::Utf8:
+            DEBUG_LOG("Generating LLVM type: Utf8 (i8*)");
             llvmType = llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0);
             break;
         case Omniscript::Kind::Utf16:
+            DEBUG_LOG("Generating LLVM type: Utf16 (i16*)");
             llvmType = llvm::PointerType::get(llvm::Type::getInt16Ty(context), 0);
             break;
-        case Omniscript::Kind::Utf32: 
+        case Omniscript::Kind::Utf32:
+            DEBUG_LOG("Generating LLVM type: Utf32 (i32*)");
             llvmType = llvm::PointerType::get(llvm::Type::getInt32Ty(context), 0);
             break;
         default:
             std::cerr << "[ERROR] Unknown type: " << type->kindName() << std::endl;
             return nullptr;
     }
+    
 
     return llvmType;
 }
@@ -876,27 +919,30 @@ void IRGenerator::finalizeGlobalInitializers() {
     globalInitializers.clear();
 }
 
-llvm::Value* IRGenerator::createVariable(
+llvm::Value* IRGenerator::createVariable( 
     const std::string& name, 
     llvm::Type* type, 
     llvm::Value* initialValue, 
     bool isGlobal, 
     llvm::BasicBlock* activeBlock 
 ) {
+    llvm::Module* activeModule = CurrentModule;
 
-    llvm::Module* activeModule = CurrentModule; // Get the correct active module
+    DEBUG_LOG("Creating variable: " + name + (isGlobal ? " (global)" : " (local)"));
 
     if (isGlobal) {
         llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
             *activeModule,
             type,
-            false, // Not constant
-            llvm::GlobalValue::ExternalLinkage, // Make it accessible globally
+            false,
+            llvm::GlobalValue::ExternalLinkage,
             initialValue ? llvm::dyn_cast<llvm::Constant>(initialValue) 
-                         : llvm::Constant::getNullValue(type), // Default init
+                         : llvm::Constant::getNullValue(type),
             name
         );
-    
+
+        DEBUG_LOG("Global variable '" + name + "' created with type: " + debugType(type));
+
         if (!gVar->hasInitializer() && initialValue) {
             console.warn("Warning: Global variable '" + name + 
                          "' requires a constant initializer but received non-constant.");
@@ -904,9 +950,8 @@ llvm::Value* IRGenerator::createVariable(
 
         return gVar;
     }
-    
-    
-    // LOCAL VARIABLE CASE:
+
+    // Local variable case
     llvm::Function* function = nullptr;
     llvm::IRBuilder<> tempBuilder(Builder->getContext());
 
@@ -917,11 +962,10 @@ llvm::Value* IRGenerator::createVariable(
         function = Builder->GetInsertBlock()->getParent();
         tempBuilder.SetInsertPoint(&function->getEntryBlock(), function->getEntryBlock().begin());
     }
-    
-    // Place allocation in the entry block
-    llvm::AllocaInst* alloca = tempBuilder.CreateAlloca(type, nullptr, name);
 
-    // Ensure stores happen before return
+    llvm::AllocaInst* alloca = tempBuilder.CreateAlloca(type, nullptr, name);
+    DEBUG_LOG("Local variable '" + name + "' allocated in function: " + function->getName().str());
+
     llvm::BasicBlock* entryBlock = &function->getEntryBlock();
     llvm::Instruction* retInst = nullptr;
     for (llvm::Instruction& I : *entryBlock) {
@@ -930,38 +974,48 @@ llvm::Value* IRGenerator::createVariable(
             break;
         }
     }
-
+    
     if (type->isArrayTy()) {
+        DEBUG_LOG("Here");
         llvm::ArrayType* arrayType = llvm::dyn_cast<llvm::ArrayType>(type);
+        DEBUG_LOG("Here 1");
         llvm::Type* elementType = arrayType->getElementType();
-    
-        // Get alignment from DataLayout
+        DEBUG_LOG("Here 2");
+        
         const llvm::DataLayout& dataLayout = activeModule->getDataLayout();
-        unsigned elementAlign = dataLayout.getABITypeAlign(elementType).value();
-    
-        // Set alignment for the entire array allocation
+        DEBUG_LOG("Here 3");
+        DEBUG_LOG("Element type of array: " + debugType(elementType));
+
+        if (activeModule->getDataLayout().isDefault()) {
+            DEBUG_LOG("Warning: DataLayout not initialized in activeModule!");
+        }
+        
+        llvm::MaybeAlign maybeAlign = dataLayout.getABITypeAlign(elementType);
+        unsigned elementAlign = 0;
+
+        if (!maybeAlign) {
+            DEBUG_LOG("Failed to get ABI alignment for element type of array '" + name + "'");
+            elementAlign = 1; // Fallback
+        } else {
+            elementAlign = maybeAlign->value();
+        }
+        DEBUG_LOG("Here 4");
+
         alloca->setAlignment(llvm::Align(elementAlign));
-    
+        DEBUG_LOG("Set alignment for array '" + name + "' to " + std::to_string(elementAlign));
+
         if (initialValue) {
-            // Safely cast to ConstantArray
             if (auto* constArray = llvm::dyn_cast<llvm::ConstantArray>(initialValue)) {
                 for (unsigned i = 0; i < arrayType->getNumElements(); ++i) {
                     llvm::Value* index = llvm::ConstantInt::get(
-                        llvm::Type::getInt32Ty(activeModule->getContext()), i
-                    );
-                    // Get pointer to the i-th element
+                        llvm::Type::getInt32Ty(activeModule->getContext()), i);
                     llvm::Value* elementPtr = Builder->CreateGEP(
-                        arrayType,  // Pointee type of `alloca`
-                        alloca,
-                        {Builder->getInt32(0), index}
-                    );
-                    // Store with element-specific alignment
+                        arrayType, alloca, {Builder->getInt32(0), index});
                     llvm::StoreInst* store = Builder->CreateStore(
-                        constArray->getAggregateElement(i),
-                        elementPtr
-                    );
+                        constArray->getAggregateElement(i), elementPtr);
                     store->setAlignment(llvm::Align(elementAlign));
                     if (retInst) store->moveBefore(retInst);
+                    DEBUG_LOG("Initialized array element " + std::to_string(i) + " of '" + name + "'");
                 }
             }
         }
@@ -977,40 +1031,32 @@ llvm::Value* IRGenerator::createVariable(
         else if (bitWidth >= 32) align = 4;
         else if (bitWidth >= 16) align = 2;
 
-        alloca->setAlignment(llvm::Align(llvm::MaybeAlign(align).value_or(llvm::Align(1))));
+        alloca->setAlignment(llvm::Align(align));
+        DEBUG_LOG("Integer '" + name + "' alignment set to " + std::to_string(align));
+
         if (initialValue) {
             llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
             store->setAlignment(llvm::Align(align));
             if (retInst) store->moveBefore(retInst);
+            DEBUG_LOG("Stored initial value for integer '" + name + "'");
         }
     } else if (type->isFloatingPointTy()) {
-        unsigned align = 1;  // Default alignment in case no match is found
-    
-        // Handle specific floating-point types and their alignments
-        if (type->isHalfTy()) {
-            align = 2;  // Half type (16-bit) typically has 2-byte alignment
-        } else if (type->isFloatTy()) {
-            align = 4;  // Float (32-bit) has 4-byte alignment
-        } else if (type->isDoubleTy()) {
-            align = 8;  // Double (64-bit) has 8-byte alignment
-        } else if (type->isFP128Ty()) {
-            align = 16;  // FP128 (128-bit) typically has 16-byte alignment
-        } else if (type->isX86_FP80Ty() || type->isPPC_FP128Ty()) {
-            align = 16;  // X86_FP80 (80-bit) and PPC_FP128 (128-bit) have 16-byte alignment
-        }
-    
-        // Set the alignment for the alloca
+        unsigned align = 1;
+        if (type->isHalfTy()) align = 2;
+        else if (type->isFloatTy()) align = 4;
+        else if (type->isDoubleTy()) align = 8;
+        else if (type->isFP128Ty() || type->isX86_FP80Ty() || type->isPPC_FP128Ty()) align = 16;
+
         alloca->setAlignment(llvm::Align(align));
-    
-        // If there is an initial value, store it with the correct alignment
+        DEBUG_LOG("Floating-point '" + name + "' alignment set to " + std::to_string(align));
+
         if (initialValue) {
             llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
             store->setAlignment(llvm::Align(align));
-    
-            // If there's a return instruction, move the store before it
             if (retInst) store->moveBefore(retInst);
+            DEBUG_LOG("Stored initial value for floating-point '" + name + "'");
         }
-    }  else if (type->isPointerTy()) {
+    } else if (type->isPointerTy()) {
         if (initialValue) {
             llvm::Type* initType = initialValue->getType();
             if (!initType->isPointerTy()) {
@@ -1018,42 +1064,33 @@ llvm::Value* IRGenerator::createVariable(
             } else {
                 llvm::PointerType* targetPtrType = llvm::cast<llvm::PointerType>(type);
                 llvm::PointerType* sourcePtrType = llvm::cast<llvm::PointerType>(initType);
-                
+
                 llvm::Value* castedValue = initialValue;
-                
+                std::string castType;
+
                 if (sourcePtrType->getAddressSpace() != targetPtrType->getAddressSpace()) {
-                    // Create addrspacecast before the terminator
-                    castedValue = Builder->CreateAddrSpaceCast(
-                        initialValue, 
-                        targetPtrType,
-                        "addrspace.cast"
-                    );
-                    if (retInst) {
-                        if (auto* castInst = llvm::dyn_cast<llvm::Instruction>(castedValue)) {
-                            castInst->moveBefore(retInst);
-                        }
-                    }
+                    castedValue = Builder->CreateAddrSpaceCast(initialValue, targetPtrType, "addrspace.cast");
+                    castType = "addrspacecast";
                 } else if (initType != type) {
-                    // Create bitcast before the terminator
-                    castedValue = Builder->CreateBitCast(
-                        initialValue, 
-                        type,
-                        "bit.cast"
-                    );
-                    if (retInst) {
-                        if (auto* castInst = llvm::dyn_cast<llvm::Instruction>(castedValue)) {
-                            castInst->moveBefore(retInst);
-                        }
+                    castedValue = Builder->CreateBitCast(initialValue, type, "bit.cast");
+                    castType = "bitcast";
+                }
+
+                if (retInst) {
+                    if (auto* castInst = llvm::dyn_cast<llvm::Instruction>(castedValue)) {
+                        castInst->moveBefore(retInst);
                     }
                 }
-                
+
                 llvm::StoreInst* store = Builder->CreateStore(castedValue, alloca);
                 if (retInst) store->moveBefore(retInst);
+                DEBUG_LOG("Pointer '" + name + "' initialized with " + castType);
             }
         }
     }
 
     activeScope->set(name, alloca);
+    DEBUG_LOG("Variable '" + name + "' registered in active scope");
     return alloca;
 }
 
@@ -1183,49 +1220,65 @@ llvm::Value* IRGenerator::createFixedArray(
     size_t size, 
     const std::vector<llvm::Value*>& elements) {
 
+    DEBUG_LOG("Creating fixed array of size " + std::to_string(size));
+    DEBUG_LOG("Element LLVM type: " + debugType(elementType));
+
     // ========== CRITICAL FIX: Handle insertion point ==========
     llvm::BasicBlock* currentBlock = Builder->GetInsertBlock();
     if (currentBlock && !currentBlock->empty() && currentBlock->back().isTerminator()) {
-        // Insert BEFORE the terminator if one exists
+        DEBUG_LOG("Found terminator in current block, inserting before it");
         Builder->SetInsertPoint(&currentBlock->back());
     }
 
-    const llvm::DataLayout& dataLayout = CurrentModule != nullptr ? CurrentModule->getDataLayout() : Module->getDataLayout();
+    const llvm::DataLayout& dataLayout = CurrentModule != nullptr 
+        ? CurrentModule->getDataLayout() 
+        : Module->getDataLayout();
+
     unsigned elementAlign = dataLayout.getABITypeAlign(elementType).value();
+    DEBUG_LOG("Element alignment: " + std::to_string(elementAlign));
 
     llvm::ArrayType* arrayType = llvm::ArrayType::get(elementType, size);
+    DEBUG_LOG("Array LLVM type: " + debugType(arrayType));
+
     llvm::Value* arrayAlloc = Builder->CreateAlloca(arrayType, nullptr, "static_array");
-    
-    // Set alignment for allocation
+    DEBUG_LOG("Array allocation created");
+
     llvm::cast<llvm::AllocaInst>(arrayAlloc)->setAlignment(llvm::Align(elementAlign));
+    DEBUG_LOG("Set alignment of allocation");
 
     for (size_t i = 0; i < elements.size(); ++i) {
+        DEBUG_LOG("Inserting element at index " + std::to_string(i));
+
         llvm::Value* element = elements[i];
-        
-        // Type check/cast
+
         if (element->getType() != elementType) {
+            DEBUG_LOG("Type mismatch: expected " + debugType(elementType) +
+                      ", got " + debugType(element->getType()));
             element = Builder->CreateBitCast(element, elementType);
+            DEBUG_LOG("Bitcasted element to match element type");
         }
 
-        // Get element pointer
         llvm::Value* elementPtr = Builder->CreateGEP(
             arrayType,
             arrayAlloc,
             {Builder->getInt32(0), Builder->getInt32(i)}
         );
+        DEBUG_LOG("Computed GEP for index " + std::to_string(i));
 
-        // Create store with alignment
         llvm::StoreInst* store = Builder->CreateStore(element, elementPtr);
         store->setAlignment(llvm::Align(elementAlign));
+        DEBUG_LOG("Stored element at index " + std::to_string(i));
 
-        // ========== SECONDARY FIX: Ensure stores are before terminators ==========
         if (currentBlock && !currentBlock->empty() && currentBlock->back().isTerminator()) {
+            DEBUG_LOG("Moving store before terminator at index " + std::to_string(i));
             store->moveBefore(&currentBlock->back());
         }
     }
 
+    DEBUG_LOG("Finished creating fixed array");
     return arrayAlloc;
 }
+
 
 llvm::Function* IRGenerator::createFunction(const FunctionDeclaration& funcDecl) {
     // Create function type
@@ -2008,7 +2061,7 @@ void IRGenerator::createEnumWithLookup(
 
     index->addIncoming(nextIndex, notFound);
     result->addIncoming(entryStr, loopBody);
-    result->addIncoming(Builder->CreateGlobalStringPtr("UNKNOWN"), notFound);
+    result->addIncoming(Builder->CreateGlobalString("UNKNOWN"), notFound);
 
     Builder->SetInsertPoint(exitBlock);
     Builder->CreateRet(result);
