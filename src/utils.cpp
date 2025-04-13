@@ -409,3 +409,11 @@ std::string joinMapKeys(const std::unordered_map<std::string, std::string>& map)
     }
     return result;
 }
+
+std::string join(const std::vector<std::string>& vec, const std::string& delimiter) {
+    if (vec.empty()) return "";
+    return std::accumulate(std::next(vec.begin()), vec.end(), vec[0],
+        [&delimiter](const std::string& a, const std::string& b) {
+            return a + delimiter + b;
+        });
+}

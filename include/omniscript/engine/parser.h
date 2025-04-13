@@ -75,7 +75,7 @@ class Parser {
         
         std::string generateSpecializedNameForDecleration(
             const std::string &baseName, 
-            const std::vector<std::pair<std::string, std::string>> &types
+            const std::vector<std::pair<std::string, std::vector<std::string>>> &types
         );
         
         std::string generateSpecializedNameForCall(
@@ -85,7 +85,7 @@ class Parser {
 
         std::vector<std::string> parseType();
         std::vector<std::string> parseTypeParametersForCall();
-        std::vector<std::pair<std::string, std::string>> parseTypeParametersForDeclaration();
+        std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>> parseTypeParametersForDeclaration();
         
         // Parse Objects
         /*
@@ -94,7 +94,6 @@ class Parser {
         std::shared_ptr<Statement> parseObject();
         std::shared_ptr<Statement> parseClass();
         ClassMemberModifiers parseClassMemberModifiers();
-        std::shared_ptr<Statement> parseThisStatement();
 
         // Parse binary and operational expressions (e.g., mathematical expressions)
         std::shared_ptr<Statement> parseTernaryExpression();   // Parse a ternary expression

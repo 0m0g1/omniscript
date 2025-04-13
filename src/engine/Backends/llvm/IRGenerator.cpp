@@ -180,6 +180,17 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
         DEBUG_LOG("Creating a null value");
         return createNullValue();
     }
+    
+    if (auto block = std::dynamic_pointer_cast<Omniscript::BlockValue>(value)) {
+        DEBUG_LOG("Evaluating a block value");
+
+        for (const auto& expr : block->values) {
+            DEBUG_LOG();
+            auto result = codegen(expr, scope);
+        }
+
+        return nullptr;
+    }
 
     if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerValue>(value)) {
         DEBUG_LOG("Creating a null pointer");
@@ -187,7 +198,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
     }
 
     if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionValue>(value)) {
-        DEBUG_LOG("Creating a function");
+        DEBUG_LOG("Creating a function " + func->name);
         llvm::Type* returnType = resolveLLVMType(func->getType()->getReturnType());
         return createFunction(func->name, func->body, returnType, func->params, scope);
     }
@@ -1339,7 +1350,6 @@ llvm::Value* IRGenerator::createFixedArray(
     return arrayAlloc;
 }
 
-
 llvm::Function* IRGenerator::createFunction(
     const std::string& name,
     std::vector<std::shared_ptr<Omniscript::Value>>& body,
@@ -1347,18 +1357,26 @@ llvm::Function* IRGenerator::createFunction(
     std::vector<std::shared_ptr<Omniscript::Value>>& params,
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
 ) {
+    DEBUG_LOG("Creating function: " + name);
+    
     // Create function type
     std::vector<llvm::Type*> paramTypes;
     for (auto& param : params) {
-        paramTypes.push_back(resolveLLVMType(param->getType()));
+        auto type = param->getType();
+        auto llvmType = resolveLLVMType(type);
+        paramTypes.push_back(llvmType);
+        
+        DEBUG_LOG("Resolved parameter type: " + type->kindName() + " to LLVM type: " + llvmType->getStructName().str());
     }
+
+    DEBUG_LOG("Resolved return type LLVM: " + debugType(returnType));
     
     llvm::FunctionType* funcType = llvm::FunctionType::get(
         returnType,
         paramTypes,
         false
     );
-    
+
     // Create function
     llvm::Function* function = llvm::Function::Create(
         funcType,
@@ -1366,14 +1384,24 @@ llvm::Function* IRGenerator::createFunction(
         name,
         CurrentModule
     );
-    
+
     // Set parameter names
     unsigned idx = 0;
     for (auto& arg : function->args()) {
-            arg.setName(params[idx++]->name);
+        auto& param = params[idx];
+        arg.setName(param->name);
+
+        DEBUG_LOG("Setting function argument: " + param->name + " of kind: " + param->getType()->kindName());
+        idx++;
     }
+
+    // Store function in scope
     activeScope->set(name, function);
+    DEBUG_LOG("Stored function: " + name + " in scope");
+
+    // Generate function body
     generateFunctionBody(function, body, scope);
+
     return function;
 }
 
@@ -1440,41 +1468,57 @@ llvm::Value* IRGenerator::createCall(
     return callInst;
 }
 
-void IRGenerator::generateFunctionBody(
+void IRGenerator::generateFunctionBody( 
     llvm::Function* function,
     std::vector<std::shared_ptr<Omniscript::Value>>& body,
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
 ) {
+    DEBUG_LOG("Generating body for function: " + function->getName().str());
+    DEBUG_LOG("Function return type: " + debugType(function->getReturnType()));
+
     pushActiveBlock();
 
     // Create entry block
     llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", function);
     Builder->SetInsertPoint(entry);
+    DEBUG_LOG("Created entry block for function: " + function->getName().str());
     
-    // // Create a new scope for function parameters + body
+    // Create a new scope for function parameters + body
     pushScope();
-    
-    // // Create allocas for parameters in the entry block
+    DEBUG_LOG("Pushed new scope for function");
+
+    // Create allocas for parameters in the entry block
     for (auto& arg : function->args()) {
-        std::string argName = arg.getName().str(); // Convert StringRef to std::string
+        std::string argName = arg.getName().str();
+        DEBUG_LOG("Allocating parameter: " + argName + " with type: " + debugType(arg.getType()));
         llvm::AllocaInst* alloca = createEntryBlockAlloca(function, arg.getType(), argName);
         Builder->CreateStore(&arg, alloca);
         activeScope->set(argName, alloca);
+        DEBUG_LOG("Stored parameter in scope: " + argName);
     }
-    
-    // // Generate function body
+
+    // Generate function body
     llvm::Value* retVal = nullptr;
     for (const auto& expr : body) {
+        DEBUG_LOG("Generating code for body expression of kind: " + expr->getType()->kindName());
         retVal = codegen(expr, scope);
+        if (retVal) {
+            DEBUG_LOG("Body expression result type: " + debugType(retVal->getType()));
+        }
     }
-    
+
     // Handle implicit return if needed
     if (!currentBlockHasTerminator()) {
         if (function->getReturnType()->isVoidTy()) {
+            DEBUG_LOG("Creating void return for function: " + function->getName().str());
             Builder->CreateRetVoid();
         } else if (retVal) {
+            DEBUG_LOG("Creating return with value type: " + debugType(retVal->getType()));
+            DEBUG_LOG("Function expects return type: " + debugType(function->getReturnType()));
+
             // Ensure return value matches function type
             if (retVal->getType() != function->getReturnType()) {
+                DEBUG_LOG("Return type mismatch: attempting cast");
                 llvm::Value* castedRet = castValue(retVal, function->getReturnType());
                 if (!castedRet) {
                     console.error("Failed to cast return value in function: " + function->getName().str());
@@ -1485,8 +1529,10 @@ void IRGenerator::generateFunctionBody(
                     return;
                 }
                 retVal = castedRet;
+                DEBUG_LOG("Cast successful. New return type: " + debugType(retVal->getType()));
             }
             Builder->CreateRet(retVal);
+            DEBUG_LOG("Created return instruction for function: " + function->getName().str());
         } else {
             // Error: Non-void function missing return
             console.error("Non-void function missing return: " + function->getName().str());
@@ -1497,14 +1543,19 @@ void IRGenerator::generateFunctionBody(
             return;
         }
     }
-    
+
     popScope();  // Parameters + function body scope
+    DEBUG_LOG("Popped function scope");
+    
     popActiveBlock();
+    DEBUG_LOG("Popped active block");
 
     // Verify the function for consistency
     if (llvm::verifyFunction(*function, &llvm::errs())) {
         console.error("Function verification failed: " + function->getName().str());
         function->eraseFromParent();
+    } else {
+        DEBUG_LOG("Function verified successfully: " + function->getName().str());
     }
 }
 
@@ -1537,10 +1588,12 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
 
     // Ensure type compatibility
     if (returnValue->getType() != expectedReturnType) {
-        throw std::runtime_error("Return type mismatch: expected " + 
-                                 std::to_string(expectedReturnType->getTypeID()) + 
+        throw std::runtime_error(
+                                "Return type mismatch: expected " + 
+                                 debugType(expectedReturnType) + 
                                  ", got " + 
-                                 std::to_string(returnValue->getType()->getTypeID()));
+                                 debugType(returnValue->getType())
+                                );
     }
 
     // Create the return instruction
@@ -1553,17 +1606,21 @@ bool IRGenerator::currentBlockHasTerminator() const {
 }
 
 llvm::Value* IRGenerator::castValue(llvm::Value* val, llvm::Type* targetType) {
-    if (val->getType() == targetType) return val;
-    
-    // Handle common cases (e.g., int extensions)
-    // if (targetType->isIntegerTy() && val->getType()->isIntegerTy()) {
-    //     bool isSigned = /* your type system's signedness */;
-    //     return Builder->CreateIntCast(val, targetType, isSigned);
+    return val;
+    // if (val->getType() == targetType) return val;
+
+    // if (val->getType()->isIntegerTy() && targetType->isIntegerTy()) {
+    //     return Builder->CreateIntCast(val, targetType, /*isSigned=*/true);
     // }
-    // Add more casts as needed...
-    
-    return nullptr; // No valid cast
+
+    // if (val->getType()->isFloatingPointTy() && targetType->isFloatingPointTy()) {
+    //     return Builder->CreateFPCast(val, targetType);
+    // }
+
+    // DEBUG_LOG("Unsupported cast from " + debugType(val->getType()) + " to " + debugType(targetType));
+    // return nullptr;
 }
+
 
 std::string IRGenerator::typeToString(llvm::Type* type) {
     std::string typeStr;

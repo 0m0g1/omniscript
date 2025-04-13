@@ -100,13 +100,13 @@
 // // let z : Option<i32> = None;
 // let variable : int = 10;
 
-function add(a: int, b: int) => i32 {
-    return a + b;
-}
-
-// function add<T>(a: T, b: T) => T {
+// function add(a: int, b: int) => i32 {
 //     return a + b;
 // }
+
+function add<T extends i8 | i32>(a: T, b: T) => T {
+    return a + b;
+}
 
 // function add<T, I>(a: int, b: int) => i32 {
 //     return a + b;

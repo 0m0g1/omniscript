@@ -1230,7 +1230,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration() {
     std::string name = currentToken.getValue(); // Function name
     eat(TokenTypes::Identifier);
 
-    std::vector<std::pair<std::string, std::string>> types; // Generic types
+    std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>> types; // Generic types
 
     if (currentToken.getType() == TokenTypes::LessThan) {
         types = parseTypeParametersForDeclaration();
@@ -1238,65 +1238,133 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration() {
 
     std::vector<std::shared_ptr<Statement>> parameters = parseParameters();
 
+    bool returnTypeIsGeneric = false;
     std::shared_ptr<Omniscript::Type> returnType = nullptr;
-
+    std::vector<std::string> returnDataType;
+    
     if (currentToken.getType() != TokenTypes::LeftBrace) {
         eat(TokenTypes::Arrow);
-        std::vector<std::string> types = parseType();
-        returnType = Omniscript::resolveType(types);
+        returnDataType = parseType();
+        returnType = Omniscript::resolveType(returnDataType);
+    }    
+
+    auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
+
+    if (!types.empty()) {
+
+        std::vector<std::shared_ptr<Statement>> monomorphizedFunctions;
+
+        bool isGeneric = false;
+        for (const auto& type : types) {
+            for (const auto& constraint : type.second) {
+                if (constraint.size() == 1 && (constraint[0] == "any" || constraint[0] == "variant")) {
+                    isGeneric = true;
+                    break;
+                }
+            }
+        }
+
+        // === Cartesian Product Logic ===
+        size_t paramCount = types.size();
+        std::vector<size_t> indices(paramCount, 0);
+        std::vector<size_t> sizes;
+        for (const auto& type : types) {
+            sizes.push_back(type.second.size());
+        }
+
+        bool done = false;
+        while (!done) {
+            // Generate one combination
+            std::vector<std::pair<std::string, std::vector<std::string>>> selectedTypes;
+        
+            for (size_t i = 0; i < paramCount; ++i) {
+                selectedTypes.emplace_back(types[i].first, types[i].second[indices[i]]);
+            }
+        
+            std::string specializedName = generateSpecializedNameForDecleration(name, selectedTypes);
+            console.info(specializedName);
+            
+            returnType = Omniscript::resolveType(returnDataType);
+            auto func = std::make_shared<FunctionDeclaration>(specializedName, parameters, body, returnType);
+        
+            for (const auto& genericPair : types) {
+                func->addGenericParam(genericPair.first);
+            }
+        
+            for (const auto& selected : selectedTypes) {
+                func->bindGeneric(selected.first, Omniscript::resolveType(selected.second));
+            }
+        
+            if (!isGeneric) {
+                monomorphizedFunctions.push_back(func);
+            }
+        
+            // Increment the index vector
+            for (size_t i = paramCount; i-- > 0;) {
+                indices[i]++;
+                if (indices[i] < sizes[i]) {
+                    break; // Continue generating combinations
+                } else {
+                    indices[i] = 0;
+                    if (i == 0) {
+                        done = true; // We've gone through all combinations
+                    }
+                }
+            }
+        }
+        
+        return std::make_shared<BlockStatement>(monomorphizedFunctions);
     }
 
-    auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock()); // Parse function body
-    
-    // std::vector<std::shared_ptr<Statement>> monomorphizedFunctions;
-
-    // if (!types.empty()) {
-    //     // Generate specialized function name
-    //     std::string typeSuffix;
-    //     bool isGeneric = false;
-    //     for (const auto& type : types) {
-    //         typeSuffix += "_" + type.second; // Append each type
-    //         if (type.second == "any" || type.second == "variant") {
-    //             isGeneric = true;
-    //         }
-    //     }
-
-    //     std::string specializedName = name + typeSuffix; // Example: add_int_string_float
-
-    //     auto func = std::make_shared<Function>(
-    //         specializedName, paramNames, parameters, body, std::nullopt, types
-    //     );
-
-    //     if (isGeneric) {
-    //         monomorphizedFunctions.push_back(std::make_shared<GenericAssignment>(specializedName, func));
-    //     } else {
-    //         monomorphizedFunctions.push_back(std::make_shared<ConstantAssignment>(specializedName, func));
-    //     }
-
-    //     // Return all monomorphized functions as a block
-    //     return std::make_shared<BlockStatement>(monomorphizedFunctions);
-    // }
-
-    // // If no generics, just return a normal function decleration
+    // Normal function without generics
+    returnType = Omniscript::resolveType(returnDataType);
     return std::make_shared<FunctionDeclaration>(name, parameters, body, returnType);
 }
 
+
 std::string Parser::generateSpecializedNameForDecleration(
-    const std::string &baseName, 
-    const std::vector<std::pair<std::string, std::string>> &types
+    const std::string& baseName,
+    const std::vector<std::pair<std::string, std::vector<std::string>>>& types
 ) {
     if (types.empty()) return baseName;
 
     std::ostringstream oss;
     oss << baseName << "_";
+
     for (size_t i = 0; i < types.size(); ++i) {
-        oss << types[i].second; // Use type name
-        if (i < types.size() - 1) oss << "_";
+        const auto& [genericName, concreteType] = types[i];
+
+        for (const auto& part : concreteType) {
+            if (part == "*") {
+                oss << "ptr_";
+            } else if (part == "&") {
+                oss << "ref_";
+            } else if (part == ".") {
+                oss << "_";
+            } else if (part == "[") {
+                oss << "arr";
+            } else if (part == "]") {
+                oss << "_";
+            } else {
+                oss << part << "_";
+            }
+        }
+
+        if (i < types.size() - 1) {
+            oss << "__"; // Separator between multiple generic args
+        }
     }
-    
-    console.warn(oss.str());
-    return oss.str();
+
+    std::string name = oss.str();
+
+    // Remove trailing separator(s) if present
+    while (!name.empty() && (name.back() == '_' || name.back() == '.')) {
+        name.pop_back();
+    }
+
+    return name;
 }
+
 
 std::string Parser::generateSpecializedNameForCall(
     const std::string &baseName, 
@@ -1347,32 +1415,56 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments() {
     return args;
 }
 
-std::vector<std::pair<std::string, std::string>> Parser::parseTypeParametersForDeclaration() {
-    std::vector<std::pair<std::string, std::string>> typeParams; // (Type, Constraint)
+std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>> Parser::parseTypeParametersForDeclaration() {
+    std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>> typeParams;
 
     if (currentToken.getType() == TokenTypes::LessThan) { // `<T>`
         eat(TokenTypes::LessThan);
+
         while (currentToken.getType() == TokenTypes::Identifier) {
             std::string typeName = currentToken.getValue();
             eat(TokenTypes::Identifier);
 
-            std::string constraint = "any"; // Default: no constraint
+            std::vector<std::vector<std::string>> constraintList;
 
-            if (currentToken.getType() == TokenTypes::Extends) { // `extends`
+            if (currentToken.getType() == TokenTypes::Extends) {
                 eat(TokenTypes::Extends);
 
-                // Check for `variant` and `any` token types
-                if (currentToken.getType() == TokenTypes::Variant) {
-                    constraint = "variant";
-                } else if (currentToken.getType() == TokenTypes::Any) {
-                    constraint = "any";
-                } else {
-                    constraint = currentToken.getValue(); // Regular type constraint
+                // Parse multiple types separated by '|'
+                while (true) {
+                    if (currentToken.getType() == TokenTypes::Variant) {
+                        constraintList.push_back({ "variant" });
+                        eat(currentToken.getType());
+                    } else if (currentToken.getType() == TokenTypes::Any) {
+                        constraintList.push_back({ "any" });
+                        eat(currentToken.getType());
+                    } else {
+                        std::vector<std::string> parsedType = parseType();
+
+                        // Instead of pushing the entire union as one element,
+                        // push individual types as separate constraints
+                        constraintList.push_back(parsedType);
+                    }
+
+                    if (currentToken.getType() == TokenTypes::BitwiseOr) {
+                        eat(TokenTypes::BitwiseOr);
+                    } else {
+                        break;
+                    }
                 }
-                eat(currentToken.getType()); // Consume the token
             }
 
-            typeParams.emplace_back(typeName, constraint);
+            // For debug log
+            std::string constraintStr = constraintList.empty() ? "none" :
+                std::accumulate(std::next(constraintList.begin()), constraintList.end(),
+                    join(constraintList[0], "."),
+                    [](const std::string& acc, const std::vector<std::string>& typeVec) {
+                        return acc + " , " + join(typeVec, ".");
+                    });
+
+            DEBUG_LOG("TypeName: " + typeName + ", Constraint: [" + constraintStr + "]");
+
+            typeParams.emplace_back(typeName, constraintList);
 
             if (currentToken.getType() == TokenTypes::Comma) {
                 eat(TokenTypes::Comma);
@@ -1380,10 +1472,13 @@ std::vector<std::pair<std::string, std::string>> Parser::parseTypeParametersForD
                 break;
             }
         }
+
         eat(TokenTypes::GreaterThan); // `>`
     }
+
     return typeParams;
 }
+
 
 std::vector<std::string> Parser::parseType() {
     std::vector<std::string> dataTypes;

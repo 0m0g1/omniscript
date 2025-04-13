@@ -22,20 +22,22 @@ std::shared_ptr<Omniscript::Value> BlockStatement::evaluate(SymbolTable<std::sha
     // Create a new scope for this block
     // generator.pushScope();
     
-    std::shared_ptr<Omniscript::Value> lastValue = nullptr;
+    std::vector<std::shared_ptr<Omniscript::Value>> results = {};
     
     // // Generate code for each statement in order
     for (const auto& stmt : statements) {
         // Handle type propagation if needed
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(stmt)) {
-            typed->setType(type);
+            if (type) {
+                typed->setType(type);
+            }
         }
 
         if (auto assignment = std::dynamic_pointer_cast<Assignment>(stmt)) {
             assignment->setGlobalVisibilityTo(false);
         }
 
-        lastValue = stmt->evaluate(scope);
+        results.push_back(stmt->evaluate(scope));
         
         // // If the current block already has a terminator, stop generating
         // if (generator.currentBlockHasTerminator()) {
@@ -48,7 +50,7 @@ std::shared_ptr<Omniscript::Value> BlockStatement::evaluate(SymbolTable<std::sha
     
     // // Return the last computed value (may be nullptr for statements without values)
     // return lastValue;
-    return nullptr;
+    return std::make_shared<Omniscript::BlockValue>(results);
 }
 
 std::shared_ptr<Omniscript::Value> ImportModule::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
@@ -501,6 +503,8 @@ std::shared_ptr<Omniscript::Value> TernaryExpression::evaluate(SymbolTable<std::
 
 
 std::shared_ptr<Omniscript::Value> BinaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+    DEBUG_LOG();
+    DEBUG_LOG("Creating a binary expression of kind '" + type->kindName() + "'.");
     // Set the expected result type for child expressions
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(left)) {
         stmt->setType(type);
@@ -679,18 +683,30 @@ std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<O
 }
 
 std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    DEBUG_LOG("Constructing a function prototype");
+    DEBUG_LOG();
+    DEBUG_LOG("Constructing a function " + name + " prototype the return Type is '" + type->kindName() + "'.");
 
     if (name == "main") {
         name = "__main";
     }
-
-    setReturnTypes(); // This sets the returnType field and its type in the body
-
+    
     DEBUG_LOG("Setting the function's return type");
+
+    if (!type) {
+        std::vector<std::string> retType = {"void"};
+        type = Omniscript::resolveType(retType);
+        returnType = type;
+    } else if (type->isGeneric()) {
+        type = resolveGeneric(type->getName());
+        returnType = type;
+    } 
+    
+    DEBUG_LOG("Setting the function's body's return type to " + type->kindName());
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(body)) {
         typed->setType(returnType);
     }
+   
+    setReturnTypes(); // This sets the returnType field and its type in the body
 
     auto bod = body->evaluate(scope);
 
@@ -701,6 +717,10 @@ std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std
     for (const auto& param : parameters) {
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
             auto paramType = typed->getType();
+
+            if (paramType->isGeneric()) {
+                typed->setType(std::move(resolveGeneric(paramType->getName())));
+            }
         }
         argValues.push_back(param->evaluate(scope));
         // You could also check for variadic parameter patterns here if you support that
@@ -723,11 +743,8 @@ std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std
 }
 
 void FunctionDeclaration::setReturnTypes() {
+    DEBUG_LOG("Setting the function's return type to " + returnType->kindName());
     std::shared_ptr<Omniscript::Type> funcReturnType = getType();
-    if (!funcReturnType) {
-        std::vector<std::string> type = {"void"};
-        funcReturnType = Omniscript::resolveType(type);
-    }
 
     for (const auto& stmt : body->statements) {
         setReturnTypesInStatement(stmt, funcReturnType);
@@ -738,29 +755,32 @@ void FunctionDeclaration::setReturnTypesInStatement(
     const std::shared_ptr<Statement>& stmt, 
     std::shared_ptr<Omniscript::Type> returnType
 ) {
-    // Handle ReturnStatement
-    // if (auto retStmt = std::dynamic_pointer_cast<ReturnStatement>(stmt)) {
-    //     retStmt->setType(returnType);
-    //     return;
-    // }
+    if (auto retStmt = std::dynamic_pointer_cast<ReturnStatement>(stmt)) {
+        retStmt->setType(returnType);
+        return;
+    }
 
-    // // Handle nested statements
-    // if (auto block = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
-    //     for (const auto& subStmt : block->statements) {
-    //         setReturnTypesInStatement(subStmt, returnType);
-    //     }
-    // }
+    if (auto block = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
+        for (const auto& subStmt : block->statements) {
+            setReturnTypesInStatement(subStmt, returnType);
+        }
+    }
     // else if (auto ifStmt = std::dynamic_pointer_cast<IfStatement>(stmt)) {
-    //     setReturnTypesInStatement(ifStmt->thenBranch, returnType);
-    //     if (ifStmt->elseBranch) {
+    //     if (ifStmt->thenBranch)
+    //         setReturnTypesInStatement(ifStmt->thenBranch, returnType);
+    //     if (ifStmt->elseBranch)
     //         setReturnTypesInStatement(ifStmt->elseBranch, returnType);
-    //     }
     // }
-    // else if (auto loop = std::dynamic_pointer_cast<WhileStatement>(stmt)) {
-    //     setReturnTypesInStatement(loop->body, returnType);
+    // else if (auto whileStmt = std::dynamic_pointer_cast<WhileStatement>(stmt)) {
+    //     if (whileStmt->body)
+    //         setReturnTypesInStatement(whileStmt->body, returnType);
     // }
-    // Add other control flow statements as needed...
+    // else if (auto forStmt = std::dynamic_pointer_cast<ForStatement>(stmt)) {
+    //     if (forStmt->body)
+    //         setReturnTypesInStatement(forStmt->body, returnType);
+    // }
 }
+
 
 std::shared_ptr<Omniscript::Value> ParameterStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
     DEBUG_LOG("Creating parameter " + name);

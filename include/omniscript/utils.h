@@ -33,5 +33,6 @@ void sleep_ms(int milliseconds);
 std::string readFile(const std::string& path);
 std::string joinSet(const std::unordered_set<std::string>& members);
 std::string joinMapKeys(const std::unordered_map<std::string, std::string>& map);
+std::string join(const std::vector<std::string>& vec, const std::string& delimiter);
 
 #endif

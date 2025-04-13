@@ -68,6 +68,8 @@ std::string Type::kindName() const {
         case Kind::Utf16:      return "Utf16String";
         case Kind::Utf32:      return "Utf32String";
 
+        case Kind::Generic:    return "Generic";
+
         default:                return "Unknown";
     }
 }
@@ -127,7 +129,11 @@ std::shared_ptr<Type> Type::createHeterogeneousArrayType() {
     return t;
 }
 
-std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
+std::shared_ptr<Type> Type::createGenericType(const std::string& typeName) {
+    return std::make_shared<GenericType>(typeName);
+}
+
+std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     if (dataTypes.empty()) {
         return Type::createPrimitiveType(Kind::Int32); // Default type
     }
@@ -250,7 +256,10 @@ std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes) {
         }
 
         else {
-            console.error("Type: '" + baseType + "' is supported in omniscript");
+            if (dataTypes.size() == 1) {
+                return Type::createGenericType(baseType);
+            }
+            DEBUG_LOG("Type: '" + baseType + "' is not supported in omniscript");
             return nullptr;
         }
     }

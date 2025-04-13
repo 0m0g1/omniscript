@@ -33,7 +33,7 @@ enum class Kind {
     Enum,
     Array,
     Vector,
-
+    
     // Pointer Types
     Pointer,
     Reference,
@@ -46,11 +46,15 @@ enum class Kind {
     Utf8,
     Utf16,
     Utf32,
-
+    
     //ArrayTypes
     FixedArray,       // e.g., [4]i32
     DynamicArray,     // e.g., [i32]
-    HeterogeneousArray // e.g., []
+    HeterogeneousArray, // e.g., []
+    
+    //Other Types
+    Generic,
+    Block,
 };
 
 // Base class for all type representations
@@ -75,6 +79,8 @@ public:
     bool isFixedArray() const { return kind == Kind::FixedArray; }
     bool isDynamicArray() const { return kind == Kind::DynamicArray; }
     bool isHeterogeneousArray() const { return kind == Kind::HeterogeneousArray; }
+    bool isGeneric() const { return kind == Kind::Generic; }
+    bool isBlock() const { return kind == Kind::Block; }
 
     bool isNumericLiteral() const {
         return isInteger() || isFloat();
@@ -192,6 +198,8 @@ public:
     std::string kindName() const;
     Kind getKind() const { return kind; }
 
+    virtual std::string getName() const { return "type"; };
+
     // Access underlying types
     virtual int getReferenceDepth() const { return 0; }
     virtual int getPointerDepth() const { return 0; }
@@ -214,6 +222,7 @@ public:
     static std::shared_ptr<Type> createFixedArrayType(std::shared_ptr<Type> elementType, size_t size);
     static std::shared_ptr<Type> createDynamicArrayType(std::shared_ptr<Type> elementType);
     static std::shared_ptr<Type> createHeterogeneousArrayType();
+    static std::shared_ptr<Type> createGenericType(const std::string& typeName);
 };
 
 // --- Derived Types ---
@@ -429,8 +438,22 @@ public:
     }
 };
 
+class GenericType : public Type {
+public:
+    std::string name;
 
-std::shared_ptr<Type> resolveType(std::vector<std::string>& dataTypes);
+    GenericType(const std::string& name_)
+        : name(name_) {
+        kind = Kind::Generic;
+    }
+
+    std::string getName() const override {
+        return name;
+    }
+};
+
+
+std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes);
 
 
 // ====================================== Values ====================================== //
@@ -716,6 +739,24 @@ struct FunctionValue : public Value {
     std::string toString() const override { return "Function: " + name; } 
 };
 
+struct BlockValue : public Value {
+    std::vector<std::shared_ptr<Value>> values;  // Store multiple values in a vector
+
+    BlockValue(std::vector<std::shared_ptr<Value>> values)
+        : values(std::move(values)) {
+        type = Type::createInvalid();
+    }
+
+    std::string toString() const override {
+        std::string result = "Block: [ ";
+        for (const auto& val : values) {
+            result += val ? val->toString() : "null";
+            result += " ";
+        }
+        result += "]";
+        return result;
+    }
+};
 
 // Aggregate Types (e.g., Struct, Enum, Array)
 struct AggregateValue : public Value {

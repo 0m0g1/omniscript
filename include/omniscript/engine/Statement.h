@@ -9,6 +9,31 @@
 #include <omniscript/debuggingtools/console.h>
 #include <omniscript/engine/Symboltable.h>
 
+class GenericHolder {
+public:
+    // List of declared generic type names: e.g., `["T", "U"]`
+    std::vector<std::string> typeParams;
+
+    // When instantiated: map from generic name to actual type
+    std::unordered_map<std::string, std::shared_ptr<Omniscript::Type>> genericTypeMap;
+
+    void addGenericParam(const std::string& name) {
+        typeParams.push_back(name);
+    }
+
+    void bindGeneric(const std::string& name, const std::shared_ptr<Omniscript::Type>& type) {
+        genericTypeMap[name] = type;
+    }
+
+    std::shared_ptr<Omniscript::Type> resolveGeneric(const std::string& name) const {
+        auto it = genericTypeMap.find(name);
+        return it != genericTypeMap.end() ? it->second : nullptr;
+    }
+
+    virtual ~GenericHolder() = default;
+};
+
+
 class Statement { // Base class for all statements
     public:
         // enum Type { // implement a statement type for each statement for speed
@@ -60,11 +85,14 @@ protected:
 };
 
 class TypedStatement : public virtual Statement {
-    public:
+public:
     explicit TypedStatement() :type(nullptr) {}
+    explicit TypedStatement(const std::string& typeName) : typeName(typeName) {}
     virtual ~TypedStatement() = default;
 
+    std::string typeName;
     std::shared_ptr<Omniscript::Type> getType() const { return type; }
+    void setTypeName(const std::string& newTypeName) { typeName = newTypeName; }
     void setType(std::shared_ptr<Omniscript::Type> newType) { type = newType; }
     virtual std::string toString() const override { return "TypedStatement"; }
 
@@ -116,6 +144,29 @@ public:
             result += "    " + stmt->toString() + "\n";
         }
         return result + "}";
+    }
+};
+
+template<typename T>
+class MonomorphizedStatement : public virtual Statement {
+public:
+    std::unordered_map<std::string, std::shared_ptr<T>> specializations;
+
+    void addSpecialization(const std::string& signature, std::shared_ptr<T> stmt) {
+        specializations[signature] = stmt;
+    }
+
+    std::shared_ptr<T> getSpecialization(const std::string& signature) const {
+        auto it = specializations.find(signature);
+        return it != specializations.end() ? it->second : nullptr;
+    }
+
+    std::string toString() const override {
+        std::string str = "MonomorphizedStatement<" + std::string(typeid(T).name()) + ">: {\n";
+        for (const auto& [sig, val] : specializations) {
+            str += "  " + sig + " => " + val->toString() + "\n";
+        }
+        return str + "}";
     }
 };
 
@@ -475,7 +526,7 @@ public:
 };
 
 // ============================== Struct ============================== //
-class FunctionDeclaration : public NamedStatement, public TypedStatement {
+class FunctionDeclaration : public NamedStatement, public TypedStatement, public GenericHolder {
 public:
     std::shared_ptr<Omniscript::Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
@@ -486,9 +537,10 @@ public:
         const std::string& functionName,
         const std::vector<std::shared_ptr<Statement>>& parameters,
         std::shared_ptr<BlockStatement> body,
-        std::shared_ptr<Omniscript::Type> returnType = nullptr // Default to nullptr if return type is unknown
-    ) : parameters(parameters), body(body), returnType(returnType) {
-        setType(returnType); // Store the return type using `TypedStatement`
+        std::shared_ptr<Omniscript::Type> returnType_ = nullptr // Default to nullptr if return type is unknown
+    ) : parameters(parameters), body(body) {
+        setType(std::move(returnType_)); // Store the return type using `TypedStatement`
+        returnType = type;
         setName(functionName);
     }
 

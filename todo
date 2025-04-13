@@ -1,4 +1,7 @@
 - work on generics
+- remove the extra dash underneath generic names with 2 types
+- default parameters
+- fix IRGenerator::castValue()
 - rename all omniscript values to Expressions
 - check if references are properly gotten
 - add support for 16 bit floats

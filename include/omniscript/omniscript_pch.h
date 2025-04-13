@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <stack>
 #include <atomic>
+#include <numeric>
 
 // System-Specific Headers
 #ifdef _WIN32
