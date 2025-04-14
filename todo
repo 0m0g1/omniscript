@@ -1,4 +1,5 @@
 - work on function calls
+- check if the body needs to be cloned so that generics are properly handled
 - handle default arguments / parameters
 - work on generics
 - handle generics in function bodies
