@@ -47,6 +47,7 @@ class Statement { // Base class for all statements
         // virtual void execute(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) = 0; //Function to execute a statement
         ~Statement() = default;
 
+        virtual std::shared_ptr<Statement> clone() const { return nullptr; }
         virtual std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) { return nullptr; }
         virtual std::string toString() const { return "Statement"; }
 
@@ -64,7 +65,7 @@ class Statement { // Base class for all statements
             pos.filePath = position.filePath;
         }
 
-        inline Omniscript::filePosition getPosition() {
+        inline Omniscript::filePosition getPosition() const {
             return pos;
         }
 
@@ -505,11 +506,22 @@ public:
         : defaultValue(std::move(defaultValue)) {
             setName(name);
         }
+    
+    ParameterStatement(const ParameterStatement& other)
+        : NamedStatement(other), TypedStatement(other),
+          defaultValue(other.defaultValue ? other.defaultValue->clone() : nullptr) 
+    {
+        setPosition(other.getPosition());
+    }
 
     std::string getName() const override { return name; }
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
     std::string toString() const override { return "ParameterStatement"; }
     std::shared_ptr<Statement> getDefaultValue();
+
+    std::shared_ptr<Statement> clone() const override {
+        return std::make_shared<ParameterStatement>(*this);
+    }
 };
 
 class ArgumentStatement : public NamedStatement, public TypedStatement {
@@ -532,6 +544,7 @@ public:
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
     std::vector<std::shared_ptr<Statement>> parameters;
     std::shared_ptr<BlockStatement> body;
+    SymbolTable<std::shared_ptr<Omniscript::Value>> localScope;
 
     FunctionDeclaration(
         const std::string& functionName,

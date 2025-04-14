@@ -432,7 +432,7 @@ std::shared_ptr<Omniscript::Value> createDynamicVariable::evaluate(SymbolTable<s
 
 // Get Variable
 std::shared_ptr<Omniscript::Value> GetVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    return std::make_shared<Omniscript::VariableAccess>(name);
+    return std::make_shared<Omniscript::VariableAccess>(name, type);
 }
 
 // Get Dynamic Variable
@@ -570,9 +570,12 @@ std::shared_ptr<Omniscript::Value> ReturnStatement::evaluate(SymbolTable<std::sh
             stmt->setType(type);
         }
         result = returnValue->evaluate(scope);
+
+        DEBUG_LOG("The result of the return value is '" + result->toString() + "' of kind '" + result->getType()->kindName() + "'.");
+    } else {
+        DEBUG_LOG("The result of the return value is 'void'.");
     }
     
-    DEBUG_LOG("The result of the return value is '" + result->toString() + "'.");
     return std::make_shared<Omniscript::ReturnValue>(result, type);
 }
 
@@ -705,32 +708,39 @@ std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(body)) {
         typed->setType(returnType);
     }
-   
+
+    localScope = scope.createChildScope();
+
     setReturnTypes(); // This sets the returnType field and its type in the body
 
-    auto bod = body->evaluate(scope);
+    auto bod = body->evaluate(localScope);
 
     DEBUG_LOG("Extracting argument values for function type construction");
     std::vector<std::shared_ptr<Omniscript::Value>> argValues;
     bool isVarArg = false;
 
+    int n = 0;
     for (const auto& param : parameters) {
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
             auto paramType = typed->getType();
+            DEBUG_LOG("Parameter " + std::to_string(n) + " has type '" + paramType->kindName() + "'.");
 
             if (paramType->isGeneric()) {
                 typed->setType(std::move(resolveGeneric(paramType->getName())));
             }
         }
-        argValues.push_back(param->evaluate(scope));
+        auto result = param->evaluate(localScope);
+        argValues.push_back(result);
+        DEBUG_LOG("Parameter '" + result->name + "' for function '" + name + "' has type " + result->getType()->kindName());
         // You could also check for variadic parameter patterns here if you support that
         // e.g., if (param->isVariadic()) isVarArg = true;
+        n++;
     }
 
     std::vector<std::shared_ptr<Omniscript::Value>> functionBody;
 
     for (auto &stmt : body->statements) {
-        functionBody.push_back(stmt->evaluate(scope));
+        functionBody.push_back(stmt->evaluate(localScope));
     }
 
     DEBUG_LOG("Creating FunctionValue");
@@ -783,7 +793,7 @@ void FunctionDeclaration::setReturnTypesInStatement(
 
 
 std::shared_ptr<Omniscript::Value> ParameterStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    DEBUG_LOG("Creating parameter " + name);
+    DEBUG_LOG("Creating parameter " + name + " of kind " + type->kindName());
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
         stmt->setType(type);
     }
@@ -792,14 +802,14 @@ std::shared_ptr<Omniscript::Value> ParameterStatement::evaluate(SymbolTable<std:
     
     if (defaultValue) {
         defaultValue->evaluate(scope);
-     } else {
+    } else {
         if (type->isPointer()) {
             result = std::make_shared<Omniscript::NullPointerValue>();
         } else {
             result = std::make_shared<Omniscript::NullValue>();
         }
-     }
-    DEBUG_LOG("Created value for parameter " + name);
+    }
+    DEBUG_LOG("Created value for parameter " + name + " of kind " + result->getType()->kindName());
     return std::make_shared<Omniscript::FunctionInput>(name, type, result);
 }
 

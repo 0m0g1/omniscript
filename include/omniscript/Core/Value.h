@@ -805,9 +805,10 @@ struct VariableAssignment : public Value {
 
 struct VariableAccess : public Value {
     std::string variableName;
+    std::shared_ptr<Type> type;
 
-    explicit VariableAccess(std::string name)
-        : variableName(std::move(name)) {}
+    explicit VariableAccess(std::string name, std::shared_ptr<Type> type = nullptr) 
+        : variableName(std::move(name)), type(type) {}
 
     std::string toString() const override {
         return "Variable: " + variableName;

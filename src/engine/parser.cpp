@@ -1227,92 +1227,115 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
 std::shared_ptr<Statement> Parser::parseFunctionDeclaration() {
     eat(TokenTypes::Function);
 
-    std::string name = currentToken.getValue(); // Function name
+    std::string name = currentToken.getValue();
     eat(TokenTypes::Identifier);
 
-    std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>> types; // Generic types
-
+    std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>> types;
     if (currentToken.getType() == TokenTypes::LessThan) {
         types = parseTypeParametersForDeclaration();
     }
 
     std::vector<std::shared_ptr<Statement>> parameters = parseParameters();
 
-    bool returnTypeIsGeneric = false;
     std::shared_ptr<Omniscript::Type> returnType = nullptr;
     std::vector<std::string> returnDataType;
-    
     if (currentToken.getType() != TokenTypes::LeftBrace) {
         eat(TokenTypes::Arrow);
         returnDataType = parseType();
         returnType = Omniscript::resolveType(returnDataType);
-    }    
+    }
 
     auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
 
     if (!types.empty()) {
-
         std::vector<std::shared_ptr<Statement>> monomorphizedFunctions;
 
-        bool isGeneric = false;
-        for (const auto& type : types) {
-            for (const auto& constraint : type.second) {
-                if (constraint.size() == 1 && (constraint[0] == "any" || constraint[0] == "variant")) {
-                    isGeneric = true;
-                    break;
+        // Special case: Single type parameter with simple alternatives (like i8 | i32)
+        if (types.size() == 1 && !types[0].second.empty()) {
+            const auto& typeParam = types[0];
+            const auto& constraints = typeParam.second;
+
+            // Check if all constraints are simple types (not variant/any)
+            bool allSimple = std::all_of(constraints.begin(), constraints.end(),
+                [](const std::vector<std::string>& c) {
+                    return c.size() == 1 && c[0] != "any" && c[0] != "variant";
+                });
+
+            if (allSimple) {
+                // Generate one function for each constraint
+                for (const auto& constraint : constraints) {
+                    std::vector<std::pair<std::string, std::vector<std::string>>> selectedTypes = {
+                        {typeParam.first, constraint}
+                    };
+
+                    std::string specializedName = generateSpecializedNameForDecleration(name, selectedTypes);
+                    
+                    std::vector<std::shared_ptr<Statement>> clonedParameters;
+
+                    for (const auto& param : parameters) {
+                        clonedParameters.push_back(param->clone());
+                    }
+                    
+                    auto func = std::make_shared<FunctionDeclaration>(
+                        specializedName, clonedParameters, body, returnType);
+                    
+                    func->addGenericParam(typeParam.first);
+                    func->bindGeneric(typeParam.first, Omniscript::resolveType(constraint));
+                    
+                    monomorphizedFunctions.push_back(func);
                 }
+                return std::make_shared<BlockStatement>(monomorphizedFunctions);
             }
         }
 
-        // === Cartesian Product Logic ===
-        size_t paramCount = types.size();
-        std::vector<size_t> indices(paramCount, 0);
+        // General case: Use cartesian product for multiple type parameters or complex constraints
+        std::vector<size_t> indices(types.size(), 0);
         std::vector<size_t> sizes;
         for (const auto& type : types) {
-            sizes.push_back(type.second.size());
+            sizes.push_back(type.second.empty() ? 1 : type.second.size());
         }
 
         bool done = false;
         while (!done) {
             // Generate one combination
             std::vector<std::pair<std::string, std::vector<std::string>>> selectedTypes;
-        
-            for (size_t i = 0; i < paramCount; ++i) {
-                selectedTypes.emplace_back(types[i].first, types[i].second[indices[i]]);
+            for (size_t i = 0; i < types.size(); ++i) {
+                const auto& type = types[i];
+                std::vector<std::string> selectedConstraint;
+                if (!type.second.empty()) {
+                    selectedConstraint = type.second[indices[i]];
+                }
+                selectedTypes.emplace_back(type.first, selectedConstraint);
             }
-        
+
             std::string specializedName = generateSpecializedNameForDecleration(name, selectedTypes);
-            console.info(specializedName);
-            
-            returnType = Omniscript::resolveType(returnDataType);
-            auto func = std::make_shared<FunctionDeclaration>(specializedName, parameters, body, returnType);
-        
+            auto func = std::make_shared<FunctionDeclaration>(
+                specializedName, parameters, body, returnType);
+
             for (const auto& genericPair : types) {
                 func->addGenericParam(genericPair.first);
             }
-        
+
             for (const auto& selected : selectedTypes) {
-                func->bindGeneric(selected.first, Omniscript::resolveType(selected.second));
+                if (!selected.second.empty()) {
+                    func->bindGeneric(selected.first, Omniscript::resolveType(selected.second));
+                }
             }
-        
-            if (!isGeneric) {
-                monomorphizedFunctions.push_back(func);
-            }
-        
+
+            monomorphizedFunctions.push_back(func);
+
             // Increment the index vector
-            for (size_t i = paramCount; i-- > 0;) {
+            for (size_t i = types.size(); i-- > 0;) {
                 indices[i]++;
                 if (indices[i] < sizes[i]) {
-                    break; // Continue generating combinations
+                    break;
                 } else {
                     indices[i] = 0;
-                    if (i == 0) {
-                        done = true; // We've gone through all combinations
-                    }
+                    if (i == 0) done = true;
                 }
             }
         }
-        
+
         return std::make_shared<BlockStatement>(monomorphizedFunctions);
     }
 
@@ -1321,48 +1344,46 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration() {
     return std::make_shared<FunctionDeclaration>(name, parameters, body, returnType);
 }
 
-
-std::string Parser::generateSpecializedNameForDecleration(
+std::string Parser::generateSpecializedNameForDecleration( 
     const std::string& baseName,
     const std::vector<std::pair<std::string, std::vector<std::string>>>& types
 ) {
     if (types.empty()) return baseName;
 
     std::ostringstream oss;
-    oss << baseName << "_";
+    oss << baseName;
 
     for (size_t i = 0; i < types.size(); ++i) {
+        oss << "_"; // separator after baseName or previous type group
         const auto& [genericName, concreteType] = types[i];
 
-        for (const auto& part : concreteType) {
+        for (size_t j = 0; j < concreteType.size(); ++j) {
+            const auto& part = concreteType[j];
             if (part == "*") {
-                oss << "ptr_";
+                oss << "ptr";
             } else if (part == "&") {
-                oss << "ref_";
+                oss << "ref";
             } else if (part == ".") {
                 oss << "_";
             } else if (part == "[") {
                 oss << "arr";
             } else if (part == "]") {
-                oss << "_";
+                // skip or treat as end marker
             } else {
-                oss << part << "_";
+                oss << part;
             }
+
+            // Only add underscore between parts, not after last
+            if (j < concreteType.size() - 1)
+                oss << "_";
         }
 
-        if (i < types.size() - 1) {
-            oss << "__"; // Separator between multiple generic args
-        }
+        // Add double underscore between groups, not after the last group
+        if (i < types.size() - 1)
+            oss << "__";
     }
 
-    std::string name = oss.str();
-
-    // Remove trailing separator(s) if present
-    while (!name.empty() && (name.back() == '_' || name.back() == '.')) {
-        name.pop_back();
-    }
-
-    return name;
+    return oss.str();
 }
 
 
@@ -1373,15 +1394,17 @@ std::string Parser::generateSpecializedNameForCall(
     if (typeParams.empty()) return baseName;
 
     std::ostringstream oss;
-    oss << baseName << "_";
+    oss << baseName;
+
     for (size_t i = 0; i < typeParams.size(); ++i) {
-        oss << typeParams[i]; // Append each type parameter
-        if (i < typeParams.size() - 1) oss << "_";
+        oss << "_" << typeParams[i];
+        if (i < typeParams.size() - 1) {
+            oss << "__"; // match decleration version
+        }
     }
 
     return oss.str();
 }
-
 
 std::vector<std::shared_ptr<Statement>> Parser::parseArguments() {
     DEBUG_LOG("Parsing the arguments");

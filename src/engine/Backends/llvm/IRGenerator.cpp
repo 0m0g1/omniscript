@@ -204,7 +204,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
     }
 
     if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnValue>(value)) {
-        DEBUG_LOG("Creating a return statement");
+        DEBUG_LOG("Creating a return statement of kind '" + ret->getType()->kindName() + "'.");
 
         llvm::Type* type = resolveLLVMType(ret->getType());
         llvm::Value* val = codegen(ret->value, scope);
@@ -1357,7 +1357,7 @@ llvm::Function* IRGenerator::createFunction(
     std::vector<std::shared_ptr<Omniscript::Value>>& params,
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
 ) {
-    DEBUG_LOG("Creating function: " + name);
+    DEBUG_LOG("Creating function: " + name + " with parameter size " + std::to_string(params.size()));
     
     // Create function type
     std::vector<llvm::Type*> paramTypes;
@@ -1366,7 +1366,7 @@ llvm::Function* IRGenerator::createFunction(
         auto llvmType = resolveLLVMType(type);
         paramTypes.push_back(llvmType);
         
-        DEBUG_LOG("Resolved parameter type: " + type->kindName() + " to LLVM type: " + llvmType->getStructName().str());
+        DEBUG_LOG("Resolved parameter type: " + type->kindName() + " to LLVM type: " + debugType(llvmType));
     }
 
     DEBUG_LOG("Resolved return type LLVM: " + debugType(returnType));

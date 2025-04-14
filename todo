@@ -1,6 +1,9 @@
+- work on function calls
+- handle default arguments / parameters
 - work on generics
+- handle generics in function bodies
+- work on infering types for example a variable decleration with a binary op of two similar types the type of the variable is the type of the two operands
 - remove the extra dash underneath generic names with 2 types
-- default parameters
 - fix IRGenerator::castValue()
 - rename all omniscript values to Expressions
 - check if references are properly gotten

@@ -104,13 +104,13 @@
 //     return a + b;
 // }
 
+// add(1, 1);
+
 function add<T extends i8 | i32>(a: T, b: T) => T {
     return a + b;
 }
 
-// function add<T, I>(a: int, b: int) => i32 {
-//     return a + b;
-// }
+// add<i32>(5);
 
 // function main() => i32 {
 //     return add(1, 1);
