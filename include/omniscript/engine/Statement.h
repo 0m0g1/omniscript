@@ -395,7 +395,7 @@ public:
     : variable(variable), type(std::move(type)), value(std::move(value)) {}
     std::string getName() const override {return variable;}
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "CreateVariarbleStatement"; }
 
 private:
     std::string variable;
@@ -409,7 +409,7 @@ public:
     : variable(variable), type(type), value(value) {}
     std::string getName() const override {return variable;}
     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "ConstantStatement"; }
 
 private:
     std::string variable;

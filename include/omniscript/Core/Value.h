@@ -215,6 +215,7 @@ public:
     static std::shared_ptr<Type> createPrimitiveType(Kind kind);
     static std::shared_ptr<Type> createNullType();
     static std::shared_ptr<Type> createNullPointerType();
+    static std::shared_ptr<Type> createMetaType();
     static std::shared_ptr<Type> createPointerType(std::shared_ptr<Type> pointee);
     static std::shared_ptr<Type> createReferenceType(std::shared_ptr<Type> referent);
     static std::shared_ptr<Type> createFunctionType(std::shared_ptr<Type> returnType, std::vector<std::shared_ptr<Type>> params, bool isVarArg = false);
@@ -472,6 +473,38 @@ template <typename T>
 std::shared_ptr<T> make_value(auto&&... args) {
     return std::make_shared<T>(std::forward<decltype(args)>(args)...);
 }
+
+struct TypeValue : public Value {
+    std::string name;
+    std::shared_ptr<Type> typeValue;  // The actual type information
+    
+    // Constructor from existing Type
+    explicit TypeValue(const std::string& typeName, std::shared_ptr<Type> type) 
+        : name(typeName), typeValue(std::move(type)) {
+        this->type = Type::createMetaType();  // Special type indicating this is a type value
+    }
+    
+    // Constructor from Kind (for primitive types)
+    explicit TypeValue(Kind kind) 
+        : typeValue(Type::createPrimitiveType(kind)) {
+        this->type = Type::createMetaType();
+    }
+    
+    std::string toString() const override {
+        return typeValue ? typeValue->getName() : "nulltype";
+    }
+    
+    // Get the actual type information
+    std::shared_ptr<Type> getTypeValue() const { 
+        return typeValue; 
+    }
+    
+    // Special type comparison for TypeValues
+    bool isSameTypeAs(const std::shared_ptr<TypeValue>& other) const {
+        if (!typeValue || !other->typeValue) return false;
+        return typeValue->getKind() == other->typeValue->getKind();
+    }
+};
 
 // Template class for Primitive Types (e.g., Int8, Bool)
 template <typename T>

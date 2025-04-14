@@ -133,6 +133,12 @@ std::shared_ptr<Type> Type::createGenericType(const std::string& typeName) {
     return std::make_shared<GenericType>(typeName);
 }
 
+std::shared_ptr<Type> Type::createMetaType() {
+    auto t = std::make_shared<Type>();
+    t->kind = Kind::Metadata;
+    return t;
+}
+
 std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     if (dataTypes.empty()) {
         return Type::createPrimitiveType(Kind::Int32); // Default type
