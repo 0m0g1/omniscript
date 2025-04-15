@@ -67,8 +67,10 @@ std::string Type::kindName() const {
         case Kind::Utf8:      return "Utf8String";
         case Kind::Utf16:      return "Utf16String";
         case Kind::Utf32:      return "Utf32String";
-
+        
+        // Other types
         case Kind::Generic:    return "Generic";
+        case Kind::Unresolved:    return "Unresolved";
 
         default:                return "Unknown";
     }
@@ -98,8 +100,8 @@ std::shared_ptr<Type> Type::createReferenceType(std::shared_ptr<Type> referent) 
     return std::make_shared<ReferenceType>(std::move(referent));
 }
 
-std::shared_ptr<Type> Type::createFunctionType(std::shared_ptr<Type> returnType, std::vector<std::shared_ptr<Type>> params, bool isVarArg) {
-    return std::make_shared<FunctionType>(returnType, std::move(params), isVarArg);
+std::shared_ptr<Type> Type::createFunctionType(std::shared_ptr<Type> returnType, bool isVarArg) {
+    return std::make_shared<FunctionType>(returnType, isVarArg);
 }
 
 std::shared_ptr<Type> Type::createStringType(Kind stringKind) {

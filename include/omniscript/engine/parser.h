@@ -12,6 +12,8 @@
 //Include llvm headers
 // #include <llvm-c/...
 
+using parameterType = std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>>;
+
 class Parser {
     public:
         Parser(Lexer &lexer) : lexer(lexer), currentToken(lexer.getNextToken()) {}
@@ -52,7 +54,7 @@ class Parser {
 
         std::vector<std::shared_ptr<Statement>> parseParameters();
         std::vector<std::shared_ptr<Statement>> parseArguments(); // Parse code block
-        std::shared_ptr<Statement> parseFunctionDeclaration(); // To parse function declarations
+        std::shared_ptr<Statement> parseFunctionDeclaration(parameterType paramTypes = {}); // To parse function declarations
         // std::shared_ptr<Statement> parseFunctionCall();      // To parse function calls
         std::shared_ptr<Statement> parseIdentifier();          // To parse an identifier / function call
 
@@ -85,7 +87,7 @@ class Parser {
 
         std::vector<std::string> parseType();
         std::vector<std::string> parseTypeParametersForCall();
-        std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>> parseTypeParametersForDeclaration();
+        parameterType parseTypeParametersForDeclaration();
         
         // Parse Objects
         /*

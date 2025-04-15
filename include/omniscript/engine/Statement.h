@@ -19,11 +19,11 @@ class Statement { // Base class for all statements
 
         // }
         // virtual std::unique_ptr<Statement> clone() const = 0; // clone method
-        // virtual void execute(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) = 0; //Function to execute a statement
+        // virtual void execute(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) = 0; //Function to execute a statement
         ~Statement() = default;
 
         virtual std::shared_ptr<Statement> clone() const { return nullptr; }
-        virtual std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) { return nullptr; }
+        virtual std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) { return nullptr; }
         virtual std::string toString() const { return "Statement"; }
 
         inline void setPosition(int line, int column, const std::string& file, const std::string& path) {
@@ -57,7 +57,7 @@ public:
     }
 
     void initialize();
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
 };
 
 class NamedStatement: public virtual Statement {
@@ -153,13 +153,13 @@ public:
         }
     }
     
-    inline std::vector<std::shared_ptr<Omniscript::TypeValue>> createTypeValueListFromBoundGenerics() {
-        std::vector<std::shared_ptr<Omniscript::TypeValue>> result;
+    inline std::vector<std::shared_ptr<Omniscript::TypeExpression>> createTypeExpressionListFromBoundGenerics() {
+        std::vector<std::shared_ptr<Omniscript::TypeExpression>> result;
         result.reserve(genericTypeMap.size());
     
         for (const auto& [name, typePtr] : genericTypeMap) {
             DEBUG_LOG("Creating generic '" + name + "' of kind '" + typePtr->kindName() + "'.");
-            result.emplace_back(std::make_shared<Omniscript::TypeValue>(name, typePtr));
+            result.emplace_back(std::make_shared<Omniscript::TypeExpression>(name, typePtr));
         }
     
         return result;
@@ -202,7 +202,7 @@ public:
         return std::make_shared<BlockStatement>(std::move(clonedStatements));
     }
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     
     std::string toString() const override {
         std::string result = "Block {\n";
@@ -252,7 +252,7 @@ public:
                     bool wildcard)
         : moduleName(modName), alias(aliasName), importedAliases(aliases), path(modPath), importAll(wildcard) {}
     
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
 };
     
 class CreateModule : public NamedStatement {
@@ -266,7 +266,7 @@ public:
     
     std::string getName() const override { return name; }
     std::vector<std::shared_ptr<Statement>> getStatements() { return statements; }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
 };
 
 
@@ -281,7 +281,7 @@ public:
 
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> getValue() { return value; }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
 };
 
 class PrivateMember : public NamedStatement {
@@ -295,7 +295,7 @@ public:
 
     std::string getName() const override { return name; }
     std::string toString() const override { return "PrivateMemberStatement"; }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
 };
 
 
@@ -306,7 +306,7 @@ public:
     }
 
     std::string getName() const override { return name; }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope);
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope);
     std::string toString() const override { return "Addressof:" + name; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<AddressOf>(name);
@@ -320,7 +320,7 @@ public:
     }
 
     std::string getName() const override { return name; }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope);
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope);
     std::string toString() const override { return "ReferenceTo: " + name; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<ReferenceTo>(name);
@@ -338,7 +338,7 @@ class Nullptr : public NullLiteral {
 public:
     Nullptr() {};
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "NullpointerStatement"; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<Nullptr>();  // Clone using copy constructor
@@ -350,7 +350,7 @@ class Null : public NullLiteral {
 public:
     Null() {};
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "NullLiteralStatement"; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<Null>();  // Clone using copy constructor
@@ -370,7 +370,7 @@ public:
     explicit IntegerLiteral(int64_t val)
         : value(val) {}
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     int getValue() const { return value; }
     std::string toString() const override { return "IntegerLiteralStatement"; }
     std::shared_ptr<Statement> clone() const override {
@@ -386,7 +386,7 @@ public:
     explicit FloatLiteral(double val) 
         : value(val) {}
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "FloatLiteralStatement"; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<FloatLiteral>(value);  // Clone using copy constructor
@@ -402,7 +402,7 @@ public:
     BigInt(const std::string& value)
         : value(value) {}
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
 
     static unsigned determineBitWidth(const std::string& value) {
         unsigned numBits = std::ceil(value.length() * 3.32); // log2(10) ≈ 3.32 bits per decimal digit
@@ -430,7 +430,7 @@ public:
     char value;
 
     explicit CharacterLiteral(char val) : value(std::move(val)) {}
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "CharacterLiteralStatement"; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<CharacterLiteral>(value);  // Clone using copy constructor
@@ -443,7 +443,7 @@ public:
     std::string value;
 
     explicit StringLiteral(std::string val) : value(std::move(val)) {}
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "StringLiteralStatement"; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<StringLiteral>(value);  // Clone using copy constructor
@@ -455,7 +455,7 @@ public:
     bool value;
 
     explicit BoolLiteral(bool val) : value(std::move(val)) {}
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "BoolLiteralStatement"; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<BoolLiteral>(value);  // Clone using copy constructor
@@ -470,7 +470,7 @@ public:
     Array(std::vector<std::shared_ptr<Statement>> values = {})
         : initialValues(std::move(values)) {}
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "ArrayStatement"; }
     std::shared_ptr<Statement> clone() const override {
         std::vector<std::shared_ptr<Statement>> copiedValues;
@@ -496,7 +496,7 @@ public:
     createVariable(const std::string &variable, std::shared_ptr<Omniscript::Type> type, std::shared_ptr<Statement> value)
     : variable(variable), type(std::move(type)), value(std::move(value)) {}
     std::string getName() const override {return variable;}
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "CreateVariarbleStatement"; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<createVariable>(variable, type, value->clone());  // Clone the value as well
@@ -513,7 +513,7 @@ public:
     createConstant(const std::string &variable, std::shared_ptr<Omniscript::Type> type, std::shared_ptr<Statement> value)
     : variable(variable), type(type), value(value) {}
     std::string getName() const override {return variable;}
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "ConstantStatement"; }
 
     std::shared_ptr<Statement> clone() const override {
@@ -530,7 +530,7 @@ class createDynamicVariable : public Assignment {
 public:
     createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value);
     std::string getName() const override {return variable;}
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 
 private:
@@ -548,7 +548,7 @@ public:
 
     std::string getName() const override { return name; }
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "GetVariable"; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<GetVariable>(name);
@@ -563,7 +563,7 @@ class GetDynamicVariable : public NamedStatement {
 public:
     GetDynamicVariable(const std::string &variable);
     std::string getName() const override {return variable;}
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 
 private:
@@ -576,7 +576,7 @@ public:
     GenericAssignment(const std::string &variable, std::shared_ptr<Statement> value) :
         variable(variable), value(value) {}
     std::string getName() const override {return variable;}
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 
 private:
@@ -591,7 +591,7 @@ public:
         : returnValue(value) {
             setType(returnType);
         }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::shared_ptr<Statement> returnValue;
     std::string toString() const override { return "ReturnStatement"; }
     std::shared_ptr<Statement> clone() const override {
@@ -613,7 +613,7 @@ public:
     }
 
     std::string getName() const override { return name; }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
 
@@ -634,7 +634,7 @@ public:
     }
 
     std::string getName() const override { return name; }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "ParameterStatement"; }
     std::shared_ptr<Statement> getDefaultValue();
 
@@ -652,32 +652,55 @@ public:
         : name(std::move(name)), value(std::move(value)) {}
 
     std::string getName() const override { return name; }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "ArgumentStatement"; }
 };
 
+class Callable: public virtual NamedStatement {
+public:
+    std::vector<std::shared_ptr<Statement>> defaultParams;
+
+    Callable(std::vector<std::shared_ptr<Statement>> params = {}) : defaultParams(params) {}
+    ~Callable() = default;
+
+    virtual std::string toString() const override { return "CallableStatement"; }
+    
+    std::vector<std::shared_ptr<ParameterStatement>> cloneParameters() {
+        std::vector<std::shared_ptr<ParameterStatement>> clonedParams;
+
+        for (const auto& param : defaultParams) {
+            clonedParams.push_back(std::dynamic_pointer_cast<ParameterStatement>(param->clone()));
+        }
+
+        return clonedParams;
+    }
+};
+
 // ============================== Struct ============================== //
-class FunctionDeclaration : public NamedStatement, public TypedStatement, public GenericHolder {
+class FunctionDeclaration : 
+public Callable, 
+public TypedStatement, 
+public GenericHolder {
 public:
     std::shared_ptr<Omniscript::Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
     std::vector<std::shared_ptr<Statement>> parameters;
     std::shared_ptr<BlockStatement> body;
-    SymbolTable<std::shared_ptr<Omniscript::Value>> localScope;
+    SymbolTable<std::shared_ptr<Omniscript::Expression>> localScope;
 
     FunctionDeclaration(
         const std::string& functionName,
         const std::vector<std::shared_ptr<Statement>>& parameters,
         std::shared_ptr<BlockStatement> body,
         std::shared_ptr<Omniscript::Type> returnType_ = nullptr // Default to nullptr if return type is unknown
-    ) : parameters(parameters), body(body) {
+    ) : parameters(parameters), body(body), Callable(parameters) {
         setType(std::move(returnType_)); // Store the return type using `TypedStatement`
-        returnType = type;
+        returnType = getType();
         setName(functionName);
     }
 
     std::string getName() const override { return name; }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "FunctionDeclerationStatement"; }
     
     void setReturnTypes();
@@ -709,7 +732,7 @@ public:
     }
     
     std::string getName() const override { return name; }
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "ConstructStructPrototype"; }
 
     std::vector<std::shared_ptr<Statement>> getBody() const { return body; }
@@ -720,9 +743,11 @@ private:
 class Call : public TypedStatement, public NamedStatement {
 public:
     Call(const std::string& calleeName, std::vector<std::shared_ptr<Statement>>& arguments) :
-    callee(calleeName), args(arguments) {}
+    callee(calleeName), args(arguments) {
+        setName(calleeName);
+    }
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "CallStatement"; }
     std::string getName() const override { return callee; }
 
@@ -736,7 +761,7 @@ public:
 //     BlockStatement(std::vector<std::shared_ptr<Statement>> statements = {})
 //     : statements(std::move(statements)) {}
 
-//     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+//     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
 
 // private:
 //     std::vector<std::shared_ptr<Statement>> statements;
@@ -750,14 +775,14 @@ public:
                 std::shared_ptr<BlockStatement> falseBranch = {}) 
         : condition(condition), body(body), branches(branches), falseBranch(falseBranch) {}
     
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     
     std::shared_ptr<Statement> condition;
     std::shared_ptr<BlockStatement> body;
     std::vector<std::shared_ptr<IfStatement>> branches;
     std::shared_ptr<BlockStatement> falseBranch;
 
-    bool conditionIsMet(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope);
+    bool conditionIsMet(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope);
 
     
 };
@@ -794,7 +819,7 @@ public:
     Position getPosition() const { return position; }
 
     // Code generation method
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "UnaryExpressionStatement"; }
     std::shared_ptr<Statement> clone() const override {
         // Clone operand if it's not nullptr, otherwise leave it as nullptr
@@ -836,7 +861,7 @@ public:
 
     
     // Method to evaluate the binary expression
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "BinaryStatement"; }
     std::shared_ptr<Statement> clone() const override {
         // Clone left and right operands
@@ -858,7 +883,7 @@ class TernaryExpression : public TypedStatement {
         TernaryExpression(std::shared_ptr<Statement> condition, std::shared_ptr<Statement> truthy, std::shared_ptr<Statement> falsey) :
         condition(condition), truthy(truthy), falsey(falsey) {}
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "TernaryExpressionStatement"; }
     std::shared_ptr<Statement> clone() const override {
         // Clone condition, truthy, and falsey operands
@@ -881,14 +906,14 @@ public:
     WhileStatement(std::shared_ptr<Statement> condition, std::shared_ptr<BlockStatement> body = {})
         : condition(condition), body(body) {}
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::shared_ptr<Statement> condition;
     std::shared_ptr<BlockStatement> body;
     std::string toString() const override { return "WhileStatement"; }
 
 private:
     // Helper function to evaluate the condition as a boolean
-    bool evaluateCondition(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+    bool evaluateCondition(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
         // auto result = Expression::evaluate(condition, scope);
         
         return false; // If the condition cannot be evaluated to a valid boolean, stop the loop
@@ -903,7 +928,7 @@ public:
         : object(object), methodName(methodName), arguments(std::move(args)) {}
     
     
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     
 private:
     std::shared_ptr<Statement> object; // The base object on which the method is called.
@@ -923,7 +948,7 @@ public:
         : object(object), propertyName(propertyName) {}
     
     
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
 
@@ -939,20 +964,20 @@ public:
             std::shared_ptr<Statement> incr, std::shared_ptr<BlockStatement> body)
         :   initialization(std::move(init)), condition(std::move(cond)), 
             increment(std::move(incr)), body(std::move(body)) {}
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
     
 };
 
 class BreakStatement : public Statement {
     public:
-        std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+        std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
         std::string toString() const override { return "LiteralStatement"; }
 };
 
 class ContinueStatement : public Statement {
 public:
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "LiteralStatement"; }
 };
 
@@ -971,7 +996,7 @@ public:
             instanceName(instanceName),
             constructorArgs(std::move(args)) {}
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { 
         return "ObjectConstructor(" + objectType + " " + instanceName + ")"; 
     }
@@ -987,7 +1012,7 @@ public:
     GetMemberValue(const std::string& name, const std::string& propertyName)
     : objectName(name), propertyName(propertyName) {}
     
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "GetMember"; }
 };
 
@@ -1001,7 +1026,7 @@ public:
     SetMemberValue(const std::string& name, const std::string& prop, std::shared_ptr<Statement> value)
         : objectName(name), propertyName(prop), newValue(value) {} // ✅ Fixed constructor
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "SetMember"; }
 };
     
@@ -1012,7 +1037,7 @@ public:
 // public:
 //     explicit ObjectDestructorStatement(const std::string& variableName)
 //         : variableName(variableName) {}
-//     std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+//     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
 //     std::string toString() const override { return "LiteralStatement"; }
 // };
 
@@ -1023,7 +1048,7 @@ public:
         setName(valueName);
     }
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override {
         return "{" + name + ":" + std::to_string(valueIndex) + "}";
     }
@@ -1049,7 +1074,7 @@ public:
         setName(enumName);
     }
 
-    std::shared_ptr<Omniscript::Value> evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) override;
+    std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override {
         return "EnumConstructor for " + name + (hasLookup ? " (with lookup)" : "");
     }

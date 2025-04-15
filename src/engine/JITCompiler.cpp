@@ -17,7 +17,7 @@
 
 //     // Generate IR for all statements
 //     for (const auto& statement : statements) {
-//         std::shared_ptr<Omniscript::Value> result = statement->evaluate(*scope);
+//         std::shared_ptr<Omniscript::Expression> result = statement->evaluate(*scope);
 //         DEBUG_LOG(result->toString());
 //         if (!result) continue;
 

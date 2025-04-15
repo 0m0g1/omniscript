@@ -197,6 +197,15 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
         case TokenTypes::Class:
             statement = parseClass();
             break;
+        case TokenTypes::LessThan: {
+            if (lexer.peekToken(1).getType() == TokenTypes::Identifier) {
+                parameterType paramTypes = parseTypeParametersForDeclaration();
+                if (currentToken.getType() == TokenTypes::Function) {
+                    statement = parseFunctionDeclaration(paramTypes);
+                    break;
+                }
+            }
+        }
         case TokenTypes::RightBrace:
             statement = nullptr; // add parse RightBrace method
             return statement;
@@ -1221,20 +1230,22 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
     return parameters;
 }
 
-
-
 // Parse function declarations
-std::shared_ptr<Statement> Parser::parseFunctionDeclaration() {
+std::shared_ptr<Statement> Parser::parseFunctionDeclaration(parameterType paramTypes) {
     eat(TokenTypes::Function);
 
     std::string name = currentToken.getValue();
     eat(TokenTypes::Identifier);
 
-    std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>> types;
-    if (currentToken.getType() == TokenTypes::LessThan) {
-        types = parseTypeParametersForDeclaration();
+    parameterType types;
+    if (paramTypes.empty()) {
+        if (currentToken.getType() == TokenTypes::LessThan) {
+            types = parseTypeParametersForDeclaration();
+        }
+    } else {
+        types = paramTypes;
     }
-
+    
     std::vector<std::shared_ptr<Statement>> parameters = parseParameters();
 
     std::shared_ptr<Omniscript::Type> returnType = nullptr;
@@ -1438,8 +1449,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments() {
     return args;
 }
 
-std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>> Parser::parseTypeParametersForDeclaration() {
-    std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>> typeParams;
+parameterType Parser::parseTypeParametersForDeclaration() {
+    parameterType typeParams;
 
     if (currentToken.getType() == TokenTypes::LessThan) { // `<T>`
         eat(TokenTypes::LessThan);

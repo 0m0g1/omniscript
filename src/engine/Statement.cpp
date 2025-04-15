@@ -21,18 +21,18 @@ void Initializer::initialize() {
     // std::vector<std::shared_ptr<Statement>> types = {};
 
     // for ()
-    // auto type = std::make_shared<Omniscript::TypeValue>();
+    // auto type = std::make_shared<Omniscript::TypeExpression>();
 }
 
-std::shared_ptr<Omniscript::Value> Initializer::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> Initializer::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     return nullptr;
 }  
 
 
-std::shared_ptr<Omniscript::Value> BlockStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> BlockStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     resolveGenerics();
     
-    std::vector<std::shared_ptr<Omniscript::Value>> results = {};
+    std::vector<std::shared_ptr<Omniscript::Expression>> results = {};
     
     // // Generate code for each statement in order
     for (const auto& stmt : statements) {
@@ -60,10 +60,10 @@ std::shared_ptr<Omniscript::Value> BlockStatement::evaluate(SymbolTable<std::sha
     
     // // Return the last computed value (may be nullptr for statements without values)
     // return lastValue;
-    return std::make_shared<Omniscript::BlockValue>(results);
+    return std::make_shared<Omniscript::BlockExpression>(results);
 }
 
-std::shared_ptr<Omniscript::Value> ImportModule::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> ImportModule::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // if (path.empty()) {
     //     throw std::runtime_error("ImportModule::codegen - Module path is empty.");
     // }
@@ -95,36 +95,36 @@ std::shared_ptr<Omniscript::Value> ImportModule::evaluate(SymbolTable<std::share
 }
 
 
-std::shared_ptr<Omniscript::Value> CreateModule::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> CreateModule::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // generator.importModule(name);8
     return nullptr; // Modules themselves don't return a value
 }
 
-std::shared_ptr<Omniscript::Value> PublicMember::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> PublicMember::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }
     return value->evaluate(scope);
 }
 
-std::shared_ptr<Omniscript::Value> PrivateMember::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> PrivateMember::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }
     return value->evaluate(scope);
 }
 
-std::shared_ptr<Omniscript::Value> AddressOf::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    std::shared_ptr<Omniscript::Value> referent = scope.getValue(name);
+std::shared_ptr<Omniscript::Expression> AddressOf::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
+    std::shared_ptr<Omniscript::Expression> referent = scope.getValue(name);
     setType(referent->getType());
-    return std::make_shared<Omniscript::AddressOfValue>(name, referent);
+    return std::make_shared<Omniscript::AddressOfExpression>(name, referent);
 }
 
-std::shared_ptr<Omniscript::Value> ReferenceTo::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> ReferenceTo::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // Look up the value in the scope to get the variable
     auto variable = scope.getValue(name);
     if (variable) {
-        return std::make_shared<Omniscript::ReferenceValue>(name, variable);
+        return std::make_shared<Omniscript::ReferenceExpression>(name, variable);
     }
     
     // If the variable isn't found, handle the error (e.g., return nullptr)
@@ -132,16 +132,16 @@ std::shared_ptr<Omniscript::Value> ReferenceTo::evaluate(SymbolTable<std::shared
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> Nullptr::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    return Omniscript::make_value<Omniscript::NullPointerValue>();
+std::shared_ptr<Omniscript::Expression> Nullptr::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
+    return Omniscript::make_expression<Omniscript::NullPointerExpression>();
 }
 
-std::shared_ptr<Omniscript::Value> Null::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> Null::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // return generator.createNullValue();
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> IntegerLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> IntegerLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     if (!type->isInteger()) {
         console.error("The specified type is " + type->kindName() + " but this should return an integer.");
     } else {
@@ -185,7 +185,7 @@ std::shared_ptr<Omniscript::Value> IntegerLiteral::evaluate(SymbolTable<std::sha
 }
 
 
-std::shared_ptr<Omniscript::Value> FloatLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> FloatLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     if (!type->isFloat()) {
         console.error("The specified type is " + type->kindName() + " but this should return a float.");
     } else {
@@ -247,39 +247,39 @@ std::shared_ptr<Omniscript::Value> FloatLiteral::evaluate(SymbolTable<std::share
 }
 
 // Arbitrary-precision integer (BigInt)
-std::shared_ptr<Omniscript::Value> BigInt::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> BigInt::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     DEBUG_LOG("Creating a big int " + value);
     unsigned bitWidth = BigInt::determineBitWidth(value);
     return std::make_shared<Omniscript::BigInt>(value, bitWidth);
 }
 
-std::shared_ptr<Omniscript::Value> BoolLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> BoolLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // DEBUG_LOG("Bool value " + value);
     return std::make_shared<Omniscript::Primitive<bool>>(value);
 }
 
-std::shared_ptr<Omniscript::Value> CharacterLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> CharacterLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     DEBUG_LOG("Char value " + value);
     return std::make_shared<Omniscript::Primitive<char>>(value);
 }
 
-std::shared_ptr<Omniscript::Value> StringLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> StringLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     if (!type) {
         DEBUG_LOG("Creating a string value");
-        return std::make_shared<Omniscript::StringValue<std::string>>(value); 
+        return std::make_shared<Omniscript::StringExpression<std::string>>(value); 
     }
 
     if (type->isString(8)) {
         DEBUG_LOG("Creating UTF-8 string");
-        return std::make_shared<Omniscript::StringValue<std::string>>(value);
+        return std::make_shared<Omniscript::StringExpression<std::string>>(value);
     } else if (type->isString(16)) {
         DEBUG_LOG("Creating UTF-16 string");
         std::u16string utf16_value(value.begin(), value.end());
-        return std::make_shared<Omniscript::StringValue<std::u16string>>(utf16_value);
+        return std::make_shared<Omniscript::StringExpression<std::u16string>>(utf16_value);
     } else if (type->isString(32)) {
         DEBUG_LOG("Creating UTF-32 string");
         std::u32string utf32_value(value.begin(), value.end());
-        return std::make_shared<Omniscript::StringValue<std::u32string>>(utf32_value);
+        return std::make_shared<Omniscript::StringExpression<std::u32string>>(utf32_value);
     }
     
     return nullptr;
@@ -292,17 +292,17 @@ void Assignment::setGlobalVisibilityTo(bool state) {
     isGlobal = state;
 }
 
-std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> createVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     DEBUG_LOG("Creating variable " + variable);
 
-    std::shared_ptr<Omniscript::Value> result;
+    std::shared_ptr<Omniscript::Expression> result;
 
     if (type) {
         if (type->isGeneric()) {
             auto genericVal = scope.get(type->getName());
-            if (auto generic = std::dynamic_pointer_cast<Omniscript::TypeValue>(genericVal)) {
-                DEBUG_LOG("The generic type is " + generic->getTypeValue()->kindName());
-                type = generic->getTypeValue()->clone();
+            if (auto generic = std::dynamic_pointer_cast<Omniscript::TypeExpression>(genericVal)) {
+                DEBUG_LOG("The generic type is " + generic->getTypeExpression()->kindName());
+                type = generic->getTypeExpression()->clone();
             }
         }
         
@@ -325,14 +325,14 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
                     result = nullpointer->evaluate(scope);
                 } else if (auto addressOf = std::dynamic_pointer_cast<AddressOf>(value)) {
                     result = addressOf->evaluate(scope);
-                    if (auto ptr = std::dynamic_pointer_cast<Omniscript::PointerValue>(result)) {
+                    if (auto ptr = std::dynamic_pointer_cast<Omniscript::PointerExpression>(result)) {
                         console.info("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->kindName() + "' and is pointing to a '" +
                         ptr->getType()->getPointeeType()->kindName() + "'.");
                         if (ptr->getType()->getPointeeType()->getKind() != type->getPointeeType()->getKind()) {
                             console.error("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->kindName() + "' but is pointing to a '" +
                             ptr->getType()->getPointeeType()->kindName() + "' instead.");
                         }
-                    } else if (auto addr = std::dynamic_pointer_cast<Omniscript::AddressOfValue>(result)) {
+                    } else if (auto addr = std::dynamic_pointer_cast<Omniscript::AddressOfExpression>(result)) {
                         if (addr->getType()->getBasePointeeType()->getKind() != type->getBasePointeeType()->getKind()) {
                             console.error("Pointer '" + variable + "' should point to a '" + type->pointerDescription() + "' but is pointing to a '" +
                             addr->getType()->pointerDescription() + "' instead.");
@@ -405,7 +405,7 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
                                 std::to_string(actualDepth) + " level(s) instead.");
                         }
                         DEBUG_LOG("HERE 2.8");
-                        result = Omniscript::make_value<Omniscript::ReferenceValue>(referenceTo->getName(), ptr);
+                        result = Omniscript::make_expression<Omniscript::ReferenceExpression>(referenceTo->getName(), ptr);
                         DEBUG_LOG("HERE 2.9");
                     }
                     DEBUG_LOG("HERE 3");
@@ -429,12 +429,12 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
             );
     scope.setVariable(variable, result);
 
-    return Omniscript::make_value<Omniscript::VariableAssignment>(variable, result);
+    return Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result);
 }    
 
 
 // Constant Assignment
-std::shared_ptr<Omniscript::Value> createConstant::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> createConstant::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // return generator.createConstant(variable, type, value->evaluate(scope));
     return nullptr;
 }
@@ -443,53 +443,53 @@ std::shared_ptr<Omniscript::Value> createConstant::evaluate(SymbolTable<std::sha
 createDynamicVariable::createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value)
     : variable(variable), value(value) {}
 
-std::shared_ptr<Omniscript::Value> createDynamicVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> createDynamicVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // return generator.assignDynamicVariable(variable, value->evaluate(scope));
     return nullptr;
 }
 
 // Get Variable
-std::shared_ptr<Omniscript::Value> GetVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> GetVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     return std::make_shared<Omniscript::VariableAccess>(name, type);
 }
 
 // Get Dynamic Variable
 GetDynamicVariable::GetDynamicVariable(const std::string &variable) : variable(variable) {}
 
-std::shared_ptr<Omniscript::Value> GetDynamicVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> GetDynamicVariable::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // return generator.getDynamicVariable(variable);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> BreakStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> BreakStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> ContinueStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> ContinueStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     return nullptr;
 }
 
-// std::shared_ptr<Omniscript::Value> ObjectConstructorStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+// std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
 //     return nullptr;
 // }
 
-std::shared_ptr<Omniscript::Value> ForLoop::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> ForLoop::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> GetProperty::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> GetProperty::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> CallMethod::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> CallMethod::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> WhileStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> WhileStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> TernaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> TernaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // Assign types
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
         stmt->setType(type);
@@ -505,22 +505,22 @@ std::shared_ptr<Omniscript::Value> TernaryExpression::evaluate(SymbolTable<std::
     }
 
     // Evaluate condition, then branches
-    std::shared_ptr<Omniscript::Value> condValue = condition->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> condValue = condition->evaluate(scope);
     if (!condValue) return nullptr;
 
-    std::shared_ptr<Omniscript::Value> trueValue = truthy->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> trueValue = truthy->evaluate(scope);
     if (!trueValue) return nullptr;
 
-    std::shared_ptr<Omniscript::Value> falseValue = falsey->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> falseValue = falsey->evaluate(scope);
     if (!falseValue) return nullptr;
 
-    return std::make_shared<Omniscript::TernaryExpressionValue>(
+    return std::make_shared<Omniscript::TernaryExpression>(
         condValue, trueValue, falseValue, type
     );
 }
 
 
-std::shared_ptr<Omniscript::Value> BinaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> BinaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     DEBUG_LOG();
     DEBUG_LOG("Creating a binary expression of kind '" + type->kindName() + "'.");
     // Set the expected result type for child expressions
@@ -534,58 +534,157 @@ std::shared_ptr<Omniscript::Value> BinaryExpression::evaluate(SymbolTable<std::s
     }
 
     // Evaluate left and right operands
-    std::shared_ptr<Omniscript::Value> leftValue = left->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> leftValue = left->evaluate(scope);
     if (!leftValue) return nullptr;
     DEBUG_LOG("The left value is " + leftValue->toString());
     
-    std::shared_ptr<Omniscript::Value> rightValue = right->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> rightValue = right->evaluate(scope);
     if (!rightValue) return nullptr;
     DEBUG_LOG("The right value is " + rightValue->toString());
 
     // Wrap both evaluated values into a BinaryExpressionValue
-    return std::make_shared<Omniscript::BinaryExpressionValue>(leftValue, op, rightValue, type);
+    return std::make_shared<Omniscript::BinaryExpression>(leftValue, op, rightValue, type);
 }
 
-std::shared_ptr<Omniscript::Value> UnaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> UnaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // Set the expected type on the operand
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
         stmt->setType(type);
     }
 
     // Evaluate the operand
-    std::shared_ptr<Omniscript::Value> operandValue = operand->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> operandValue = operand->evaluate(scope);
     if (!operandValue) return nullptr;
 
     bool isPrefix = position == Position::Prefix;
 
-    return std::make_shared<Omniscript::UnaryExpressionValue>(op, operandValue, type, isPrefix);
+    return std::make_shared<Omniscript::UnaryExpression>(op, operandValue, type, isPrefix);
 }
 
 
-std::shared_ptr<Omniscript::Value> IfStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> IfStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> Call::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // DEBUG_LOG("Calling " + callee );
-    // std::vector<std::shared_ptr<Omniscript::Value>> results;
+std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
+    DEBUG_LOG("Calling " + callee);
     
-    // for (auto& arg : args) {
-    //     // if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
-    //         //     typed->setType(type);
-    //         // }
+    DEBUG_LOG("Verifying if callee '" + callee + "' exists.");
+    auto called = scope.get(callee);
+    if (!called) {
+        console.error("Callable '" + callee + "' not found");
+    }
+
+    // Get parameters from the callable
+    std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>> parameters;
+    if (auto callable = std::dynamic_pointer_cast<Omniscript::Callable>(called)) {
+        parameters = callable->cloneParameters();
+        type = callable->getType();
+    } else {
+        console.error("'" + callee + "' is not callable it is of kind '" + (called->getType() ? called->getType()->kindName() : "null") + "'.");
+    }
+
+    // Create a local scope for the call
+    auto localScope = scope.createChildScope("call_" + callee);
+
+    // Process arguments
+    std::vector<std::shared_ptr<Omniscript::Expression>> evaluatedArgs;
+    std::unordered_set<std::string> providedParams;
+
+    // First pass: handle named arguments
+    for (auto& arg : args) {
+        if (auto namedArg = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
+            std::string paramName = namedArg->getName();
             
-    //         results.push_back(arg->evaluate(scope));
-    // }
-    // DEBUG_LOG("Genereated results for arguments");
+            // Check if parameter exists
+            bool paramExists = false;
+            for (const auto& param : parameters) {
+                if (param->name == paramName) {
+                    paramExists = true;
+                    break;
+                }
+            }
+            if (!paramExists) {
+                throw std::runtime_error("Unknown parameter '" + paramName + "' for callable '" + callee + "'");
+            }
 
-    // return generator.createCall(callee, results);
-    return nullptr;
+            // Evaluate and store in scope
+            auto evaluatedValue = namedArg->value ? namedArg->value->evaluate(scope) : nullptr;
+            localScope->set(paramName, evaluatedValue);
+            providedParams.insert(paramName);
+            
+            if (auto typed = std::dynamic_pointer_cast<TypedStatement>(namedArg->value)) {
+                typed->setType(type);
+            }
+        }
+    }
+
+    // Second pass: handle positional arguments and defaults
+    size_t positionalArgIndex = 0;
+    for (const auto& param : parameters) {
+        std::string paramName = param->name;
+        
+        // If parameter was already provided by name, skip
+        if (providedParams.count(paramName)) continue;
+        
+        // Try to get positional argument
+        if (positionalArgIndex < args.size()) {
+            auto arg = args[positionalArgIndex++];
+            if (std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
+                throw std::runtime_error("Positional argument after named argument");
+            }
+            
+            // Evaluate and store in scope
+            auto evaluatedValue = arg->evaluate(scope);
+            localScope->set(paramName, evaluatedValue);
+            
+            if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
+                typed->setType(type);
+            }
+        } 
+        // Otherwise use default value if available
+        else if (param->value) {
+            auto defaultValue = param->value;
+            localScope->set(paramName, defaultValue);
+        } 
+        // No value provided and no default
+        else {
+            console.error("Missing argument for parameter '" + paramName + 
+                                   "' in call to '" + callee + "'");
+        }
+    }
+
+    // Check for extra positional arguments
+    if (positionalArgIndex < args.size()) {
+        if (auto callable = std::dynamic_pointer_cast<Omniscript::Callable>(called)) {
+            if (!callable->isVarArg) {
+                throw std::runtime_error("Too many arguments provided for call to '" + callee + "'");
+            }
+            // Handle varargs case here if needed
+        } else {
+            throw std::runtime_error("Too many arguments provided for call to '" + callee + "'");
+        }
+    }
+
+    DEBUG_LOG("Generated results for arguments");
+
+    // Get the callable again from the local scope (in case it was shadowed)
+    auto localCalled = localScope->get(callee);
+    if (!localCalled) {
+        localCalled = called; // Fallback to original if not in local scope
+    }
+
+    // Prepare argument values for the call expression
+    std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
+    for (const auto& param : parameters) {
+        argValues.push_back(localScope->get(param->name));
+    }
+
+    return std::make_shared<Omniscript::CallExpression>(callee, argValues, type);
 }
-
-std::shared_ptr<Omniscript::Value> ReturnStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> ReturnStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     DEBUG_LOG("Creating a return value of kind '" + type->kindName() + "'.");
-    std::shared_ptr<Omniscript::Value> result = nullptr;
+    std::shared_ptr<Omniscript::Expression> result = nullptr;
     if (returnValue) {
         if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
             stmt->setType(type);
@@ -597,14 +696,14 @@ std::shared_ptr<Omniscript::Value> ReturnStatement::evaluate(SymbolTable<std::sh
         DEBUG_LOG("The result of the return value is 'void'.");
     }
     
-    return std::make_shared<Omniscript::ReturnValue>(result, type);
+    return std::make_shared<Omniscript::ReturnExpression>(result, type);
 }
 
-std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> Array::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     DEBUG_LOG("Creating an array");
     if (!type) {
         DEBUG_LOG("The array has no type");
-        std::vector<std::shared_ptr<Omniscript::Value>> values;
+        std::vector<std::shared_ptr<Omniscript::Expression>> values;
         std::shared_ptr<Omniscript::Type> inferredType = nullptr;
         bool allSameType = true;
         
@@ -629,18 +728,18 @@ std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<O
         }
 
         DEBUG_LOG("Creating a fixed Array");
-        return std::make_shared<Omniscript::FixedArrayValue>(values, inferredType);
+        return std::make_shared<Omniscript::FixedArrayExpression>(values, inferredType);
     }
     
     DEBUG_LOG("The array has a type '" + type->kindName() + "' of element types '" + type->elementType->kindName() + "'.");
     size_t n = 0;
     if (type->isFixedArray()) {
         DEBUG_LOG("Creating a fixed Array");
-        std::vector<std::shared_ptr<Omniscript::Value>> values;
+        std::vector<std::shared_ptr<Omniscript::Expression>> values;
         std::shared_ptr<Omniscript::Type> expectedElementType = type->elementType;  // Assume you have this method
         DEBUG_LOG("The expected element kind is '" + expectedElementType->kindName() + "'.");
         for (const auto& expr : initialValues) {
-            std::shared_ptr<Omniscript::Value> val;
+            std::shared_ptr<Omniscript::Expression> val;
 
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(expr)) {
                 if (!typed->getType()) {
@@ -688,7 +787,7 @@ std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<O
             n++;
         }
         
-        return std::make_shared<Omniscript::FixedArrayValue>(values, expectedElementType);
+        return std::make_shared<Omniscript::FixedArrayExpression>(values, expectedElementType);
     }
     
     if (type->isDynamicArray()) {
@@ -706,7 +805,7 @@ std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<O
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> FunctionDeclaration::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     DEBUG_LOG();
     DEBUG_LOG("Constructing a function " + name + " prototype the return Type is '" + type->kindName() + "'.");
     
@@ -718,7 +817,7 @@ std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std
         name = "__main";
     }
 
-    std::vector<std::shared_ptr<Omniscript::TypeValue>> genericTypes = createTypeValueListFromBoundGenerics();
+    std::vector<std::shared_ptr<Omniscript::TypeExpression>> genericTypes = createTypeExpressionListFromBoundGenerics();
 
     for (const auto& genericType : genericTypes) {
         localScope.setConstant(genericType->name, genericType);
@@ -740,7 +839,6 @@ std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std
         typed->setType(returnType);
     }
 
-
     setReturnTypes(); // This sets the returnType field and its type in the body
 
     DEBUG_LOG("Passing generic type bindings from function to body block");
@@ -751,7 +849,7 @@ std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std
     auto bod = body->evaluate(localScope);
 
     DEBUG_LOG("Extracting argument values for function type construction");
-    std::vector<std::shared_ptr<Omniscript::Value>> argValues;
+    std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
     bool isVarArg = false;
 
     int n = 0;
@@ -772,14 +870,14 @@ std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std
         n++;
     }
 
-    std::vector<std::shared_ptr<Omniscript::Value>> functionBody;
+    std::vector<std::shared_ptr<Omniscript::Expression>> functionBody;
 
     for (auto &stmt : body->statements) {
         functionBody.push_back(stmt->evaluate(localScope));
     }
 
     DEBUG_LOG("Creating FunctionValue");
-    auto functionVal = std::make_shared<Omniscript::FunctionValue>(name, returnType, functionBody, argValues, isVarArg);
+    auto functionVal = std::make_shared<Omniscript::FunctionExpression>(name, returnType, functionBody, argValues, isVarArg);
 
     DEBUG_LOG("Storing function in symbol table: " + name);
     scope.set(name, functionVal);
@@ -827,33 +925,33 @@ void FunctionDeclaration::setReturnTypesInStatement(
 }
 
 
-std::shared_ptr<Omniscript::Value> ParameterStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> ParameterStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     DEBUG_LOG("Creating parameter " + name + " of kind " + type->kindName());
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
         stmt->setType(type);
     }
 
-    std::shared_ptr<Omniscript::Value> result;
+    std::shared_ptr<Omniscript::Expression> result;
     
     if (defaultValue) {
         defaultValue->evaluate(scope);
     } else {
         if (type->isPointer()) {
-            result = std::make_shared<Omniscript::NullPointerValue>();
+            result = std::make_shared<Omniscript::NullPointerExpression>();
         } else {
-            result = std::make_shared<Omniscript::NullValue>();
+            result = std::make_shared<Omniscript::NullExpression>();
         }
     }
     DEBUG_LOG("Created value for parameter " + name + " of kind " + result->getType()->kindName());
-    return std::make_shared<Omniscript::FunctionInput>(name, type, result);
+    return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
 }
 
-std::shared_ptr<Omniscript::Value> ArgumentStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> ArgumentStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // DEBUG_LOG("Creating argument " + name);
     // // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
     // //     stmt->setType(type);
     // // }
-    // std::shared_ptr<Omniscript::Value> result = value->evaluate(scope);
+    // std::shared_ptr<Omniscript::Expression> result = value->evaluate(scope);
     // DEBUG_LOG("Created value for argument " + name);
     // return result;
     return nullptr;
@@ -867,15 +965,15 @@ std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> ConstructStructPrototype::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // generator.createStructType(*this);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> ObjectConstructorStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
 
-    // std::vector<std::shared_ptr<Omniscript::Value>> argValues;
+    // std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
     // for (const auto& arg : constructorArgs) {
         //     argValues.push_back(arg->evaluate(scope));
         // }
@@ -885,7 +983,7 @@ std::shared_ptr<Omniscript::Value> ObjectConstructorStatement::evaluate(SymbolTa
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> GetMemberValue::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> GetMemberValue::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // DEBUG_LOG("Getting member " + propertyName + " from " + objectName);
 
     // // DEBUG_LOG("Created value for argument " + name);
@@ -895,7 +993,7 @@ std::shared_ptr<Omniscript::Value> GetMemberValue::evaluate(SymbolTable<std::sha
 }
 
 
-std::shared_ptr<Omniscript::Value> EnumConstructor::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> EnumConstructor::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // std::vector<std::string> names;
     // std::vector<int> indices;
 
@@ -913,7 +1011,7 @@ std::shared_ptr<Omniscript::Value> EnumConstructor::evaluate(SymbolTable<std::sh
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Value> EnumValue::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // std::shared_ptr<Omniscript::Type> intType = llvm::Type::getInt32Ty(*generator.getContext());
     // return llvm::ConstantInt::get(intType, valueIndex);
     return nullptr;
@@ -1217,7 +1315,7 @@ std::shared_ptr<Omniscript::Value> EnumValue::evaluate(SymbolTable<std::shared_p
 //     return SymbolTable::ValueType{};
 // }
 
-// SymbolTable::ValueType ForLoop::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+// SymbolTable::ValueType ForLoop::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
 //     SymbolTable localScope;
 //     localScope.name = "a for loop's scope";
 //     localScope.setParent(&scope);
@@ -1772,7 +1870,7 @@ std::shared_ptr<Omniscript::Value> EnumValue::evaluate(SymbolTable<std::shared_p
 // }
 
 // //Evaluate a Tenary expression
-// SymbolTable::ValueType TenaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+// SymbolTable::ValueType TenaryExpression::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
 //     auto conditionResult = Expression::evaluate(condition, scope);
 //     // Check if the condition has a value and convert it to bool
 //     bool result = conditionResult.has_value() && std::holds_alternative<bool>(conditionResult.value()) 
@@ -1892,7 +1990,7 @@ std::shared_ptr<Omniscript::Value> EnumValue::evaluate(SymbolTable<std::shared_p
 
 
 
-// SymbolTable::ValueType GetProperty::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+// SymbolTable::ValueType GetProperty::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
 //     DEBUG_LOG("Evaluating a property call");
 //     std::shared_ptr<Object> baseObject;
 

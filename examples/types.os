@@ -100,16 +100,20 @@
 // // let z : Option<i32> = None;
 // let variable : int = 10;
 
-// function add(a: int, b: int) => i32 {
+function add(a: int, b: int) => i32 {
+    return a + b;
+}
+
+add(1, 1);
+
+// <Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
+// function add(a: Number, b: Number) => Number {
 //     return a + b;
 // }
 
-// add(1, 1);
-
-function add<T extends i8 | i32>(a: T, b: T) => T {
-    let temp : T = 10;
-    return a + b;
-}
+// function join<T>(a: T, b: T) => T {
+//     return a + b;
+// }
 
 // add<i32>(5);
 

@@ -143,7 +143,7 @@ void IRGenerator::optimizeModule(int level) {
     // printErrors();
 }
 
-llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope) {
+llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope) {
     llvm::Value* result = codegenPrimitive(value, scope);
 
     if (result) {
@@ -166,22 +166,22 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
     }
 
     // Handle ReferenceValue
-    if (auto refValue = std::dynamic_pointer_cast<Omniscript::ReferenceValue>(value)) {
+    if (auto refValue = std::dynamic_pointer_cast<Omniscript::ReferenceExpression>(value)) {
         DEBUG_LOG("Creating reference to variable " + refValue->referentName);
         return getReferenceToVariable(refValue->referentName);
     }
     
-    if (auto addressOf = std::dynamic_pointer_cast<Omniscript::AddressOfValue>(value)) {
+    if (auto addressOf = std::dynamic_pointer_cast<Omniscript::AddressOfExpression>(value)) {
         DEBUG_LOG("Getting the address of variable " + addressOf->variableName);
         return getAddressOf(addressOf->variableName);
     }
 
-    if (auto null = std::dynamic_pointer_cast<Omniscript::NullValue>(value)) {
+    if (auto null = std::dynamic_pointer_cast<Omniscript::NullExpression>(value)) {
         DEBUG_LOG("Creating a null value");
         return createNullValue();
     }
     
-    if (auto block = std::dynamic_pointer_cast<Omniscript::BlockValue>(value)) {
+    if (auto block = std::dynamic_pointer_cast<Omniscript::BlockExpression>(value)) {
         DEBUG_LOG("Evaluating a block value");
 
         for (const auto& expr : block->values) {
@@ -192,18 +192,18 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
         return nullptr;
     }
 
-    if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerValue>(value)) {
+    if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerExpression>(value)) {
         DEBUG_LOG("Creating a null pointer");
         return createNullPointer();
     }
 
-    if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionValue>(value)) {
+    if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(value)) {
         DEBUG_LOG("Creating a function " + func->name);
         llvm::Type* returnType = resolveLLVMType(func->getType()->getReturnType());
-        return createFunction(func->name, func->body, returnType, func->params, scope);
+        return createFunction(func->name, func->body, returnType, func->parameters, scope);
     }
 
-    if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnValue>(value)) {
+    if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(value)) {
         DEBUG_LOG("Creating a return statement of kind '" + ret->getType()->kindName() + "'.");
 
         llvm::Type* type = resolveLLVMType(ret->getType());
@@ -211,14 +211,14 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
         return createReturn(val, type);
     }
 
-    if (auto unary = std::dynamic_pointer_cast<Omniscript::UnaryExpressionValue>(value)) {
+    if (auto unary = std::dynamic_pointer_cast<Omniscript::UnaryExpression>(value)) {
         DEBUG_LOG("Creating a unary expression");
         llvm::Value* operandVal = codegen(unary->operand, scope);
         if (!operandVal) return nullptr;
         return createUnaryExpression(operandVal, unary->op, unary->position);
     }
 
-    if (auto binary = std::dynamic_pointer_cast<Omniscript::BinaryExpressionValue>(value)) {
+    if (auto binary = std::dynamic_pointer_cast<Omniscript::BinaryExpression>(value)) {
         DEBUG_LOG("Creating a binary expression");
         llvm::Value* lhs = codegen(binary->left, scope);
         llvm::Value* rhs = codegen(binary->right, scope);
@@ -226,7 +226,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
         return createBinaryExpression(lhs, binary->op, rhs);
     }
 
-    if (auto ternary = std::dynamic_pointer_cast<Omniscript::TernaryExpressionValue>(value)) {
+    if (auto ternary = std::dynamic_pointer_cast<Omniscript::TernaryExpression>(value)) {
         DEBUG_LOG("Creating a ternary expression");
         llvm::Value* cond = codegen(ternary->condition, scope);
         llvm::Value* truthy = codegen(ternary->truthy, scope);
@@ -240,10 +240,23 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Value> value, std:
         return getVariable(var->variableName);
     }
 
+    if (auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(value)) {
+        DEBUG_LOG("Calling " + call->calleeName);
+        
+        std::vector<llvm::Value*> args;
+        args.reserve(call->args.size());
+
+        for (const auto& arg : call->args) {
+            args.emplace_back(codegen(arg, scope));
+        }
+
+        return createCall(call->calleeName, args);
+    }
+
     return nullptr;
 }
 
-llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope) {
+llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope) {
 
     // Handle 8-bit integer (int8_t)
     if (auto integer8 = std::dynamic_pointer_cast<Omniscript::Integer<int8_t>>(value)) {
@@ -316,7 +329,7 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Value> va
         DEBUG_LOG("Creating a Big int");
         return createBigInt(bigInt->getValue(), bigInt->getBitWidth());
     
-    } else if (auto arry = std::dynamic_pointer_cast<Omniscript::FixedArrayValue>(value)) {
+    } else if (auto arry = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(value)) {
         DEBUG_LOG("Creating a fixed array");
         std::vector<llvm::Value*> elems;
 
@@ -1352,10 +1365,10 @@ llvm::Value* IRGenerator::createFixedArray(
 
 llvm::Function* IRGenerator::createFunction(
     const std::string& name,
-    std::vector<std::shared_ptr<Omniscript::Value>>& body,
+    std::vector<std::shared_ptr<Omniscript::Expression>>& body,
     llvm::Type* returnType,
-    std::vector<std::shared_ptr<Omniscript::Value>>& params,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
+    std::vector<std::shared_ptr<Omniscript::Expression>>& params,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
 ) {
     DEBUG_LOG("Creating function: " + name + " with parameter size " + std::to_string(params.size()));
     
@@ -1470,8 +1483,8 @@ llvm::Value* IRGenerator::createCall(
 
 void IRGenerator::generateFunctionBody( 
     llvm::Function* function,
-    std::vector<std::shared_ptr<Omniscript::Value>>& body,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
+    std::vector<std::shared_ptr<Omniscript::Expression>>& body,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
 ) {
     DEBUG_LOG("Generating body for function: " + function->getName().str());
     DEBUG_LOG("Function return type: " + debugType(function->getReturnType()));

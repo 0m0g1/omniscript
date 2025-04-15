@@ -130,12 +130,12 @@ public:
     
     // Generate IR for different types
     llvm::Value* codegen(
-        std::shared_ptr<Omniscript::Value> value,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
+        std::shared_ptr<Omniscript::Expression> value,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
     );
     llvm::Value* codegenPrimitive(
-        std::shared_ptr<Omniscript::Value> value,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope);
+        std::shared_ptr<Omniscript::Expression> value,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope);
     llvm::Type* resolveLLVMType(std::shared_ptr<Omniscript::Type> type);
     
     llvm::Value* createNullPointer();
@@ -205,15 +205,15 @@ public:
     llvm::Value* createFixedArray(llvm::Type* elementType, size_t arraySize, const std::vector<llvm::Value*>& elements);
     llvm::Function* createFunction(
         const std::string& name,
-        std::vector<std::shared_ptr<Omniscript::Value>>& body,
+        std::vector<std::shared_ptr<Omniscript::Expression>>& body,
         llvm::Type* returnType,
-        std::vector<std::shared_ptr<Omniscript::Value>>& params,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
+        std::vector<std::shared_ptr<Omniscript::Expression>>& params,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
     );
     void generateFunctionBody(
         llvm::Function* function,
-        std::vector<std::shared_ptr<Omniscript::Value>>& funcBody,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Value>>> scope
+        std::vector<std::shared_ptr<Omniscript::Expression>>& funcBody,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
     );
     llvm::AllocaInst* createEntryBlockAlloca(llvm::Function* function,llvm::Type* type, const std::string& name);
     // llvm::Value* createCall(const std::string& callee, std::vector<llvm::Value*>& args);
