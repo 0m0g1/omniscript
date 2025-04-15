@@ -1277,7 +1277,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration() {
                     }
                     
                     auto func = std::make_shared<FunctionDeclaration>(
-                        specializedName, clonedParameters, body, returnType);
+                        specializedName, clonedParameters, std::dynamic_pointer_cast<BlockStatement>(body->clone()), returnType);
                     
                     func->addGenericParam(typeParam.first);
                     func->bindGeneric(typeParam.first, Omniscript::resolveType(constraint));
@@ -1310,7 +1310,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration() {
 
             std::string specializedName = generateSpecializedNameForDecleration(name, selectedTypes);
             auto func = std::make_shared<FunctionDeclaration>(
-                specializedName, parameters, body, returnType);
+                specializedName, parameters, std::dynamic_pointer_cast<BlockStatement>(body->clone()), returnType);
 
             for (const auto& genericPair : types) {
                 func->addGenericParam(genericPair.first);

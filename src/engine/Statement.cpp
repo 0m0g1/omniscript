@@ -17,10 +17,20 @@
 // #include <omniscript/runtime/String.h>
 // #include <omniscript/runtime/Pointer.h>
 
+void Initializer::initialize() {
+    // std::vector<std::shared_ptr<Statement>> types = {};
+
+    // for ()
+    // auto type = std::make_shared<Omniscript::TypeValue>();
+}
+
+std::shared_ptr<Omniscript::Value> Initializer::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
+    return nullptr;
+}  
+
 
 std::shared_ptr<Omniscript::Value> BlockStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
-    // Create a new scope for this block
-    // generator.pushScope();
+    resolveGenerics();
     
     std::vector<std::shared_ptr<Omniscript::Value>> results = {};
     
@@ -288,6 +298,14 @@ std::shared_ptr<Omniscript::Value> createVariable::evaluate(SymbolTable<std::sha
     std::shared_ptr<Omniscript::Value> result;
 
     if (type) {
+        if (type->isGeneric()) {
+            auto genericVal = scope.get(type->getName());
+            if (auto generic = std::dynamic_pointer_cast<Omniscript::TypeValue>(genericVal)) {
+                DEBUG_LOG("The generic type is " + generic->getTypeValue()->kindName());
+                type = generic->getTypeValue()->clone();
+            }
+        }
+        
         if (!type->isPointer() && !type->isReference()) {
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
                 if (!typed->getType()) {
@@ -508,18 +526,21 @@ std::shared_ptr<Omniscript::Value> BinaryExpression::evaluate(SymbolTable<std::s
     // Set the expected result type for child expressions
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(left)) {
         stmt->setType(type);
+        DEBUG_LOG("Set the type for the left expression");
     }
-
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(right)) {
         stmt->setType(type);
+        DEBUG_LOG("Set the type for the right expression");
     }
 
     // Evaluate left and right operands
     std::shared_ptr<Omniscript::Value> leftValue = left->evaluate(scope);
     if (!leftValue) return nullptr;
-
+    DEBUG_LOG("The left value is " + leftValue->toString());
+    
     std::shared_ptr<Omniscript::Value> rightValue = right->evaluate(scope);
     if (!rightValue) return nullptr;
+    DEBUG_LOG("The right value is " + rightValue->toString());
 
     // Wrap both evaluated values into a BinaryExpressionValue
     return std::make_shared<Omniscript::BinaryExpressionValue>(leftValue, op, rightValue, type);
@@ -688,9 +709,19 @@ std::shared_ptr<Omniscript::Value> Array::evaluate(SymbolTable<std::shared_ptr<O
 std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std::shared_ptr<Omniscript::Value>>& scope) {
     DEBUG_LOG();
     DEBUG_LOG("Constructing a function " + name + " prototype the return Type is '" + type->kindName() + "'.");
+    
+    DEBUG_LOG("Creating a local scope for the function");
+
+    localScope = scope.createChildScope(name);
 
     if (name == "main") {
         name = "__main";
+    }
+
+    std::vector<std::shared_ptr<Omniscript::TypeValue>> genericTypes = createTypeValueListFromBoundGenerics();
+
+    for (const auto& genericType : genericTypes) {
+        localScope.setConstant(genericType->name, genericType);
     }
     
     DEBUG_LOG("Setting the function's return type");
@@ -709,9 +740,13 @@ std::shared_ptr<Omniscript::Value> FunctionDeclaration::evaluate(SymbolTable<std
         typed->setType(returnType);
     }
 
-    localScope = scope.createChildScope();
 
     setReturnTypes(); // This sets the returnType field and its type in the body
+
+    DEBUG_LOG("Passing generic type bindings from function to body block");
+    if (auto holder = std::dynamic_pointer_cast<GenericHolder>(body)) {
+        holder->inheritGenericsFrom(*this);
+    }
 
     auto bod = body->evaluate(localScope);
 

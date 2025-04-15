@@ -224,6 +224,11 @@ public:
     static std::shared_ptr<Type> createDynamicArrayType(std::shared_ptr<Type> elementType);
     static std::shared_ptr<Type> createHeterogeneousArrayType();
     static std::shared_ptr<Type> createGenericType(const std::string& typeName);
+
+    virtual std::shared_ptr<Type> clone() const {
+        // Fallback clone for base Type (can optionally throw if never meant to be instantiated)
+        return std::make_shared<Type>(*this);
+    }
 };
 
 // --- Derived Types ---
@@ -271,6 +276,10 @@ public:
     static std::shared_ptr<Type> create(Kind kind) {
         return std::make_shared<PrimitiveType>(kind);
     }
+
+    std::shared_ptr<Type> clone() const override {
+        return std::make_shared<PrimitiveType>(primitiveKind);
+    }    
 };
     
 
@@ -337,6 +346,10 @@ public:
         }
     
         return description;
+    }
+    
+    std::shared_ptr<Type> clone() const override {
+        return std::make_shared<PointerType>(pointee->clone());
     }    
 };
 
@@ -349,6 +362,10 @@ public:
     std::string pointerDescription() const override {
         return "null";
     }
+
+    std::shared_ptr<Type> clone() const override {
+        return std::make_shared<NullType>();
+    }    
 };
 
 class NullPointerType : public Type {
@@ -360,6 +377,11 @@ public:
     std::string pointerDescription() const override {
         return "nullptr";
     }
+
+    std::shared_ptr<Type> clone() const override {
+        return std::make_shared<NullPointerType>();
+    }
+    
 };
 
 
@@ -420,6 +442,10 @@ public:
 
         return desc;
     }
+
+    std::shared_ptr<Type> clone() const override {
+        return std::make_shared<ReferenceType>(referentType->clone());
+    }    
 };
 
 
@@ -437,6 +463,14 @@ public:
     std::shared_ptr<Type> getReturnType() const override {
         return returnType; // You may replace this with actual type resolution
     }
+
+    std::shared_ptr<Type> clone() const override {
+        std::vector<std::shared_ptr<Type>> clonedParams;
+        for (const auto& param : paramTypes) {
+            clonedParams.push_back(param->clone());
+        }
+        return std::make_shared<FunctionType>(returnType->clone(), clonedParams, isVarArg);
+    }    
 };
 
 class GenericType : public Type {
@@ -451,6 +485,10 @@ public:
     std::string getName() const override {
         return name;
     }
+
+    std::shared_ptr<Type> clone() const override {
+        return std::make_shared<GenericType>(name);
+    }    
 };
 
 
@@ -476,33 +514,31 @@ std::shared_ptr<T> make_value(auto&&... args) {
 
 struct TypeValue : public Value {
     std::string name;
-    std::shared_ptr<Type> typeValue;  // The actual type information
-    
+    std::shared_ptr<Type> actualType;  // This holds the real type being wrapped
+
     // Constructor from existing Type
-    explicit TypeValue(const std::string& typeName, std::shared_ptr<Type> type) 
-        : name(typeName), typeValue(std::move(type)) {
-        this->type = Type::createMetaType();  // Special type indicating this is a type value
+    explicit TypeValue(const std::string& typeName, std::shared_ptr<Type> type)
+        : name(typeName), actualType(std::move(type)) {
+        this->type = Type::createMetaType();  // Meta-type for this Value
     }
-    
+
     // Constructor from Kind (for primitive types)
-    explicit TypeValue(Kind kind) 
-        : typeValue(Type::createPrimitiveType(kind)) {
+    explicit TypeValue(Kind kind)
+        : actualType(Type::createPrimitiveType(kind)) {
         this->type = Type::createMetaType();
     }
-    
+
     std::string toString() const override {
-        return typeValue ? typeValue->getName() : "nulltype";
+        return actualType ? actualType->getName() : "nulltype";
     }
-    
-    // Get the actual type information
-    std::shared_ptr<Type> getTypeValue() const { 
-        return typeValue; 
+
+    std::shared_ptr<Type> getTypeValue() const {
+        return actualType;
     }
-    
-    // Special type comparison for TypeValues
+
     bool isSameTypeAs(const std::shared_ptr<TypeValue>& other) const {
-        if (!typeValue || !other->typeValue) return false;
-        return typeValue->getKind() == other->typeValue->getKind();
+        if (!actualType || !other->actualType) return false;
+        return actualType->getKind() == other->actualType->getKind();
     }
 };
 

@@ -36,7 +36,11 @@ public:
     }
 
     void setConstant(const std::string& name, T value) {
-        constants_[name] = std::move(value);
+        if (auto it = constants_.find(name); it == constants_.end()) {
+            constants_[name] = std::move(value);
+        } else {
+            console.error("Constant '" + name + "' already exists in scope '" + name + "' and cannot be reassigned");
+        }
     }
 
     T get(const std::string& name) const {
@@ -63,8 +67,10 @@ public:
     
 
     // ==================== SCOPE MANAGEMENT ====================
-    std::shared_ptr<SymbolTable<T>> createChildScope() {
-        return std::make_shared<SymbolTable<T>>(*this);
+    std::shared_ptr<SymbolTable<T>> createChildScope(const std::string& name) {
+        auto child = std::make_shared<SymbolTable<T>>(*this);
+        child->setName(name);
+        return child;
     }
 
     std::shared_ptr<SymbolTable<T>> getParent() const { return parent_; }

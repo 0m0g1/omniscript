@@ -107,6 +107,7 @@
 // add(1, 1);
 
 function add<T extends i8 | i32>(a: T, b: T) => T {
+    let temp : T = 10;
     return a + b;
 }
 

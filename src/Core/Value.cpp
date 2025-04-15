@@ -289,9 +289,9 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     for (int i = 0; i < totalPointerDepth; ++i) {
         type = Type::createPointerType(type);
     }
-
     return type;
 }
+
 
 
 } // namespace Omniscript
