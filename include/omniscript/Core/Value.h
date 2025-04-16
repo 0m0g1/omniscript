@@ -84,6 +84,7 @@ public:
     bool isUnresolved() const { return kind == Kind::Unresolved || kind == Kind::Generic; }
     bool isGeneric() const { return kind == Kind::Generic || kind == Kind::Unresolved; }
     bool isBlock() const { return kind == Kind::Block; }
+    bool isBool() const { return kind == Kind::Bool; }
 
     bool isNumericLiteral() const {
         return isInteger() || isFloat();

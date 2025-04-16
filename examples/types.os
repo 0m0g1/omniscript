@@ -100,11 +100,11 @@
 // // let z : Option<i32> = None;
 // let variable : int = 10;
 
-function add(a: int, b: int) => i32 {
+function add(a: int = 1, b: int = 1) => i32 {
     return a + b;
 }
 
-add(1, 1);
+// add(1, 1);
 
 // <Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
 // function add(a: Number, b: Number) => Number {
@@ -117,9 +117,9 @@ add(1, 1);
 
 // add<i32>(5);
 
-// function main() => i32 {
-//     return add(1, 1);
-// }
+function main() => i32 {
+    return add(1);
+}
 
 // let ref : function* = add;
 

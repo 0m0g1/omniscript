@@ -142,17 +142,17 @@ std::shared_ptr<Omniscript::Expression> Null::evaluate(SymbolTable<std::shared_p
 }
 
 std::shared_ptr<Omniscript::Expression> IntegerLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
+    if (!type) {
+        DEBUG_LOG("Creating a 32-bit integer");
+        return std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
+    }
+
     if (!type->isInteger()) {
         console.error("The specified type is " + type->kindName() + " but this should return an integer.");
     } else {
         DEBUG_LOG("Creating an '" + type->kindName() + "' integer");
     }
 
-    // Default to 32-bit integer if Type is null or unknown
-    if (!type || !type->isInteger()) {
-        DEBUG_LOG("Creating a 32-bit integer");
-        return std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
-    }
     
     // Check for specific bit-widths using the isInteger function with optional bitwidth argument
     if (type->isInteger(8)) {
@@ -186,17 +186,18 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::evaluate(SymbolTable<std
 
 
 std::shared_ptr<Omniscript::Expression> FloatLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
+    // Default to 64-bit float if type is null or unknown
+    if (!type) {
+        DEBUG_LOG("Creating a 64-bit float");
+        return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));  // Default to double (64-bit)
+    }
+
     if (!type->isFloat()) {
         console.error("The specified type is " + type->kindName() + " but this should return a float.");
     } else {
         DEBUG_LOG("Creating an '" + type->kindName() + "' float.");
     }
 
-    // Default to 64-bit float if type is null or unknown
-    if (!type || !type->isFloat()) {
-        DEBUG_LOG("Creating a 64-bit float");
-        return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));  // Default to double (64-bit)
-    }
 
     // Check if the type is a 32-bit float
     #ifdef __ARM_ARCH
@@ -242,7 +243,6 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::evaluate(SymbolTable<std::
     }
 
     // If necessary, handle other custom floating-point types (e.g., Half, etc.)
-    
     return nullptr;  // If no valid type matches, return nullptr
 }
 
@@ -255,6 +255,17 @@ std::shared_ptr<Omniscript::Expression> BigInt::evaluate(SymbolTable<std::shared
 
 std::shared_ptr<Omniscript::Expression> BoolLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // DEBUG_LOG("Bool value " + value);
+    if (!type) {
+        DEBUG_LOG("Creating a bool false");
+        return std::make_shared<Omniscript::Primitive<bool>>(false);  // Default to double (64-bit)
+    }
+
+    if (!type->isBool()) {
+        console.error("The specified type is " + type->kindName() + " but this should return a bool.");
+    } else {
+        DEBUG_LOG("Creating an '" + type->kindName() + "'.");
+    }
+
     return std::make_shared<Omniscript::Primitive<bool>>(value);
 }
 
@@ -567,34 +578,51 @@ std::shared_ptr<Omniscript::Expression> IfStatement::evaluate(SymbolTable<std::s
 }
 
 std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
-    DEBUG_LOG("Calling " + callee);
+    DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
     
-    DEBUG_LOG("Verifying if callee '" + callee + "' exists.");
+    DEBUG_LOG("[Call] Looking up callee '" + callee + "' in scope");
     auto called = scope.get(callee);
     if (!called) {
+        DEBUG_LOG("[Call] ERROR: Callee '" + callee + "' not found in scope");
         console.error("Callable '" + callee + "' not found");
+        throw std::runtime_error("Callable not found");
     }
+    DEBUG_LOG("[Call] Found callee '" + callee + "' of type '" + 
+             (called->getType() ? called->getType()->kindName() : "null") + "'");
 
     // Get parameters from the callable
     std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>> parameters;
     if (auto callable = std::dynamic_pointer_cast<Omniscript::Callable>(called)) {
+        DEBUG_LOG("[Call] Callee is callable, cloning parameters");
         parameters = callable->cloneParameters();
         type = callable->getType();
+        if (type->isFunction()) {
+            type = type->getReturnType();
+        }
+        DEBUG_LOG("[Call] Cloned " + std::to_string(parameters.size()) + " parameters");
     } else {
-        console.error("'" + callee + "' is not callable it is of kind '" + (called->getType() ? called->getType()->kindName() : "null") + "'.");
+        DEBUG_LOG("[Call] ERROR: Callee is not callable");
+        console.error("'" + callee + "' is not callable it is of kind '" + 
+                     (called->getType() ? called->getType()->kindName() : "null") + "'.");
+        throw std::runtime_error("Not a callable expression");
     }
 
     // Create a local scope for the call
+    DEBUG_LOG("[Call] Creating local scope for call to '" + callee + "'");
     auto localScope = scope.createChildScope("call_" + callee);
+    DEBUG_LOG("[Call] Created local scope with " + std::to_string(parameters.size()) + " parameters");
 
     // Process arguments
     std::vector<std::shared_ptr<Omniscript::Expression>> evaluatedArgs;
     std::unordered_set<std::string> providedParams;
 
+    DEBUG_LOG("[Call] Processing " + std::to_string(args.size()) + " arguments");
+    
     // First pass: handle named arguments
     for (auto& arg : args) {
         if (auto namedArg = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
             std::string paramName = namedArg->getName();
+            DEBUG_LOG("[Call] Processing named argument '" + paramName + "'");
             
             // Check if parameter exists
             bool paramExists = false;
@@ -605,52 +633,78 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_p
                 }
             }
             if (!paramExists) {
+                DEBUG_LOG("[Call] ERROR: Unknown parameter '" + paramName + "'");
                 throw std::runtime_error("Unknown parameter '" + paramName + "' for callable '" + callee + "'");
             }
 
             // Evaluate and store in scope
+            DEBUG_LOG("[Call] Evaluating value for parameter '" + paramName + "'");
             auto evaluatedValue = namedArg->value ? namedArg->value->evaluate(scope) : nullptr;
             localScope->set(paramName, evaluatedValue);
             providedParams.insert(paramName);
+            DEBUG_LOG("[Call] Set parameter '" + paramName + "' in local scope");
             
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(namedArg->value)) {
                 typed->setType(type);
+                DEBUG_LOG("[Call] Set type for argument '" + paramName + "'");
             }
         }
     }
 
     // Second pass: handle positional arguments and defaults
     size_t positionalArgIndex = 0;
+    DEBUG_LOG("[Call] Processing positional arguments");
+    
     for (const auto& param : parameters) {
         std::string paramName = param->name;
         
         // If parameter was already provided by name, skip
-        if (providedParams.count(paramName)) continue;
+        if (providedParams.count(paramName)) {
+            DEBUG_LOG("[Call] Skipping parameter '" + paramName + "' (already provided by name)");
+            continue;
+        }
         
         // Try to get positional argument
         if (positionalArgIndex < args.size()) {
             auto arg = args[positionalArgIndex++];
             if (std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
+                DEBUG_LOG("[Call] ERROR: Positional argument after named argument");
                 throw std::runtime_error("Positional argument after named argument");
             }
             
+            DEBUG_LOG("[Call] Binding positional argument to parameter '" + paramName + "'");
             // Evaluate and store in scope
+            DEBUG_LOG(arg->toString());
+
+            if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
+                if (!typed->getType()) {
+                    typed->setType(param->getType());
+                }
+            }
+
             auto evaluatedValue = arg->evaluate(scope);
+            DEBUG_LOG("Evaluated the arg");
             localScope->set(paramName, evaluatedValue);
+            DEBUG_LOG("[Call] Set parameter '" + paramName + "' from positional argument");
             
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
                 typed->setType(type);
+                DEBUG_LOG("[Call] Set type for positional argument '" + paramName + "'");
             }
         } 
         // Otherwise use default value if available
         else if (param->value) {
+            DEBUG_LOG("[Call] Using default value for parameter '" + paramName + "'");
             auto defaultValue = param->value;
             localScope->set(paramName, defaultValue);
+            DEBUG_LOG("[Call] Set default value for parameter '" + paramName + "'");
         } 
         // No value provided and no default
         else {
+            DEBUG_LOG("[Call] ERROR: Missing required parameter '" + paramName + "'");
             console.error("Missing argument for parameter '" + paramName + 
                                    "' in call to '" + callee + "'");
+            throw std::runtime_error("Missing required parameter");
         }
     }
 
@@ -658,30 +712,43 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_p
     if (positionalArgIndex < args.size()) {
         if (auto callable = std::dynamic_pointer_cast<Omniscript::Callable>(called)) {
             if (!callable->isVarArg) {
+                DEBUG_LOG("[Call] ERROR: Too many arguments provided");
                 throw std::runtime_error("Too many arguments provided for call to '" + callee + "'");
             }
+            DEBUG_LOG("[Call] Extra arguments will be handled as varargs");
             // Handle varargs case here if needed
         } else {
+            DEBUG_LOG("[Call] ERROR: Too many arguments for non-callable");
             throw std::runtime_error("Too many arguments provided for call to '" + callee + "'");
         }
     }
 
-    DEBUG_LOG("Generated results for arguments");
+    DEBUG_LOG("[Call] Argument processing complete. Collected " + 
+             std::to_string(parameters.size()) + " parameter values");
 
     // Get the callable again from the local scope (in case it was shadowed)
+    DEBUG_LOG("[Call] Looking up callee in local scope");
     auto localCalled = localScope->get(callee);
     if (!localCalled) {
+        DEBUG_LOG("[Call] Callee not shadowed in local scope, using original");
         localCalled = called; // Fallback to original if not in local scope
     }
 
     // Prepare argument values for the call expression
+    DEBUG_LOG("[Call] Preparing argument values for call expression");
     std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
     for (const auto& param : parameters) {
-        argValues.push_back(localScope->get(param->name));
+        auto value = localScope->get(param->name);
+        DEBUG_LOG("[Call] Argument value for '" + param->name + "': " + 
+                 (value ? value->toString() : "null"));
+        argValues.push_back(value);
     }
 
+    DEBUG_LOG("[Call] Creating CallExpression for '" + callee + "' with " + 
+             std::to_string(argValues.size()) + " arguments");
     return std::make_shared<Omniscript::CallExpression>(callee, argValues, type);
 }
+
 std::shared_ptr<Omniscript::Expression> ReturnStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     DEBUG_LOG("Creating a return value of kind '" + type->kindName() + "'.");
     std::shared_ptr<Omniscript::Expression> result = nullptr;
@@ -934,7 +1001,7 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::evaluate(SymbolTable
     std::shared_ptr<Omniscript::Expression> result;
     
     if (defaultValue) {
-        defaultValue->evaluate(scope);
+        result = defaultValue->evaluate(scope);
     } else {
         if (type->isPointer()) {
             result = std::make_shared<Omniscript::NullPointerExpression>();
@@ -947,14 +1014,13 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::evaluate(SymbolTable
 }
 
 std::shared_ptr<Omniscript::Expression> ArgumentStatement::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
-    // DEBUG_LOG("Creating argument " + name);
-    // // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
-    // //     stmt->setType(type);
-    // // }
-    // std::shared_ptr<Omniscript::Expression> result = value->evaluate(scope);
-    // DEBUG_LOG("Created value for argument " + name);
-    // return result;
-    return nullptr;
+    DEBUG_LOG("Creating argument " + name);
+    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
+        stmt->setType(type);
+    }
+    std::shared_ptr<Omniscript::Expression> result = value->evaluate(scope);
+    DEBUG_LOG("The value for argument '" + name + "' is " + result->toString());
+    return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
 }
 
 std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
