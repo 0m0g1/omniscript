@@ -118,7 +118,7 @@ function add(a: int = 1, b: int = 1) => i32 {
 // add<i32>(5);
 
 function main() => i32 {
-    return add(1);
+    return add("1");
 }
 
 // let ref : function* = add;

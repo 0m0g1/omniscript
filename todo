@@ -1,4 +1,5 @@
-- work on function calls
+- work on function calls for generics
+- throw an error when the wrong type is inputed in function call
 - check if the body needs to be cloned so that generics are properly handled
 - handle unresolved types
 - handle default arguments / parameters
