@@ -2136,7 +2136,7 @@ void IRGenerator::createEnumWithLookup(
     std::vector<llvm::Constant*> enumEntries;
     for (size_t i = 0; i < valueNames.size(); ++i) {
         llvm::Constant* intValue = llvm::ConstantInt::get(intType, valueIndices[i]);
-        llvm::Constant* strValue = Builder->CreateGlobalStringPtr(valueNames[i]);
+        llvm::Constant* strValue = Builder->CreateGlobalString(valueNames[i]);
 
         llvm::StructType* pairType = llvm::StructType::get(*Context, {intType, charPtrType});
         enumEntries.push_back(llvm::ConstantStruct::get(pairType, {intValue, strValue}));
@@ -2165,7 +2165,7 @@ void IRGenerator::createEnumWithLookup(
     Builder->SetInsertPoint(entry);
 
     llvm::Argument* valueArg = lookupFunction->getArg(0);
-    llvm::Value* tablePtr = Builder->CreateBitCast(globalEnumTable, arrayType->getPointerTo());
+    llvm::Value* tablePtr = Builder->CreateBitCast(globalEnumTable, llvm::PointerType::get(arrayType, 0));
 
     llvm::BasicBlock* loopBody = llvm::BasicBlock::Create(*Context, "loop", lookupFunction);
     llvm::BasicBlock* notFound = llvm::BasicBlock::Create(*Context, "not_found", lookupFunction);
