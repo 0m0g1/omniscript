@@ -17,16 +17,31 @@ public:
     
     virtual std::shared_ptr<Expression> clone() const { return nullptr; }
     std::shared_ptr<Type> getType() const { return type; }
+    std::shared_ptr<Type> getRootType() const { return rootType; }
     virtual std::string toString() const { return "Expression"; }
 
     std::string name;
     std::shared_ptr<Type> type = Type::createInvalid();  // Holds a full Type object now
+    std::shared_ptr<Type> rootType = Type::createInvalid();  // Holds a full Type object now
 };
 
 template <typename T>
 std::shared_ptr<T> make_expression(auto&&... args) {
     return std::make_shared<T>(std::forward<decltype(args)>(args)...);
 }
+
+struct UndefinedExpression : public Expression {
+    UndefinedExpression() {
+        type = Type::createUndefined();
+        rootType = Type::createUndefined();
+    }
+
+    std::string toString() const override { return "Undefined"; }
+    // Undefined
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<UndefinedExpression>();
+    }
+};
 
 struct TypeExpression : public Expression {
     std::string name;
@@ -124,7 +139,9 @@ template <typename T>
 class Integer : public NumericExpression<T> {
 public:
     Integer(T value)
-        : NumericExpression<T>(value) {}  // Specify type
+        : NumericExpression<T>(value) {
+            this->rootType = std::make_shared<Type>(Kind::Int8);
+        }  // Specify type
 
     ~Integer() override = default;
     // Integer (template)
@@ -138,7 +155,9 @@ template <typename T>
 class Float : public NumericExpression<T> {
 public:
     Float(T value)
-        : NumericExpression<T>(value) {}  // Specify type
+        : NumericExpression<T>(value) {
+            this->rootType = std::make_shared<Type>(Kind::Half);
+        }  // Specify type
 
     ~Float() override = default;
         // Float (template)
@@ -151,7 +170,9 @@ public:
 class BigInt : public NumericExpression<std::string> {
 public:
     explicit BigInt(std::string value, unsigned bitWidth)
-        : NumericExpression<std::string>(value), bitWidth(bitWidth) {}  // Pass value to base class constructor
+        : NumericExpression<std::string>(value), bitWidth(bitWidth) {
+            rootType = Type::createPrimitiveType(Kind::Int8);
+        }  // Pass value to base class constructor
 
     ~BigInt() override = default;
 
@@ -176,6 +197,7 @@ struct PointerExpression : public Expression {
     PointerExpression(std::shared_ptr<Expression> pointee, bool isConst = false, bool isVolatile = false)
         : pointee(std::move(pointee)), isConst(isConst), isVolatile(isVolatile) {
         type = Type::createPointerType(this->pointee->type);
+        rootType = std::make_shared<Type>(Kind::Pointer);
     }
 
     std::string toString() const override { return "Pointer"; } 
@@ -190,9 +212,23 @@ struct PointerExpression : public Expression {
     }
 };
 
+struct InvalidExpression : public Expression {
+    InvalidExpression() {
+        type = Type::createInvalid();
+        rootType = std::make_shared<Type>(Kind::Invalid);
+    }
+
+    std::string toString() const override { return "Invalid"; }
+    // NullExpression
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<InvalidExpression>();
+    }
+};
+
 struct NullExpression : public Expression {
     NullExpression() {
         type = Type::createNullType();
+        rootType = Type::createNullType();
     }
 
     std::string toString() const override { return "NullPointer"; }
@@ -205,6 +241,7 @@ struct NullExpression : public Expression {
 struct NullPointerExpression : public Expression {
     NullPointerExpression() {
         type = Type::createNullPointerType();
+        rootType = Type::createNullPointerType();
     }
 
     std::string toString() const override { return "NullPointer"; } 
@@ -439,15 +476,20 @@ struct CallExpression : public Expression {
 };
 
 struct Callable : public Expression {
+    std::string mangledName;
     std::vector<std::shared_ptr<Expression>> parameters;
     bool isVarArg;
 
-    Callable(const std::string& name, 
+    Callable(
+            const std::string& name,
+            const std::string& mangledName,
             std::vector<std::shared_ptr<Expression>> params = {},
-            bool isVarArg = false)
+            bool isVarArg = false
+        )
         : parameters(std::move(params)), 
             isVarArg(isVarArg) {
         this->name = name;
+        this->mangledName = mangledName;
     }
 
     // Helper method to clone parameters
@@ -465,6 +507,10 @@ struct Callable : public Expression {
         return clonedParams;
     }
 
+    std::vector<std::shared_ptr<Expression>> getParameters() const {
+        return parameters;
+    }
+
     std::string toString() const override {
         std::string paramsStr;
         for (const auto& param : parameters) {
@@ -480,7 +526,7 @@ struct Callable : public Expression {
         for (const auto& param : parameters) {
             clonedParams.push_back(param ? param->clone() : nullptr);
         }
-        return std::make_shared<Callable>(name, clonedParams, isVarArg);
+        return std::make_shared<Callable>(name, mangledName, clonedParams, isVarArg);
     }
 };
 
@@ -489,12 +535,14 @@ struct FunctionExpression : public Callable {
     std::vector<std::shared_ptr<Expression>> body;
     std::shared_ptr<Type> returnType;
 
-    FunctionExpression(const std::string& name, 
+    FunctionExpression(
+                        const std::string& name, 
+                        const std::string& mangledName, 
                         std::shared_ptr<Type> returnType,
                         std::vector<std::shared_ptr<Expression>> body,
                         std::vector<std::shared_ptr<Expression>> params = {},
                         bool isVarArg = false)
-        : Callable(name, std::move(params), isVarArg),
+        : Callable(name, mangledName, std::move(params), isVarArg),
             body(std::move(body)),
             returnType(returnType) {
         type = Type::createFunctionType(returnType, isVarArg);
@@ -523,6 +571,7 @@ struct FunctionExpression : public Callable {
             
             return std::make_shared<FunctionExpression>(
                 name,
+                mangledName,
                 returnType ? returnType->clone() : nullptr,
                 clonedBody,
                 clonedParams,
@@ -595,7 +644,9 @@ template <typename T>
 class StringExpression : public Primitive<T> {
 public:
     StringExpression(T value)
-        : Primitive<T>(value) {}
+        : Primitive<T>(value) {
+            this->rootType = std::make_shared<Type>(Kind::String);
+        }
 
     virtual ~StringExpression() = default;
     // StringExpression (template)
@@ -648,6 +699,7 @@ struct ArrayExpression : public Expression {
     explicit ArrayExpression(std::shared_ptr<Type> type, std::vector<std::shared_ptr<Expression>> elements)
         : elements(std::move(elements)) {
         this->type = std::move(type);
+        rootType = std::make_shared<Type>(Kind::Array);
     }
 
     std::string toString() const override {

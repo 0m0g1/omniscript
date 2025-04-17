@@ -1,12 +1,14 @@
-- work on function calls for generics
-- add a toString method on Omniscript::type
+- templates for lambdas
+- work on overloading functions
+- work on multiple generics
+- work on function calls for multiple generics
+- add a toString method on Omniscript::type and make it easier to get the kindName of a value
 - create a separate file for expressions not value.cpp
 - add general kind types so that the root/base type is string and not utf32string
 - throw an error when the wrong type is inputed in function call
 - check if the body needs to be cloned so that generics are properly handled
 - handle unresolved types
 - handle default arguments / parameters
-- work on generics
 - handle generics in function bodies
 - work on infering types for example a variable decleration with a binary op of two similar types the type of the variable is the type of the two operands
 - remove the extra dash underneath generic names with 2 types
@@ -29,7 +31,9 @@
 - overloading functions by writing more than one argument list like so ??
 - function print(int value)
               - (string value)
-              - (object value) { }
+              - (object value) { 
+                
+              }
 - loading member values from objects likes structs and classes
 - time object
 - file object

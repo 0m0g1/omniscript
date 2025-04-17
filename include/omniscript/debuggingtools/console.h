@@ -49,7 +49,7 @@ public:
                 // Format the error message
                 std::string errorMessage = std::string("\033[1;31m") + "ERROR in file: '" + 
                                         position.filePath + ":" + std::to_string(position.line) + ":" +
-                                        std::to_string(position.col) + ":'" +
+                                        std::to_string(position.col) + ":" +
                                         "' line: " + std::to_string(position.line) + 
                                         ", column: " + std::to_string(position.col) +".\033[0m\n" + 
                                         message + "\nPress Enter to terminate...\n";

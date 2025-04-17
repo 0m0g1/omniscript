@@ -138,7 +138,7 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             statement = parseModule();
             break;
         case TokenTypes::Function:
-            statement = parseFunctionDeclaration();
+            statement = parseFunctionDeclaration("", {});
             break;
         case TokenTypes::Identifier:
             statement = parseIdentifier();
@@ -202,6 +202,10 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
                 parameterType paramTypes = parseTypeParametersForDeclaration();
                 if (currentToken.getType() == TokenTypes::Function) {
                     statement = parseFunctionDeclaration(paramTypes);
+                    break;
+                }
+                else if (currentToken.getType() == TokenTypes::Let || currentToken.getType() == TokenTypes::Const) {
+                    statement = parseAssignment(paramTypes);
                     break;
                 }
             }
@@ -1015,50 +1019,14 @@ std::shared_ptr<Statement> Parser::parseClass() {
     return nullptr;
 }
 
-// void Parser::parseFunctionArrow() {
-//     eat(TokenTypes::Arrow);
-//     // if (currentToken.getType() == TokenTypes::Assign) {
-//     //     eat(TokenTypes::Assign);
-//     //     eat(TokenTypes::GreaterThan);
-//     // } else if (currentToken.getType() == TokenTypes::Minus) {
-//     //     if (currentToken.getType() == TokenTypes::Minus) {
-//     //         eat(TokenTypes::Minus);
-//     //     }
-//     //     eat(TokenTypes::GreaterThan);
-//     // } else {
-//     //     eat(TokenTypes::Assign, "Expected an arrow after lambda paramters '=>', '->' or '-->' followed by the return type or method body.");
-//     // }
-
-//     if (currentToken.getType() == TokenTypes::Identifier) {
-//         eat(currentToken.getType());
-//     }
-// }
-
-std::shared_ptr<Statement> Parser::parseLambdaFunction() {
-    // std::vector<std::pair<std::string, std::shared_ptr<Statement>>> paramNamesAndTypes;
-    std::vector<std::shared_ptr<Statement>> params = parseParameters();
-
-    // Handle the arrow '=>'
-    eat(TokenTypes::Arrow);
-
-    std::shared_ptr<Omniscript::Type> returnType = nullptr;
-
-    if (currentToken.getType() != TokenTypes::LeftBrace) {
-        std::vector<std::string> returnTypeStrs;
-        returnTypeStrs.push_back(currentToken.getValue());
-        eat(TokenTypes::Identifier);
-        // returnType = irGen.resolveLLVMType(returnTypeStrs);
-        returnType = nullptr;
+std::shared_ptr<Statement> Parser::parseLambdaFunction(const std::string& lambdaName, parameterType paramTypes) {
+    static int anonCounter = 0;
+    if (lambdaName.empty()) {
+        std::string name = "lambda_" + std::to_string(anonCounter++);
+        return parseFunctionDeclaration(name, paramTypes);
     }
-
-    // Parse lambda body
-    auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
-
-    // Return the lambda function as an anonymous function declaration
-    return std::make_shared<FunctionDeclaration>("lambda", params, body, returnType);
+    return parseFunctionDeclaration(lambdaName, paramTypes);
 }
-
-
 
 bool Parser::checkIfLambdaExpression() {
     if (currentToken.getType() == TokenTypes::LeftParen) {
@@ -1212,6 +1180,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
         if (currentToken.getType() == TokenTypes::Assign) {
             eat(TokenTypes::Assign);
             defaultValue = parseExpression(); // Parse the default value
+        } else {
+            defaultValue = std::make_shared<Invalid>();
         }
 
         // Store as a ParameterStatement
@@ -1232,10 +1202,17 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
 
 // Parse function declarations
 std::shared_ptr<Statement> Parser::parseFunctionDeclaration(parameterType paramTypes) {
-    eat(TokenTypes::Function);
+    return parseFunctionDeclaration("", paramTypes);
+}
 
-    std::string name = currentToken.getValue();
-    eat(TokenTypes::Identifier);
+std::shared_ptr<Statement> Parser::parseFunctionDeclaration(const std::string& definedName, parameterType paramTypes) {
+    std::string name = definedName;
+    
+    if (name.empty()) {
+        eat(TokenTypes::Function);
+        name = currentToken.getValue();
+        eat(TokenTypes::Identifier);
+    }
 
     parameterType types;
     if (paramTypes.empty()) {
@@ -2072,6 +2049,54 @@ std::shared_ptr<Statement> Parser::parseNamespace() {
 }
 
 // Parse variable assignments
+std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
+    // We assume this is a lambda assignment like: let fn = (x: int) => x * 2;
+
+    TokenTypes variableType = TokenTypes::Let; // Default to let, or adapt as needed
+    std::string variableName;
+    std::shared_ptr<Omniscript::Type> type = nullptr;
+
+    // Parse `let` or `const`
+    if (currentToken.getType() == TokenTypes::Let) {
+        eat(TokenTypes::Let);
+        variableType = TokenTypes::Let;
+    } else if (currentToken.getType() == TokenTypes::Const) {
+        eat(TokenTypes::Const);
+        variableType = TokenTypes::Const;
+    }
+
+    // Parse variable name
+    variableName = currentToken.getValue();
+    eat(TokenTypes::Identifier);
+
+    // Parse optional type annotation
+    if (currentToken.getType() == TokenTypes::Colon) {
+        eat(TokenTypes::Colon);
+        std::vector<std::string> dataTypes = parseType();
+        type = Omniscript::resolveType(dataTypes);
+    }
+
+    // Parse assignment
+    eat(TokenTypes::Assign);
+
+    // Parse lambda using provided paramTypes
+    std::shared_ptr<Statement> lambda = parseLambdaFunction(variableName, paramTypes);
+
+    // Set lambda's name if it's a FunctionDeclaration
+    if (auto funcDecl = std::dynamic_pointer_cast<FunctionDeclaration>(lambda)) {
+        if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
+            named->setName(variableName);
+        }
+    }
+
+    if (variableType == TokenTypes::Const) {
+        return std::make_shared<createConstant>(variableName, type, lambda);
+    }
+
+    return std::make_shared<createVariable>(variableName, type, lambda);
+}
+
+
 std::shared_ptr<Statement> Parser::parseAssignment() {
     TokenTypes variableType;
     std::string variableName;
@@ -2208,15 +2233,3 @@ std::string Parser::parseStringLiteral() {
 
     return value;
 }
-
-/*
-std::shared_ptr<lambda> parseLambda()  {
-    eat(tokenTypes::RightParen);
-    eat(tokenTypes::LeftParen);
-    eat(tokenTypes::Assign);
-    eat(tokenTypes::Greater);
-    std::vector<std::shared_ptr<Statement>> statements = parseBlock();
-
-    return value;
-}
-*/

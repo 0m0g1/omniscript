@@ -16,6 +16,8 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     DEBUG_LOG();
     DEBUG_LOG("Executing with LLVM JIT Backend");
     DEBUG_LOG("===============================");
+
+    scope->setName(config.filePath);
     
     irGen = std::make_shared<IRGenerator>(config.filePath);
 
@@ -28,7 +30,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     for (const auto& statement : statements) {
         DEBUG_LOG("1. Evaluating a " + statement->toString());
         Omniscript::setPosition(statement->getPosition());
-        std::shared_ptr<Omniscript::Expression> result = statement->evaluate(*scope);
+        std::shared_ptr<Omniscript::Expression> result = statement->evaluate(scope);
         if (!result) continue;
 
         DEBUG_LOG();
@@ -126,7 +128,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         
     } else if (entryPoint == "__main") {
         if (!returnType->isIntegerTy(32)) {
-            throw std::runtime_error("__main must return int.");
+            throw std::runtime_error("__main must return and int 32.");
         }
         console.log("Executing __main function...");
         auto entryFunc = entrySymbol->toPtr<int(*)()>();

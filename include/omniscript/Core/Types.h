@@ -12,6 +12,7 @@ namespace Omniscript {
 // Kind enum
 enum class Kind {
     Invalid,
+    Undefined,
 
     // Primitive Types
     Primitive,
@@ -68,7 +69,12 @@ public:
     size_t fixedSize = 0;
     virtual ~Type() = default;
 
+    Type() {}
+    Type(Kind kind) : kind(kind) {}
+
     // ----- Instance methods -----
+    bool isInvalid() const { return kind == Kind::Invalid; }
+    bool isUndefined() const { return kind == Kind::Undefined; }
     bool isChar() const { return kind == Kind::Char; }
     bool isPointer() const { return kind == Kind::Pointer || kind == Kind::Nullptr; }
     bool isNullType() const { return kind == Kind::Null || kind == Kind::Nullptr; }
@@ -298,6 +304,7 @@ public:
 
     // ----- Static factory methods -----
     static std::shared_ptr<Type> createInvalid();
+    static std::shared_ptr<Type> createUndefined();
     static std::shared_ptr<Type> createPrimitiveType(Kind kind);
     static std::shared_ptr<Type> createNullType();
     static std::shared_ptr<Type> createNullPointerType();
@@ -341,6 +348,12 @@ public:
         if constexpr (std::is_same_v<T, uint64_t>) return Kind::UInt64;
         if constexpr (std::is_same_v<T, unsigned __int128>) return Kind::UInt128;
 
+        // Check if the type is a 32-bit float
+        #ifdef __ARM_ARCH
+            if constexpr (std::is_same_v<T, __fp16>) return Kind::Half;
+        #elif defined(__x86_64__) || defined(__i386__)
+            if constexpr (std::is_same_v<T, _Float16>) return Kind::Half;
+        #endif
         if constexpr (std::is_same_v<T, float>) return Kind::Float;
         if constexpr (std::is_same_v<T, double>) return Kind::Double;
         if constexpr (std::is_same_v<T, __float128>) return Kind::FP128;

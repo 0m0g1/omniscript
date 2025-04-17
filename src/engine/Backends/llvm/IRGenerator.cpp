@@ -198,9 +198,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(value)) {
-        DEBUG_LOG("Creating a function " + func->name);
+        DEBUG_LOG("Creating an overload for function " + func->name + " with mangled name '" + func->mangledName + "'");
         llvm::Type* returnType = resolveLLVMType(func->getType()->getReturnType());
-        return createFunction(func->name, func->body, returnType, func->parameters, scope);
+        return createFunction(func->mangledName, func->body, returnType, func->parameters, scope);
     }
 
     if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(value)) {
@@ -1098,7 +1098,7 @@ llvm::Value* IRGenerator::createVariable(
                     llvm::StoreInst* store = Builder->CreateStore(
                         constArray->getAggregateElement(i), elementPtr);
                     store->setAlignment(llvm::Align(elementAlign));
-                    if (retInst) store->moveBefore(retInst);
+                    if (retInst) store->moveBefore(*retInst->getParent(), retInst->getIterator());
                     DEBUG_LOG("Initialized array element " + std::to_string(i) + " of '" + name + "'");
                 }
             }
@@ -1121,7 +1121,7 @@ llvm::Value* IRGenerator::createVariable(
         if (initialValue) {
             llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
             store->setAlignment(llvm::Align(align));
-            if (retInst) store->moveBefore(retInst);
+            if (retInst) store->moveBefore(*retInst->getParent(), retInst->getIterator());
             DEBUG_LOG("Stored initial value for integer '" + name + "'");
         }
     } else if (type->isFloatingPointTy()) {
@@ -1137,7 +1137,7 @@ llvm::Value* IRGenerator::createVariable(
         if (initialValue) {
             llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
             store->setAlignment(llvm::Align(align));
-            if (retInst) store->moveBefore(retInst);
+            if (retInst) store->moveBefore(*retInst->getParent(), retInst->getIterator());
             DEBUG_LOG("Stored initial value for floating-point '" + name + "'");
         }
     } else if (type->isPointerTy()) {
@@ -1162,12 +1162,12 @@ llvm::Value* IRGenerator::createVariable(
 
                 if (retInst) {
                     if (auto* castInst = llvm::dyn_cast<llvm::Instruction>(castedValue)) {
-                        castInst->moveBefore(retInst);
+                        castInst->moveBefore(*retInst->getParent(), retInst->getIterator());
                     }
                 }
 
                 llvm::StoreInst* store = Builder->CreateStore(castedValue, alloca);
-                if (retInst) store->moveBefore(retInst);
+                if (retInst) store->moveBefore(*retInst->getParent(), retInst->getIterator());
                 DEBUG_LOG("Pointer '" + name + "' initialized with " + castType);
             }
         }

@@ -100,25 +100,26 @@
 // // let z : Option<i32> = None;
 // let variable : int = 10;
 
-function add(a: int = 1, b: int = 1) => i32 {
-    return a + b;
-}
+// function add(a: int = 1, b: int = 1) => i32 {
+//     return a + b;
+// }
 
 // add(1, 1);
 
-<Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
-function add(a: Number, b: Number) => Number {
-    return a + b;
-}
+// <Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
+// function add(a: Number, b: Number) => Number {
+//     return a + b;
+// }
 
 // function join<T>(a: T, b: T) => T {
 //     return a + b;
 // }
 
-add<i32>(5);
+// add<i32>(5, 6);
 
 // function main() => i32 {
-//     return add(b = 1, a = 2);
+    // return add(b = 1, a = 2);
+    // return add<i32>(1, 1);
 // }
 
 // let ref : function* = add;
@@ -138,6 +139,33 @@ add<i32>(5);
 //     banana
 // }
 
-// let lambda = (a: int = 1, b: int = 1) => i32 {
+// <Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
+// let add = (a: Number, b: Number) => Number {
+    // return a + b;
+// }
+
+
+// TODO Add support none predetermined types
+// TODO LLVM automatically cleans up unused codes but not all backends do ensure that only the used type gets generated the rest to be discarded
+// let add = <T>(a: T, b: T) => T {
 //     return a + b;
 // }
+
+// let sth : int = add<i32>(1, 2);
+
+function add(a : i32 = 1, b : i32 = 1) => i32  {
+    return a + b;
+}
+
+function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
+    return a + b;
+}
+
+// add(1.0, 1.0);
+// add(1, 1);
+
+function main() => i32 {
+    return add(b = 1, a = 2);
+    // return add<i32>(1, 1);
+    // return 2;
+}

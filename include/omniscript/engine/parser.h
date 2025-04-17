@@ -55,6 +55,10 @@ class Parser {
         std::vector<std::shared_ptr<Statement>> parseParameters();
         std::vector<std::shared_ptr<Statement>> parseArguments(); // Parse code block
         std::shared_ptr<Statement> parseFunctionDeclaration(parameterType paramTypes = {}); // To parse function declarations
+        std::shared_ptr<Statement> parseFunctionDeclaration(
+            const std::string& definedName = "",
+            parameterType paramTypes = {}
+        ); 
         // std::shared_ptr<Statement> parseFunctionCall();      // To parse function calls
         std::shared_ptr<Statement> parseIdentifier();          // To parse an identifier / function call
 
@@ -65,9 +69,10 @@ class Parser {
         std::shared_ptr<Statement> parseWhileStatement();      // To parse while loops
         std::shared_ptr<ReturnStatement> parseReturnStatement();// To parse return statements
         std::shared_ptr<Statement> parseAssignment();          // To parse variable assignments
+        std::shared_ptr<Statement> parseAssignment(parameterType paramType);          // To parse variable assignments
         std::string parseStringLiteral();                      // To parse string literals
         std::shared_ptr<Statement> parseBlock();
-        std::shared_ptr<Statement> parseLambdaFunction();
+        std::shared_ptr<Statement> parseLambdaFunction(const std::string& name = "", parameterType paramTypes = {});
         bool checkIfLambdaExpression();
         bool checkIfFunctionCall();
         // SymbolTable::ValueType parseFunctionArrow();

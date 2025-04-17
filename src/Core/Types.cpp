@@ -8,6 +8,7 @@ namespace Omniscript {
 std::string Type::kindName() const {
     switch (kind) {
         case Kind::Invalid:     return "Invalid";
+        case Kind::Undefined:   return "Undefined";
 
         // Primitive Types
         case Kind::Primitive:   return "Primitive";
@@ -79,6 +80,10 @@ std::string Type::kindName() const {
 
 std::shared_ptr<Type> Type::createInvalid() {
     return std::make_shared<Type>();
+}
+
+std::shared_ptr<Type> Type::createUndefined() {
+    return std::make_shared<Type>(Kind::Undefined);
 }
 
 std::shared_ptr<Type> Type::createPrimitiveType(Kind kind) {
