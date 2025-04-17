@@ -65,7 +65,7 @@ std::shared_ptr<Omniscript::Expression> BlockStatement::evaluate(SymbolTable<std
 
 std::shared_ptr<Omniscript::Expression> ImportModule::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
     // if (path.empty()) {
-    //     throw std::runtime_error("ImportModule::codegen - Module path is empty.");
+    //     console.error("ImportModule::codegen - Module path is empty.");
     // }
 
     // if (path == "std") {
@@ -74,7 +74,7 @@ std::shared_ptr<Omniscript::Expression> ImportModule::evaluate(SymbolTable<std::
 
     // std::string sourceCode = readFile(path);
     // if (sourceCode.empty()) {
-    //     throw std::runtime_error("ImportModule::codegen - Failed to read module: " + path);
+    //     console.error("ImportModule::codegen - Failed to read module: " + path);
     // }
 
     // Lexer lexer(sourceCode, path);
@@ -270,7 +270,12 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::evaluate(SymbolTable<std::s
 }
 
 std::shared_ptr<Omniscript::Expression> CharacterLiteral::evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) {
-    DEBUG_LOG("Char value " + value);
+    if (!type->isChar()) {
+        console.error("The specified type is " + type->kindName() + " but this is a char.");
+    } else {
+        DEBUG_LOG("Creating a '" + type->kindName() + value + "'.");
+    }
+
     return std::make_shared<Omniscript::Primitive<char>>(value);
 }
 
@@ -278,6 +283,12 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::evaluate(SymbolTable<std:
     if (!type) {
         DEBUG_LOG("Creating a string value");
         return std::make_shared<Omniscript::StringExpression<std::string>>(value); 
+    }
+
+    if (!type->isString()) {
+        console.error("The specified type is " + type->kindName() + " but this is a string.");
+    } else {
+        DEBUG_LOG("Creating a '" + type->kindName() + value + "'.");
     }
 
     if (type->isString(8)) {
@@ -585,7 +596,7 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_p
     if (!called) {
         DEBUG_LOG("[Call] ERROR: Callee '" + callee + "' not found in scope");
         console.error("Callable '" + callee + "' not found");
-        throw std::runtime_error("Callable not found");
+        console.error("Callable not found");
     }
     DEBUG_LOG("[Call] Found callee '" + callee + "' of type '" + 
              (called->getType() ? called->getType()->kindName() : "null") + "'");
@@ -604,7 +615,7 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_p
         DEBUG_LOG("[Call] ERROR: Callee is not callable");
         console.error("'" + callee + "' is not callable it is of kind '" + 
                      (called->getType() ? called->getType()->kindName() : "null") + "'.");
-        throw std::runtime_error("Not a callable expression");
+        console.error("Not a callable expression");
     }
 
     // Create a local scope for the call
@@ -634,7 +645,7 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_p
             }
             if (!paramExists) {
                 DEBUG_LOG("[Call] ERROR: Unknown parameter '" + paramName + "'");
-                throw std::runtime_error("Unknown parameter '" + paramName + "' for callable '" + callee + "'");
+                console.error("Unknown parameter '" + paramName + "' for callable '" + callee + "'");
             }
 
             // Evaluate and store in scope
@@ -669,7 +680,7 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_p
             auto arg = args[positionalArgIndex++];
             if (std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
                 DEBUG_LOG("[Call] ERROR: Positional argument after named argument");
-                throw std::runtime_error("Positional argument after named argument");
+                console.error("Positional argument after named argument");
             }
             
             DEBUG_LOG("[Call] Binding positional argument to parameter '" + paramName + "'");
@@ -677,8 +688,18 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_p
             DEBUG_LOG(arg->toString());
 
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
-                if (!typed->getType()) {
-                    typed->setType(param->getType());
+                if (Omniscript::isSameOrCastableTo(typed->getRootType(), param->getType())) {
+                    if (!typed->getType()) {
+                        typed->setType(param->getType());
+                    }
+                } else {
+                    console.error(
+                        "Cannot bind argument " + std::to_string(positionalArgIndex) +
+                        " of type '" + typed->getRootType()->kindName() +
+                        "' to parameter '" + paramName + "' of callable '" + callee + "' because the expected type is '" +
+                        param->getType()->kindName() + "'."
+                    );
+                    
                 }
             }
 
@@ -704,7 +725,7 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_p
             DEBUG_LOG("[Call] ERROR: Missing required parameter '" + paramName + "'");
             console.error("Missing argument for parameter '" + paramName + 
                                    "' in call to '" + callee + "'");
-            throw std::runtime_error("Missing required parameter");
+            console.error("Missing required parameter");
         }
     }
 
@@ -713,13 +734,13 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTable<std::shared_p
         if (auto callable = std::dynamic_pointer_cast<Omniscript::Callable>(called)) {
             if (!callable->isVarArg) {
                 DEBUG_LOG("[Call] ERROR: Too many arguments provided");
-                throw std::runtime_error("Too many arguments provided for call to '" + callee + "'");
+                console.error("Too many arguments provided for call to '" + callee + "'");
             }
             DEBUG_LOG("[Call] Extra arguments will be handled as varargs");
             // Handle varargs case here if needed
         } else {
             DEBUG_LOG("[Call] ERROR: Too many arguments for non-callable");
-            throw std::runtime_error("Too many arguments provided for call to '" + callee + "'");
+            console.error("Too many arguments provided for call to '" + callee + "'");
         }
     }
 
@@ -1305,7 +1326,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
     
 //     // Ensure function exists before calling
 //     if (!functionPtr) {
-//         throw std::runtime_error("Function call failed: function not found or invalid.");
+//         console.error("Function call failed: function not found or invalid.");
 //     }
     
 //     // Evaluate function arguments
@@ -1553,7 +1574,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 
 //         // Check if the operand is present
 //         if (!operandValue.has_value()) {
-//             throw std::runtime_error("Unary operand missing value.");
+//             console.error("Unary operand missing value.");
 //         }
 
 //         // Handle unary minus (negation) -1
@@ -1563,19 +1584,19 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //             } else if (std::holds_alternative<float>(operandValue.value())) {
 //                 return -std::get<float>(operandValue.value());  // Apply unary minus
 //             } else {
-//                 throw std::runtime_error("Unsupported operand type for unary minus.");
+//                 console.error("Unsupported operand type for unary minus.");
 //             }
 //         } else if (std::holds_alternative<float>(operandValue.value())) { // Handle if the operand is a float
 //             return -std::get<float>(operandValue.value());  // Apply unary minus
 //         } else {
-//             throw std::runtime_error("Unsupported operand type for unary minus.");
+//             console.error("Unsupported operand type for unary minus.");
 //         }
 
 //     // If there is no right statement, treat it as unary (e.g., increment or decrement)
 //     } else if (isTruthy(left) && (op == TokenTypes::Increment || op == TokenTypes::Decrement) && !isTruthy(right)) {
 //         auto leftValue = Expression::evaluate(left, scope);
 //         if (!leftValue.has_value()) {
-//             throw std::runtime_error("Unary expression operand missing value.");
+//             console.error("Unary expression operand missing value.");
 //         }
 
 //         // Apply the unary operator (either increment or decrement)
@@ -1595,7 +1616,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                 break;
 //             }
 //             default:
-//                 throw std::runtime_error("Unsupported unary operator." + getTokenTypeName(op));
+//                 console.error("Unsupported unary operator." + getTokenTypeName(op));
 //         }
 //     // Handle booleans
 //     } else if (std::holds_alternative<bool>(left) && op == TokenTypes::Null && !isTruthy(right)) { 
@@ -1615,7 +1636,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 
 //         // Ensure both values are present
 //         if (!leftValueOpt || !rightValueOpt) {
-//             throw std::runtime_error("Binary expression operands are missing values.");
+//             console.error("Binary expression operands are missing values.");
 //         }
 
 //         auto leftValue = leftValueOpt.value();
@@ -1646,12 +1667,12 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                         if (rightNum != 0) 
 //                             return leftNum / rightNum;
 //                         else 
-//                             throw std::runtime_error("Division by zero.");
+//                             console.error("Division by zero.");
 //                     case TokenTypes::Modulo: 
 //                         if constexpr (std::is_integral_v<CommonType>)
 //                             return static_cast<CommonType>(std::fmod(leftNum, rightNum));
 //                         else
-//                             throw std::runtime_error("Modulo not supported for non-integer types.");
+//                             console.error("Modulo not supported for non-integer types.");
 //                     case TokenTypes::Equals: 
 //                         return leftNum == rightNum;
 //                     case TokenTypes::NotEquals: 
@@ -1671,7 +1692,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                     case TokenTypes::ShiftLeft:
 //                     case TokenTypes::ShiftRight: {
 //                         if constexpr (!std::is_integral_v<CommonType>)
-//                             throw std::runtime_error("Bitwise operations require integer operands.");
+//                             console.error("Bitwise operations require integer operands.");
                         
 //                         int64_t leftInt = static_cast<int64_t>(leftNum);
 //                         int64_t rightInt = static_cast<int64_t>(rightNum);
@@ -1686,10 +1707,10 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                         }
 //                     }
 //                     default:
-//                         throw std::runtime_error("Unsupported operator for numeric types.");
+//                         console.error("Unsupported operator for numeric types.");
 //                 }
 //             } else {
-//                 throw std::runtime_error("Invalid types for binary operation.");
+//                 console.error("Invalid types for binary operation.");
 //             }
 //         };
 
@@ -1717,7 +1738,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                 case TokenTypes::NotEquals:
 //                     return leftBool != rightBool;
 //                 default:
-//                     throw std::runtime_error("Unsupported operator for booleans.");
+//                     console.error("Unsupported operator for booleans.");
 //             }
 //         // String and string
 //         } else if (std::holds_alternative<std::string>(leftValue) && std::holds_alternative<std::string>(rightValue)) {
@@ -1751,7 +1772,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                 case TokenTypes::GreaterEqual:
 //                     return leftString >= rightString;
 //                 default:
-//                     throw std::runtime_error("Unsupported operator for strings.");
+//                     console.error("Unsupported operator for strings.");
 //             }
 
 //         // string and number
@@ -1793,7 +1814,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                     return false;
 
 //                 default:
-//                     throw std::runtime_error("Unsupported operator for string and integer.");
+//                     console.error("Unsupported operator for string and integer.");
 //             }
 //         } else if ((std::holds_alternative<std::string>(leftValue) && (std::holds_alternative<float>(rightValue) || std::holds_alternative<double>(rightValue))) ||
 //                     (std::holds_alternative<float>(leftValue) && std::holds_alternative<std::string>(rightValue)) ||
@@ -1855,7 +1876,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                     }
 
 //                 default:
-//                     throw std::runtime_error("Unsupported operator for string and float/double.");
+//                     console.error("Unsupported operator for string and float/double.");
 //             }
 //         } else if (auto leftArray = std::dynamic_pointer_cast<Array>(std::get<std::shared_ptr<Object>>(leftValue));
 //             auto rightArray = std::dynamic_pointer_cast<Array>(std::get<std::shared_ptr<Object>>(rightValue))) {
@@ -1872,7 +1893,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                 case TokenTypes::NotEquals:
 //                     return leftArray->elements != rightArray->elements; // Inequality
 //                 default:
-//                     throw std::runtime_error("Unsupported operator for Array.");
+//                     console.error("Unsupported operator for Array.");
 //             }
         
 //         // Array (op) Value
@@ -1904,7 +1925,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                     return leftArray;
 //                 }
 //                 default:
-//                     throw std::runtime_error(
+//                     console.error(
 //                         "Unsupported operator between Array and Object. Supported Operations are '+' and '-'");
 //             }
 //         }
@@ -1923,7 +1944,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //                     return rightArray;
 //                 }
 //                 default:
-//                     throw std::runtime_error("Unsupported operator for Object + Array.");
+//                     console.error("Unsupported operator for Object + Array.");
 //             }
 //         } else {
 //             console.error("Unsupported operand types " + valueToString(leftValue) + " " + getOperatorString(op) + " " +
@@ -2042,7 +2063,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //         DEBUG_LOG("Calling method '" + methodName + "' on object '" + baseObject->getName() + "'");
 //         auto methodVariant = baseObject->getMethod(methodName);
 //         if (std::holds_alternative<std::nullptr_t>(methodVariant)) {
-//             throw std::runtime_error("Method '" + methodName + "' not found on object '" + baseObject->getName() + "'.");
+//             console.error("Method '" + methodName + "' not found on object '" + baseObject->getName() + "'.");
 //         }
 //         if (auto func = std::get_if<std::function<SymbolTable::ValueType(const ArgumentDefinition&)>>(&methodVariant)) {
 //             result = (*func)(evaluatedArgs);
@@ -2102,7 +2123,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //         }
 
 //         if (std::get_if<std::nullptr_t>(&result)) {
-//             throw std::runtime_error("Property '" + propertyName + "' not found on class instance.");
+//             console.error("Property '" + propertyName + "' not found on class instance.");
 //         }
 //     } else {
 //         DEBUG_LOG("Accessing property '" + propertyName + "' on object '" + baseObject->getName() + "'");
@@ -2111,7 +2132,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //         result = baseObject->getProperty(propertyName);
 
 //         if (std::get_if<std::nullptr_t>(&result)) {
-//             throw std::runtime_error("Property '" + propertyName + "' not found on object '" + baseObject->getName() + "'.");
+//             console.error("Property '" + propertyName + "' not found on object '" + baseObject->getName() + "'.");
 //         }
 //     }
 
@@ -2250,13 +2271,13 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTable<std::sha
 //     // Retrieve the object from the scope
 //     auto objectValue = scope.get(variableName);
 //     if (!objectValue) {
-//         throw std::runtime_error("Variable " + variableName + " not found");
+//         console.error("Variable " + variableName + " not found");
 //     }
 
 //     // Attempt to extract a shared_ptr<Object> from the variant
 //     auto objectPtr = std::get_if<std::shared_ptr<Object>>(&*objectValue);
 //     if (!objectPtr || !*objectPtr) {
-//         throw std::runtime_error(variableName + " is not an object");
+//         console.error(variableName + " is not an object");
 //     }
 
 //     auto object = *objectPtr;

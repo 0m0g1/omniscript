@@ -2,7 +2,8 @@
 #define SYMBOLTABLE_H
 
 #include <omniscript/Core.h>
-#include <omniscript/Core/Value.h>
+#include <omniscript/Core/Types.h>
+#include <omniscript/Core/Expression.h>
 #include <omniscript/debuggingtools/console.h>
 #include <omniscript/omniscript_pch.h>
 

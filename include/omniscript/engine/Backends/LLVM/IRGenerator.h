@@ -12,7 +12,8 @@
 #include <omniscript/utils.h>
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Constants.h>
-#include <omniscript/Core/Value.h>
+#include <omniscript/Core/Types.h>
+#include <omniscript/Core/Expression.h>
 
 class Statement;
 

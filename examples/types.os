@@ -106,20 +106,20 @@ function add(a: int = 1, b: int = 1) => i32 {
 
 // add(1, 1);
 
-// <Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
-// function add(a: Number, b: Number) => Number {
-//     return a + b;
-// }
+<Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
+function add(a: Number, b: Number) => Number {
+    return a + b;
+}
 
 // function join<T>(a: T, b: T) => T {
 //     return a + b;
 // }
 
-// add<i32>(5);
+add<i32>(5);
 
-function main() => i32 {
-    return add("1");
-}
+// function main() => i32 {
+//     return add(b = 1, a = 2);
+// }
 
 // let ref : function* = add;
 

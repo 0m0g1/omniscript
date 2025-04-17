@@ -2,7 +2,8 @@
 
 #include <omniscript/runtime/object.h>
 #include <omniscript/Core.h>
-#include <omniscript/Core/Value.h>
+#include <omniscript/Core/Types.h>
+#include <omniscript/Core/Expression.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/tokens.h>
@@ -79,12 +80,15 @@ public:
 
     std::string typeName;
     std::shared_ptr<Omniscript::Type> getType() const { return type; }
+    std::shared_ptr<Omniscript::Type> getRootType() const { return rootType; }
+    void setRootType(std::shared_ptr<Omniscript::Type> newType) { if (!rootType) { rootType = std::move(newType); } }
     void setTypeName(const std::string& newTypeName) { typeName = newTypeName; }
     void setType(std::shared_ptr<Omniscript::Type> newType) { type = newType; }
     virtual std::string toString() const override { return "TypedStatement"; }
 
 protected:
     std::shared_ptr<Omniscript::Type> type;
+    std::shared_ptr<Omniscript::Type> rootType;
 };
     
 class Terminator: public virtual TypedStatement {
@@ -336,7 +340,9 @@ public:
 // Represents nullptr (for pointers)
 class Nullptr : public NullLiteral {
 public:
-    Nullptr() {};
+    Nullptr() {
+        setRootType(Omniscript::Type::createNullPointerType());
+    };
 
     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "NullpointerStatement"; }
@@ -368,7 +374,9 @@ public:
 class IntegerLiteral : public NumericLiteral {
 public:
     explicit IntegerLiteral(int64_t val)
-        : value(val) {}
+        : value(val) {
+            setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Int8));
+        }
 
     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     int getValue() const { return value; }
@@ -384,7 +392,9 @@ private:
 class FloatLiteral : public NumericLiteral {
 public:
     explicit FloatLiteral(double val) 
-        : value(val) {}
+        : value(val) {
+            setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Half));
+        }
 
     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "FloatLiteralStatement"; }
@@ -400,7 +410,9 @@ private:
 class BigInt : public NumericLiteral {
 public:
     BigInt(const std::string& value)
-        : value(value) {}
+        : value(value) {
+            setRootType(Omniscript::Type::createNullType());
+        }
 
     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
 
@@ -429,7 +441,9 @@ class CharacterLiteral : public Literal {
 public:
     char value;
 
-    explicit CharacterLiteral(char val) : value(std::move(val)) {}
+    explicit CharacterLiteral(char val) : value(std::move(val)) {
+        setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char));
+    }
     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "CharacterLiteralStatement"; }
     std::shared_ptr<Statement> clone() const override {
@@ -442,7 +456,9 @@ class StringLiteral : public Literal {
 public:
     std::string value;
 
-    explicit StringLiteral(std::string val) : value(std::move(val)) {}
+    explicit StringLiteral(std::string val) : value(std::move(val)) {
+        setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Utf32));
+    }
     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "StringLiteralStatement"; }
     std::shared_ptr<Statement> clone() const override {
@@ -454,7 +470,10 @@ class BoolLiteral : public Literal {
 public:
     bool value;
 
-    explicit BoolLiteral(bool val) : value(std::move(val)) {}
+    explicit BoolLiteral(bool val) : value(std::move(val)) {
+        setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Bool));
+    }
+
     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "BoolLiteralStatement"; }
     std::shared_ptr<Statement> clone() const override {
@@ -468,7 +487,9 @@ public:
     std::vector<std::shared_ptr<Statement>> initialValues; // Optional initial values
 
     Array(std::vector<std::shared_ptr<Statement>> values = {})
-        : initialValues(std::move(values)) {}
+        : initialValues(std::move(values)) {
+            setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Array));
+        }
 
     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTable<std::shared_ptr<Omniscript::Expression>>& scope) override;
     std::string toString() const override { return "ArrayStatement"; }

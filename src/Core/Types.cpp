@@ -1,5 +1,6 @@
 #include <omniscript/Core.h>
-#include <omniscript/Core/Value.h>
+#include <omniscript/Core/Types.h>
+#include <omniscript/Core/Expression.h>
 #include <omniscript/omniscript_pch.h>
 
 namespace Omniscript {
@@ -294,6 +295,39 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     return type;
 }
 
+bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
+    if (from->kind == to->kind)
+        return true;
+
+    if (from->isNull() && (to->isPointer() || to->isReference()))
+        return true;
+
+    if (from->isInteger() && to->isInteger()) {
+        // Only allow widening if sign matches
+        return (from->isSigned() == to->isSigned()) &&
+               (from->getSize() <= to->getSize());
+    }
+
+    if (from->isInteger() && to->isFloat()) {
+        // Always allow int to float cast (float32 can hold all int24 range safely)
+        return true;
+    }
+
+    if (from->isFloat() && to->isFloat()) {
+        return from->getSize() <= to->getSize(); // Only allow widening
+    }
+
+    // Disallow float to int implicit conversion
+    if (from->isFloat() && to->isInteger()) {
+        return false;
+    }
+
+    if (from->isPointer() && to->isPointer()) {
+        return isSameOrCastableTo(from->getBasePointeeType(), to->getBasePointeeType());
+    }
+
+    return false;
+}
 
 
 } // namespace Omniscript

@@ -1402,15 +1402,21 @@ std::string Parser::generateSpecializedNameForCall(
     const std::string &baseName, 
     const std::vector<std::string> &typeParams
 ) {
-    if (typeParams.empty()) return baseName;
-
     std::ostringstream oss;
     oss << baseName;
 
-    for (size_t i = 0; i < typeParams.size(); ++i) {
-        oss << "_" << typeParams[i];
-        if (i < typeParams.size() - 1) {
-            oss << "__"; // match decleration version
+    if (!typeParams.empty()) {
+        oss << "_"; // separator between baseName and type params
+
+        for (size_t i = 0; i < typeParams.size(); ++i) {
+            const auto& type = typeParams[i];
+
+            // Just append the type names for calls, no special transformation needed
+            oss << type;
+
+            if (i < typeParams.size() - 1) {
+                oss << "_";  // separate multiple types with underscores
+            }
         }
     }
 
@@ -1422,12 +1428,22 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments() {
     std::vector<std::shared_ptr<Statement>> args;
     eat(TokenTypes::LeftParen);
 
-    while (currentToken.getType() != TokenTypes::RightParen && currentToken.getType() != TokenTypes::EOI) { 
+    while (currentToken.getType() != TokenTypes::RightParen && currentToken.getType() != TokenTypes::EOI) {
         // Ensure we don't get stuck in an infinite loop
-        if (currentToken.getType() == TokenTypes::Identifier && lexer.peekToken().getType() == TokenTypes::Assign) {
-            args.push_back(parseStatement());
+        if (currentToken.getType() == TokenTypes::Identifier) {
+            std::string paramName = currentToken.getValue();  // Argument name (e.g., "b")
+            eat(TokenTypes::Identifier);  // Consume identifier
+
+            // Check if there's an assignment
+            if (currentToken.getType() == TokenTypes::Assign) {
+                eat(TokenTypes::Assign);  // Consume the assignment token
+                args.push_back(parseExpression());  // Parse the value of the argument
+            } else {
+                // If no assignment, treat the current token as a regular argument
+                args.push_back(parseExpression());  // Parse the argument
+            }
         } else {
-            args.push_back(parseExpression());
+            args.push_back(parseExpression());  // Handle positional arguments (no names)
         }
 
         // Ensure comma consumption is correct
@@ -1438,7 +1454,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments() {
                 throw std::runtime_error("Syntax error: Trailing comma in argument list.");
             }
         } else {
-            break;
+            break;  // End of arguments
         }
     }
 
@@ -1581,17 +1597,21 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
 
     if (currentToken.getType() == TokenTypes::LessThan) { // `<T>`
         eat(TokenTypes::LessThan);
+
         while (currentToken.getType() == TokenTypes::Identifier) {
             typeParams.push_back(currentToken.getValue());
             eat(TokenTypes::Identifier);
+
             if (currentToken.getType() == TokenTypes::Comma) {
                 eat(TokenTypes::Comma);
             } else {
                 break;
             }
         }
+
         eat(TokenTypes::GreaterThan); // `>`
     }
+
     return typeParams;
 }
 
@@ -1605,13 +1625,26 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     // Parse function calls with generics
     if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
         if (currentToken.getType() == TokenTypes::LessThan) {
-
+            // Generate the specialized name when encountering a left bracket `<`
+            std::vector<std::string> typeParams = parseTypeParametersForCall();  // Adjust this according to your needs
+            
+            // Assuming `rootIdentifier` is the base name of the function,
+            // we will generate a specialized name for this function call
+            std::string specializedName = generateSpecializedNameForCall(rootIdentifier, typeParams);
+    
+            // Do something with the specialized name if needed, e.g., logging, debugging, etc.
+            DEBUG_LOG("Generated Specialized Name: " + specializedName);
+    
+            // You can now create the Call object with the specialized name
+            std::vector<std::shared_ptr<Statement>> args = parseArguments();
+            return std::make_shared<Call>(specializedName, args);  // Use the specialized name here
         }
-
+    
+        // If it's just a normal function call (not involving `<`), we process it normally
         std::vector<std::shared_ptr<Statement>> args = parseArguments();
         return std::make_shared<Call>(rootIdentifier, args);
     }
-
+    
     // Parse object instance constructors
     if (currentToken.getType() == TokenTypes::LeftBrace) {
         std::vector<std::shared_ptr<Statement>> args;

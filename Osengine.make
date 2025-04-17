@@ -87,6 +87,7 @@ GENERATED += $(OBJDIR)/Date.o
 GENERATED += $(OBJDIR)/EngineConfigs.o
 GENERATED += $(OBJDIR)/Enum.o
 GENERATED += $(OBJDIR)/Event.o
+GENERATED += $(OBJDIR)/Expression.o
 GENERATED += $(OBJDIR)/File.o
 GENERATED += $(OBJDIR)/FileAccess.o
 GENERATED += $(OBJDIR)/Function.o
@@ -108,7 +109,7 @@ GENERATED += $(OBJDIR)/RenderingContext.o
 GENERATED += $(OBJDIR)/Statement.o
 GENERATED += $(OBJDIR)/String.o
 GENERATED += $(OBJDIR)/Time.o
-GENERATED += $(OBJDIR)/Value.o
+GENERATED += $(OBJDIR)/Types.o
 GENERATED += $(OBJDIR)/Window.o
 GENERATED += $(OBJDIR)/canvas.o
 GENERATED += $(OBJDIR)/console.o
@@ -132,6 +133,7 @@ OBJECTS += $(OBJDIR)/Date.o
 OBJECTS += $(OBJDIR)/EngineConfigs.o
 OBJECTS += $(OBJDIR)/Enum.o
 OBJECTS += $(OBJDIR)/Event.o
+OBJECTS += $(OBJDIR)/Expression.o
 OBJECTS += $(OBJDIR)/File.o
 OBJECTS += $(OBJDIR)/FileAccess.o
 OBJECTS += $(OBJDIR)/Function.o
@@ -153,7 +155,7 @@ OBJECTS += $(OBJDIR)/RenderingContext.o
 OBJECTS += $(OBJDIR)/Statement.o
 OBJECTS += $(OBJDIR)/String.o
 OBJECTS += $(OBJDIR)/Time.o
-OBJECTS += $(OBJDIR)/Value.o
+OBJECTS += $(OBJDIR)/Types.o
 OBJECTS += $(OBJDIR)/Window.o
 OBJECTS += $(OBJDIR)/canvas.o
 OBJECTS += $(OBJDIR)/console.o
@@ -231,7 +233,10 @@ endif
 $(OBJDIR)/Core.o: src/Core.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Value.o: src/Core/Value.cpp
+$(OBJDIR)/Expression.o: src/Core/Expression.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Types.o: src/Core/Types.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Allocator.o: src/engine/Allocator.cpp
