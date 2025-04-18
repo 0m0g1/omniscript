@@ -161,7 +161,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
             varAssign->variableName,
             type,
             value, 
-            false
+            varAssign->isGlobal
         );
     }
 
@@ -1032,6 +1032,7 @@ llvm::Value* IRGenerator::createVariable(
                          "' requires a constant initializer but received non-constant.");
         }
 
+        activeScope->set(name, gVar);
         return gVar;
     }
 
@@ -1220,20 +1221,15 @@ llvm::Value* IRGenerator::getReferenceToVariable(const std::string& varname) {
 }
 
 llvm::Value* IRGenerator::getVariable(const std::string& name) {
-    // // Check current scope
-    // if (activeScope->exists(name)) {
     llvm::Value* val = activeScope->get(name);
 
     if (llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(val)) {
-//         // Generate the load operation (no need to change insertion point)
         return Builder->CreateLoad(alloca->getAllocatedType(), alloca, name + ".val");
+    } else if (llvm::GlobalVariable* gvar = llvm::dyn_cast<llvm::GlobalVariable>(val)) {
+        return Builder->CreateLoad(gvar->getValueType(), gvar, name + ".val");
     }
 
     return val;
-    // }
-
-    // throw std::runtime_error("Unknown variable name: " + name);
-    return nullptr;
 }
 
 

@@ -6,6 +6,7 @@
 #include <omniscript/engine/lexer.h>
 #include <omniscript/engine/Parser.h>
 #include <omniscript/utils.h>
+// #include "Statement.h"
 
 // #include <omniscript/runtime/object.h>
 // #include <omniscript/runtime/Class.h>
@@ -24,16 +25,16 @@ void Initializer::initialize() {
     // auto type = std::make_shared<Omniscript::TypeExpression>();
 }
 
-std::shared_ptr<Omniscript::Expression> Initializer::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> Initializer::express(SymbolTableType scope) {
     return nullptr;
 }  
 
 
-std::shared_ptr<Omniscript::Expression> BlockStatement::evaluate(SymbolTableType scope) {
-    return std::make_shared<Omniscript::BlockExpression>(resolveAsVector(scope));
+std::shared_ptr<Omniscript::Expression> BlockStatement::express(SymbolTableType scope) {
+    return std::make_shared<Omniscript::BlockExpression>(expressAsVector(scope));
 }
 
-std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::resolveAsVector(SymbolTableType scope) {
+std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::expressAsVector(SymbolTableType scope) {
     resolveGenerics();
     
     std::vector<std::shared_ptr<Omniscript::Expression>> results = {};
@@ -51,7 +52,7 @@ std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::resolveAsVe
             assignment->setGlobalVisibilityTo(false);
         }
 
-        results.push_back(stmt->evaluate(scope));
+        results.push_back(stmt->express(scope));
         
         // // If the current block already has a terminator, stop generating
         // if (generator.currentBlockHasTerminator()) {
@@ -67,7 +68,21 @@ std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::resolveAsVe
     return results;
 }
 
-std::shared_ptr<Omniscript::Expression> ImportModule::evaluate(SymbolTableType scope) {
+bool BlockStatement::hasSideEffects() {
+    return !isCompileTimeEvaluatable();
+}
+
+
+bool BlockStatement::isCompileTimeEvaluatable() {
+    for (const auto& stmt : statements) {
+        if (!stmt->isCompileTimeEvaluatable()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType scope) {
     // if (path.empty()) {
     //     console.error("ImportModule::codegen - Module path is empty.");
     // }
@@ -99,32 +114,32 @@ std::shared_ptr<Omniscript::Expression> ImportModule::evaluate(SymbolTableType s
 }
 
 
-std::shared_ptr<Omniscript::Expression> CreateModule::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType scope) {
     // generator.importModule(name);8
     return nullptr; // Modules themselves don't return a value
 }
 
-std::shared_ptr<Omniscript::Expression> PublicMember::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> PublicMember::express(SymbolTableType scope) {
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }
-    return value->evaluate(scope);
+    return value->express(scope);
 }
 
-std::shared_ptr<Omniscript::Expression> PrivateMember::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> PrivateMember::express(SymbolTableType scope) {
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }
-    return value->evaluate(scope);
+    return value->express(scope);
 }
 
-std::shared_ptr<Omniscript::Expression> AddressOf::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope) {
     std::shared_ptr<Omniscript::Expression> referent = scope->getValue(name);
     setType(referent->getType());
     return std::make_shared<Omniscript::AddressOfExpression>(name, referent);
 }
 
-std::shared_ptr<Omniscript::Expression> ReferenceTo::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType scope) {
     // Look up the value in the scope to get the variable
     auto variable = scope->getValue(name);
     if (variable) {
@@ -136,16 +151,16 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::evaluate(SymbolTableType sc
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> Nullptr::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
     return Omniscript::make_expression<Omniscript::NullPointerExpression>();
 }
 
-std::shared_ptr<Omniscript::Expression> Null::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
     // return generator.createNullValue();
     return Omniscript::make_expression<Omniscript::NullExpression>();
 }
 
-std::shared_ptr<Omniscript::Expression> IntegerLiteral::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType scope) {
     if (!type) {
         DEBUG_LOG("Creating a 32-bit integer");
         return std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
@@ -189,7 +204,7 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::evaluate(SymbolTableType
 }
 
 
-std::shared_ptr<Omniscript::Expression> FloatLiteral::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType scope) {
     // Default to 64-bit float if type is null or unknown
     if (!type) {
         DEBUG_LOG("Creating a 64-bit float");
@@ -251,18 +266,18 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::evaluate(SymbolTableType s
 }
 
 // Arbitrary-precision integer (BigInt)
-std::shared_ptr<Omniscript::Expression> BigInt::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> BigInt::express(SymbolTableType scope) {
     DEBUG_LOG("Creating a big int " + value);
     unsigned bitWidth = BigInt::determineBitWidth(value);
     return std::make_shared<Omniscript::BigInt>(value, bitWidth);
 }
 
-std::shared_ptr<Omniscript::Expression> Invalid::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> Invalid::express(SymbolTableType scope) {
     DEBUG_LOG("Creating an invalid");
     return std::make_shared<Omniscript::InvalidExpression>();
 }
 
-std::shared_ptr<Omniscript::Expression> BoolLiteral::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType scope) {
     // DEBUG_LOG("Bool value " + value);
     if (!type) {
         DEBUG_LOG("Creating a bool false");
@@ -278,7 +293,7 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::evaluate(SymbolTableType sc
     return std::make_shared<Omniscript::Primitive<bool>>(value);
 }
 
-std::shared_ptr<Omniscript::Expression> CharacterLiteral::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableType scope) {
     if (!type->isChar()) {
         console.error("The specified type is " + type->kindName() + " but this is a char.");
     } else {
@@ -288,7 +303,7 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::evaluate(SymbolTableTy
     return std::make_shared<Omniscript::Primitive<char>>(value);
 }
 
-std::shared_ptr<Omniscript::Expression> StringLiteral::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType scope) {
     if (!type) {
         DEBUG_LOG("Creating a string value");
         return std::make_shared<Omniscript::StringExpression<std::string>>(value); 
@@ -323,7 +338,7 @@ void Assignment::setGlobalVisibilityTo(bool state) {
     isGlobal = state;
 }
 
-std::shared_ptr<Omniscript::Expression> createVariable::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> createVariable::express(SymbolTableType scope) {
     DEBUG_LOG("Creating variable " + variable);
 
     std::shared_ptr<Omniscript::Expression> result;
@@ -347,9 +362,9 @@ std::shared_ptr<Omniscript::Expression> createVariable::evaluate(SymbolTableType
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
                 if (!typed->getType()) {
                     typed->setType(type);
-                    result = value->evaluate(scope);
+                    result = value->express(scope);
                 } else {
-                    result = value->evaluate(scope);
+                    result = value->express(scope);
                     if (type->getKind() != result->getType()->getKind() && !result->getType()->isNull()) {
                         console.error("The variable '" + variable + "' expects type '" + type->kindName() + "' or 'null' "+ 
                         " but got '" + result->getType()->kindName() + "' instead.");
@@ -359,9 +374,9 @@ std::shared_ptr<Omniscript::Expression> createVariable::evaluate(SymbolTableType
         } else {
             if (type->isPointer()) {
                 if (auto nullpointer = std::dynamic_pointer_cast<Nullptr>(value)) {
-                    result = nullpointer->evaluate(scope);
+                    result = nullpointer->express(scope);
                 } else if (auto addressOf = std::dynamic_pointer_cast<AddressOf>(value)) {
-                    result = addressOf->evaluate(scope);
+                    result = addressOf->express(scope);
                     if (auto ptr = std::dynamic_pointer_cast<Omniscript::PointerExpression>(result)) {
                         console.info("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->kindName() + "' and is pointing to a '" +
                         ptr->getType()->getPointeeType()->kindName() + "'.");
@@ -378,7 +393,7 @@ std::shared_ptr<Omniscript::Expression> createVariable::evaluate(SymbolTableType
                         console.error("Pointer '" + variable + "' is pointing to an invalid pointer type '" + result->toString() + "'.");
                     }
                 } else if (auto referenceTo = std::dynamic_pointer_cast<ReferenceTo>(value)) {
-                    result = referenceTo->evaluate(scope);
+                    result = referenceTo->express(scope);
                     
                     if (result->getType()->getKind() != type->getPointeeType()->getKind()) {
                         console.error("Pointer '" + variable + "' should point to a '" + type->kindName() + "' but is pointing to a '" +
@@ -393,7 +408,7 @@ std::shared_ptr<Omniscript::Expression> createVariable::evaluate(SymbolTableType
                             typed->setType(type->getPointeeType());
                         }
                     }
-                    result = string->evaluate(scope);
+                    result = string->express(scope);
                     
                     // if (result->getType()->getKind() != type->getPointeeType()->getKind()) {
                     //     console.error("Pointer '" + variable + "' should point to a '" + type->kindName() + "' but is pointing to a '" +
@@ -460,11 +475,11 @@ std::shared_ptr<Omniscript::Expression> createVariable::evaluate(SymbolTableType
     } else {
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
             if (!typed->getType()) {
-                result = value->evaluate(scope);
+                result = value->express(scope);
                 type = typed->getType();
             } else {
                 type = typed->getType();
-                result = value->evaluate(scope);
+                result = value->express(scope);
             }
         }
     }
@@ -482,13 +497,13 @@ std::shared_ptr<Omniscript::Expression> createVariable::evaluate(SymbolTableType
 
     scope->setVariable(variable, result);
 
-    return Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result);
+    return Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result, isGlobal);
 }    
 
 
 // Constant Assignment
-std::shared_ptr<Omniscript::Expression> createConstant::evaluate(SymbolTableType scope) {
-    // return generator.createConstant(variable, type, value->evaluate(scope));
+std::shared_ptr<Omniscript::Expression> createConstant::express(SymbolTableType scope) {
+    // return generator.createConstant(variable, type, value->express(scope));
     return nullptr;
 }
 
@@ -496,53 +511,53 @@ std::shared_ptr<Omniscript::Expression> createConstant::evaluate(SymbolTableType
 createDynamicVariable::createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value)
     : variable(variable), value(value) {}
 
-std::shared_ptr<Omniscript::Expression> createDynamicVariable::evaluate(SymbolTableType scope) {
-    // return generator.assignDynamicVariable(variable, value->evaluate(scope));
+std::shared_ptr<Omniscript::Expression> createDynamicVariable::express(SymbolTableType scope) {
+    // return generator.assignDynamicVariable(variable, value->express(scope));
     return nullptr;
 }
 
 // Get Variable
-std::shared_ptr<Omniscript::Expression> GetVariable::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType scope) {
     return std::make_shared<Omniscript::VariableAccess>(name, type);
 }
 
 // Get Dynamic Variable
 GetDynamicVariable::GetDynamicVariable(const std::string &variable) : variable(variable) {}
 
-std::shared_ptr<Omniscript::Expression> GetDynamicVariable::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> GetDynamicVariable::express(SymbolTableType scope) {
     // return generator.getDynamicVariable(variable);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> BreakStatement::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> BreakStatement::express(SymbolTableType scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> ContinueStatement::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> ContinueStatement::express(SymbolTableType scope) {
     return nullptr;
 }
 
-// std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::evaluate(SymbolTableType scope) {
+// std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
 //     return nullptr;
 // }
 
-std::shared_ptr<Omniscript::Expression> ForLoop::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> GetProperty::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> GetProperty::express(SymbolTableType scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> CallMethod::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> CallMethod::express(SymbolTableType scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> WhileStatement::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> TernaryExpression::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableType scope) {
     // Assign types
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
         stmt->setType(type);
@@ -558,13 +573,13 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::evaluate(SymbolTableT
     }
 
     // Evaluate condition, then branches
-    std::shared_ptr<Omniscript::Expression> condValue = condition->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> condValue = condition->express(scope);
     if (!condValue) return nullptr;
 
-    std::shared_ptr<Omniscript::Expression> trueValue = truthy->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> trueValue = truthy->express(scope);
     if (!trueValue) return nullptr;
 
-    std::shared_ptr<Omniscript::Expression> falseValue = falsey->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> falseValue = falsey->express(scope);
     if (!falseValue) return nullptr;
 
     return std::make_shared<Omniscript::TernaryExpression>(
@@ -573,7 +588,7 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::evaluate(SymbolTableT
 }
 
 
-std::shared_ptr<Omniscript::Expression> BinaryExpression::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableType scope) {
     DEBUG_LOG();
     DEBUG_LOG("Creating a binary expression of kind '" + type->kindName() + "'.");
     // Set the expected result type for child expressions
@@ -587,11 +602,11 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::evaluate(SymbolTableTy
     }
 
     // Evaluate left and right operands
-    std::shared_ptr<Omniscript::Expression> leftValue = left->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> leftValue = left->express(scope);
     if (!leftValue) return nullptr;
     DEBUG_LOG("The left value is " + leftValue->toString());
     
-    std::shared_ptr<Omniscript::Expression> rightValue = right->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> rightValue = right->express(scope);
     if (!rightValue) return nullptr;
     DEBUG_LOG("The right value is " + rightValue->toString());
 
@@ -599,14 +614,25 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::evaluate(SymbolTableTy
     return std::make_shared<Omniscript::BinaryExpression>(leftValue, op, rightValue, type);
 }
 
-std::shared_ptr<Omniscript::Expression> UnaryExpression::evaluate(SymbolTableType scope) {
+bool BinaryExpression::hasSideEffects() {
+    return !isCompileTimeEvaluatable();
+}
+
+bool BinaryExpression::isCompileTimeEvaluatable() {
+    if (left->isCompileTimeEvaluatable() && right->isCompileTimeEvaluatable()) {
+        return true;
+    }
+    return false;
+}
+
+std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType scope) {
     // Set the expected type on the operand
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
         stmt->setType(type);
     }
 
     // Evaluate the operand
-    std::shared_ptr<Omniscript::Expression> operandValue = operand->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> operandValue = operand->express(scope);
     if (!operandValue) return nullptr;
 
     bool isPrefix = position == Position::Prefix;
@@ -615,11 +641,11 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::evaluate(SymbolTableTyp
 }
 
 
-std::shared_ptr<Omniscript::Expression> IfStatement::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
     
     std::string originalCallee = callee;
@@ -646,7 +672,7 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTableType scope) {
         
             std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>> evaluatedArgs;
             for (const auto& arg : args) {
-                auto result = arg->evaluate(scope);
+                auto result = arg->express(scope);
                 if (auto argStatement = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
                     DEBUG_LOG("[Call] Evaluated a named argument '" + argStatement->getName() + "'.");
                     auto inputExpr = std::make_shared<Omniscript::FunctionInputExpression>(argStatement->getName(), result->getType(), result);
@@ -738,7 +764,7 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTableType scope) {
                 continue;
             }
 
-            auto evaluated = namedArg->value ? namedArg->value->evaluate(scope) : nullptr;
+            auto evaluated = namedArg->value ? namedArg->value->express(scope) : nullptr;
             localScope->set(paramName, evaluated);
             providedParams.insert(paramName);
             DEBUG_LOG("[Call] Set named parameter '" + paramName + "' in local scope");
@@ -778,7 +804,7 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTableType scope) {
                 }
             }
 
-            auto value = arg->evaluate(scope);
+            auto value = arg->express(scope);
             if (!value || value->getType()->isInvalid()) {
                 console.error("Invalid argument for parameter '" + paramName + "'");
             }
@@ -885,14 +911,14 @@ bool Call::matchArgumentsToParameters(
     return true;
 }
 
-std::shared_ptr<Omniscript::Expression> ReturnStatement::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType scope) {
     DEBUG_LOG("[Return] Creating a return value of kind '" + type->kindName() + "'.");
     std::shared_ptr<Omniscript::Expression> result = nullptr;
     if (returnValue) {
         if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
             stmt->setType(type);
         }
-        result = returnValue->evaluate(scope);
+        result = returnValue->express(scope);
 
         DEBUG_LOG("[Return] The result of the return value is '" + result->toString() + "' of kind '" + result->getType()->kindName() + "'.");
     } else {
@@ -902,7 +928,29 @@ std::shared_ptr<Omniscript::Expression> ReturnStatement::evaluate(SymbolTableTyp
     return std::make_shared<Omniscript::ReturnExpression>(result, type);
 }
 
-std::shared_ptr<Omniscript::Expression> Array::evaluate(SymbolTableType scope) {
+std::shared_ptr<Statement> ReturnStatement::evaluate(SymbolTableType scope) {
+    DEBUG_LOG("[Evaluate Return Statement]");
+    std::shared_ptr<Statement> result = returnValue->evaluate(scope);
+
+    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(result)) {
+        return std::make_shared<ReturnStatement>(result, typed->getType());
+    }
+    return std::make_shared<ReturnStatement>(result);
+}
+
+bool ReturnStatement::hasSideEffects() {
+    return !isCompileTimeEvaluatable();
+}
+
+bool ReturnStatement::isCompileTimeEvaluatable() {
+    if (returnValue->isCompileTimeEvaluatable()) {
+        return true;
+    }
+    return false;
+}
+
+
+std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
     DEBUG_LOG("[Array] Creating an array");
     if (!type) {
         DEBUG_LOG("[Array] The array has no type");
@@ -911,7 +959,7 @@ std::shared_ptr<Omniscript::Expression> Array::evaluate(SymbolTableType scope) {
         bool allSameType = true;
         
         for (const auto& expr : initialValues) {
-            auto val = expr->evaluate(scope);
+            auto val = expr->express(scope);
             if (!val) continue;
     
             auto valType = val->getType();
@@ -950,7 +998,7 @@ std::shared_ptr<Omniscript::Expression> Array::evaluate(SymbolTableType scope) {
                 }
             }
             
-            val = expr->evaluate(scope);
+            val = expr->express(scope);
 
             if (!val) continue;
             std::shared_ptr<Omniscript::Type> actualType = val->getType();
@@ -1008,7 +1056,7 @@ std::shared_ptr<Omniscript::Expression> Array::evaluate(SymbolTableType scope) {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> FunctionDeclaration::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTableType scope) {
     DEBUG_LOG();
     DEBUG_LOG("[Function] Constructing a function " + name + " prototype the return Type is '" + type->kindName() + "'.");
 
@@ -1054,7 +1102,7 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::evaluate(SymbolTabl
                 typed->setType(std::move(resolveGeneric(paramType->getName())));
             }
         }
-        auto result = param->evaluate(localScope);
+        auto result = param->express(localScope);
         argValues.push_back(result);
         DEBUG_LOG("[Function] Parameter '" + result->name + "' has type " + result->getType()->kindName());
     }
@@ -1066,9 +1114,9 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::evaluate(SymbolTabl
 
     // auto bod = body->resolveExpressions(localScope);
 
-    std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->resolveAsVector(localScope);
+    std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
     // for (auto& stmt : body->statements) {
-    //     functionBody.push_back(stmt->evaluate(localScope));
+    //     functionBody.push_back(stmt->express(localScope));
     // }
 
     std::string mangledName = (name == "__main" ? "__main" : generateMangledName());
@@ -1137,7 +1185,7 @@ void FunctionDeclaration::setReturnTypesInStatement(
 }
 
 
-std::shared_ptr<Omniscript::Expression> ParameterStatement::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
     DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + type->kindName());
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
         stmt->setType(type);
@@ -1146,7 +1194,7 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::evaluate(SymbolTable
     std::shared_ptr<Omniscript::Expression> result;
     
     if (defaultValue) {
-        result = defaultValue->evaluate(scope);
+        result = defaultValue->express(scope);
     } else {
         if (type->isPointer()) {
             result = std::make_shared<Omniscript::NullPointerExpression>();
@@ -1158,12 +1206,12 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::evaluate(SymbolTable
     return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
 }
 
-std::shared_ptr<Omniscript::Expression> ArgumentStatement::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableType scope) {
     DEBUG_LOG("[Argument] Creating argument " + name);
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
         stmt->setType(type);
     }
-    std::shared_ptr<Omniscript::Expression> result = value->evaluate(scope);
+    std::shared_ptr<Omniscript::Expression> result = value->express(scope);
     DEBUG_LOG("[Argument] The value for argument '" + name + "' is " + result->toString());
     return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
 }
@@ -1176,17 +1224,17 @@ std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(SymbolTableType scope) {
     // generator.createStructType(*this);
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
     // DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
 
     // std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
     // for (const auto& arg : constructorArgs) {
-        //     argValues.push_back(arg->evaluate(scope));
+        //     argValues.push_back(arg->express(scope));
         // }
 
     // // 5. Return the allocated instance
@@ -1194,7 +1242,7 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::evaluate(Sym
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> GetMemberValue::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> GetMemberValue::express(SymbolTableType scope) {
     // DEBUG_LOG("Getting member " + propertyName + " from " + objectName);
 
     // // DEBUG_LOG("Created value for argument " + name);
@@ -1204,7 +1252,7 @@ std::shared_ptr<Omniscript::Expression> GetMemberValue::evaluate(SymbolTableType
 }
 
 
-std::shared_ptr<Omniscript::Expression> EnumConstructor::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> EnumConstructor::express(SymbolTableType scope) {
     // std::vector<std::string> names;
     // std::vector<int> indices;
 
@@ -1222,7 +1270,7 @@ std::shared_ptr<Omniscript::Expression> EnumConstructor::evaluate(SymbolTableTyp
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
     // std::shared_ptr<Omniscript::Type> intType = llvm::Type::getInt32Ty(*generator.getContext());
     // return llvm::ConstantInt::get(intType, valueIndex);
     return nullptr;
@@ -1242,9 +1290,9 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 
 //         // Process different types of statements
 //         if (auto valueStatement = std::dynamic_pointer_cast<Value>(stmt)) {
-//             result = valueStatement->evaluate(scope);
+//             result = valueStatement->express(scope);
 //         } else if (auto varStatement = std::dynamic_pointer_cast<Variable>(stmt)) {
-//             result = varStatement->evaluate(scope);
+//             result = varStatement->express(scope);
 //         } else if (auto constAssign = std::dynamic_pointer_cast<ConstantAssignment>(stmt)) {
 //             constAssign->execute(scope);
 //             result = SymbolTable::ValueType{};
@@ -1258,24 +1306,24 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 //             assign->execute(scope);
 //             result = SymbolTable::ValueType{};
 //         } else if (auto constructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(stmt)) {
-//             result = constructor->evaluate(scope);
+//             result = constructor->express(scope);
 //         } else if (auto destructor = std::dynamic_pointer_cast<ObjectDestructorStatement>(stmt)) {
 //             destructor->execute(scope);
 //             result = SymbolTable::ValueType{};
 //         } else if (auto functionCall = std::dynamic_pointer_cast<FunctionCallStatement>(stmt)) {
-//             result = functionCall->evaluate(scope);
+//             result = functionCall->express(scope);
 //         } else if (auto returnStatement = std::dynamic_pointer_cast<ReturnStatement>(stmt)) {
-//             result = returnStatement->evaluate(scope);
+//             result = returnStatement->express(scope);
 //         } else if (auto ifStatement = std::dynamic_pointer_cast<IfStatement>(stmt)) {
-//             result = ifStatement->evaluate(scope);
+//             result = ifStatement->express(scope);
 //         } else if (auto whileLoopStatement = std::dynamic_pointer_cast<WhileStatement>(stmt)) {
-//             result = whileLoopStatement->evaluate(scope);
+//             result = whileLoopStatement->express(scope);
 //         } else if (auto forLoopStatement = std::dynamic_pointer_cast<ForLoop>(stmt)) {
-//             result = forLoopStatement->evaluate(scope);
+//             result = forLoopStatement->express(scope);
 //         } else if (auto unaryExpr = std::dynamic_pointer_cast<UnaryExpression>(stmt)) {
-//             result = unaryExpr->evaluate(scope).value();
+//             result = unaryExpr->express(scope).value();
 //         } else if (auto binaryExpr = std::dynamic_pointer_cast<BinaryExpression>(stmt)) {
-//             auto evalResult = binaryExpr->evaluate(scope);
+//             auto evalResult = binaryExpr->express(scope);
 //             if (evalResult.has_value()) {
 //                 DEBUG_LOG("The Expression's result is " + valueToString(evalResult.value()));
 //                 result = evalResult.value();
@@ -1284,11 +1332,11 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 //                 return std::nullopt;
 //             }
 //         } else if (auto ternaryExpression = std::dynamic_pointer_cast<TenaryExpression>(stmt)) {
-//             result = ternaryExpression->evaluate(scope);
+//             result = ternaryExpression->express(scope);
 //         } else if (auto methodCall = std::dynamic_pointer_cast<CallMethod>(stmt)) {
-//             result = methodCall->evaluate(scope);
+//             result = methodCall->express(scope);
 //         } else if (auto propertyCall = std::dynamic_pointer_cast<GetProperty>(stmt)) {
-//             result = propertyCall->evaluate(scope);
+//             result = propertyCall->express(scope);
 //         } else {
 //             // Error handling for unknown statement types
 //             std::cerr << "Error: Unknown statement type encountered." << std::endl;
@@ -1462,7 +1510,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 //     console.log("here 6");
 
 //     // Call function and return result
-//     return functionPtr->evaluate(scope, evaluatedArgs);
+//     return functionPtr->express(scope, evaluatedArgs);
 // }
 
 // void BlockStatement::execute(SymbolTable &scope) {
@@ -1526,7 +1574,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 //     return SymbolTable::ValueType{};
 // }
 
-// SymbolTable::ValueType ForLoop::evaluate(SymbolTableType scope) {
+// SymbolTable::ValueType ForLoop::express(SymbolTableType scope) {
 //     SymbolTable localScope;
 //     localscope->name = "a for loop's scope";
 //     localscope->setParent(&scope);
@@ -1595,7 +1643,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 // bool IfStatement::conditionIsMet(SymbolTable &scope) {
 //     // Evaluate the condition, assuming `BinaryExpression` returns a boolean-like result
 //     // auto conditionExpr = std::dynamic_pointer_cast<BinaryExpression>(condition);
-//     auto conditionResult = Expression::evaluate(condition, scope); //conditionExpr->evaluate(scope);
+//     auto conditionResult = Expression::evaluate(condition, scope); //conditionExpr->express(scope);
 
 //     // Check if the condition has a value and convert it to bool
 //     bool result = conditionResult.has_value() && std::holds_alternative<bool>(conditionResult.value()) 
@@ -2081,7 +2129,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 // }
 
 // //Evaluate a Tenary expression
-// SymbolTable::ValueType TenaryExpression::evaluate(SymbolTableType scope) {
+// SymbolTable::ValueType TenaryExpression::express(SymbolTableType scope) {
 //     auto conditionResult = Expression::evaluate(condition, scope);
 //     // Check if the condition has a value and convert it to bool
 //     bool result = conditionResult.has_value() && std::holds_alternative<bool>(conditionResult.value()) 
@@ -2180,7 +2228,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 //         // Otherwise, if it's a Function statement:
 //         else if (auto funcStmt = std::get_if<std::shared_ptr<Function>>(&methodVariant)) {
 //             evaluatedArgs.push_back(std::make_shared<ConstantAssignment>("this", instance));
-//             (*funcStmt)->evaluate(scope, evaluatedArgs);
+//             (*funcStmt)->express(scope, evaluatedArgs);
 //         }
 //     } else {
 //         // Handle regular objects:
@@ -2192,7 +2240,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 //         if (auto func = std::get_if<std::function<SymbolTable::ValueType(const ArgumentDefinition&)>>(&methodVariant)) {
 //             result = (*func)(evaluatedArgs);
 //         } else if (auto funcStmt = std::get_if<std::shared_ptr<Function>>(&methodVariant)) {
-//             result = (*funcStmt)->evaluate(scope, evaluatedArgs);
+//             result = (*funcStmt)->express(scope, evaluatedArgs);
 //         }
 //     }
 
@@ -2201,7 +2249,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 
 
 
-// SymbolTable::ValueType GetProperty::evaluate(SymbolTableType scope) {
+// SymbolTable::ValueType GetProperty::express(SymbolTableType scope) {
 //     DEBUG_LOG("Evaluating a property call");
 //     std::shared_ptr<Object> baseObject;
 
@@ -2339,7 +2387,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 //         if (*namespaceObj) {
 //             DEBUG_LOG("Evaluating Namespace body");
 //             // Evaluate the body of the Namespace in the provided scope
-//             (*namespaceObj)->evaluate(scope);
+//             (*namespaceObj)->express(scope);
 //             return *namespaceObj; // Return the shared_ptr to the Namespace
 //         } else {
 //             console.error("Null Namespace pointer during construction");
@@ -2367,7 +2415,7 @@ std::shared_ptr<Omniscript::Expression> EnumValue::evaluate(SymbolTableType scop
 //                                 }
 
 //                                 constructor->addParameter("this", std::make_shared<ConstantAssignment>("this", instance));
-//                                 constructor->evaluate(scope, convertedArgs);
+//                                 constructor->express(scope, convertedArgs);
 //                             }
 //                         }
 //                         return std::static_pointer_cast<Object>(instance); // Ensure consistent return type

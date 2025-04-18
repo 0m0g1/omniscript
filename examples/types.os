@@ -77,11 +77,11 @@
 
 
 // // Structs (user-defined types)
-// struct Vector3 {
-//     x: f64;
-//     y: f64;
-//     z: f64;
-// }
+struct Vector3 {
+    x: f64;
+    y: f64;
+    z: f64;
+}
 
 // let v1 = Vector3{ x: 1.0, y: 2.0, z: 3.0 };
 // let vx = v1.x;
@@ -153,7 +153,6 @@
 // let sth : int = add<i32>(1, 2);
 
 
-
 // function add(a : i32 = 1, b : i32 = 1) => i32  {
 //     return a + b;
 // }
@@ -168,6 +167,7 @@
 
 function main() => i32 {
     // return add(b = 1, a = 2, c = 10);
+    // return c;
     return 0;
 }
 
