@@ -1225,21 +1225,59 @@ std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
 }
 
 std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(SymbolTableType scope) {
-    // generator.createStructType(*this);
-    return nullptr;
+    DEBUG_LOG("[ConstructStructPrototype] Constructing a struct expression");
+
+    std::vector<std::shared_ptr<Omniscript::Expression>> elements;
+    std::vector<std::string> elementNames;
+    std::vector<std::shared_ptr<Omniscript::Type>> elementTypes;
+
+    for (const auto& field : body) {
+        if (auto varDecl = std::dynamic_pointer_cast<createVariable>(field)) {
+            std::string fieldName = varDecl->getName();
+            elementNames.push_back(fieldName);
+
+            // ⚙️ Use type if available (for setting struct type)
+            elementTypes.push_back(varDecl->getType());
+
+            // 🌱 Evaluate the default value (if present)
+            std::shared_ptr<Omniscript::Expression> initExpr;
+            if (auto initValue = varDecl->getValue()) {
+                initExpr = initValue->express(scope);
+            } else {
+                initExpr = std::make_shared<Omniscript::NullExpression>(); // You’ll need to define this
+            }
+
+            elements.push_back(initExpr);
+        } else {
+            console.warn("Skipping non-variable declaration in struct body");
+        }
+    }
+
+    // 🧱 Build and return a StructExpression
+    auto structExpr = std::make_shared<Omniscript::StructExpression>(getName(), elements);
+    scope->set(getName(), structExpr);
+    return structExpr;
 }
 
-std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
-    // DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
 
-    // std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
-    // for (const auto& arg : constructorArgs) {
-        //     argValues.push_back(arg->express(scope));
-        // }
+std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
+    DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
+
+    std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
+    for (const auto& arg : constructorArgs) {
+        argValues.push_back(arg->express(scope));
+    }
+
+    if (scope->get(objectType)) {
+        type = std::make_shared<Omniscript::UserDefinedType>(objectType);
+        return std::make_shared<Omniscript::CallExpression>(objectType, instanceName, argValues); //, type);
+    } else {
+        console.error("Object type was not found in the scope");
+    }
 
     // // 5. Return the allocated instance
-    // return generator.createObjectInstance(objectType, instanceName, argValues);
-    return nullptr;
+    // return std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
+    return std::make_shared<Omniscript::CallExpression>(objectType, instanceName, argValues); //, type);
 }
 
 std::shared_ptr<Omniscript::Expression> GetMemberValue::express(SymbolTableType scope) {

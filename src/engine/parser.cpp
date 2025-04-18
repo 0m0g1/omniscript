@@ -1400,20 +1400,20 @@ std::string Parser::generateSpecializedNameForCall(
     return oss.str();
 }
 
-std::vector<std::shared_ptr<Statement>> Parser::parseArguments() {
+std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start, TokenTypes end, TokenTypes assignOp) {
     DEBUG_LOG("Parsing the arguments");
     std::vector<std::shared_ptr<Statement>> args;
-    eat(TokenTypes::LeftParen);
+    eat(start);
 
-    while (currentToken.getType() != TokenTypes::RightParen && currentToken.getType() != TokenTypes::EOI) {
+    while (currentToken.getType() != end && currentToken.getType() != TokenTypes::EOI) {
         // Ensure we don't get stuck in an infinite loop
         if (currentToken.getType() == TokenTypes::Identifier) {
             std::string paramName = currentToken.getValue();  // Argument name (e.g., "b")
             eat(TokenTypes::Identifier);  // Consume identifier
 
             // Check if there's an assignment
-            if (currentToken.getType() == TokenTypes::Assign) {
-                eat(TokenTypes::Assign);  // Consume the assignment token
+            if (currentToken.getType() == assignOp) {
+                eat(assignOp);  // Consume the assignment token
                 args.push_back(parseExpression());  // Parse the value of the argument
             } else {
                 // If no assignment, treat the current token as a regular argument
@@ -1426,7 +1426,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments() {
         // Ensure comma consumption is correct
         if (currentToken.getType() == TokenTypes::Comma) {
             eat(TokenTypes::Comma);
-            if (currentToken.getType() == TokenTypes::RightParen) {
+            if (currentToken.getType() == end) {
                 console.error("Unexpected comma before closing parenthesis.");
                 throw std::runtime_error("Syntax error: Trailing comma in argument list.");
             }
@@ -1436,7 +1436,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments() {
     }
 
     // Ensure we actually close the argument list
-    eat(TokenTypes::RightParen, "Expected ')' but found " + currentToken.getValue() + " at end of argument list.");
+    eat(end, "Expected ' "+ getTokenTypeName(end) + " ' but found '" + getTokenTypeName(currentToken.getType()) + "' at end of argument list.");
 
     DEBUG_LOG("Done parsing the arguments");
     return args;
@@ -1624,33 +1624,9 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     
     // Parse object instance constructors
     if (currentToken.getType() == TokenTypes::LeftBrace) {
-        std::vector<std::shared_ptr<Statement>> args;
-
-        eat(TokenTypes::LeftBrace);
-        
-        while (currentToken.getType() != TokenTypes::RightBrace) {
-            std::string argumentName;
-            std::shared_ptr<Statement> value;
-
-            if (currentToken.getType() == TokenTypes::Comma) {
-                eat(TokenTypes::Comma);
-            }
-
-            if (currentToken.getType() == TokenTypes::Identifier) {
-                argumentName = currentToken.getValue();
-                eat(TokenTypes::Identifier);
-                eat(TokenTypes::Colon);
-            }
-            
-            value = parseExpression();
-            auto arg = std::make_shared<ArgumentStatement>(argumentName, value);
-            args.push_back(arg);
-        }
-
-        eat(TokenTypes::RightBrace);
+        std::vector<std::shared_ptr<Statement>> args = parseArguments(TokenTypes::LeftBrace, TokenTypes::RightBrace, TokenTypes::Colon);
         return std::make_shared<ObjectConstructorStatement>(rootIdentifier, "", args);
     }
-    
     
     if (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
         // std::vector<std::string> members;
@@ -2015,18 +1991,18 @@ std::shared_ptr<Statement> Parser::parseStruct() {
             std::shared_ptr<Statement> value = nullptr;
 
             eat(TokenTypes::Identifier);
-            eat(TokenTypes::Colon);
-            type.push_back(currentToken.getValue());
-
-            eat(TokenTypes::Identifier);
+            if (currentToken.getType() == TokenTypes::Colon) {
+                eat(TokenTypes::Colon);
+                type = parseType();
+            }
 
             if (currentToken.getType() == TokenTypes::Assign) {
                 eat(TokenTypes::Assign);
                 value = parseExpression();
             }
 
-            // auto field = std::make_shared<createVariable>(fieldName, irGen.resolveLLVMType(type), value);
-            // body.push_back(field);
+            auto field = std::make_shared<createVariable>(fieldName, Omniscript::resolveType(type), value);
+            body.push_back(field);
             expectSemicolonOrNewLine();
         }
     }

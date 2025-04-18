@@ -454,10 +454,22 @@ struct FunctionInputExpression : public Expression {
 
 struct CallExpression : public Expression {
     std::string calleeName;
+    std::string instanceName;
     std::vector<std::shared_ptr<Expression>> args;
+    bool isGlobal;
 
     CallExpression(const std::string& calleeName, const std::vector<std::shared_ptr<Expression>>& args = {}, std::shared_ptr<Type> returnType = nullptr)
     : calleeName(calleeName), args(std::move(args)) {
+        type = std::move(returnType);
+    }
+
+    CallExpression(const std::string& objectName,
+        const std::string& instanceName,
+        const std::vector<std::shared_ptr<Expression>>& args = {},
+        std::shared_ptr<Type> returnType = nullptr,
+        bool isGlobal = true
+    )
+    : calleeName(objectName), instanceName(instanceName), args(std::move(args)), isGlobal(isGlobal) {
         type = std::move(returnType);
     }
 
@@ -469,12 +481,16 @@ struct CallExpression : public Expression {
         }
         return std::make_shared<CallExpression>(
             calleeName,
+            instanceName,
             clonedArgs,
             type ? type->clone() : nullptr
         );
     }
     std::string toString() const override {
-        return "Call: " + calleeName;
+        if (instanceName.empty()) {
+            return "Call: " + calleeName;
+        }
+        return "Call create instance '" + instanceName + "' of object '" + calleeName + "'.";
     }
 };
 
@@ -641,6 +657,25 @@ struct AggregateExpression : public Expression {
     }
 };
 
+struct StructExpression : public AggregateExpression {
+    std::string name;
+
+    StructExpression(const std::string& name,
+                     std::vector<std::shared_ptr<Expression>> elements,
+                     std::vector<std::string> elementNames = {})
+        : AggregateExpression(std::move(elements), std::move(elementNames)), name(name) {}
+
+    std::string toString() const override {
+        return "Struct: " + name;
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        std::vector<std::shared_ptr<Expression>> clonedElements;
+        for (const auto& elem : elements)
+            clonedElements.push_back(elem ? elem->clone() : nullptr);
+        return std::make_shared<StructExpression>(name, clonedElements, elementNames);
+    }
+};
 
 // Custom String and WideString Types
 template <typename T>

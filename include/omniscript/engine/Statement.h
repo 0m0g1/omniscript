@@ -565,6 +565,7 @@ class createVariable : public Assignment {
 public:
     createVariable(const std::string &variable, std::shared_ptr<Omniscript::Type> type, std::shared_ptr<Statement> value)
     : variable(variable), type(std::move(type)), value(std::move(value)) {}
+
     std::string getName() const override {return variable;}
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
@@ -572,6 +573,7 @@ public:
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<createVariable>(variable, type, value->clone());  // Clone the value as well
     }
+    std::shared_ptr<Statement> getValue() { return value; }
 
 private:
     std::string variable;
@@ -1086,7 +1088,7 @@ public:
     std::string toString() const override { return "LiteralStatement"; }
 };
 
-class ObjectConstructorStatement : public Statement {
+class ObjectConstructorStatement : public TypedStatement {
 private:
     std::string objectType;
     std::string instanceName;

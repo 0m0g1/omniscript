@@ -250,8 +250,33 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
             args.emplace_back(codegen(arg, scope));
         }
 
-        return createCall(call->calleeName, args);
+        if (call->instanceName.empty()) {
+            DEBUG_LOG("Creating a normal call");
+            return createCall(call->calleeName, args);
+        }
+        DEBUG_LOG("Creating an object instance");
+        return createObjectInstance(call->calleeName, call->instanceName, args, call->isGlobal);
     }
+
+    if (auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(value)) {
+        DEBUG_LOG("Generating struct expression for " + structExpr->name);
+    
+        std::vector<llvm::Value*> fieldValues;
+        fieldValues.reserve(structExpr->elements.size());
+    
+        for (const auto& element : structExpr->elements) {
+            llvm::Value* val = codegen(element, scope);
+            if (!val) {
+                console.error("Failed to generate value for a struct field");
+                return nullptr;
+            }
+            fieldValues.push_back(val);
+        }
+    
+        // Make sure the type exists
+        createStructType(structExpr->name, fieldValues);
+        return nullptr;    
+    }    
 
     return nullptr;
 }
@@ -1849,107 +1874,127 @@ llvm::Value* IRGenerator::createTernaryExpression(llvm::Value* cond, llvm::Value
 llvm::Value* IRGenerator::createObjectInstance(
     const std::string& typeName,
     const std::string& varName,
-    const std::vector<llvm::Value*>& args)
+    const std::vector<llvm::Value*>& args,
+    bool isGlobal
+)
 {
     DEBUG_LOG("Creating instance of type: " + typeName);
     
     // 1. Check for value types first
-    // if (typeName == "int32") {
-    //     return createPrimitiveInstance(
-    //         Builder.getInt32Ty(), 
-    //         varName,
-    //         args.empty() ? nullptr : args[0]);
-    // }
-    // else if (typeName == "float") {
-    //     return createPrimitiveInstance(
-    //         Builder.getFloatTy(),
-    //         varName,
-    //         args.empty() ? nullptr : args[0]);
-    // }
-    // ... other primitives ...
+    // (your primitive type checks here)
 
     // 2. Check for struct types
-    if (llvm::StructType::getTypeByName(*Context, typeName)) {
+    if (llvm::StructType* structType = llvm::StructType::getTypeByName(*Context, typeName)) {
+        DEBUG_LOG("Found struct type: " + typeName);
         return createStructInstance(typeName, varName, args);
     }
 
-    // 3. Check for class types (might be in a different namespace)
-    // if (/* class exists check */) {
-    //     return createClassInstance(typeName, varName, args);
-    // }
+    // 3. Check for class types
+    // (your class type checks here)
 
     console.error("Unknown type: " + typeName);
     return nullptr;
 }
 
-void IRGenerator::createStructType(const ConstructStructPrototype& structProto) {
-    // 🔹 Check if the struct type already exists
-    if (llvm::StructType::getTypeByName(*Context, structProto.getName())) {
-        DEBUG_LOG("Struct " + structProto.getName() + " already exists. Skipping creation.");
+void IRGenerator::createStructType(const std::string& name, const std::vector<llvm::Value*>& fieldValues) {
+    if (llvm::StructType::getTypeByName(*Context, name)) {
+        DEBUG_LOG("Struct " + name + " already exists. Skipping creation.");
         return;
     }
 
-    // 🔹 Define struct type
-    llvm::StructType* structType = llvm::StructType::create(*Context, structProto.getName());
-    
-    // 🔹 Collect field types
     std::vector<llvm::Type*> fieldTypes;
-    for (const auto& field : structProto.getBody()) {
-        if (auto varDecl = std::dynamic_pointer_cast<TypedStatement>(field)) {
-            // fieldTypes.push_back(varDecl->getType());
-        } else {
-            console.warn("Skipping non-variable declaration in struct body");
+    for (llvm::Value* val : fieldValues) {
+        if (!val) {
+            console.error("Null field value in struct creation");
+            return;
         }
+        fieldTypes.push_back(val->getType());
     }
-    
-    // 🔹 Set struct element types
-    structType->setBody(fieldTypes);
-    
-    // 🔹 Store struct in symbol table
-    // activeScope->set(structProto.getName(), structType);
-    DEBUG_LOG("Created struct " + structProto.getName());
+
+    llvm::StructType* structType = llvm::StructType::create(*Context, fieldTypes, name);
+    if (!structType) {
+        console.error("Failed to create struct type: " + name);
+        return;
+    }
+
+    DEBUG_LOG("Created struct prototype: " + name);
 }
 
 llvm::Value* IRGenerator::createStructInstance(
     const std::string& structName,
     const std::string& varName,
-    const std::vector<llvm::Value*>& args)
+    const std::vector<llvm::Value*>& args,
+    bool isGlobal)
 {
     llvm::StructType* structType = llvm::StructType::getTypeByName(*Context, structName);
-    assert(structType && "Struct type should exist");
-
-    // Get current function and entry block
-    llvm::Function* currentFunc = Builder->GetInsertBlock()->getParent();
-    llvm::BasicBlock* entryBlock = &currentFunc->getEntryBlock();
-
-    // Create a temporary builder for the entry block if needed
-    llvm::IRBuilder<> entryBuilder(entryBlock);
-    if (!entryBlock->empty() && entryBlock->getTerminator()) {
-        // If entry block already has a terminator, insert before it
-        entryBuilder.SetInsertPoint(entryBlock->getTerminator());
-    } else {
-        // Otherwise insert at end of entry block
-        entryBuilder.SetInsertPoint(entryBlock);
+    if (!structType) {
+        DEBUG_LOG("Struct type '" + structName + "' does not exist.");
+        return nullptr;
     }
 
-    // Create allocation
-    llvm::AllocaInst* instance = entryBuilder.CreateAlloca(structType, nullptr, varName);
+    // Ensure the number of arguments matches the number of fields in the struct
+    if (args.size() != structType->getNumElements()) {
+        DEBUG_LOG("Mismatch between number of fields and constructor arguments for struct: " + structName);
+        return nullptr;
+    }
 
-    // Initialize fields using current builder (not entry builder)
-    for (size_t i = 0; i < args.size() && i < structType->getNumElements(); ++i) {
-        // Check if current builder is pointing at a terminator
-        if (Builder->GetInsertBlock()->getTerminator()) {
-            // If so, move insertion point before terminator
-            Builder->SetInsertPoint(Builder->GetInsertBlock()->getTerminator());
+    // For initializing fields
+    std::vector<llvm::Constant*> constants;
+    for (size_t i = 0; i < args.size(); ++i) {
+        if (auto* constVal = llvm::dyn_cast<llvm::Constant>(args[i])) {
+            constants.push_back(constVal);
+        } else {
+            DEBUG_LOG("Argument " + std::to_string(i) + " is not a constant value.");
+            return nullptr;
+        }
+    }
+
+    llvm::Constant* initializer = llvm::ConstantStruct::get(structType, constants);
+
+    if (isGlobal) {
+        // Creating a global variable
+        llvm::Module* module = Builder->GetInsertBlock()->getModule();  // Get module from the builder's block
+        llvm::GlobalVariable* globalVar = new llvm::GlobalVariable(
+            *module,
+            structType,
+            false,  // isConstant
+            llvm::GlobalValue::ExternalLinkage,
+            initializer,
+            varName
+        );
+        
+        DEBUG_LOG("Created global struct instance: " + varName);
+        return globalVar;
+
+    } else {
+        // Creating a local variable (on the stack)
+        llvm::Function* currentFunc = Builder->GetInsertBlock()->getParent();
+        llvm::BasicBlock* entryBlock = &currentFunc->getEntryBlock();
+
+        // Temporary builder for the entry block (if needed)
+        llvm::IRBuilder<> entryBuilder(entryBlock);
+        if (!entryBlock->empty() && entryBlock->getTerminator()) {
+            entryBuilder.SetInsertPoint(entryBlock->getTerminator());
+        } else {
+            entryBuilder.SetInsertPoint(entryBlock);
         }
 
-        llvm::Value* fieldPtr = Builder->CreateStructGEP(
-            structType, instance, i, varName + "_field" + std::to_string(i));
-        Builder->CreateStore(args[i], fieldPtr);
+        // Create alloca for local variable
+        llvm::AllocaInst* localVar = entryBuilder.CreateAlloca(structType, nullptr, varName);
+
+        // Initialize the fields using the current builder
+        for (size_t i = 0; i < args.size() && i < structType->getNumElements(); ++i) {
+            if (Builder->GetInsertBlock()->getTerminator()) {
+                Builder->SetInsertPoint(Builder->GetInsertBlock()->getTerminator());
+            }
+
+            llvm::Value* fieldPtr = Builder->CreateStructGEP(structType, localVar, i, varName + "_field" + std::to_string(i));
+            Builder->CreateStore(args[i], fieldPtr);
+        }
+
+        DEBUG_LOG("Created local struct instance: " + varName);
+        return localVar;
     }
-    // Assuming you have a way to add variables to the scope
-    // activeScope->set(varName, instance);
-    return instance;
 }
 
 // llvm::Value* IRGenerator::getMember(llvm::Value* object, const std::string& memberName) {

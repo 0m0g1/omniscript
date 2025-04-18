@@ -53,7 +53,11 @@ class Parser {
         std::shared_ptr<Statement> parseModule();
 
         std::vector<std::shared_ptr<Statement>> parseParameters();
-        std::vector<std::shared_ptr<Statement>> parseArguments(); // Parse code block
+        std::vector<std::shared_ptr<Statement>> parseArguments(
+            TokenTypes start = TokenTypes::LeftParen, 
+            TokenTypes end = TokenTypes::RightParen,
+            TokenTypes assignOp = TokenTypes::Assign
+        ); // Parse code block
         std::shared_ptr<Statement> parseFunctionDeclaration(parameterType paramTypes = {}); // To parse function declarations
         std::shared_ptr<Statement> parseFunctionDeclaration(
             const std::string& definedName = "",

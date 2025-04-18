@@ -18,7 +18,7 @@
 // // Assignments for each floating-point type, using both base and alternative type names
 
 // // Half Precision
-// // let half : f16 = 3.14;  // Using 'f16'
+// // let halftest : f16 = 3.14;  // Using 'f16'
 // // let half_alt : half = 2.718;  // Using 'half' (alternative name)
 
 // // Single Precision (float or f32)
@@ -67,8 +67,8 @@
 // let tt : utf8 = "Hello, OmniScript++!"; // String (C-style)
 // let ttt : utf16 = "Hello, OmniScript++!"; // String (C-style)
 // let tttt : utf32 = "Hello, OmniScript++!"; // String (C-style)
-// let u : [5]char = ['H', 'e', 'l', 'l', 'o']; // Character array
-// let uu : [5]i32 = [1,2,3,4,5]; // integer arrays
+let u : [5]char = ['H', 'e', 'l', 'l', 'o']; // Character array
+let uu : [5]i32 = [1,2,3,4,5]; // integer arrays
 // let uuu : [5]i32 = [1,2,3,4,5]; // multidimentional array
 
 // // Dynamic arrays (if supported)
@@ -83,7 +83,7 @@ struct Vector3 {
     z: f64;
 }
 
-// let v1 = Vector3{ x: 1.0, y: 2.0, z: 3.0 };
+let v1 = Vector3{ x: 1.0, y: 2.0, z: 3.0 };
 // let vx = v1.x;
 // v1.x = 5.0;
 
@@ -101,7 +101,7 @@ struct Vector3 {
 // let variable : int = 10;
 
 // function add(a: int = 1, b: int = 1) => i32 {
-//     return a + b;
+    // return a + b;
 // }
 
 // add(1, 1);
@@ -118,8 +118,8 @@ struct Vector3 {
 // add<i32>(5, 6);
 
 // function main() => i32 {
-    // return add(b = 1, a = 2);
-    // return add<i32>(1, 1);
+//     return add(b = 1, a = 2);
+//     return add<i32>(1, 1);
 // }
 
 // let ref : function* = add;
@@ -139,10 +139,10 @@ struct Vector3 {
 //     banana
 // }
 
-// <Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
-// let add = (a: Number, b: Number) => Number {
-    // return a + b;
-// }
+<Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
+let add = (a: Number, b: Number) => Number {
+    return a + b;
+}
 
 
 // TODO Add support none predetermined types

@@ -235,7 +235,8 @@ public:
     llvm::Value* createObjectInstance(
         const std::string& objectType,
         const std::string& instanceName,
-        const std::vector<llvm::Value*>& args = {}
+        const std::vector<llvm::Value*>& args = {},
+        bool isGlobal = true
     );
     
     llvm::Value* loadMemberValue(
@@ -249,11 +250,13 @@ public:
         llvm::Value* newValue
     );
 
-    void createStructType(const ConstructStructPrototype& structProto);
+    void createStructType(const std::string& name, const std::vector<llvm::Value*>& fieldValues);
     llvm::Value* createStructInstance(
         const std::string& structName,
         const std::string& varName,
-        const std::vector<llvm::Value*>& args);
+        const std::vector<llvm::Value*>& args,
+        bool isGlobal = true
+    );
     
     llvm::Value* createClassInstance(
         const std::string& className,

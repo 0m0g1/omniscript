@@ -54,6 +54,7 @@ enum class Kind {
     HeterogeneousArray, // e.g., []
     
     //Other Types
+    UserDefined,
     Call,
     Unresolved,
     Generic,
@@ -73,6 +74,7 @@ public:
     Type(Kind kind) : kind(kind) {}
 
     // ----- Instance methods -----
+    bool isUserDefined() const { return kind == Kind::UserDefined; }
     bool isInvalid() const { return kind == Kind::Invalid; }
     bool isUndefined() const { return kind == Kind::Undefined; }
     bool isChar() const { return kind == Kind::Char; }
@@ -380,7 +382,22 @@ public:
         return std::make_shared<PrimitiveType>(primitiveKind);
     }    
 };
-    
+
+
+class UserDefinedType : public Type {
+public:
+    std::string name;
+    // std::shared_ptr<SymbolTable> scope;
+    std::vector<std::shared_ptr<Type>> typeParams;
+
+    UserDefinedType(const std::string& name)
+        : Type(Kind::UserDefined), name(name) {}
+
+    std::string getName() const override { return name; }
+
+    // You can optionally override getSize() or getReturnType() too
+};
+
 
 class PointerType : public Type {
 public:
