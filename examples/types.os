@@ -150,22 +150,29 @@
 // let add = <T>(a: T, b: T) => T {
 //     return a + b;
 // }
-
 // let sth : int = add<i32>(1, 2);
+
+
 
 function add(a : i32 = 1, b : i32 = 1) => i32  {
     return a + b;
+}
+
+function add(a : i32 = 1, b : i32 = 1, c : i32 = 0) => i32  {
+    return a + b + c;
 }
 
 function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
     return a + b;
 }
 
+function main() => i32 {
+    return add(b = 1, a = 2, c = 10);
+}
+
+
+
+// return add<i32>(1, 1);
+// return 2;
 // add(1.0, 1.0);
 // add(1, 1);
-
-function main() => i32 {
-    return add(b = 1, a = 2);
-    // return add<i32>(1, 1);
-    // return 2;
-}

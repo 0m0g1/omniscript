@@ -11,7 +11,7 @@
         "request": "launch",
         "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
         "args": [
-            "examples/classes.os",
+            "examples\\types.os",
             "--execute",
             "--debug",
         ],

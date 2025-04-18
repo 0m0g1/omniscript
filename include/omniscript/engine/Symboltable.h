@@ -34,11 +34,11 @@ public:
 
     void setVariable(const std::string& name, T value) {
         if (overloadables_.count(name)) {
-            console.error("Cannot define variable '" + name + "' because an overloaded function already exists with that name.");
+            console.error("[Scope] Cannot define variable '" + name + "' because an overloaded function already exists with that name.");
             return;
         }
         if (auto it = constants_.find(name); it != constants_.end()) {
-            console.error("Cannot define variable '" + name + "' because a constant already exists with that name.");
+            console.error("[Scope] Cannot define variable '" + name + "' because a constant already exists with that name.");
             return;
         }
         variables_[name] = std::move(value);
@@ -46,15 +46,15 @@ public:
 
     void setConstant(const std::string& name, T value) {
         if (overloadables_.count(name)) {
-            console.error("Cannot define variable '" + name + "' because an overloaded function already exists with that name.");
+            console.error("[Scope] Cannot define variable '" + name + "' because an overloaded function already exists with that name.");
             return;
         }
         if (auto it = variables_.find(name); it != variables_.end()) {
-            console.error("Cannot define constant '" + name + "' because a variable already exists with that name.");
+            console.error("[Scope] Cannot define constant '" + name + "' because a variable already exists with that name.");
             return;
         }
         if (auto it = constants_.find(name); it != constants_.end()) {
-            console.error("Constant '" + name + "' already exists in scope '" + name + "' and cannot be reassigned");
+            console.error("[Scope] Constant '" + name + "' already exists in scope '" + name + "' and cannot be reassigned");
             return;
         } 
         constants_[name] = std::move(value);
@@ -71,21 +71,23 @@ public:
     T getValue(const std::string& name) const {
         if (auto it = variables_.find(name); it != variables_.end()) return it->second;
         if (auto it = constants_.find(name); it != constants_.end()) return it->second;
-        DEBUG_LOG("Symbol  '" + name + "' was not found in scope '" + name_ + "'.");
+        DEBUG_LOG("[Scope] Symbol  '" + name + "' was not found in scope '" + name_ + "'.");
         auto result = parent_ ? parent_->getValue(name) : nullptr;
         
         if (!result) {
-            console.error("Symbol '" + name + "' was not found in scope '" + name_ + "'.");
+            console.error("[Scope] Symbol '" + name + "' was not found in scope '" + name_ + "'.");
         }
-
+        
+        DEBUG_LOG("[Scope] Symbol '" + name + "' was found in scope '" + name_ + "'.");
         return result;
     }
-
+    
     std::vector<T> getOverloads(const std::string& name) const {
         if (auto it = overloadables_.find(name); it != overloadables_.end()) {
+            DEBUG_LOG("[Scope] Overloadable Symbol  '" + name + "' was found in scope '" + name_ + "'.");
             return it->second;
         }
-        DEBUG_LOG("Symbol '" + name + "' was not found in scope '" + name_ + "'.");
+        DEBUG_LOG("[Scope] Overloadable Symbol '" + name + "' was not found in scope '" + name_ + "'.");
         return parent_ ? parent_->getOverloads(name) : std::vector<T>{};
     }    
 

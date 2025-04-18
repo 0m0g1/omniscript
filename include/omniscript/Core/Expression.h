@@ -473,6 +473,9 @@ struct CallExpression : public Expression {
             type ? type->clone() : nullptr
         );
     }
+    std::string toString() const override {
+        return "Call: " + calleeName;
+    }
 };
 
 struct Callable : public Expression {

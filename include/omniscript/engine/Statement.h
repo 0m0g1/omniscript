@@ -208,6 +208,7 @@ public:
     }
 
     std::shared_ptr<Omniscript::Expression> evaluate(SymbolTableType scope) override;
+    std::vector<std::shared_ptr<Omniscript::Expression>> resolveAsVector(SymbolTableType scope);
     
     std::string toString() const override {
         std::string result = "Block {\n";

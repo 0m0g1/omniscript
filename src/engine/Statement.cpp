@@ -30,6 +30,10 @@ std::shared_ptr<Omniscript::Expression> Initializer::evaluate(SymbolTableType sc
 
 
 std::shared_ptr<Omniscript::Expression> BlockStatement::evaluate(SymbolTableType scope) {
+    return std::make_shared<Omniscript::BlockExpression>(resolveAsVector(scope));
+}
+
+std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::resolveAsVector(SymbolTableType scope) {
     resolveGenerics();
     
     std::vector<std::shared_ptr<Omniscript::Expression>> results = {};
@@ -60,7 +64,7 @@ std::shared_ptr<Omniscript::Expression> BlockStatement::evaluate(SymbolTableType
     
     // // Return the last computed value (may be nullptr for statements without values)
     // return lastValue;
-    return std::make_shared<Omniscript::BlockExpression>(results);
+    return results;
 }
 
 std::shared_ptr<Omniscript::Expression> ImportModule::evaluate(SymbolTableType scope) {
@@ -671,17 +675,11 @@ std::shared_ptr<Omniscript::Expression> Call::evaluate(SymbolTableType scope) {
                 DEBUG_LOG("[Call] ✅ Matched overload: using mangled name '" + funcExpr->mangledName + "'");
                 callee = funcExpr->mangledName;
                 called = funcExpr;
+                DEBUG_LOG("[Call] Called is now " + called->toString());
                 break;
             } else {
                 DEBUG_LOG("[Call] ❌ Overload '" + funcExpr->mangledName + "' did not match.");
             }
-        }
-        
-        if (!called) {
-            called = scope->get(originalCallee);
-            DEBUG_LOG("[Call] ERROR: No matching overload found for '" + originalCallee + "'");
-            console.error("No matching function overload for '" + originalCallee + "' with the given arguments.");
-            return nullptr;
         }
     }
 
@@ -824,7 +822,7 @@ bool Call::matchArgumentsToParameters(
     const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& params,
     SymbolTableType scope
 ) {
-    DEBUG_LOG("Starting argument-to-parameter matching");
+    DEBUG_LOG("[Call] Starting argument-to-parameter matching");
 
     std::unordered_set<std::string> matchedNames;
     std::unordered_map<std::string, std::shared_ptr<Omniscript::FunctionInputExpression>> namedArgs;
@@ -833,10 +831,10 @@ bool Call::matchArgumentsToParameters(
     // Separate named and positional args
     for (const auto& arg : args) {
         if (!arg->name.empty()) {
-            DEBUG_LOG("Found named arg: " + arg->name);
+            DEBUG_LOG("[Call] Found named arg: " + arg->name);
             namedArgs[arg->name] = arg;
         } else {
-            DEBUG_LOG("Found positional arg at index: " + std::to_string(positionalArgs.size()) + " of kind '" + arg->value->getRootType()->kindName() + "'.");
+            DEBUG_LOG("[Call] Found positional arg at index: " + std::to_string(positionalArgs.size()) + " of kind '" + arg->value->getRootType()->kindName() + "'.");
             positionalArgs.push_back(arg);
         }
     }
@@ -847,48 +845,48 @@ bool Call::matchArgumentsToParameters(
         const std::string& paramName = param->name;
         std::shared_ptr<Omniscript::FunctionInputExpression> matchingArg;
 
-        DEBUG_LOG("Matching parameter: " + paramName);
+        DEBUG_LOG("[Call] Matching parameter: " + paramName);
 
         if (namedArgs.count(paramName)) {
             matchingArg = namedArgs[paramName];
             matchedNames.insert(paramName);
-            DEBUG_LOG("Matched named argument: " + paramName);
+            DEBUG_LOG("[Call] Matched named argument: " + paramName);
         } else if (positionalIndex < positionalArgs.size()) {
             matchingArg = positionalArgs[positionalIndex++];
-            DEBUG_LOG("Matched positional argument to parameter '" + paramName + "'");
+            DEBUG_LOG("[Call] Matched positional argument to parameter '" + paramName + "'");
         } else if (param->value) {
-            DEBUG_LOG("No argument provided for '" + paramName + "', using default value");
+            DEBUG_LOG("[Call] No argument provided for '" + paramName + "', using default value");
             continue;
         } else {
-            DEBUG_LOG("Missing required argument for parameter: " + paramName);
+            DEBUG_LOG("[Call] Missing required argument for parameter: " + paramName);
             return false;
         }
 
         if (!Omniscript::isSameOrCastableTo(matchingArg->value->getRootType(), param->getType())) {
-            DEBUG_LOG("Type mismatch for parameter: " + paramName);
+            DEBUG_LOG("[Call] Type mismatch for parameter: " + paramName);
             return false;
         }
     }
 
     for (const auto& [name, _] : namedArgs) {
         if (matchedNames.count(name) == 0) {
-            DEBUG_LOG("Unused named argument: " + name);
+            DEBUG_LOG("[Call] Unused named argument: " + name);
             return false;
         }
     }
 
     if (positionalIndex < positionalArgs.size()) {
-        DEBUG_LOG("Too many positional arguments: expected " + std::to_string(positionalIndex) +
+        DEBUG_LOG("[Call] Too many positional arguments: expected " + std::to_string(positionalIndex) +
                   ", but got " + std::to_string(positionalArgs.size()));
         return false;
     }
 
-    DEBUG_LOG("All arguments matched successfully");
+    DEBUG_LOG("[Call] All arguments matched successfully");
     return true;
 }
 
 std::shared_ptr<Omniscript::Expression> ReturnStatement::evaluate(SymbolTableType scope) {
-    DEBUG_LOG("Creating a return value of kind '" + type->kindName() + "'.");
+    DEBUG_LOG("[Return] Creating a return value of kind '" + type->kindName() + "'.");
     std::shared_ptr<Omniscript::Expression> result = nullptr;
     if (returnValue) {
         if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
@@ -896,18 +894,18 @@ std::shared_ptr<Omniscript::Expression> ReturnStatement::evaluate(SymbolTableTyp
         }
         result = returnValue->evaluate(scope);
 
-        DEBUG_LOG("The result of the return value is '" + result->toString() + "' of kind '" + result->getType()->kindName() + "'.");
+        DEBUG_LOG("[Return] The result of the return value is '" + result->toString() + "' of kind '" + result->getType()->kindName() + "'.");
     } else {
-        DEBUG_LOG("The result of the return value is 'void'.");
+        DEBUG_LOG("[Return] The result of the return value is 'void'.");
     }
     
     return std::make_shared<Omniscript::ReturnExpression>(result, type);
 }
 
 std::shared_ptr<Omniscript::Expression> Array::evaluate(SymbolTableType scope) {
-    DEBUG_LOG("Creating an array");
+    DEBUG_LOG("[Array] Creating an array");
     if (!type) {
-        DEBUG_LOG("The array has no type");
+        DEBUG_LOG("[Array] The array has no type");
         std::vector<std::shared_ptr<Omniscript::Expression>> values;
         std::shared_ptr<Omniscript::Type> inferredType = nullptr;
         bool allSameType = true;
@@ -928,21 +926,21 @@ std::shared_ptr<Omniscript::Expression> Array::evaluate(SymbolTableType scope) {
         
         if (!allSameType) {
             // Future: return DynamicArrayValue(values)
-            DEBUG_LOG("Creating a Heterogeneous Dynamic Array");
+            DEBUG_LOG("[Array] Creating a Heterogeneous Dynamic Array");
             return nullptr;
         }
 
-        DEBUG_LOG("Creating a fixed Array");
+        DEBUG_LOG("[Array] Creating a fixed Array");
         return std::make_shared<Omniscript::FixedArrayExpression>(values, inferredType);
     }
     
-    DEBUG_LOG("The array has a type '" + type->kindName() + "' of element types '" + type->elementType->kindName() + "'.");
+    DEBUG_LOG("[Array] The array has a type '" + type->kindName() + "' of element types '" + type->elementType->kindName() + "'.");
     size_t n = 0;
     if (type->isFixedArray()) {
-        DEBUG_LOG("Creating a fixed Array");
+        DEBUG_LOG("[Array] Creating a fixed Array");
         std::vector<std::shared_ptr<Omniscript::Expression>> values;
         std::shared_ptr<Omniscript::Type> expectedElementType = type->elementType;  // Assume you have this method
-        DEBUG_LOG("The expected element kind is '" + expectedElementType->kindName() + "'.");
+        DEBUG_LOG("[Array] The expected element kind is '" + expectedElementType->kindName() + "'.");
         for (const auto& expr : initialValues) {
             std::shared_ptr<Omniscript::Expression> val;
 
@@ -987,7 +985,7 @@ std::shared_ptr<Omniscript::Expression> Array::evaluate(SymbolTableType scope) {
                 }
             }
 
-            DEBUG_LOG("Value '" + std::to_string(n) + "' is '" + expectedElementType->kindName() + " " + val->toString() + "'.");
+            DEBUG_LOG("[Array] Value '" + std::to_string(n) + "' is '" + expectedElementType->kindName() + " " + val->toString() + "'.");
             values.push_back(val);
             n++;
         }
@@ -996,13 +994,13 @@ std::shared_ptr<Omniscript::Expression> Array::evaluate(SymbolTableType scope) {
     }
     
     if (type->isDynamicArray()) {
-        DEBUG_LOG("Creating a dynamic Array");
+        DEBUG_LOG("[Array] Creating a dynamic Array");
         // Dynamic arrays logic here
         return nullptr;
     }
     
     if (type->isHeterogeneousArray()) {
-        DEBUG_LOG("Creating a heterogeneous dynamic Array");
+        DEBUG_LOG("[Array] Creating a heterogeneous dynamic Array");
         // Heterogeneous arrays logic here
         return nullptr;
     }
@@ -1012,9 +1010,9 @@ std::shared_ptr<Omniscript::Expression> Array::evaluate(SymbolTableType scope) {
 
 std::shared_ptr<Omniscript::Expression> FunctionDeclaration::evaluate(SymbolTableType scope) {
     DEBUG_LOG();
-    DEBUG_LOG("Constructing a function " + name + " prototype the return Type is '" + type->kindName() + "'.");
+    DEBUG_LOG("[Function] Constructing a function " + name + " prototype the return Type is '" + type->kindName() + "'.");
 
-    DEBUG_LOG("Creating a local scope for the function");
+    DEBUG_LOG("[Function] Creating a local scope for the function");
     localScope = scope->createChildScope(name);
 
     if (name == "main") {
@@ -1026,7 +1024,7 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::evaluate(SymbolTabl
         localScope->setConstant(genericType->name, genericType);
     }
 
-    DEBUG_LOG("Setting the function's return type");
+    DEBUG_LOG("[Function] Setting the function's return type");
     if (!type) {
         std::vector<std::string> retType = {"void"};
         type = Omniscript::resolveType(retType);
@@ -1036,28 +1034,21 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::evaluate(SymbolTabl
         returnType = type;
     }
 
-    DEBUG_LOG("Setting the function's body's return type to " + type->kindName());
+    DEBUG_LOG("[Function] Setting the function's body's return type to " + type->kindName());
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(body)) {
         typed->setType(returnType);
     }
 
     setReturnTypes();
 
-    DEBUG_LOG("Passing generic type bindings from function to body block");
-    if (auto holder = std::dynamic_pointer_cast<GenericHolder>(body)) {
-        holder->inheritGenericsFrom(*this);
-    }
-
-    auto bod = body->evaluate(localScope);
-
-    DEBUG_LOG("Extracting argument values for function type construction");
+    DEBUG_LOG("[Function] Extracting argument values for function type construction");
     std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
     bool isVarArg = false;
 
     for (const auto& param : parameters) {
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
             auto paramType = typed->getType();
-            DEBUG_LOG("Parameter has type '" + paramType->kindName() + "'.");
+            DEBUG_LOG("[Function] Parameter has type '" + paramType->kindName() + "'.");
 
             if (paramType->isGeneric()) {
                 typed->setType(std::move(resolveGeneric(paramType->getName())));
@@ -1065,20 +1056,27 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::evaluate(SymbolTabl
         }
         auto result = param->evaluate(localScope);
         argValues.push_back(result);
-        DEBUG_LOG("Parameter '" + result->name + "' has type " + result->getType()->kindName());
+        DEBUG_LOG("[Function] Parameter '" + result->name + "' has type " + result->getType()->kindName());
     }
 
-    std::vector<std::shared_ptr<Omniscript::Expression>> functionBody;
-    for (auto& stmt : body->statements) {
-        functionBody.push_back(stmt->evaluate(localScope));
+    DEBUG_LOG("[Function] Passing generic type bindings from function to body block");
+    if (auto holder = std::dynamic_pointer_cast<GenericHolder>(body)) {
+        holder->inheritGenericsFrom(*this);
     }
+
+    // auto bod = body->resolveExpressions(localScope);
+
+    std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->resolveAsVector(localScope);
+    // for (auto& stmt : body->statements) {
+    //     functionBody.push_back(stmt->evaluate(localScope));
+    // }
 
     std::string mangledName = (name == "__main" ? "__main" : generateMangledName());
 
-    DEBUG_LOG("Creating FunctionValue");
+    DEBUG_LOG("[Function] Creating FunctionValue");
     auto functionVal = std::make_shared<Omniscript::FunctionExpression>(name, mangledName, returnType, functionBody, argValues, isVarArg);
 
-    DEBUG_LOG("Storing overloaded function in symbol table under base name: " + name + " (mangled as: " + mangledName + ")");
+    DEBUG_LOG("[Function] Storing overloaded function in scope '" + scope->getName() + "' under base name: " + name + " (mangled as: " + mangledName + ")");
     scope->addOverloadable(name, functionVal);
 
     return functionVal;
@@ -1100,7 +1098,7 @@ std::string FunctionDeclaration::generateMangledName() const {
 }
 
 void FunctionDeclaration::setReturnTypes() {
-    DEBUG_LOG("Setting the function's return type to " + returnType->kindName());
+    DEBUG_LOG("[Function] Setting the function's return type to " + returnType->kindName());
     std::shared_ptr<Omniscript::Type> funcReturnType = getType();
 
     for (const auto& stmt : body->statements) {
@@ -1140,7 +1138,7 @@ void FunctionDeclaration::setReturnTypesInStatement(
 
 
 std::shared_ptr<Omniscript::Expression> ParameterStatement::evaluate(SymbolTableType scope) {
-    DEBUG_LOG("Creating parameter " + name + " of kind " + type->kindName());
+    DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + type->kindName());
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
         stmt->setType(type);
     }
@@ -1156,17 +1154,17 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::evaluate(SymbolTable
             result = std::make_shared<Omniscript::NullExpression>();
         }
     }
-    DEBUG_LOG("Created value for parameter " + name + " of kind " + result->getType()->kindName());
+    DEBUG_LOG("[Parameter] Created value for parameter " + name + " of kind " + result->getType()->kindName());
     return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
 }
 
 std::shared_ptr<Omniscript::Expression> ArgumentStatement::evaluate(SymbolTableType scope) {
-    DEBUG_LOG("Creating argument " + name);
+    DEBUG_LOG("[Argument] Creating argument " + name);
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
         stmt->setType(type);
     }
     std::shared_ptr<Omniscript::Expression> result = value->evaluate(scope);
-    DEBUG_LOG("The value for argument '" + name + "' is " + result->toString());
+    DEBUG_LOG("[Argument] The value for argument '" + name + "' is " + result->toString());
     return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
 }
 
