@@ -1300,18 +1300,20 @@ llvm::Value* IRGenerator::generateOpaqueDynamicVariable(const std::string& name,
 }
 
 llvm::Value* IRGenerator::createFixedArray(
-    llvm::Type* elementType, 
-    size_t size, 
-    const std::vector<llvm::Value*>& elements) {
+    llvm::Type* elementType,
+    size_t size,
+    const std::vector<llvm::Value*>& elements
+) {
 
     DEBUG_LOG("Creating fixed array of size " + std::to_string(size));
     DEBUG_LOG("Element LLVM type: " + debugType(elementType));
 
-    // ========== CRITICAL FIX: Handle insertion point ==========
+    // Set insert point before terminator if present
     llvm::BasicBlock* currentBlock = Builder->GetInsertBlock();
     if (currentBlock && !currentBlock->empty() && currentBlock->back().isTerminator()) {
         DEBUG_LOG("Found terminator in current block, inserting before it");
-        Builder->SetInsertPoint(&currentBlock->back());
+        auto termIt = currentBlock->getTerminator()->getIterator();
+        Builder->SetInsertPoint(currentBlock, termIt);
     }
 
     const llvm::DataLayout& dataLayout = CurrentModule != nullptr 
@@ -1352,11 +1354,6 @@ llvm::Value* IRGenerator::createFixedArray(
         llvm::StoreInst* store = Builder->CreateStore(element, elementPtr);
         store->setAlignment(llvm::Align(elementAlign));
         DEBUG_LOG("Stored element at index " + std::to_string(i));
-
-        if (currentBlock && !currentBlock->empty() && currentBlock->back().isTerminator()) {
-            DEBUG_LOG("Moving store before terminator at index " + std::to_string(i));
-            store->moveBefore(&currentBlock->back());
-        }
     }
 
     DEBUG_LOG("Finished creating fixed array");
