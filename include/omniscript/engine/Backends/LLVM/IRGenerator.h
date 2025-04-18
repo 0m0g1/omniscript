@@ -212,6 +212,7 @@ public:
         std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
     );
     void generateFunctionBody(
+        const std::string& name,
         llvm::Function* function,
         std::vector<std::shared_ptr<Omniscript::Expression>>& funcBody,
         std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope

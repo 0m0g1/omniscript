@@ -1244,7 +1244,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
             if (auto initValue = varDecl->getValue()) {
                 initExpr = initValue->express(scope);
             } else {
-                initExpr = std::make_shared<Omniscript::NullExpression>(); // You’ll need to define this
+                initExpr = std::make_shared<Omniscript::TypeExpression>(varDecl->getType()->getKind()); // You’ll need to define this
             }
 
             elements.push_back(initExpr);

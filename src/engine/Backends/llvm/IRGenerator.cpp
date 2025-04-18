@@ -1431,7 +1431,7 @@ llvm::Function* IRGenerator::createFunction(
     DEBUG_LOG("Stored function: " + name + " in scope");
 
     // Generate function body
-    generateFunctionBody(function, body, scope);
+    generateFunctionBody(name, function, body, scope);
 
     return function;
 }
@@ -1500,6 +1500,7 @@ llvm::Value* IRGenerator::createCall(
 }
 
 void IRGenerator::generateFunctionBody( 
+    const std::string& name,
     llvm::Function* function,
     std::vector<std::shared_ptr<Omniscript::Expression>>& body,
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
@@ -1513,6 +1514,24 @@ void IRGenerator::generateFunctionBody(
     llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", function);
     Builder->SetInsertPoint(entry);
     DEBUG_LOG("Created entry block for function: " + function->getName().str());
+
+    if (name == "__main") {
+        DEBUG_LOG("Inserting call to __top_level__ inside __main");
+    
+        std::vector<llvm::Value*> topLevelArgs; // no arguments
+        llvm::Value* topLevelCall = createCall("__top_level__", topLevelArgs, entry);
+        
+        if (!topLevelCall) {
+            console.error("Failed to insert call to __top_level__ in __main");
+            Builder->CreateUnreachable();
+            popScope();
+            popActiveBlock();
+            function->eraseFromParent();
+            return;
+        }
+    
+        DEBUG_LOG("Successfully inserted call to __top_level__ inside __main");
+    }    
     
     // Create a new scope for function parameters + body
     pushScope();

@@ -67,8 +67,8 @@
 // let tt : utf8 = "Hello, OmniScript++!"; // String (C-style)
 // let ttt : utf16 = "Hello, OmniScript++!"; // String (C-style)
 // let tttt : utf32 = "Hello, OmniScript++!"; // String (C-style)
-let u : [5]char = ['H', 'e', 'l', 'l', 'o']; // Character array
-let uu : [5]i32 = [1,2,3,4,5]; // integer arrays
+// let u : [5]char = ['H', 'e', 'l', 'l', 'o']; // Character array
+// let uu : [5]i32 = [1,2,3,4,5]; // integer arrays
 // let uuu : [5]i32 = [1,2,3,4,5]; // multidimentional array
 
 // // Dynamic arrays (if supported)
@@ -139,10 +139,10 @@ let v1 = Vector3{ x: 1.0, y: 2.0, z: 3.0 };
 //     banana
 // }
 
-<Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
-let add = (a: Number, b: Number) => Number {
-    return a + b;
-}
+// <Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
+// let add = (a: Number, b: Number) => Number {
+//     return a + b;
+// }
 
 
 // TODO Add support none predetermined types
