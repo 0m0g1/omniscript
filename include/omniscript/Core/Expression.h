@@ -657,23 +657,101 @@ struct AggregateExpression : public Expression {
     }
 };
 
-struct StructExpression : public AggregateExpression {
-    std::string name;
+struct StructExpression : public Callable {
+    std::string structName;
+    std::vector<std::string> elementNames;
 
-    StructExpression(const std::string& name,
-                     std::vector<std::shared_ptr<Expression>> elements,
-                     std::vector<std::string> elementNames = {})
-        : AggregateExpression(std::move(elements), std::move(elementNames)), name(name) {}
+    StructExpression(
+        const std::string& structName,
+        const std::string& mangledName,
+        std::vector<std::shared_ptr<Expression>> fields,
+        std::vector<std::string> fieldNames = {},
+        bool isVarArg = false
+    )
+        : Callable(structName, mangledName, fields, isVarArg),
+          structName(structName),
+          elementNames(std::move(fieldNames))
+    {
+        // Define type as struct
+        std::vector<std::shared_ptr<Type>> fieldTypes;
+        for (auto& f : parameters)
+            fieldTypes.push_back(f->type);
+
+        type = std::make_shared<UserDefinedType>(name);
+    }
 
     std::string toString() const override {
-        return "Struct: " + name;
+        return "Struct : " + structName;
     }
 
     std::shared_ptr<Expression> clone() const override {
-        std::vector<std::shared_ptr<Expression>> clonedElements;
-        for (const auto& elem : elements)
-            clonedElements.push_back(elem ? elem->clone() : nullptr);
-        return std::make_shared<StructExpression>(name, clonedElements, elementNames);
+        std::vector<std::shared_ptr<Expression>> clonedFields;
+        for (const auto& field : parameters)
+            clonedFields.push_back(field ? field->clone() : nullptr);
+
+        return std::make_shared<StructExpression>(
+            structName,
+            mangledName,
+            clonedFields,
+            elementNames,
+            isVarArg
+        );
+    }
+};
+
+class InstanceExpression : public Expression {
+public:
+    std::string baseName;
+    std::string instanceName;
+    std::shared_ptr<Type> instanceType;
+
+    std::vector<std::shared_ptr<Expression>> constructorArgs;
+    std::vector<std::shared_ptr<Expression>> publicMembers;
+    std::vector<std::shared_ptr<Expression>> privateMembers;
+
+    InstanceExpression(
+        const std::string& baseName,
+        const std::string& instanceName,
+        std::vector<std::shared_ptr<Expression>> args = {},
+        std::vector<std::shared_ptr<Expression>> publicMembers = {},
+        std::vector<std::shared_ptr<Expression>> privateMembers = {}
+    ) : baseName(baseName),
+        instanceName(instanceName),
+        constructorArgs(std::move(args)),
+        publicMembers(std::move(publicMembers)),
+        privateMembers(std::move(privateMembers)) {
+
+        this->instanceType = std::make_shared<UserDefinedType>(baseName);
+        this->type = instanceType; // inherited from Expression
+    }
+
+    std::string toString() const override {
+        return "Instance<" + baseName + "> named " + instanceName;
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        std::vector<std::shared_ptr<Expression>> clonedArgs;
+        for (const auto& arg : constructorArgs) {
+            clonedArgs.push_back(arg->clone());
+        }
+
+        std::vector<std::shared_ptr<Expression>> clonedPublic;
+        for (const auto& pub : publicMembers) {
+            clonedPublic.push_back(pub->clone());
+        }
+
+        std::vector<std::shared_ptr<Expression>> clonedPrivate;
+        for (const auto& priv : privateMembers) {
+            clonedPrivate.push_back(priv->clone());
+        }
+
+        return std::make_shared<InstanceExpression>(
+            baseName,
+            instanceName,
+            clonedArgs,
+            clonedPublic,
+            clonedPrivate
+        );
     }
 };
 

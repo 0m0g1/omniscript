@@ -109,6 +109,7 @@ void Parser::eat(TokenTypes expectedType, const std::string& err) {
     }
 }
 
+// TODO: Omniscript automatically skips all new lines
 void Parser::expectSemicolonOrNewLine() {
     if (currentToken.getType() == TokenTypes::Semicolon) {
         eat(TokenTypes::Semicolon);
@@ -349,7 +350,8 @@ std::shared_ptr<Statement> Parser::parseModule() {
             std::string modulePath = currentToken.getValue();
             eat(TokenTypes::StringLiteral);
 
-            expectSemicolonOrNewLine();
+            eat(TokenTypes::Semicolon);
+            // expectSemicolonOrNewLine();
 
             // Parse the module immediately instead of treating it as an ImportModule
             std::string sourceCode = readFile(modulePath);
@@ -1629,14 +1631,14 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     }
     
     if (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
-        // std::vector<std::string> members;
-        // while (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
-        //     eat(currentToken.getType());
-        //     members.push_back(currentToken.getValue());
-        //     eat(TokenTypes::Identifier);
-        // }
+        std::vector<std::string> members;
+        while (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
+            eat(currentToken.getType());
+            members.push_back(currentToken.getValue());
+            eat(TokenTypes::Identifier);
+        }
 
-        // auto resolution = std::make_shared<GetMemberValue>(rootIdentifier, members[0]);
+        auto resolution = std::make_shared<GetMemberValue>(rootIdentifier, members[0]);
 
         // if (currentToken.getType() == TokenTypes::Assign) {
         //     for (const auto& member: members) {
@@ -2001,9 +2003,10 @@ std::shared_ptr<Statement> Parser::parseStruct() {
                 value = parseExpression();
             }
 
-            auto field = std::make_shared<createVariable>(fieldName, Omniscript::resolveType(type), value);
+            auto field = std::make_shared<ParameterStatement>(fieldName, value);
+            field->setType(Omniscript::resolveType(type));
             body.push_back(field);
-            expectSemicolonOrNewLine();
+            eat(TokenTypes::Semicolon);
         }
     }
     eat(TokenTypes::RightBrace);

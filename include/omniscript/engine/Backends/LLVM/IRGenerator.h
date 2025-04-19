@@ -251,7 +251,7 @@ public:
         llvm::Value* newValue
     );
 
-    void createStructType(const std::string& name, const std::vector<llvm::Value*>& fieldValues);
+    void createStructType(const std::string& name, const std::vector<llvm::Type*>& fieldTypes);
     llvm::Value* createStructInstance(
         const std::string& structName,
         const std::string& varName,

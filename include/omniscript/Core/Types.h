@@ -390,6 +390,7 @@ public:
     // std::shared_ptr<SymbolTable> scope;
     std::vector<std::shared_ptr<Type>> typeParams;
 
+    // TODO: Add the base kind of the user defined type
     UserDefinedType(const std::string& name)
         : Type(Kind::UserDefined), name(name) {}
 

@@ -11,6 +11,8 @@
 #include <omniscript/engine/Symboltable.h>
 
 using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>>;
+
+// TODO: Add a formart error virtual method if needed
 class Statement { // Base class for all statements
     public:
         // enum Type { // implement a statement type for each statement for speed
@@ -51,6 +53,7 @@ class Statement { // Base class for all statements
         virtual bool isCompileTimeEvaluatable() {
             return !hasSideEffects(); // Default logic: only if no side effects
         }
+        virtual std::string formatError(const std::string& msg) const { return msg; }
 
     protected:
         Omniscript::filePosition pos;
@@ -115,6 +118,7 @@ public:
 
     // Override to indicate evaluatable at compile time
     virtual bool isCompileTimeEvaluatable() override { return true; }
+    virtual std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const { return nullptr; }
 };
 
 
@@ -427,6 +431,7 @@ public:
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<IntegerLiteral>(value);  // Clone using copy constructor
     }
+    std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const override;
 
 private:
     int64_t value;
@@ -445,6 +450,7 @@ public:
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<FloatLiteral>(value);  // Clone using copy constructor
     }
+    std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const override;
 
 private:
     double value;
@@ -527,6 +533,7 @@ public:
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<BoolLiteral>(value);  // Clone using copy constructor
     }
+    std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const override;
 };
 
 class Array : public Literal {
@@ -833,6 +840,10 @@ public:
     callee(calleeName), args(arguments) {
         setName(calleeName);
     }
+    Call(const std::string& objectType, const std::string& instanceName, std::vector<std::shared_ptr<Statement>>& arguments) :
+    callee(objectType), instanceName(instanceName), args(arguments) {
+        setName(objectType);
+    }
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
@@ -843,9 +854,13 @@ public:
         const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& params,
         SymbolTableType scope
     );
-
+    std::string formatError(const std::string& msg) const override {
+        return (instanceName.empty() ? "" : instanceName + ".") + callee + ": " + msg;
+    };
+    
     private:
         std::string callee;
+        std::string instanceName;
         std::vector<std::shared_ptr<Statement>> args;
 };
 

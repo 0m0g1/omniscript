@@ -166,12 +166,17 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
         return std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
     }
 
-    if (!type->isInteger()) {
-        console.error("The specified type is " + type->kindName() + " but this should return an integer.");
+    auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Int8);
+
+    if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type)) {
+        console.error("The specified type is '" + type->kindName() + "' but '" + std::to_string(value) + "' is an integer.");
     } else {
+        if (!type->isInteger()) {
+            DEBUG_LOG("Casting integer to '" + type->kindName() + "'.");
+            return castTo(type)->express(scope);
+        }
         DEBUG_LOG("Creating an '" + type->kindName() + "' integer");
     }
-
     
     // Check for specific bit-widths using the isInteger function with optional bitwidth argument
     if (type->isInteger(8)) {
@@ -203,6 +208,30 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
     return nullptr;
 }
 
+std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
+    using Kind = Omniscript::Kind;
+
+    switch (targetType->getKind()) {
+        case Kind::Int8:
+        case Kind::Int16:
+        case Kind::Int32:
+        case Kind::Int64:
+            return std::make_shared<IntegerLiteral>(value);  // Safe truncation assumed
+        case Kind::Float:
+        case Kind::Double:
+        case Kind::Half: {
+            auto val = std::make_shared<FloatLiteral>(static_cast<double>(value));
+            val->setType(type);
+            return val;
+        }
+        case Kind::Bool:
+            return std::make_shared<BoolLiteral>(value != 0);
+        case Kind::Char:
+            return std::make_shared<CharacterLiteral>(static_cast<char>(value));
+        default:
+            return nullptr;
+    }
+}
 
 std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType scope) {
     // Default to 64-bit float if type is null or unknown
@@ -211,9 +240,15 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
         return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));  // Default to double (64-bit)
     }
 
-    if (!type->isFloat()) {
-        console.error("The specified type is " + type->kindName() + " but this should return a float.");
+    auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Half);
+
+    if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type))  {
+        console.error("The specified type is " + type->kindName() + " but '" + std::to_string(value) + "' is a float.");
     } else {
+        if (!type->isFloat()) {
+            DEBUG_LOG("Casting float to '" + type->kindName() + "'.");
+            return castTo(type)->express(scope);
+        }
         DEBUG_LOG("Creating an '" + type->kindName() + "' float.");
     }
 
@@ -265,6 +300,32 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
     return nullptr;  // If no valid type matches, return nullptr
 }
 
+std::shared_ptr<Literal> FloatLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
+    using Kind = Omniscript::Kind;
+    switch (targetType->getKind()) {
+        case Kind::Float:
+        case Kind::Double:
+        case Kind::Half: {
+            auto val = std::make_shared<FloatLiteral>(value);
+            val->setType(type);
+            return val;
+        }
+        case Kind::Int8:
+        case Kind::Int16:
+        case Kind::Int32:
+        case Kind::Int64: {
+            auto val = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
+            val->setType(type);
+            return val;
+        }
+        case Kind::Bool:
+            return std::make_shared<BoolLiteral>(value != 0.0);
+        default:
+            return nullptr;
+    }
+}
+
+
 // Arbitrary-precision integer (BigInt)
 std::shared_ptr<Omniscript::Expression> BigInt::express(SymbolTableType scope) {
     DEBUG_LOG("Creating a big int " + value);
@@ -284,18 +345,45 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType sco
         return std::make_shared<Omniscript::Primitive<bool>>(false);  // Default to double (64-bit)
     }
 
-    if (!type->isBool()) {
-        console.error("The specified type is " + type->kindName() + " but this should return a bool.");
+    auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Bool);
+
+    if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type))  {
+        console.error("The specified type is " + type->kindName() + " but '" + std::to_string(value) + "' is a bool.");
     } else {
+        if (!type->isBool()) {
+            DEBUG_LOG("Casting bool to '" + type->kindName() + "'.");
+            return castTo(type)->express(scope);
+        }
         DEBUG_LOG("Creating an '" + type->kindName() + "'.");
     }
 
     return std::make_shared<Omniscript::Primitive<bool>>(value);
 }
 
+std::shared_ptr<Literal> BoolLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
+    using Kind = Omniscript::Kind;
+
+    switch (targetType->getKind()) {
+        case Kind::Bool:
+            return std::make_shared<BoolLiteral>(value);
+        case Kind::Int8:
+        case Kind::Int16:
+        case Kind::Int32:
+        case Kind::Int64:
+            return std::make_shared<IntegerLiteral>(value ? 1 : 0);
+        case Kind::Float:
+        case Kind::Double:
+        case Kind::Half:
+            return std::make_shared<FloatLiteral>(value ? 1.0 : 0.0);
+        default:
+            return nullptr;
+    }
+}
+
+
 std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableType scope) {
     if (!type->isChar()) {
-        console.error("The specified type is " + type->kindName() + " but this is a char.");
+        console.error("The specified type is " + type->kindName() + " but '" + std::to_string(value) + "' is a char.");
     } else {
         DEBUG_LOG("Creating a '" + type->kindName() + value + "'.");
     }
@@ -309,8 +397,10 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
         return std::make_shared<Omniscript::StringExpression<std::string>>(value); 
     }
 
-    if (!type->isString()) {
-        console.error("The specified type is " + type->kindName() + " but this is a string.");
+    auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Utf8);
+
+    if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type))  {
+        console.error("The specified type is " + type->kindName() + " but '" + value + "' is a string.");
     } else {
         DEBUG_LOG("Creating a '" + type->kindName() + value + "'.");
     }
@@ -324,8 +414,8 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
         return std::make_shared<Omniscript::StringExpression<std::u16string>>(utf16_value);
     } else if (type->isString(32)) {
         DEBUG_LOG("Creating UTF-32 string");
-        std::u32string utf32_value(value.begin(), value.end());
-        return std::make_shared<Omniscript::StringExpression<std::u32string>>(utf32_value);
+        std::u32string utFloat_value(value.begin(), value.end());
+        return std::make_shared<Omniscript::StringExpression<std::u32string>>(utFloat_value);
     }
     
     return nullptr;
@@ -401,7 +491,7 @@ std::shared_ptr<Omniscript::Expression> createVariable::express(SymbolTableType 
                     }
                 } else if (auto string = std::dynamic_pointer_cast<StringLiteral>(value)) {
                     if (!type->getPointeeType()->isChar() && !type->getPointeeType()->isString()) {
-                        console.error("A string's can be character pointer (let " + variable + " : char* = \"foo bar\";) or 'utf8', 'utf16; or 'utf32' not a '" + type->pointerDescription() + "'.");
+                        console.error("A string's can be character pointer (let " + variable + " : char* = \"foo bar\";) or 'utf8', 'utf16; or 'utFloat' not a '" + type->pointerDescription() + "'.");
                     }
                     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
                         if (!type->getPointeeType()->isChar()) {
@@ -645,6 +735,7 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
     return nullptr;
 }
 
+// TODO: Add the name of the object being called
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
     
@@ -690,7 +781,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             for (const auto& param : paramList) {
                 auto casted = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(param);
                 if (!casted) {
-                    console.error("[Call] Failed to cast parameter to FunctionInputExpression.");
+                    console.error(formatError("Failed to cast parameter to FunctionInputExpression."));
                     continue; // or return nullptr / throw, depending on your error handling
                 }
                 inputParams.push_back(casted);
@@ -707,11 +798,13 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 DEBUG_LOG("[Call] ❌ Overload '" + funcExpr->mangledName + "' did not match.");
             }
         }
+    } else {
+        called = scope->get(originalCallee);
     }
 
     if (!called) {
         DEBUG_LOG("[Call] ERROR: Callee '" + originalCallee + "' not found in scope");
-        console.error("Callable '" + originalCallee + "' not found in scope " + scope->getName());
+        console.error(formatError("Callable '" + originalCallee + "' not found in scope " + scope->getName()));
         return nullptr;
     }
 
@@ -730,8 +823,8 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         DEBUG_LOG("[Call] Cloned " + std::to_string(parameters.size()) + " parameters");
     } else {
         DEBUG_LOG("[Call] ERROR: Callee is not callable");
-        console.error("'" + callee + "' is not callable; it is of kind '" + 
-                      (called->getType() ? called->getType()->kindName() : "null") + "'.");
+        console.error(formatError("'" + callee + "' is not callable; it is of kind '" + 
+                      (called->getType() ? called->getType()->kindName() : "null") + "'."));
         return nullptr;
     }
 
@@ -760,7 +853,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             }
             if (!found) {
                 DEBUG_LOG("[Call] ERROR: Unknown parameter '" + paramName + "'");
-                console.error("Unknown parameter '" + paramName + "' for callable '" + callee + "'");
+                console.error(formatError("Unknown parameter '" + paramName + "' for callable '" + callee + "'"));
                 continue;
             }
 
@@ -789,7 +882,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
 
             if (std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
                 DEBUG_LOG("[Call] ERROR: Positional argument after named argument");
-                console.error("Positional argument after named argument is not allowed.");
+                console.error(formatError("Positional argument after named argument is not allowed."));
                 continue;
             }
 
@@ -799,14 +892,14 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                         typed->setType(param->getType());
                     }
                 } else {
-                    console.error("Cannot bind argument of type '" + typed->getRootType()->kindName() +
-                                  "' to parameter '" + paramName + "'; expected '" + param->getType()->kindName() + "'");
+                    console.error(formatError("Cannot bind argument of type '" + typed->getRootType()->kindName() +
+                                  "' to parameter '" + paramName + "'; expected '" + param->getType()->kindName() + "'"));
                 }
             }
 
             auto value = arg->express(scope);
             if (!value || value->getType()->isInvalid()) {
-                console.error("Invalid argument for parameter '" + paramName + "'");
+                console.error(formatError("Invalid argument for parameter '" + paramName + "'"));
             }
 
             localScope->set(paramName, value);
@@ -817,7 +910,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             localScope->set(paramName, param->value);
         } else {
             DEBUG_LOG("[Call] ERROR: Missing required parameter '" + paramName + "'");
-            console.error("Missing required argument for parameter '" + paramName + "'");
+            console.error(formatError("Missing required argument for parameter '" + paramName + "'"));
         }
     }
 
@@ -826,7 +919,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         if (auto func = std::dynamic_pointer_cast<Omniscript::Callable>(called)) {
             if (!func->isVarArg) {
                 DEBUG_LOG("[Call] ERROR: Too many arguments provided");
-                console.error("Too many arguments provided to '" + callee + "'");
+                console.error(formatError("Too many arguments provided to '" + callee + "'"));
                 return nullptr;
             }
         }
@@ -839,8 +932,11 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         finalArgs.push_back(val);
     }
 
-    DEBUG_LOG("[Call] Returning CallExpression for '" + callee + "' with " + std::to_string(finalArgs.size()) + " args");
-    return std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
+    if (instanceName.empty()) {
+        DEBUG_LOG("[Call] Returning CallExpression for '" + callee + "' with " + std::to_string(finalArgs.size()) + " args");
+        return std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
+    }
+    return std::make_shared<Omniscript::CallExpression>(callee, instanceName, finalArgs);
 }
 
 bool Call::matchArgumentsToParameters(
@@ -1227,34 +1323,31 @@ std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
 std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(SymbolTableType scope) {
     DEBUG_LOG("[ConstructStructPrototype] Constructing a struct expression");
 
-    std::vector<std::shared_ptr<Omniscript::Expression>> elements;
-    std::vector<std::string> elementNames;
-    std::vector<std::shared_ptr<Omniscript::Type>> elementTypes;
+    std::vector<std::shared_ptr<Omniscript::Expression>> fields;
+    std::vector<std::string> fieldNames;
 
     for (const auto& field : body) {
-        if (auto varDecl = std::dynamic_pointer_cast<createVariable>(field)) {
-            std::string fieldName = varDecl->getName();
-            elementNames.push_back(fieldName);
+        if (auto paramDecl = std::dynamic_pointer_cast<ParameterStatement>(field)) {
+            std::string fieldName = paramDecl->getName();
+            fieldNames.push_back(fieldName);
 
-            // ⚙️ Use type if available (for setting struct type)
-            elementTypes.push_back(varDecl->getType());
+            std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(scope);
 
-            // 🌱 Evaluate the default value (if present)
-            std::shared_ptr<Omniscript::Expression> initExpr;
-            if (auto initValue = varDecl->getValue()) {
-                initExpr = initValue->express(scope);
-            } else {
-                initExpr = std::make_shared<Omniscript::TypeExpression>(varDecl->getType()->getKind()); // You’ll need to define this
-            }
-
-            elements.push_back(initExpr);
+            fields.push_back(fieldExpr);
         } else {
             console.warn("Skipping non-variable declaration in struct body");
         }
     }
 
-    // 🧱 Build and return a StructExpression
-    auto structExpr = std::make_shared<Omniscript::StructExpression>(getName(), elements);
+    // 🧱 Construct the StructExpression as a Callable
+    auto structExpr = std::make_shared<Omniscript::StructExpression>(
+        getName(),
+        getName(),
+        fields,
+        fieldNames,
+        /* isVarArg */ false
+    );
+
     scope->set(getName(), structExpr);
     return structExpr;
 }
@@ -1263,21 +1356,23 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
 std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
     DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
 
-    std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
-    for (const auto& arg : constructorArgs) {
-        argValues.push_back(arg->express(scope));
-    }
+    // std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
+    // for (const auto& arg : constructorArgs) {
+    //     argValues.push_back(arg->express(scope));
+    // }
 
     if (scope->get(objectType)) {
         type = std::make_shared<Omniscript::UserDefinedType>(objectType);
-        return std::make_shared<Omniscript::CallExpression>(objectType, instanceName, argValues); //, type);
+        auto constructorCall = std::make_shared<Call>(objectType, instanceName, constructorArgs);
+        return constructorCall->express(scope);
     } else {
         console.error("Object type was not found in the scope");
     }
 
     // // 5. Return the allocated instance
     // return std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
-    return std::make_shared<Omniscript::CallExpression>(objectType, instanceName, argValues); //, type);
+    return nullptr;
+    // return std::make_shared<Omniscript::CallExpression>(objectType, instanceName, argValues); //, type);
 }
 
 std::shared_ptr<Omniscript::Expression> GetMemberValue::express(SymbolTableType scope) {

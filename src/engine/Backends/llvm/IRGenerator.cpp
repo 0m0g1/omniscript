@@ -259,23 +259,28 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     if (auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(value)) {
-        DEBUG_LOG("Generating struct expression for " + structExpr->name);
+        std::vector<llvm::Type*> fieldTypes;
+        fieldTypes.reserve(structExpr->parameters.size());
     
-        std::vector<llvm::Value*> fieldValues;
-        fieldValues.reserve(structExpr->elements.size());
-    
-        for (const auto& element : structExpr->elements) {
-            llvm::Value* val = codegen(element, scope);
-            if (!val) {
-                console.error("Failed to generate value for a struct field");
+        for (const auto& field : structExpr->parameters) {
+            auto input = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(field);
+            if (!input) {
+                console.error("Expected FunctionInputExpression in struct '" + structExpr->name + "'");
                 return nullptr;
             }
-            fieldValues.push_back(val);
+    
+            llvm::Type* llvmFieldType = resolveLLVMType(input->getType());
+            if (!llvmFieldType) {
+                console.error("Failed to generate type for field '" + input->name + "' in struct '" + structExpr->name + "'.");
+                return nullptr;
+            }
+    
+            fieldTypes.push_back(llvmFieldType);
         }
     
-        // Make sure the type exists
-        createStructType(structExpr->name, fieldValues);
-        return nullptr;    
+        // Create the LLVM struct type (opaque or packed depending on your system)
+        createStructType(structExpr->name, fieldTypes);
+        return nullptr;
     }    
 
     return nullptr;
@@ -1915,19 +1920,10 @@ llvm::Value* IRGenerator::createObjectInstance(
     return nullptr;
 }
 
-void IRGenerator::createStructType(const std::string& name, const std::vector<llvm::Value*>& fieldValues) {
+void IRGenerator::createStructType(const std::string& name, const std::vector<llvm::Type*>& fieldTypes) {
     if (llvm::StructType::getTypeByName(*Context, name)) {
         DEBUG_LOG("Struct " + name + " already exists. Skipping creation.");
         return;
-    }
-
-    std::vector<llvm::Type*> fieldTypes;
-    for (llvm::Value* val : fieldValues) {
-        if (!val) {
-            console.error("Null field value in struct creation");
-            return;
-        }
-        fieldTypes.push_back(val->getType());
     }
 
     llvm::StructType* structType = llvm::StructType::create(*Context, fieldTypes, name);
@@ -1953,7 +1949,7 @@ llvm::Value* IRGenerator::createStructInstance(
 
     // Ensure the number of arguments matches the number of fields in the struct
     if (args.size() != structType->getNumElements()) {
-        DEBUG_LOG("Mismatch between number of fields and constructor arguments for struct: " + structName);
+        console.error("Mismatch between number of fields '" + std::to_string(args.size()) + "' and constructor arguments '" + std::to_string(structType->getNumElements()) + "' for struct: " + structName);
         return nullptr;
     }
 
