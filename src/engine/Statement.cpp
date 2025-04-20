@@ -156,7 +156,9 @@ std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) 
 }
 
 std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
-    // return generator.createNullValue();
+    if (!type) {
+        type = Omniscript::Type::createNullPointerType();
+    }
     return Omniscript::make_expression<Omniscript::NullExpression>();
 }
 

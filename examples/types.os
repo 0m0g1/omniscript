@@ -75,15 +75,15 @@
 // let v : [i32] = [1, 2, 3, 4, 5]; // Dynamic array of integers
 // let w : [char] = "Dynamic String"; // Dynamic string (if OmniScript++ supports it)
 
-
 // // Structs (user-defined types)
-struct Vector3 {
-    x: f32 = 0;
-    y: f32 = 0;
-    z: f32 = 0;
-}
+// struct Vector3 {
+//     x: f32 = 0;
+//     y: f32 = 0;
+//     z: f32 = 0;
+// }
 
-let v1 = Vector3{ x: 1.0, y: 2.0};
+let no = 1;
+// let v1 = Vector3{ x: 1.0, y: 2.0};
 // let vx = v1.x;
 // v1.x = 5.0;
 

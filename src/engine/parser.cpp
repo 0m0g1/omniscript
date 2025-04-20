@@ -2124,7 +2124,10 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
             return funcDecl;  // Return the function declaration
         }
 
-        return std::make_shared<createVariable>(variableName, nullptr, result);
+        if (variableType == TokenTypes::Let) {
+            return std::make_shared<createVariable>(variableName, nullptr, result);
+        }
+        return std::make_shared<createConstant>(variableName, nullptr, result);
     }    
 
     type = Omniscript::resolveType(dataTypes);
