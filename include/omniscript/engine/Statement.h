@@ -384,7 +384,8 @@ public:
 // Represents nullptr (for pointers)
 class Nullptr : public NullLiteral {
 public:
-    Nullptr() {
+    Nullptr(std::shared_ptr<Omniscript::Type> expectedType = nullptr) {
+        setType(expectedType);
         setRootType(Omniscript::Type::createNullPointerType());
     };
 
@@ -399,7 +400,10 @@ public:
 // Represents null for generic types (like JavaScript)
 class Null : public NullLiteral {
 public:
-    Null() {};
+    Null(std::shared_ptr<Omniscript::Type> expectedType = nullptr) {
+        setType(expectedType);
+        setRootType(Omniscript::Type::createNullType());
+    }
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;

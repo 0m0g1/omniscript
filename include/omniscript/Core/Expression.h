@@ -226,11 +226,12 @@ struct InvalidExpression : public Expression {
 };
 
 struct NullExpression : public Expression {
-    NullExpression() {
+    std::shared_ptr<Type> expectedType;
+    NullExpression(std::shared_ptr<Type> expectedType = nullptr) : expectedType(expectedType) {
         type = Type::createNullType();
         rootType = Type::createNullType();
     }
-
+    
     std::string toString() const override { return "NullPointer"; }
     // NullExpression
     std::shared_ptr<Expression> clone() const override {
@@ -239,7 +240,8 @@ struct NullExpression : public Expression {
 };
 
 struct NullPointerExpression : public Expression {
-    NullPointerExpression() {
+    std::shared_ptr<Type> expectedType;
+    NullPointerExpression(std::shared_ptr<Type> expectedType = nullptr) : expectedType(std::move(expectedType)) {
         type = Type::createNullPointerType();
         rootType = Type::createNullPointerType();
     }

@@ -152,19 +152,23 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
 }
 
 std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
-    return Omniscript::make_expression<Omniscript::NullPointerExpression>();
+    if (!type) {
+        type = Omniscript::Type::createNullPointerType();
+    }
+    return Omniscript::make_expression<Omniscript::NullPointerExpression>(type);
 }
 
 std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
     if (!type) {
-        type = Omniscript::Type::createNullPointerType();
+        type = Omniscript::Type::createNullType();
     }
-    return Omniscript::make_expression<Omniscript::NullExpression>();
+    return Omniscript::make_expression<Omniscript::NullExpression>(type);
 }
 
 std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType scope) {
     if (!type) {
         DEBUG_LOG("Creating a 32-bit integer");
+        type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Int32);
         return std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
     }
 
@@ -239,6 +243,7 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
     // Default to 64-bit float if type is null or unknown
     if (!type) {
         DEBUG_LOG("Creating a 64-bit float");
+        type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Double);
         return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));  // Default to double (64-bit)
     }
 
@@ -344,7 +349,8 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType sco
     // DEBUG_LOG("Bool value " + value);
     if (!type) {
         DEBUG_LOG("Creating a bool false");
-        return std::make_shared<Omniscript::Primitive<bool>>(false);  // Default to double (64-bit)
+        type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Bool);
+        return std::make_shared<Omniscript::Primitive<bool>>(value);  // Default to double (64-bit)
     }
 
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Bool);
@@ -384,6 +390,12 @@ std::shared_ptr<Literal> BoolLiteral::castTo(std::shared_ptr<Omniscript::Type> t
 
 
 std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableType scope) {
+    if (!type) {
+        DEBUG_LOG("Creating a char literal");
+        type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
+        return std::make_shared<Omniscript::Primitive<char>>(value);  // Default to double (64-bit)
+    }
+
     if (!type->isChar()) {
         console.error("The specified type is " + type->kindName() + " but '" + std::to_string(value) + "' is a char.");
     } else {
@@ -396,6 +408,7 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
 std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType scope) {
     if (!type) {
         DEBUG_LOG("Creating a string value");
+        type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Utf8);
         return std::make_shared<Omniscript::StringExpression<std::string>>(value); 
     }
 
@@ -451,7 +464,9 @@ std::shared_ptr<Omniscript::Expression> createVariable::express(SymbolTableType 
         }
         
         if (!type->isPointer() && !type->isReference()) {
-            if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
+            if (!value) {
+                result = std::make_shared<Omniscript::NullPointerExpression>(type);
+            } else if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
                 if (!typed->getType()) {
                     typed->setType(type);
                     result = value->express(scope);
@@ -465,7 +480,9 @@ std::shared_ptr<Omniscript::Expression> createVariable::express(SymbolTableType 
             }
         } else {
             if (type->isPointer()) {
-                if (auto nullpointer = std::dynamic_pointer_cast<Nullptr>(value)) {
+                if (!value) {
+                    result = std::make_shared<Omniscript::NullPointerExpression>(type);
+                } else if (auto nullpointer = std::dynamic_pointer_cast<Nullptr>(value)) {
                     result = nullpointer->express(scope);
                 } else if (auto addressOf = std::dynamic_pointer_cast<AddressOf>(value)) {
                     result = addressOf->express(scope);
@@ -1075,7 +1092,7 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
             DEBUG_LOG("[Array] Creating a Heterogeneous Dynamic Array");
             return nullptr;
         }
-
+        setType(inferredType);
         DEBUG_LOG("[Array] Creating a fixed Array");
         return std::make_shared<Omniscript::FixedArrayExpression>(values, inferredType);
     }
@@ -1295,9 +1312,9 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
         result = defaultValue->express(scope);
     } else {
         if (type->isPointer()) {
-            result = std::make_shared<Omniscript::NullPointerExpression>();
+            result = std::make_shared<Omniscript::NullPointerExpression>(type);
         } else {
-            result = std::make_shared<Omniscript::NullExpression>();
+            result = std::make_shared<Omniscript::NullExpression>(type);
         }
     }
     DEBUG_LOG("[Parameter] Created value for parameter " + name + " of kind " + result->getType()->kindName());
