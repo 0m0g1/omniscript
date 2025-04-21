@@ -757,6 +757,73 @@ public:
     }
 };
 
+struct EnumExpression : public Expression {
+    EnumExpression(const std::string& enumName, bool hasLookup = false, bool isEnumClass = false)
+        : enumName(enumName), hasLookup(hasLookup), isEnumClass(isEnumClass) {
+        name = enumName;
+    }
+
+    // Add entry for int -> expression mapping
+    void addEntry(int value, const std::string& valueName, std::shared_ptr<Expression> expression) {
+        enumerators[valueName] = value;
+        expressionMap[valueName] = expression;  // Store the corresponding expression
+    }
+
+    // Add entry for value name -> expression mapping
+    void addEntry(const std::string& valueName, std::shared_ptr<Expression> expression) {
+        enumerators[valueName] = -1; // or some default int for non-int entries
+        expressionMap[valueName] = expression;
+    }
+
+    // Retrieve the integer value associated with the enum name
+    int get(const std::string& enumeration) const {
+        auto it = enumerators.find(enumeration);
+        if (it != enumerators.end()) return it->second;
+        console.error("Enum '" + enumName + "' does not have an entry " + enumeration);
+        return -9999999;
+    }
+
+    // Retrieve the string name for a given integer value
+    std::string getName(int value) const {
+        for (const auto& [name, val] : enumerators)
+            if (val == value) return name;
+        return "";
+    }
+
+    // Retrieve the expression associated with a given name
+    std::shared_ptr<Expression> getExpression(const std::string& valueName) const {
+        auto it = expressionMap.find(valueName);
+        if (it != expressionMap.end()) {
+            return it->second;
+        }
+        console.error("Enum expression for '" + enumName + "' does not have an entry " + valueName);
+        return nullptr;
+    }
+
+    // Clone this enum expression
+    std::shared_ptr<Expression> clone() const override {
+        auto copy = std::make_shared<EnumExpression>(enumName, hasLookup, isEnumClass);
+        copy->enumerators = enumerators;
+        copy->expressionMap = expressionMap;  // Also clone the expression map
+        return copy;
+    }
+
+    // Convert the enum to a string representation
+    std::string toString() const override {
+        return (isEnumClass ? "enum class " : "enum ") + enumName;
+    }
+
+    // Member variables
+    std::string enumName;
+    bool hasLookup = false;
+    bool isEnumClass = false;
+
+    // Maps for the enum entries
+    std::unordered_map<std::string, int> enumerators;  // value name -> value
+    std::unordered_map<std::string, std::shared_ptr<Expression>> expressionMap;  // value name -> expression
+};
+
+
 // Custom String and WideString Types
 template <typename T>
 class StringExpression : public Primitive<T> {

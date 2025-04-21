@@ -269,17 +269,27 @@ public:
         const std::string& varName,
         llvm::Value* initValue = nullptr);
     
-    void createEnum(
+    llvm::Value* createEnum(
+        const std::vector<std::string>& names,
+        const std::vector<llvm::Value*>& values,
         const std::string& enumName,
-        const std::vector<std::string>& valueNames,
-        const std::vector<int>& valueIndices
+        bool isGlobal
     );
 
-    void createEnumWithLookup(
+    llvm::Value* createEnumWithLookup(
+        const std::vector<std::string>& names,
+        const std::vector<llvm::Value*>& values,
         const std::string& enumName,
-        const std::vector<std::string>& valueNames,
-        const std::vector<int>& valueIndices
+        bool isGlobal
     );
+
+    llvm::Value* createEnumClass(
+        const std::vector<std::string>& names,
+        const std::vector<llvm::Value*>& values,
+        const std::string& className,
+        bool isGlobal
+    );
+
 
     llvm::Value* getEnumValue(const std::string& enumName, const std::string& memberName);
 };

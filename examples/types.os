@@ -74,33 +74,33 @@
 // // Dynamic arrays (if supported)
 // let v : [i32] = [1, 2, 3, 4, 5]; // Dynamic array of i/ntegers
 // let w : [char] = "Dynamic String"; // Dynamic string (if OmniScript++ supports it)
-enum EnumName {
+enum NormalEnum {
     item1,
     item2
 }
-// // Structs (user-defined types)
-struct Vector3 {
-    x: f32 = 0;
-    y: f32 = 0;
-    z: f32 = 0;
+
+enum lookupEnum(lookup) {
+    item1,
+    item2
 }
 
-let u: uint = 0;
+enum class EnumClass(lookup) {
+    item1,
+    item2
+}
 
-let no = 1;
-let no2 = 0.1f;
-let boolt = true;
-let booltf = false;
-let chars = 'a';
-let text = "hello";
-// TODO: work on implicit arrays
+// // Structs (user-defined types)
+// struct Vector3 {
+//     x: f32 = 0;
+//     y: f32 = 0;
+//     z: f32 = 0;
+// }
+
 // work on dynamic arrays
-let arr = [1, 22 ,3];
 // let v1 = Vector3{ x: 1.0, y: 2.0};
+
 // let vx = v1.x;
 // v1.x = 5.0;
-
-// let v1 : Vector3 = { x: 1.0, y: 2.0, z: 3.0 };
 
 // // Function pointers
 // let fn : (i32, i32) -> i32 = add; // Function pointer
@@ -178,11 +178,11 @@ let arr = [1, 22 ,3];
 //     return a + b;
 // }
 
-function main() => i32 {
-    // return add(b = 1, a = 2, c = 10);
-    // return c;
-    return 0;
-}
+// function main() => i32 {
+//     // return add(b = 1, a = 2, c = 10);
+//     // return c;
+//     return 0;
+// }
 
 
 

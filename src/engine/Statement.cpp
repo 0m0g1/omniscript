@@ -1403,29 +1403,20 @@ std::shared_ptr<Omniscript::Expression> GetMemberValue::express(SymbolTableType 
     return nullptr;
 }
 
-
-std::shared_ptr<Omniscript::Expression> EnumConstructor::express(SymbolTableType scope) {
-    // std::vector<std::string> names;
-    // std::vector<int> indices;
-
-    // for (const auto& val : values) {
-    //     names.push_back(val->getName());
-    //     indices.push_back(val->getIndex());
-    // }
-
-    // if (hasLookup) {
-    //     generator.createEnumWithLookup(name, names, indices);
-    // } else {
-    //     generator.createEnum(name, names, indices);
-    // }
-     
-    return nullptr;
+std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
+    return std::make_shared<IntegerLiteral>(valueIndex)->express(scope);
 }
 
-std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
-    // std::shared_ptr<Omniscript::Type> intType = llvm::Type::getInt32Ty(*generator.getContext());
-    // return llvm::ConstantInt::get(intType, valueIndex);
-    return nullptr;
+std::shared_ptr<Omniscript::Expression> EnumConstructor::express(SymbolTableType scope) {
+    auto expr = std::make_shared<Omniscript::EnumExpression>(name, hasLookup, isEnumClass);
+
+    if (hasLookup) {
+        for (const auto& val : values) {
+            expr->addEntry(val->getIndex(), val->getName(), val->express(scope));
+        }
+    }
+
+    return expr;
 }
 
 

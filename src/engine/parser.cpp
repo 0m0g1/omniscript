@@ -1922,6 +1922,12 @@ std::shared_ptr<Statement> Parser::parseEnum() {
     eat(TokenTypes::Enum);
     
     bool hasLookup = false;
+    bool isEnumClass = false;
+
+    if (currentToken.getType() == TokenTypes::Class) {
+        eat(TokenTypes::Class);
+        isEnumClass = true;
+    }
     
     std::string enumName = currentToken.getValue();
     eat(TokenTypes::Identifier);
@@ -1959,7 +1965,7 @@ std::shared_ptr<Statement> Parser::parseEnum() {
                 if (auto intLiteral = std::dynamic_pointer_cast<IntegerLiteral>(valueExpr)) {
                     assignedIndex = intLiteral->getValue();
                 } else {
-                    throw std::runtime_error("Enum values must be compile-time integers");
+                    console.error("Enum values must be compile-time integers");
                 }
             }
 
@@ -1971,7 +1977,7 @@ std::shared_ptr<Statement> Parser::parseEnum() {
     eat(TokenTypes::RightBrace);
     
     // Create the EnumConstructor with the lookup flag
-    return std::make_shared<EnumConstructor>(enumName, values, hasLookup);
+    return std::make_shared<EnumConstructor>(enumName, values, hasLookup, isEnumClass);
 }
 
 std::shared_ptr<Statement> Parser::parseStruct() {

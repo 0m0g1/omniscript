@@ -1194,14 +1194,16 @@ private:
 class EnumConstructor : public NamedStatement {
 private:
     std::vector<std::shared_ptr<EnumValue>> values;
-    bool hasLookup;  // Flag to determine if a lookup table is needed
+    bool hasLookup;
+    bool isEnumClass;
 
 public:
     EnumConstructor(
         const std::string& enumName,
         const std::vector<std::shared_ptr<EnumValue>>& values,
-        bool hasLookup = false  // Default: no lookup
-    ) : values(values), hasLookup(hasLookup) {
+        bool hasLookup = false,
+        bool isEnumClass = false
+    ) : values(values), hasLookup(hasLookup), isEnumClass(isEnumClass) {
         setName(enumName);
     }
 
