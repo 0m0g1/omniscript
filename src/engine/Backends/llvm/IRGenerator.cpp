@@ -15,6 +15,8 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/BasicBlock.h>
 #include <optional>
 
 #include <omniscript/debuggingtools/console.h>
@@ -78,10 +80,29 @@ void IRGenerator::initialize() {
     llvm::Function* topFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "__top_level__", Module.get());
     llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", topFunc);
     Builder->SetInsertPoint(entry);
-    Builder->CreateRetVoid(); // placeholder
+    // Builder->CreateRetVoid(); // placeholder
 
     CurrentModule = Module.get();
 }
+
+void IRGenerator::finalize() {
+    // Find the top-level function
+    llvm::Function* topFunc = Module->getFunction("__top_level__");
+    if (!topFunc) {
+        llvm::errs() << "No top-level function found.\n";
+        return;
+    }
+
+    // Get the last basic block (or current insert block)
+    llvm::BasicBlock* lastBlock = &topFunc->back(); // last block in function
+
+    // If the block has no terminator, add a `ret void`
+    if (!lastBlock->getTerminator()) {
+        Builder->SetInsertPoint(lastBlock);
+        Builder->CreateRetVoid();
+    }
+}
+
 
 void IRGenerator::printIR() {
     Module->print(llvm::outs(), nullptr);
@@ -283,6 +304,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return nullptr;
     }
 
+    if (auto ifExpr = std::dynamic_pointer_cast<Omniscript::IfExpression>(value)) {
+        DEBUG_LOG("Creating an if expression");
+        return createIfStatement(ifExpr->conditions, ifExpr->bodies, ifExpr->elseBody, scope);
+    }
+
     if (auto enumExpr = std::dynamic_pointer_cast<Omniscript::EnumExpression>(value)) {
         DEBUG_LOG("Processing EnumExpression for enum '" + enumExpr->enumName + "'");
     
@@ -306,7 +332,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         }
     
         // Call the appropriate method depending on flags
-        if (enumExpr->isEnumClass) {
+        if (enumExpr->isEnumClass && enumExpr->hasLookup) {
+            return createEnumClassWithLookup(names, values, enumExpr->enumName, /*isGlobal=*/true);
+        } else if (enumExpr->isEnumClass) {
             return createEnumClass(names, values, enumExpr->enumName, /*isGlobal=*/true);
         } else if (enumExpr->hasLookup) {
             return createEnumWithLookup(names, values, enumExpr->enumName, /*isGlobal=*/true);
@@ -2201,6 +2229,7 @@ llvm::Value* IRGenerator::createEnum(
     return nullptr;
 }
 
+
 llvm::Value* IRGenerator::createEnumWithLookup(
     const std::vector<std::string>& names,
     const std::vector<llvm::Value*>& values,
@@ -2209,21 +2238,37 @@ llvm::Value* IRGenerator::createEnumWithLookup(
 ) {
     llvm::Type* valueType = values[0]->getType();
     std::vector<llvm::Constant*> constValues;
+    std::vector<llvm::Constant*> nameConstants;
 
     for (size_t i = 0; i < values.size(); ++i) {
+        // Declare each enum value as a global/local variable
         createVariable(enumName + "." + names[i], valueType, values[i], isGlobal, nullptr);
+
+        // Handle the constant value for the value array
         if (auto* constantVal = llvm::dyn_cast<llvm::Constant>(values[i])) {
             constValues.push_back(constantVal);
         } else {
-            llvm::errs() << "Non-constant enum value for " << names[i] << "\n";
+            llvm::errs() << "Warning: Non-constant enum value for " << names[i] << "\n";
             constValues.push_back(llvm::Constant::getNullValue(valueType));
         }
+
+        // Create a global string pointer for the name
+        llvm::Constant* namePtr = Builder->CreateGlobalString(names[i], enumName + "_str_" + names[i]);
+        nameConstants.push_back(namePtr);
     }
 
-    llvm::ArrayType* arrayType = llvm::ArrayType::get(valueType, constValues.size());
-    llvm::Constant* constArray = llvm::ConstantArray::get(arrayType, constValues);
+    // Create value lookup array
+    llvm::ArrayType* valueArrayType = llvm::ArrayType::get(valueType, constValues.size());
+    llvm::Constant* valueArray = llvm::ConstantArray::get(valueArrayType, constValues);
+    createVariable(enumName + "_lookup", valueArrayType, valueArray, isGlobal, nullptr);
 
-    return createVariable(enumName + "_lookup", arrayType, constArray, isGlobal, nullptr);
+    // Create name (string) lookup array
+    llvm::Type* stringPtrType = nameConstants[0]->getType(); // i8*
+    llvm::ArrayType* nameArrayType = llvm::ArrayType::get(stringPtrType, nameConstants.size());
+    llvm::Constant* nameArray = llvm::ConstantArray::get(nameArrayType, nameConstants);
+    createVariable(enumName + "_name_lookup", nameArrayType, nameArray, isGlobal, nullptr);
+
+    return valueArray; // or nullptr if you don't need to return a value
 }
 
 llvm::Value* IRGenerator::createEnumClass(
@@ -2234,24 +2279,72 @@ llvm::Value* IRGenerator::createEnumClass(
 ) {
     llvm::LLVMContext& ctx = Builder->getContext();
     llvm::Type* fieldType = values[0]->getType();
-    std::vector<llvm::Type*> types(values.size(), fieldType);
-    std::vector<llvm::Constant*> constValues;
 
-    for (llvm::Value* v : values) {
-        if (auto* c = llvm::dyn_cast<llvm::Constant>(v)) {
-            constValues.push_back(c);
+    std::vector<llvm::Type*> fieldTypes(values.size(), fieldType);
+    std::vector<llvm::Constant*> fieldValues;
+
+    for (auto* val : values) {
+        if (auto* c = llvm::dyn_cast<llvm::Constant>(val)) {
+            fieldValues.push_back(c);
         } else {
-            llvm::errs() << "Non-constant enum class value found.\n";
-            constValues.push_back(llvm::Constant::getNullValue(fieldType));
+            llvm::errs() << "Warning: Non-constant value in enum class " << className << "\n";
+            fieldValues.push_back(llvm::Constant::getNullValue(fieldType));
         }
     }
 
-    llvm::StructType* structType = llvm::StructType::create(ctx, types, className);
-    llvm::Constant* structConst = llvm::ConstantStruct::get(structType, constValues);
+    llvm::StructType* structType = llvm::StructType::create(ctx, fieldTypes, className);
+    llvm::Constant* structConst = llvm::ConstantStruct::get(structType, fieldValues);
 
     return createVariable(className, structType, structConst, isGlobal, nullptr);
 }
 
+llvm::Value* IRGenerator::createEnumClassWithLookup(
+    const std::vector<std::string>& names,
+    const std::vector<llvm::Value*>& values,
+    const std::string& className,
+    bool isGlobal
+) {
+    llvm::LLVMContext& ctx = Builder->getContext();
+    llvm::Type* valueType = values[0]->getType();
+
+    std::vector<llvm::Type*> fieldTypes(values.size(), valueType);
+    std::vector<llvm::Constant*> fieldValues;
+    std::vector<llvm::Constant*> nameConstants;
+
+    // Step 1: Generate the enum struct values and name strings
+    for (size_t i = 0; i < values.size(); ++i) {
+        llvm::Value* val = values[i];
+
+        if (auto* c = llvm::dyn_cast<llvm::Constant>(val)) {
+            fieldValues.push_back(c);
+        } else {
+            llvm::errs() << "Warning: Non-constant enum value in class " << className << "\n";
+            fieldValues.push_back(llvm::Constant::getNullValue(valueType));
+        }
+
+        // Create a global string pointer for the name
+        llvm::Constant* namePtr = Builder->CreateGlobalString(names[i], className + "_str_" + names[i]);
+        nameConstants.push_back(namePtr);
+    }
+
+    // Step 2: Create the struct for the enum class
+    llvm::StructType* structType = llvm::StructType::create(ctx, fieldTypes, className);
+    llvm::Constant* structConst = llvm::ConstantStruct::get(structType, fieldValues);
+    llvm::Value* enumClass = createVariable(className, structType, structConst, isGlobal, nullptr);
+
+    // Step 3: Create value lookup array (flat version of struct)
+    llvm::ArrayType* lookupArrayType = llvm::ArrayType::get(valueType, fieldValues.size());
+    llvm::Constant* lookupArray = llvm::ConstantArray::get(lookupArrayType, fieldValues);
+    createVariable(className + "_lookup", lookupArrayType, lookupArray, isGlobal, nullptr);
+
+    // Step 4: Create name lookup array
+    llvm::Type* stringPtrType = nameConstants[0]->getType(); // i8*
+    llvm::ArrayType* nameArrayType = llvm::ArrayType::get(stringPtrType, nameConstants.size());
+    llvm::Constant* nameArray = llvm::ConstantArray::get(nameArrayType, nameConstants);
+    createVariable(className + "_name_lookup", nameArrayType, nameArray, isGlobal, nullptr);
+
+    return enumClass;
+}
 
 llvm::Value* IRGenerator::getEnumValue(const std::string& enumName, const std::string& memberName) {
     // Construct lookup variable name
@@ -2308,3 +2401,90 @@ llvm::Value* IRGenerator::getEnumValue(const std::string& enumName, const std::s
     // return Builder->CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), -1));
     return nullptr;
 }
+
+llvm::Value* IRGenerator::createIfStatement(
+    const std::vector<std::shared_ptr<Omniscript::Expression>>& conditions,
+    const std::vector<std::shared_ptr<Omniscript::Expression>>& bodies,
+    const std::shared_ptr<Omniscript::Expression>& elseBody,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope)
+{
+    if (conditions.empty()) {
+        return nullptr;
+    }
+
+    llvm::Function* function = Builder->GetInsertBlock()->getParent();
+    llvm::LLVMContext& context = Builder->getContext();
+
+    // Create the final merge block and insert it into the function
+    llvm::BasicBlock* mergeBlock = nullptr;
+
+    // Create the condition block and branch to it
+    llvm::BasicBlock* condBlock = llvm::BasicBlock::Create(context, "if.cond", function);
+    Builder->CreateBr(condBlock);
+    Builder->SetInsertPoint(condBlock);
+
+    // Generate the condition expression
+    llvm::Value* condValue = codegen(conditions[0], scope);
+    if (!condValue) return nullptr;
+
+    // Normalize condition to boolean
+    if (condValue->getType()->isIntegerTy()) {
+        condValue = Builder->CreateICmpNE(
+            condValue,
+            llvm::ConstantInt::get(condValue->getType(), 0),
+            "ifcond"
+        );
+    } else if (condValue->getType()->isFloatingPointTy()) {
+        condValue = Builder->CreateFCmpONE(
+            condValue,
+            llvm::ConstantFP::get(condValue->getType(), 0.0),
+            "ifcond"
+        );
+    }
+
+    // Create the body and else blocks if needed
+    llvm::BasicBlock* bodyBlock = (bodies.empty() || !bodies[0]) ? nullptr : llvm::BasicBlock::Create(context, "if.body", function);
+    llvm::BasicBlock* elseBlock = elseBody ? llvm::BasicBlock::Create(context, "if.else", function) : nullptr;
+
+    // Conditionally branch to body or else or merge
+    Builder->CreateCondBr(
+        condValue,
+        bodyBlock ? bodyBlock : mergeBlock,
+        elseBlock ? elseBlock : mergeBlock
+    );
+
+    // Emit 'if' body
+    if (bodyBlock) {
+        Builder->SetInsertPoint(bodyBlock);
+        if (!codegen(bodies[0], scope)) return nullptr;
+        if (!Builder->GetInsertBlock()->getTerminator()) {
+            if (!mergeBlock)
+                mergeBlock = llvm::BasicBlock::Create(context, "if.merge", function);
+            Builder->CreateBr(mergeBlock);  // Ensure body block has a terminator
+        }
+    }
+
+    // Emit 'else' body
+    if (elseBlock) {
+        Builder->SetInsertPoint(elseBlock);
+        if (!codegen(elseBody, scope)) return nullptr;
+        if (!Builder->GetInsertBlock()->getTerminator()) {
+            if (!mergeBlock)
+                mergeBlock = llvm::BasicBlock::Create(context, "if.merge", function);
+            Builder->CreateBr(mergeBlock);  // Ensure else block has a terminator
+        }
+    }
+
+    // Emit the merge block (only if it was used)
+    if (mergeBlock) {
+        Builder->SetInsertPoint(mergeBlock);
+        if (!Builder->GetInsertBlock()->getTerminator()) {
+            Builder->CreateRetVoid();  // Make sure the merge block ends with 'ret void'
+        }
+    }
+
+    return nullptr;
+}
+
+
+

@@ -74,20 +74,32 @@
 // // Dynamic arrays (if supported)
 // let v : [i32] = [1, 2, 3, 4, 5]; // Dynamic array of i/ntegers
 // let w : [char] = "Dynamic String"; // Dynamic string (if OmniScript++ supports it)
-enum NormalEnum {
-    item1,
-    item2
-}
+// enum Color {
+//     Red,
+//     Green,
+//     Blue
+// }
 
-enum lookupEnum(lookup) {
-    item1,
-    item2
-}
 
-enum class EnumClass(lookup) {
-    item1,
-    item2
-}
+// enum Fruit(lookup) {
+//     Apple,
+//     Banana,
+//     Mango
+// }
+
+// enum class VehicleType {
+//     Car,
+//     Truck,
+//     Motorcycle
+// }
+
+// enum class Planet(lookup) {
+//     Mercury,
+//     Venus,
+//     Earth,
+//     Mars
+// }
+
 
 // // Structs (user-defined types)
 // struct Vector3 {
@@ -177,6 +189,11 @@ enum class EnumClass(lookup) {
 // function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
 //     return a + b;
 // }
+
+let isRaining: bool = true;
+if (isRaining) {
+    
+} 
 
 // function main() => i32 {
 //     // return add(b = 1, a = 2, c = 10);

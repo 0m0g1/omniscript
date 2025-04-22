@@ -769,12 +769,6 @@ struct EnumExpression : public Expression {
         expressionMap[valueName] = expression;  // Store the corresponding expression
     }
 
-    // Add entry for value name -> expression mapping
-    void addEntry(const std::string& valueName, std::shared_ptr<Expression> expression) {
-        enumerators[valueName] = -1; // or some default int for non-int entries
-        expressionMap[valueName] = expression;
-    }
-
     // Retrieve the integer value associated with the enum name
     int get(const std::string& enumeration) const {
         auto it = enumerators.find(enumeration);
@@ -954,6 +948,57 @@ public:
             clonedElements,
             elementType ? elementType->clone() : nullptr
         );
+    }
+};
+
+struct IfExpression : public Expression {
+    // Branches for if, else if, and an optional else part
+    std::vector<std::shared_ptr<Expression>> conditions;  // conditions of if/else if
+    std::vector<std::shared_ptr<Expression>> bodies;      // corresponding bodies (blocks)
+    std::shared_ptr<Expression> elseBody;                 // optional else body
+
+    IfExpression(
+        std::vector<std::shared_ptr<Expression>> conditions, 
+        std::vector<std::shared_ptr<Expression>> bodies,
+        std::shared_ptr<Expression> elseBody = nullptr
+    ) : conditions(std::move(conditions)),
+        bodies(std::move(bodies)),
+        elseBody(std::move(elseBody)) {
+
+        this->type = Type::createInvalid(); // Default type for now
+    }
+
+    std::string toString() const override {
+        std::string result = "IfExpression with " + std::to_string(conditions.size()) + " branches";
+
+        for (size_t i = 0; i < conditions.size(); ++i) {
+            result += "\n  if (" + conditions[i]->toString() + ") " + bodies[i]->toString();
+        }
+
+        if (elseBody) {
+            result += "\n  else " + elseBody->toString();
+        }
+
+        return result;
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        std::vector<std::shared_ptr<Expression>> clonedConditions;
+        for (const auto& cond : conditions) {
+            clonedConditions.push_back(cond->clone());
+        }
+
+        std::vector<std::shared_ptr<Expression>> clonedBodies;
+        for (const auto& body : bodies) {
+            clonedBodies.push_back(body->clone());
+        }
+
+        std::shared_ptr<Expression> clonedElseBody = nullptr;
+        if (elseBody) {
+            clonedElseBody = elseBody->clone();
+        }
+
+        return std::make_shared<IfExpression>(clonedConditions, clonedBodies, clonedElseBody);
     }
 };
 

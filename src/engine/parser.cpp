@@ -1848,45 +1848,42 @@ std::shared_ptr<BreakStatement> Parser::parseBreak() {
 
 // Parse if statements
 std::shared_ptr<Statement> Parser::parseIfStatement() {
-    // eat(TokenTypes::If); // Consume the 'if' keyword
-    // // Additional logic to parse the condition and body of the if statement would go here
+    std::vector<std::shared_ptr<Statement>> conditions;
+    std::vector<std::shared_ptr<BlockStatement>> bodies;
+    std::shared_ptr<BlockStatement> elseBody = nullptr;
 
-    // eat(TokenTypes::LeftParen);
-    // auto condition = parseExpression();
-    // eat(TokenTypes::RightParen);
+    // Parse initial 'if'
+    eat(TokenTypes::If);
+    eat(TokenTypes::LeftParen);
+    auto condition = parseExpression();
+    eat(TokenTypes::RightParen);
+    auto body = parseBlock();
 
-    // auto body = parseBlock();
-    // std::vector<std::shared_ptr<IfStatement>> branches;
-    // std::vector<std::shared_ptr<Statement>> falseBranch;
+    conditions.push_back(condition);
+    bodies.push_back(std::dynamic_pointer_cast<BlockStatement>(body));
 
-    // // ParseBlock checks for the if statements body and also "{" and "}"
-    // while (currentToken.getType() == TokenTypes::Else_if) {
-    //     eat(TokenTypes::Else_if);
-    //     eat(TokenTypes::LeftParen);
-    //     auto elseIfCondition = parseExpression();
-    //     eat(TokenTypes::RightParen);
+    // Parse any number of 'else if' branches
+    while (currentToken.getType() == TokenTypes::Else_if) {
+        eat(TokenTypes::Else_if);
+        eat(TokenTypes::LeftParen);
+        auto elseIfCondition = parseExpression();
+        eat(TokenTypes::RightParen);
+        auto elseIfBlock = parseBlock();
 
-    //     auto elseIfBlock = parseBlock();
+        conditions.push_back(elseIfCondition);
+        bodies.push_back(std::dynamic_pointer_cast<BlockStatement>(elseIfBlock));
+    }
 
-    //     // Add this 'else if' condition and block to the falseBranch vector
-    //     branches.push_back(std::make_shared<IfStatement>(elseIfCondition, elseIfBlock));
-    // }
+    // Optional 'else'
+    if (currentToken.getType() == TokenTypes::Else) {
+        eat(TokenTypes::Else);
+        elseBody = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
+    }
 
-    //  // Handle a single 'else' branch
-    // if (currentToken.getType() == TokenTypes::Else) {
-    //     eat(TokenTypes::Else);
-
-    //     falseBranch = parseBlock();
-    // }
-
-    // auto statement = std::make_shared<IfStatement>(condition, body, branches, falseBranch);
-
-    // DEBUG_LOG("Parsed if statement");
-    // return statement;
-    return nullptr;
+    auto statement = std::make_shared<IfStatement>(conditions, bodies, elseBody);
+    DEBUG_LOG("Parsed IfStatement with " + std::to_string(conditions.size()) + " branches");
+    return statement;
 }
-
-
 
 // Parse while loops
 std::shared_ptr<Statement> Parser::parseWhileStatement() {

@@ -63,6 +63,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
 
     // Finalize global initializers, print the IR, and optimize the module
     irGen->finalizeGlobalInitializers();
+    irGen->finalize();
 
     DEBUG_LOG();
     irGen->printIR();

@@ -749,9 +749,45 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
     return std::make_shared<Omniscript::UnaryExpression>(op, operandValue, type, isPrefix);
 }
 
+std::shared_ptr<Statement> IfStatement::evaluate(SymbolTableType scope) {
+    // Iterate through the conditions and check which one is true
+    for (size_t i = 0; i < conditions.size(); ++i) {
+        // Assuming the condition evaluates to a boolean
+        auto result = conditions[i]->evaluate(scope); // Evaluate condition
+
+        // If the condition is true, execute the corresponding body
+        // if (result->isTruthy(scope)) {
+        //     return bodies[i]; // Return the body if condition is true
+        // }
+    }
+
+    // If no condition matches, return the elseBody if present
+    if (elseBody) {
+        return elseBody;
+    }
+
+    return nullptr; // If no condition is met and no elseBody exists, return nullptr
+}
 
 std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType scope) {
-    return nullptr;
+    std::vector<std::shared_ptr<Omniscript::Expression>> exprConditions;
+    std::vector<std::shared_ptr<Omniscript::Expression>> exprBranches;
+
+    for (size_t i = 0; i < conditions.size(); ++i) {
+        exprConditions.push_back(conditions[i]->express(scope)); // already Expression pointers
+        exprBranches.push_back(bodies[i]->express(scope)); // convert BlockStatement to Expression
+    }
+
+    std::shared_ptr<Omniscript::Expression> elseExpr = nullptr;
+    if (elseBody) {
+        elseExpr = elseBody->express(scope); // convert BlockStatement to Expression
+    }
+
+    return std::make_shared<Omniscript::IfExpression>(
+        exprConditions,
+        exprBranches,
+        elseExpr
+    );
 }
 
 // TODO: Add the name of the object being called
@@ -1409,11 +1445,9 @@ std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope
 
 std::shared_ptr<Omniscript::Expression> EnumConstructor::express(SymbolTableType scope) {
     auto expr = std::make_shared<Omniscript::EnumExpression>(name, hasLookup, isEnumClass);
-
-    if (hasLookup) {
-        for (const auto& val : values) {
-            expr->addEntry(val->getIndex(), val->getName(), val->express(scope));
-        }
+    
+    for (const auto& val : values) {
+        expr->addEntry(val->getIndex(), val->getName(), val->express(scope));
     }
 
     return expr;

@@ -77,6 +77,7 @@ public:
     bool supportsAVX2();
 
     void initialize();
+    void finalize();
 
     void printIR();
     void printErrors();
@@ -290,8 +291,21 @@ public:
         bool isGlobal
     );
 
+    llvm::Value* createEnumClassWithLookup(
+        const std::vector<std::string>& names,
+        const std::vector<llvm::Value*>& values,
+        const std::string& className,
+        bool isGlobal
+    );
 
     llvm::Value* getEnumValue(const std::string& enumName, const std::string& memberName);
+
+    llvm::Value* createIfStatement(
+        const std::vector<std::shared_ptr<Omniscript::Expression>>& conditions,
+        const std::vector<std::shared_ptr<Omniscript::Expression>>& bodies,
+        const std::shared_ptr<Omniscript::Expression>& elseBody,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+    );
 };
 
 #endif
