@@ -651,7 +651,18 @@ std::shared_ptr<Omniscript::Expression> ContinueStatement::express(SymbolTableTy
 // }
 
 std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) {
-    return nullptr;
+    DEBUG_LOG("Creating a for loop expression");
+    std::shared_ptr<Omniscript::Expression> initializationExpr = initialization->express(scope);
+    DEBUG_LOG("Created its initialization expression");
+    DEBUG_LOG("Creating its condition expression '" + condition->toString() + "'.");
+    std::shared_ptr<Omniscript::Expression> conditionExpr = condition->express(scope);
+    DEBUG_LOG("Created its condition expression");
+    std::shared_ptr<Omniscript::Expression> increamentExpr = increment->express(scope);
+    DEBUG_LOG("Created its update expression");
+    std::shared_ptr<Omniscript::Expression> bodyExpr = body->express(scope);
+    DEBUG_LOG("Created its body");
+
+    return std::make_shared<Omniscript::ForLoopExpression>(initializationExpr, conditionExpr, increamentExpr, bodyExpr);
 }
 
 std::shared_ptr<Omniscript::Expression> GetProperty::express(SymbolTableType scope) {
@@ -699,23 +710,35 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
 
 std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableType scope) {
     DEBUG_LOG();
-    DEBUG_LOG("Creating a binary expression of kind '" + type->kindName() + "'.");
     // Set the expected result type for child expressions
+    std::shared_ptr<Omniscript::Expression> leftValue;
+    std::shared_ptr<Omniscript::Expression> rightValue;
+     
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(left)) {
-        stmt->setType(type);
+        if (!type) {
+            leftValue = left->express(scope);
+            setType(stmt->getType());
+        } else {
+            stmt->setType(type);
+        }
         DEBUG_LOG("Set the type for the left expression");
     }
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(right)) {
-        stmt->setType(type);
+        if (!type) {
+            rightValue = right->express(scope);
+            setType(stmt->getType());
+        } else {
+            stmt->setType(type);
+        }
         DEBUG_LOG("Set the type for the right expression");
     }
+    
+    DEBUG_LOG("Creating a binary expression of kind '" + type->kindName() + "'.");
 
     // Evaluate left and right operands
-    std::shared_ptr<Omniscript::Expression> leftValue = left->express(scope);
     if (!leftValue) return nullptr;
     DEBUG_LOG("The left value is " + leftValue->toString());
     
-    std::shared_ptr<Omniscript::Expression> rightValue = right->express(scope);
     if (!rightValue) return nullptr;
     DEBUG_LOG("The right value is " + rightValue->toString());
 
@@ -735,13 +758,21 @@ bool BinaryExpression::isCompileTimeEvaluatable() {
 }
 
 std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType scope) {
+    DEBUG_LOG("Creating a unary expression");
     // Set the expected type on the operand
+    std::shared_ptr<Omniscript::Expression> operandValue;
+
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
-        stmt->setType(type);
+        if (type) {
+            stmt->setType(type);
+            operand->express(scope);
+        } else {
+            operandValue = operand->express(scope);
+            setType(stmt->getType());
+        }
     }
 
     // Evaluate the operand
-    std::shared_ptr<Omniscript::Expression> operandValue = operand->express(scope);
     if (!operandValue) return nullptr;
 
     bool isPrefix = position == Position::Prefix;

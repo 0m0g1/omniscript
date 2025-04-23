@@ -306,6 +306,10 @@ public:
         const std::shared_ptr<Omniscript::Expression>& elseBody,
         std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
     );
+    llvm::Value* createForLoop(
+        const std::shared_ptr<Omniscript::ForLoopExpression>& forExpr,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+    );
 };
 
 #endif

@@ -1171,8 +1171,7 @@ public:
             increment(std::move(incr)), body(std::move(body)) {}
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
-    
+    std::string toString() const override { return "Forloop"; }  
 };
 
 class BreakStatement : public Statement {

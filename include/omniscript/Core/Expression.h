@@ -1002,6 +1002,40 @@ struct IfExpression : public Expression {
     }
 };
 
+struct ForLoopExpression : public Expression {
+    std::shared_ptr<Expression> initializer;
+    std::shared_ptr<Expression> condition;
+    std::shared_ptr<Expression> increment;
+    std::shared_ptr<Expression> body;
+
+    ForLoopExpression(
+        std::shared_ptr<Expression> initializer,
+        std::shared_ptr<Expression> condition,
+        std::shared_ptr<Expression> increment,
+        std::shared_ptr<Expression> body
+    ) : initializer(std::move(initializer)),
+        condition(std::move(condition)),
+        increment(std::move(increment)),
+        body(std::move(body)) {}
+
+    std::string toString() const override {
+        return "ForLoop(init: " + (initializer ? initializer->toString() : "null") +
+               ", cond: " + (condition ? condition->toString() : "null") +
+               ", inc: " + (increment ? increment->toString() : "null") +
+               ", body: " + (body ? body->toString() : "null") + ")";
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<ForLoopExpression>(
+            initializer ? initializer->clone() : nullptr,
+            condition ? condition->clone() : nullptr,
+            increment ? increment->clone() : nullptr,
+            body ? body->clone() : nullptr
+        );
+    }
+};
+
+
 }
 
 #endif

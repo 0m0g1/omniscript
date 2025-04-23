@@ -78,6 +78,7 @@ class Parser {
         std::shared_ptr<Statement> parseBlock();
         std::shared_ptr<Statement> parseLambdaFunction(const std::string& name = "", parameterType paramTypes = {});
         bool checkIfLambdaExpression();
+        bool isGenericCallOrConstructor();
         bool checkIfFunctionCall();
         // SymbolTable::ValueType parseFunctionArrow();
         std::shared_ptr<Statement> parseStruct();

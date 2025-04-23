@@ -343,6 +343,13 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         }
     }
     
+    if (auto forExpr = std::dynamic_pointer_cast<Omniscript::ForLoopExpression>(value)) {
+        DEBUG_LOG("Processing ForLoopExpression");
+        return createForLoop(forExpr, scope);
+    }
+    
+    
+
     return nullptr;
 }
 
@@ -2486,5 +2493,77 @@ llvm::Value* IRGenerator::createIfStatement(
     return nullptr;
 }
 
+llvm::Value* IRGenerator::createForLoop(
+    const std::shared_ptr<Omniscript::ForLoopExpression>& forExpr,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+) {
+    llvm::Function* function = Builder->GetInsertBlock()->getParent();
+    llvm::LLVMContext& context = Builder->getContext();
+
+    // Emit initializer
+    if (forExpr->initializer) {
+        codegen(forExpr->initializer, scope);
+    }
+
+    // Create blocks
+    llvm::BasicBlock* condBlock = llvm::BasicBlock::Create(context, "for.cond", function);
+    llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context, "for.body", function);
+    llvm::BasicBlock* incrementBlock = llvm::BasicBlock::Create(context, "for.inc", function);
+    llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "for.end", function);
+
+    // Jump to condition
+    Builder->CreateBr(condBlock);
+    Builder->SetInsertPoint(condBlock);
+
+    // Emit condition
+    llvm::Value* condValue = codegen(forExpr->condition, scope);
+    if (!condValue) return nullptr;
+
+    // Normalize to boolean
+    if (condValue->getType()->isIntegerTy()) {
+        condValue = Builder->CreateICmpNE(
+            condValue,
+            llvm::ConstantInt::get(condValue->getType(), 0),
+            "forcond"
+        );
+    } else if (condValue->getType()->isFloatingPointTy()) {
+        condValue = Builder->CreateFCmpONE(
+            condValue,
+            llvm::ConstantFP::get(condValue->getType(), 0.0),
+            "forcond"
+        );
+    }
+
+    // Branch based on condition
+    Builder->CreateCondBr(condValue, bodyBlock, afterBlock);
+
+    // Emit loop body
+    Builder->SetInsertPoint(bodyBlock);
+    bool bodyHasContent = false;
+
+    for (auto& expr : std::dynamic_pointer_cast<Omniscript::BlockExpression>(forExpr->body)->values) {
+        if (expr) {
+            bodyHasContent = true;
+            if (!codegen(expr, scope)) return nullptr;
+        }
+    }
+
+    // If body had no content or no terminator, just branch to increment
+    if (!bodyHasContent || !Builder->GetInsertBlock()->getTerminator()) {
+        Builder->CreateBr(incrementBlock);
+    }
+
+    // Emit increment
+    Builder->SetInsertPoint(incrementBlock);
+    if (forExpr->increment) {
+        codegen(forExpr->increment, scope);
+    }
+    Builder->CreateBr(condBlock);
+
+    // After loop
+    Builder->SetInsertPoint(afterBlock);
+
+    return llvm::Constant::getNullValue(llvm::Type::getVoidTy(context));
+}
 
 

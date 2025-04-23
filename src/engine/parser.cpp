@@ -538,7 +538,7 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
         currentToken.getType() == TokenTypes::Tilde ||
         currentToken.getType() == TokenTypes::Increment ||
         currentToken.getType() == TokenTypes::Decrement) {
-        
+        DEBUG_LOG("Parsing a prefixed unary expression");
         TokenTypes op = currentToken.getType();
         eat(op);
         auto operand = parseUnaryExpression();  // Recursively handle chained unary operators
@@ -551,6 +551,7 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
     // Handle postfix operators (++, --)
     while (currentToken.getType() == TokenTypes::Increment ||
            currentToken.getType() == TokenTypes::Decrement) {
+        DEBUG_LOG("Parsing a post-fixed unary expression");
         TokenTypes op = currentToken.getType();
         eat(op);
         expr = std::make_shared<UnaryExpression>(op, expr, UnaryExpression::Position::Postfix);
@@ -561,7 +562,7 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
 
 // Parse a factor, handling literals, identifiers, and parentheses
 std::shared_ptr<Statement> Parser::factor() {
-    DEBUG_LOG("Factoring a '" + getTokenTypeName(currentToken.getType()) + "'.");
+    DEBUG_LOG("Factoring a '" + getTokenTypeName(currentToken.getType()) + "' with value '" + currentToken.getValue() + "'.");
 
     // Handle literals
     std::shared_ptr<Statement> left;
@@ -649,8 +650,8 @@ std::shared_ptr<Statement> Parser::factor() {
     }
     // Handle identifiers (variables and functions)
     else if (currentToken.getType() == TokenTypes::Identifier) {
-        DEBUG_LOG(currentToken.getValue());
         left = parseIdentifier();
+        DEBUG_LOG("Parsed the identifier and got " + left->toString() + "'.");
     }
     // Handle arrays (e.g., [1, 2, 3])
     else if (currentToken.getType() == TokenTypes::LeftBracket) {
@@ -1152,6 +1153,49 @@ bool Parser::checkIfFunctionCall() {
 }
 
 
+bool Parser::isGenericCallOrConstructor() {
+    // Check for initial identifier
+    if (currentToken.getType() != TokenTypes::Identifier) {
+        return false;
+    }
+
+    int i = 1;
+
+    // Check for opening angle bracket (e.g., identifier<...>)
+    if (lexer.peekToken(i).getType() != TokenTypes::LessThan) {
+        return false;
+    }
+
+    i++; // move past '<'
+    int angleDepth = 1;
+
+    // Parse inside angle brackets: e.g., <A, B<C>>
+    while (angleDepth > 0) {
+        TokenTypes type = lexer.peekToken(i).getType();
+
+        if (type == TokenTypes::LessThan) {
+            angleDepth++;
+        } else if (type == TokenTypes::GreaterThan) {
+            angleDepth--;
+        } else if (type == TokenTypes::EOI) {
+            return false; // Malformed generics
+        }
+
+        i++;
+    }
+
+    // Now we expect a left parenthesis for function/constructor call
+    if (lexer.peekToken(i).getType() != TokenTypes::LeftParen) {
+        return false;
+    }
+
+    // Optionally: parse the function parameters like in checkIfLambdaExpression()
+    // to verify it's syntactically a call
+
+    return true;
+}
+
+
 std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
     eat(TokenTypes::LeftParen); // Start of parameters
 
@@ -1603,7 +1647,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     // Start with the base identifier as the initial statement
     // Parse function calls with generics
     if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
-        if (currentToken.getType() == TokenTypes::LessThan) {
+        if (isGenericCallOrConstructor()) {
             // Generate the specialized name when encountering a left bracket `<`
             std::vector<std::string> typeParams = parseTypeParametersForCall();  // Adjust this according to your needs
             
@@ -1617,11 +1661,11 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             // You can now create the Call object with the specialized name
             std::vector<std::shared_ptr<Statement>> args = parseArguments();
             return std::make_shared<Call>(specializedName, args);  // Use the specialized name here
+        } else if (currentToken.getType() == TokenTypes::LeftParen) {
+            // If it's just a normal function call (not involving `<`), we process it normally
+            std::vector<std::shared_ptr<Statement>> args = parseArguments();
+            return std::make_shared<Call>(rootIdentifier, args);
         }
-    
-        // If it's just a normal function call (not involving `<`), we process it normally
-        std::vector<std::shared_ptr<Statement>> args = parseArguments();
-        return std::make_shared<Call>(rootIdentifier, args);
     }
     
     // Parse object instance constructors
@@ -1662,6 +1706,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     //     currentToken.getType() == TokenTypes::MultiplyAssign || 
     //     currentToken.getType() == TokenTypes::Increment || 
     //     currentToken.getType() == TokenTypes::Decrement) {
+    //     DEBUG_LOG("Parsing an assignment");
     //     return parseAssignment();
     // }
 
@@ -1817,15 +1862,18 @@ std::shared_ptr<ForLoop> Parser::parseForLoop() {
     eat(TokenTypes::For);
     eat(TokenTypes::LeftParen);
     std::shared_ptr<Statement> initialization = parseAssignment();
+    DEBUG_LOG("Parsed the for assignment expression");
     eat(TokenTypes::Semicolon);
     std::shared_ptr<Statement> condition = parseExpression();
+    DEBUG_LOG("Parsed the for loop's condition " + condition->toString());
     eat(TokenTypes::Semicolon);
-    std::shared_ptr<Statement> increment = parseStatement();
+    std::shared_ptr<Statement> increment = parseExpression();
+    DEBUG_LOG("Parsed the for loops update expression");
     eat(TokenTypes::RightParen);
-    // std::vector<std::shared_ptr<Statement>> body = parseBlock();
+    auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
+    DEBUG_LOG("Parsed the for loops body");
 
-    // return std::make_shared<ForLoop>(initialization, condition, increment, body);
-    return nullptr;
+    return std::make_shared<ForLoop>(initialization, condition, increment, body);
 }
 
 std::shared_ptr<ContinueStatement> Parser::parseContinue() {

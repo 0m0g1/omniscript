@@ -108,6 +108,10 @@
 //     z: f32 = 0;
 // }
 
+for (let index = 0; index < 5; index++) {
+    
+}
+
 // work on dynamic arrays
 // let v1 = Vector3{ x: 1.0, y: 2.0};
 
@@ -190,10 +194,10 @@
 //     return a + b;
 // }
 
-let isRaining: bool = true;
-if (isRaining) {
+// let isRaining: bool = true;
+// if (isRaining) {
     
-} 
+// } 
 
 // function main() => i32 {
 //     // return add(b = 1, a = 2, c = 10);
