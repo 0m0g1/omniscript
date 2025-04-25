@@ -651,15 +651,16 @@ std::shared_ptr<Omniscript::Expression> ContinueStatement::express(SymbolTableTy
 // }
 
 std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) {
+    auto localScope = scope->createChildScope("forloop");
     DEBUG_LOG("Creating a for loop expression");
-    std::shared_ptr<Omniscript::Expression> initializationExpr = initialization->express(scope);
+    std::shared_ptr<Omniscript::Expression> initializationExpr = initialization->express(localScope);
     DEBUG_LOG("Created its initialization expression");
     DEBUG_LOG("Creating its condition expression '" + condition->toString() + "'.");
-    std::shared_ptr<Omniscript::Expression> conditionExpr = condition->express(scope);
+    std::shared_ptr<Omniscript::Expression> conditionExpr = condition->express(localScope);
     DEBUG_LOG("Created its condition expression");
-    std::shared_ptr<Omniscript::Expression> increamentExpr = increment->express(scope);
+    std::shared_ptr<Omniscript::Expression> increamentExpr = increment->express(localScope);
     DEBUG_LOG("Created its update expression");
-    std::shared_ptr<Omniscript::Expression> bodyExpr = body->express(scope);
+    std::shared_ptr<Omniscript::Expression> bodyExpr = body->express(localScope);
     DEBUG_LOG("Created its body");
 
     return std::make_shared<Omniscript::ForLoopExpression>(initializationExpr, conditionExpr, increamentExpr, bodyExpr);

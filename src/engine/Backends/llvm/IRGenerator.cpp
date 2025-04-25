@@ -2501,8 +2501,9 @@ llvm::Value* IRGenerator::createForLoop(
     llvm::LLVMContext& context = Builder->getContext();
 
     // Emit initializer
+    auto localScope = scope->createChildScope("forloop");
     if (forExpr->initializer) {
-        codegen(forExpr->initializer, scope);
+        codegen(forExpr->initializer, localScope);
     }
 
     // Create blocks
@@ -2516,7 +2517,7 @@ llvm::Value* IRGenerator::createForLoop(
     Builder->SetInsertPoint(condBlock);
 
     // Emit condition
-    llvm::Value* condValue = codegen(forExpr->condition, scope);
+    llvm::Value* condValue = codegen(forExpr->condition, localScope);
     if (!condValue) return nullptr;
 
     // Normalize to boolean
@@ -2544,7 +2545,7 @@ llvm::Value* IRGenerator::createForLoop(
     for (auto& expr : std::dynamic_pointer_cast<Omniscript::BlockExpression>(forExpr->body)->values) {
         if (expr) {
             bodyHasContent = true;
-            if (!codegen(expr, scope)) return nullptr;
+            if (!codegen(expr, localScope)) return nullptr;
         }
     }
 
@@ -2556,14 +2557,14 @@ llvm::Value* IRGenerator::createForLoop(
     // Emit increment
     Builder->SetInsertPoint(incrementBlock);
     if (forExpr->increment) {
-        codegen(forExpr->increment, scope);
+        codegen(forExpr->increment, localScope);
     }
     Builder->CreateBr(condBlock);
 
     // After loop
     Builder->SetInsertPoint(afterBlock);
-
-    return llvm::Constant::getNullValue(llvm::Type::getVoidTy(context));
+    
+    return nullptr;
 }
 
 

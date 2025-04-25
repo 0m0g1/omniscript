@@ -109,7 +109,7 @@
 // }
 
 for (let index = 0; index < 5; index++) {
-    
+    let n: int32 = 0;
 }
 
 // work on dynamic arrays
