@@ -250,6 +250,7 @@ public:
 
     bool hasSideEffects() override;
     bool isCompileTimeEvaluatable() override;
+    void recursiveUpdate();
 };
 
 template<typename T>
@@ -580,6 +581,7 @@ public:
 class Assignment : public virtual NamedStatement, public virtual TypedStatement {
 public:
     void setGlobalVisibilityTo(bool state);
+    bool isStatic = false;
     bool isGlobal = true;
     virtual std::string toString() const override { return "Assignment"; }
 };

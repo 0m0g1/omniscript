@@ -35,7 +35,7 @@ std::shared_ptr<Omniscript::Expression> BlockStatement::express(SymbolTableType 
 }
 
 std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::expressAsVector(SymbolTableType scope) {
-    resolveGenerics();
+    recursiveUpdate();
     
     std::vector<std::shared_ptr<Omniscript::Expression>> results = {};
     
@@ -80,6 +80,22 @@ bool BlockStatement::isCompileTimeEvaluatable() {
         }
     }
     return true;
+}
+
+void BlockStatement::recursiveUpdate() {
+    resolveGenerics();
+    for (auto& stmt : statements) {
+        if (auto assign = std::dynamic_pointer_cast<Assignment>(stmt)) {
+            if (assign->isStatic) {
+                assign->isGlobal = true;
+            } else {
+                assign->isGlobal = false;
+            }
+        }
+        if (auto assign = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
+            recursiveUpdate();
+        }
+    }
 }
 
 std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType scope) {
@@ -654,6 +670,7 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
     auto localScope = scope->createChildScope("forloop");
     DEBUG_LOG("Creating a for loop expression");
     std::shared_ptr<Omniscript::Expression> initializationExpr = initialization->express(localScope);
+    initializationExpr->isGlobal = false;
     DEBUG_LOG("Created its initialization expression");
     DEBUG_LOG("Creating its condition expression '" + condition->toString() + "'.");
     std::shared_ptr<Omniscript::Expression> conditionExpr = condition->express(localScope);
