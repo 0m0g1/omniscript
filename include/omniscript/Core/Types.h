@@ -322,6 +322,14 @@ public:
     static std::shared_ptr<Type> createDynamicArrayType(std::shared_ptr<Type> elementType);
     static std::shared_ptr<Type> createHeterogeneousArrayType();
     static std::shared_ptr<Type> createGenericType(const std::string& typeName);
+    static std::shared_ptr<Type> createUserDefinedType(
+        const std::string& name,
+        Kind kind = Kind::UserDefined,
+        const std::vector<std::shared_ptr<Type>>& typeParams = {},
+        const std::vector<std::shared_ptr<Type>>& baseTypes = {}
+    );
+    
+    
 
     virtual std::shared_ptr<Type> clone() const {
         // Fallback clone for base Type (can optionally throw if never meant to be instantiated)
@@ -390,18 +398,24 @@ public:
 class UserDefinedType : public Type {
 public:
     std::string name;
-    // std::shared_ptr<SymbolTable> scope;
     std::vector<std::shared_ptr<Type>> typeParams;
+    std::vector<std::shared_ptr<Type>> baseTypes;
 
-    // TODO: Add the base kind of the user defined type
-    UserDefinedType(const std::string& name)
-        : Type(Kind::UserDefined), name(name) {}
+    UserDefinedType(const std::string& name, Kind kind = Kind::UserDefined)
+        : Type(kind), name(name) {}
 
     std::string getName() const override { return name; }
 
-    // You can optionally override getSize() or getReturnType() too
+    // Inheritance check (for multiple inheritance)
+    // bool derivesFrom(const std::string& baseName) const {
+    //     for (const auto& base : baseTypes) {
+    //         if (base->name == baseName || base->derivesFrom(baseName)) {
+    //             return true;
+    //         }
+    //     }
+    //     return false;
+    // }
 };
-
 
 class PointerType : public Type {
 public:

@@ -1518,7 +1518,15 @@ llvm::Function* IRGenerator::createFunction(
     for (auto& arg : function->args()) {
         auto& param = params[idx];
         arg.setName(param->name);
-
+        
+        if (auto inpt = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(param)) {
+            if (inpt->isConstant) {
+                arg.addAttr(llvm::Attribute::ReadOnly); // <--- Mark as readonly if constant
+            }
+            DEBUG_LOG("Setting function argument: " + param->name + 
+                    " of kind: " + param->getType()->kindName() + 
+                    (inpt->isConstant ? " [const]" : ""));
+        }
         DEBUG_LOG("Setting function argument: " + param->name + " of kind: " + param->getType()->kindName());
         idx++;
     }

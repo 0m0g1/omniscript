@@ -95,11 +95,11 @@ std::shared_ptr<Type> Type::createPointerType(std::shared_ptr<Type> pointee) {
 }
 
 std::shared_ptr<Type> Type::createNullPointerType() {
-    return std::make_shared<Omniscript::NullPointerType>();
+    return std::make_shared<NullPointerType>();
 }
 
 std::shared_ptr<Type> Type::createNullType() {
-    return std::make_shared<Omniscript::NullType>();
+    return std::make_shared<NullType>();
 }
 
 std::shared_ptr<Type> Type::createReferenceType(std::shared_ptr<Type> referent) {
@@ -146,6 +146,19 @@ std::shared_ptr<Type> Type::createMetaType() {
     t->kind = Kind::Metadata;
     return t;
 }
+
+std::shared_ptr<Type> Type::createUserDefinedType(
+    const std::string& name,
+    Kind kind,
+    const std::vector<std::shared_ptr<Type>>& typeParams,
+    const std::vector<std::shared_ptr<Type>>& baseTypes
+) {
+    auto t = std::make_shared<UserDefinedType>(name, kind);
+    t->typeParams = typeParams;
+    t->baseTypes = baseTypes;
+    return t;
+}
+
 
 std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     if (dataTypes.empty()) {

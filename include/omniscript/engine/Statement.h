@@ -727,10 +727,14 @@ public:
 
 class ParameterStatement : public NamedStatement, public TypedStatement {
 public:
+    bool isConstant;
     std::shared_ptr<Statement> defaultValue;
 
-    ParameterStatement(std::string name, std::shared_ptr<Statement> defaultValue = nullptr)
-        : defaultValue(std::move(defaultValue)) {
+    ParameterStatement(
+        std::string name,
+        std::shared_ptr<Statement> defaultValue = nullptr,
+        bool isConst = false
+    ) : defaultValue(std::move(defaultValue)), isConstant(isConst) {
             setName(name);
         }
     
@@ -836,7 +840,7 @@ public:
     }
 };
     
-class ConstructStructPrototype : public NamedStatement {
+class ConstructStructPrototype : public NamedStatement, public TypedStatement {
 public:
     ConstructStructPrototype(const std::string& structName, const std::vector<std::shared_ptr<Statement>>& structBody) :
     body(structBody) {

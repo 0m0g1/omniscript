@@ -101,15 +101,15 @@
 // }
 
 
-// // Structs (user-defined types)
-// struct Vector3 {
-//     x: f32 = 0;
-//     y: f32 = 0;
-//     z: f32 = 0;
-//     // scale(x : f32 = 1) => void {
+// Structs (user-defined types)
+struct Vector3 {
+    x: f32 = 0;
+    y: f32 = 0;
+    z: f32 = 0;
+    scale(x: f32 = 1) => void {
         
-//     // }
-// }
+    }
+}
 
 // let index = 0;
 // for (;;) {

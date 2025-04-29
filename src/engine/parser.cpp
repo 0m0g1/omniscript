@@ -1031,18 +1031,25 @@ std::shared_ptr<Statement> Parser::parseClass() {
     return nullptr;
 }
 
-std::shared_ptr<Statement> Parser::parseLambdaFunction(const std::string& lambdaName, parameterType paramTypes) {
+std::shared_ptr<Statement> Parser::parseLambdaFunction(
+    const std::string& lambdaName,
+    parameterType paramTypes,
+    std::shared_ptr<Omniscript::Type> type
+) {
     static int anonCounter = 0;
     if (lambdaName.empty()) {
         std::string name = "lambda_" + std::to_string(anonCounter++);
-        return parseFunctionDeclaration(name, paramTypes);
+        return parseFunctionDeclaration(name, paramTypes,type);
     }
-    return parseFunctionDeclaration(lambdaName, paramTypes);
+    return parseFunctionDeclaration(lambdaName, paramTypes, type);
 }
 
 bool Parser::checkIfLambdaExpression() {
+    int i = 1;
+    if (currentToken.getType() == TokenTypes::Identifier) {
+        i++;
+    }
     if (currentToken.getType() == TokenTypes::LeftParen) {
-        int i = 1;
         bool hasValidArgument = false;
 
         while (
@@ -1256,11 +1263,18 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
 }
 
 // Parse function declarations
-std::shared_ptr<Statement> Parser::parseFunctionDeclaration(parameterType paramTypes) {
-    return parseFunctionDeclaration("", paramTypes);
+std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
+    parameterType paramTypes,
+    std::shared_ptr<Omniscript::Type> type
+) {
+    return parseFunctionDeclaration("", paramTypes, type);
 }
 
-std::shared_ptr<Statement> Parser::parseFunctionDeclaration(const std::string& definedName, parameterType paramTypes) {
+std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
+    const std::string& definedName,
+    parameterType paramTypes,
+    std::shared_ptr<Omniscript::Type> type
+) {
     std::string name = definedName;
     
     if (name.empty()) {
@@ -1279,6 +1293,12 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(const std::string& d
     }
     
     std::vector<std::shared_ptr<Statement>> parameters = parseParameters();
+
+    if (type) {
+        auto param = std::make_shared<ParameterStatement>("this", nullptr, true);
+        param->setType(type);
+        parameters.insert(parameters.begin(), std::dynamic_pointer_cast<Statement>(param));
+    }
 
     std::shared_ptr<Omniscript::Type> returnType = nullptr;
     std::vector<std::string> returnDataType;
@@ -2049,15 +2069,19 @@ std::shared_ptr<Statement> Parser::parseStruct() {
     std::string structName = currentToken.getValue();
     eat(TokenTypes::Identifier);
 
+    std::shared_ptr<Omniscript::Type> thisType = Omniscript::Type::createUserDefinedType(structName, Omniscript::Kind::Struct);
     std::vector<std::shared_ptr<Statement>> body;
 
     eat(TokenTypes::LeftBrace);
-    while(currentToken.getType() != TokenTypes::RightBrace) {
-        if (currentToken.getType() == TokenTypes::Comma) {
-            eat(TokenTypes::Comma);
-        }
-
-        if (currentToken.getType() == TokenTypes::Identifier) {
+    while (currentToken.getType() != TokenTypes::RightBrace) {
+        // Parse method or field
+        if (checkIfLambdaExpression()) {
+            auto func = parseLambdaFunction(structName); // You can pass structName here for naming
+            body.push_back(func);
+            if (currentToken.getType() == TokenTypes::Semicolon) {
+                eat(TokenTypes::Semicolon);
+            }
+        } else if (currentToken.getType() == TokenTypes::Identifier) {
             std::string fieldName = currentToken.getValue();
             std::vector<std::string> type;
             std::shared_ptr<Statement> value = nullptr;
@@ -2077,12 +2101,14 @@ std::shared_ptr<Statement> Parser::parseStruct() {
             field->setType(Omniscript::resolveType(type));
             body.push_back(field);
             eat(TokenTypes::Semicolon);
+        } else {
+            // Unexpected token, maybe throw error or recover
+            console.error("Unexpected token in struct body.");
         }
     }
     eat(TokenTypes::RightBrace);
     return std::make_shared<ConstructStructPrototype>(structName, body);
 }
-
 
 std::shared_ptr<Statement> Parser::parseNamespace() {
     eat(TokenTypes::Namespace);

@@ -58,10 +58,14 @@ class Parser {
             TokenTypes end = TokenTypes::RightParen,
             TokenTypes assignOp = TokenTypes::Assign
         ); // Parse code block
-        std::shared_ptr<Statement> parseFunctionDeclaration(parameterType paramTypes = {}); // To parse function declarations
+        std::shared_ptr<Statement> parseFunctionDeclaration(
+            parameterType paramTypes = {},
+            std::shared_ptr<Omniscript::Type> type = nullptr
+        ); // To parse function declarations
         std::shared_ptr<Statement> parseFunctionDeclaration(
             const std::string& definedName = "",
-            parameterType paramTypes = {}
+            parameterType paramTypes = {},
+            std::shared_ptr<Omniscript::Type> type = nullptr
         ); 
         // std::shared_ptr<Statement> parseFunctionCall();      // To parse function calls
         std::shared_ptr<Statement> parseIdentifier();          // To parse an identifier / function call
@@ -77,7 +81,11 @@ class Parser {
         std::shared_ptr<Statement> parseAssignment(parameterType paramType);          // To parse variable assignments
         std::string parseStringLiteral();                      // To parse string literals
         std::shared_ptr<Statement> parseBlock();
-        std::shared_ptr<Statement> parseLambdaFunction(const std::string& name = "", parameterType paramTypes = {});
+        std::shared_ptr<Statement> parseLambdaFunction(
+            const std::string& name = "",
+            parameterType paramTypes = {},
+            std::shared_ptr<Omniscript::Type> type = nullptr
+        );
         bool checkIfLambdaExpression();
         bool isGenericCallOrConstructor();
         bool checkIfFunctionCall();

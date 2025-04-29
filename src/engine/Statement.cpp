@@ -1430,7 +1430,7 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
         }
     }
     DEBUG_LOG("[Parameter] Created value for parameter " + name + " of kind " + result->getType()->kindName());
-    return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
+    return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result, isConstant);
 }
 
 std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableType scope) {
