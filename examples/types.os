@@ -106,6 +106,9 @@
 //     x: f32 = 0;
 //     y: f32 = 0;
 //     z: f32 = 0;
+//     // scale(x : f32 = 1) => void {
+        
+//     // }
 // }
 
 // let index = 0;
@@ -218,5 +221,9 @@
 // add(1, 1);
 
 
-let n: int32 = 0;
-n = 10;
+
+// function main() => i32 {
+//     let n: int32 = 0;
+//     n = 10;
+//     return n;
+// }

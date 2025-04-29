@@ -635,7 +635,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
 
     scope->setVariable(variable, result);
 
-    return Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result, isGlobal);
+    return Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result, isGlobal, true);
 }    
 
 

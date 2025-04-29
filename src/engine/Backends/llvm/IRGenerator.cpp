@@ -1114,6 +1114,28 @@ llvm::Value* IRGenerator::createVariable(
 
     DEBUG_LOG("Creating variable: " + name + (isGlobal ? " (global)" : " (local)"));
 
+    if (scope->exists(name)) {
+        llvm::Value* existingVar = activeScope->get(name);
+        DEBUG_LOG("Variable '" + name + "' already exists. Reassigning value...");
+
+        if (initialValue) {
+            llvm::Value* ptr = existingVar;
+
+            // Assume valueType is known from the frontend
+            llvm::Type* valueType = type; // already determined earlier
+
+            // Optional: Bitcast if types differ
+            if (initialValue->getType() != valueType) {
+                initialValue = Builder->CreateBitCast(initialValue, valueType, "bitcast");
+            }
+
+            llvm::StoreInst* store = Builder->CreateStore(initialValue, ptr);
+            store->setAlignment(llvm::Align(4)); // adjust as needed
+            DEBUG_LOG("Reassigned variable '" + name + "' with new value.");
+        }
+        return existingVar;
+    }
+
     if (isGlobal) {
         llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
             *activeModule,

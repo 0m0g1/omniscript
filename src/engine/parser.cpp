@@ -2272,7 +2272,11 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
         }
         return std::make_shared<AssignVariable>(variableName, type, value);
     }
-    return std::make_shared<AssignVariable>(variableName, type, value, true);
+    if (auto varGetter = std::dynamic_pointer_cast<GetVariable>(assignee)) {
+        return std::make_shared<AssignVariable>(varGetter->getName(), type, value, true);
+    }
+    console.error("The assignee is unnasignable");
+    return nullptr;
 }
 
 
