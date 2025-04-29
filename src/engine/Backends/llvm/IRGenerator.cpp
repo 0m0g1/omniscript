@@ -2500,13 +2500,15 @@ llvm::Value* IRGenerator::createForLoop(
     llvm::Function* function = Builder->GetInsertBlock()->getParent();
     llvm::LLVMContext& context = Builder->getContext();
 
-    // Emit initializer
+    // Create a local scope for loop
     auto localScope = scope->createChildScope("forloop");
+
+    // Emit initializer if present
     if (forExpr->initializer) {
-        codegen(forExpr->initializer, localScope);
+        if (!codegen(forExpr->initializer, localScope)) return nullptr;
     }
 
-    // Create blocks
+    // Create basic blocks
     llvm::BasicBlock* condBlock = llvm::BasicBlock::Create(context, "for.cond", function);
     llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context, "for.body", function);
     llvm::BasicBlock* incrementBlock = llvm::BasicBlock::Create(context, "for.inc", function);
@@ -2516,55 +2518,61 @@ llvm::Value* IRGenerator::createForLoop(
     Builder->CreateBr(condBlock);
     Builder->SetInsertPoint(condBlock);
 
-    // Emit condition
-    llvm::Value* condValue = codegen(forExpr->condition, localScope);
-    if (!condValue) return nullptr;
+    // Emit condition (if not null)
+    llvm::Value* condValue = nullptr;
+    if (forExpr->condition) {
+        condValue = codegen(forExpr->condition, localScope);
+        if (!condValue) return nullptr;
 
-    // Normalize to boolean
-    if (condValue->getType()->isIntegerTy()) {
-        condValue = Builder->CreateICmpNE(
-            condValue,
-            llvm::ConstantInt::get(condValue->getType(), 0),
-            "forcond"
-        );
-    } else if (condValue->getType()->isFloatingPointTy()) {
-        condValue = Builder->CreateFCmpONE(
-            condValue,
-            llvm::ConstantFP::get(condValue->getType(), 0.0),
-            "forcond"
-        );
+        // Normalize to boolean
+        if (condValue->getType()->isIntegerTy()) {
+            condValue = Builder->CreateICmpNE(
+                condValue,
+                llvm::ConstantInt::get(condValue->getType(), 0),
+                "forcond"
+            );
+        } else if (condValue->getType()->isFloatingPointTy()) {
+            condValue = Builder->CreateFCmpONE(
+                condValue,
+                llvm::ConstantFP::get(condValue->getType(), 0.0),
+                "forcond"
+            );
+        }
+    } else {
+        // No condition → always true
+        condValue = llvm::ConstantInt::getTrue(context);
     }
 
-    // Branch based on condition
     Builder->CreateCondBr(condValue, bodyBlock, afterBlock);
 
-    // Emit loop body
+    // Emit body
     Builder->SetInsertPoint(bodyBlock);
     bool bodyHasContent = false;
-
-    for (auto& expr : std::dynamic_pointer_cast<Omniscript::BlockExpression>(forExpr->body)->values) {
-        if (expr) {
-            bodyHasContent = true;
-            if (!codegen(expr, localScope)) return nullptr;
+    auto block = std::dynamic_pointer_cast<Omniscript::BlockExpression>(forExpr->body);
+    if (block) {
+        for (auto& expr : block->values) {
+            if (expr) {
+                bodyHasContent = true;
+                if (!codegen(expr, localScope)) return nullptr;
+            }
         }
     }
 
-    // If body had no content or no terminator, just branch to increment
+    // If body has no terminator, jump to increment
     if (!bodyHasContent || !Builder->GetInsertBlock()->getTerminator()) {
         Builder->CreateBr(incrementBlock);
     }
 
-    // Emit increment
+    // Emit increment if present
     Builder->SetInsertPoint(incrementBlock);
     if (forExpr->increment) {
-        codegen(forExpr->increment, localScope);
+        if (!codegen(forExpr->increment, localScope)) return nullptr;
     }
     Builder->CreateBr(condBlock);
 
-    // After loop
+    // Final block
     Builder->SetInsertPoint(afterBlock);
-    
+
     return nullptr;
 }
-
 

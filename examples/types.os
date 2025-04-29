@@ -107,8 +107,8 @@
 //     y: f32 = 0;
 //     z: f32 = 0;
 // }
-
-for (let index = 0; index < 5; index++) {
+let index = 0;
+for (;;) {
     let n: int32 = 0;
 }
 

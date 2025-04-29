@@ -1858,16 +1858,29 @@ std::shared_ptr<Statement> Parser::parseBlock() {
     return std::make_shared<BlockStatement>(statements);
 }
 
+//Todo:: Add proper error messages for various exceptions
 std::shared_ptr<ForLoop> Parser::parseForLoop() {
     eat(TokenTypes::For);
     eat(TokenTypes::LeftParen);
-    std::shared_ptr<Statement> initialization = parseAssignment();
-    DEBUG_LOG("Parsed the for assignment expression");
+    std::shared_ptr<Statement> initialization;
+    if (currentToken.getType() == TokenTypes::Semicolon) {
+        eat(TokenTypes::Semicolon);
+    } else {
+        DEBUG_LOG("Parsed the for assignment expression");
+        initialization = parseAssignment();
+        eat(TokenTypes::Semicolon); 
+    }
+    std::shared_ptr<Statement> condition;
+    if (currentToken.getType() != TokenTypes::Semicolon) {
+        condition = parseExpression();
+        DEBUG_LOG("Parsed the for loop's condition " + condition->toString());
+    }
     eat(TokenTypes::Semicolon);
-    std::shared_ptr<Statement> condition = parseExpression();
-    DEBUG_LOG("Parsed the for loop's condition " + condition->toString());
-    eat(TokenTypes::Semicolon);
-    std::shared_ptr<Statement> increment = parseExpression();
+    std::shared_ptr<Statement> increment;
+    if (currentToken.getType() != TokenTypes::RightParen) {
+        increment = parseExpression();
+        DEBUG_LOG("Parsed the for loop's update expression " + increment->toString());
+    }
     DEBUG_LOG("Parsed the for loops update expression");
     eat(TokenTypes::RightParen);
     auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
