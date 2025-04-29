@@ -108,8 +108,12 @@
 //     z: f32 = 0;
 // }
 let index = 0;
-for (;;) {
-    let n: int32 = 0;
+// for (;;) {
+//     let n: int32 = 0;
+// }
+
+while (index < 5) {
+    // index++;
 }
 
 // work on dynamic arrays

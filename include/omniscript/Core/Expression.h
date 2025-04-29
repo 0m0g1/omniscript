@@ -1035,6 +1035,27 @@ struct ForLoopExpression : public Expression {
     }
 };
 
+struct WhileLoopExpression : public Expression {
+    std::shared_ptr<Expression> condition;
+    std::shared_ptr<Expression> body;
+
+    WhileLoopExpression(
+        std::shared_ptr<Expression> condition,
+        std::shared_ptr<Expression> body
+    ) : condition(std::move(condition)), body(std::move(body)) {}
+
+    std::string toString() const override {
+        return "WhileLoop(cond: " + (condition ? condition->toString() : "null") +
+               ", body: " + (body ? body->toString() : "null") + ")";
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<WhileLoopExpression>(
+            condition ? condition->clone() : nullptr,
+            body ? body->clone() : nullptr
+        );
+    }
+};
 
 }
 

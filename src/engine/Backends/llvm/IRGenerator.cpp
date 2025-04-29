@@ -347,8 +347,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         DEBUG_LOG("Processing ForLoopExpression");
         return createForLoop(forExpr, scope);
     }
-    
-    
+
+    if (auto whileExpr = std::dynamic_pointer_cast<Omniscript::WhileLoopExpression>(value)) {
+        DEBUG_LOG("Processing WhileLoopExpression");
+        return createWhileLoop(whileExpr, scope);
+    }
 
     return nullptr;
 }
@@ -2575,4 +2578,66 @@ llvm::Value* IRGenerator::createForLoop(
 
     return nullptr;
 }
+
+llvm::Value* IRGenerator::createWhileLoop(
+    const std::shared_ptr<Omniscript::WhileLoopExpression>& whileExpr,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+) {
+    llvm::Function* function = Builder->GetInsertBlock()->getParent();
+    llvm::LLVMContext& context = Builder->getContext();
+
+    auto localScope = scope->createChildScope("whileloop");
+
+    llvm::BasicBlock* condBlock = llvm::BasicBlock::Create(context, "while.cond", function);
+    llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context, "while.body", function);
+    llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "while.end", function);
+
+    Builder->CreateBr(condBlock); // Jump to condition
+    Builder->SetInsertPoint(condBlock);
+
+    llvm::Value* condValue = whileExpr->condition ? codegen(whileExpr->condition, localScope) : nullptr;
+
+    if (!condValue) {
+        // Treat null condition as infinite loop
+        condValue = llvm::ConstantInt::getTrue(context);
+    } else if (condValue->getType()->isIntegerTy()) {
+        condValue = Builder->CreateICmpNE(
+            condValue,
+            llvm::ConstantInt::get(condValue->getType(), 0),
+            "whilecond"
+        );
+    } else if (condValue->getType()->isFloatingPointTy()) {
+        condValue = Builder->CreateFCmpONE(
+            condValue,
+            llvm::ConstantFP::get(condValue->getType(), 0.0),
+            "whilecond"
+        );
+    }
+
+    Builder->CreateCondBr(condValue, bodyBlock, afterBlock);
+
+    // Loop body
+    Builder->SetInsertPoint(bodyBlock);
+    bool bodyHasContent = false;
+
+    if (auto block = std::dynamic_pointer_cast<Omniscript::BlockExpression>(whileExpr->body)) {
+        for (auto& expr : block->values) {
+            if (expr) {
+                bodyHasContent = true;
+                if (!codegen(expr, localScope)) return nullptr;
+            }
+        }
+    } else if (whileExpr->body) {
+        bodyHasContent = true;
+        if (!codegen(whileExpr->body, localScope)) return nullptr;
+    }
+
+    if (!bodyHasContent || !Builder->GetInsertBlock()->getTerminator()) {
+        Builder->CreateBr(condBlock);
+    }
+
+    Builder->SetInsertPoint(afterBlock);
+    return nullptr;
+}
+
 

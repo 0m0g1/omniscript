@@ -310,6 +310,10 @@ public:
         const std::shared_ptr<Omniscript::ForLoopExpression>& forExpr,
         std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
     );
+    llvm::Value* createWhileLoop(
+        const std::shared_ptr<Omniscript::WhileLoopExpression>& whileExpr,
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+    );
 };
 
 #endif

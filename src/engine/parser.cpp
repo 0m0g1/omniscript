@@ -141,8 +141,13 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
         case TokenTypes::Function:
             statement = parseFunctionDeclaration("", {});
             break;
-        case TokenTypes::Identifier:
-            statement = parseIdentifier();
+        case TokenTypes::Identifier: {
+                if (lexer.peekToken(1).getType() == TokenTypes::Increment || lexer.peekToken(1).getType() == TokenTypes::Decrement) {
+                    statement = parseExpression();
+                } else {
+                    statement = parseIdentifier();
+                }
+            }
             break;
         case TokenTypes::False:
             statement = parseExpression();
@@ -1954,11 +1959,10 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
     auto condition = parseExpression();
     eat(TokenTypes::RightParen);
 
-    auto body = parseBlock();
+    auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
 
     DEBUG_LOG("Parsed while statement");
-    // return std::make_shared<WhileStatement>(condition, body);
-    return nullptr;
+    return std::make_shared<WhileStatement>(condition, body);
 }
 
 // Parse return statements

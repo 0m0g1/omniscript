@@ -696,8 +696,18 @@ std::shared_ptr<Omniscript::Expression> CallMethod::express(SymbolTableType scop
 }
 
 std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType scope) {
-    return nullptr;
+   auto localScope = scope->createChildScope("whileloop");
+    DEBUG_LOG("Creating a while loop expression");
+
+    std::shared_ptr<Omniscript::Expression> conditionExpr = condition ? condition->express(localScope) : nullptr;
+    DEBUG_LOG("Created its condition expression");
+
+    std::shared_ptr<Omniscript::Expression> bodyExpr = body ? body->express(localScope) : nullptr;
+    DEBUG_LOG("Created its body expression");
+
+    return std::make_shared<Omniscript::WhileLoopExpression>(conditionExpr, bodyExpr);
 }
+
 
 std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableType scope) {
     // Assign types
