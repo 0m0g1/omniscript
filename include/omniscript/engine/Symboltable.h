@@ -97,6 +97,12 @@ public:
         return parent_ ? parent_->getPointerToValue(name) : nullptr;
     }
     
+    bool exists(const std::string& name) const {
+        return variables_.count(name) ||
+               constants_.count(name) ||
+               overloadables_.count(name) ||
+               (parent_ && parent_->exists(name));
+    }    
 
     // ==================== SCOPE MANAGEMENT ====================
     std::shared_ptr<SymbolTable<T>> createChildScope(const std::string& name) {

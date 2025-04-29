@@ -290,6 +290,9 @@ public:
     virtual std::shared_ptr<Type> getReturnType() const { return nullptr; }
 
     std::string kindName() const;
+    //Todo:: Implement a description/toString method for types
+    virtual std::string description() const { return kindName(); }
+    std::string toString() const { return description(); }
     Kind getKind() const { return kind; }
 
     virtual std::string getName() const { return "type"; };

@@ -107,14 +107,15 @@
 //     y: f32 = 0;
 //     z: f32 = 0;
 // }
-let index = 0;
+
+// let index = 0;
 // for (;;) {
 //     let n: int32 = 0;
 // }
 
-while (index < 5) {
+// while (index < 5) {
     // index++;
-}
+// }
 
 // work on dynamic arrays
 // let v1 = Vector3{ x: 1.0, y: 2.0};
@@ -215,3 +216,7 @@ while (index < 5) {
 // return 2;
 // add(1.0, 1.0);
 // add(1, 1);
+
+
+let n: int32 = 0;
+n = 10;

@@ -836,11 +836,12 @@ public:
 
 struct VariableAssignment : public Expression {
     bool isGlobal;
+    bool isReassignment;
     std::string variableName;
     std::shared_ptr<Expression> assignedValue;
 
-    VariableAssignment(std::string name, std::shared_ptr<Expression> value, bool isGlobal = false)
-        : variableName(std::move(name)), assignedValue(std::move(value)), isGlobal(isGlobal) {
+    VariableAssignment(std::string name, std::shared_ptr<Expression> value, bool isGlobal = false, bool isReassignment = false)
+        : variableName(std::move(name)), assignedValue(std::move(value)), isGlobal(isGlobal), isReassignment(isReassignment) {
         type = assignedValue->type;  // Same type as the assigned value
     }
 

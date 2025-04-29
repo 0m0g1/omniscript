@@ -72,7 +72,8 @@ class Parser {
         std::shared_ptr<Statement> parseIfStatement();         // To parse if statements
         std::shared_ptr<Statement> parseWhileStatement();      // To parse while loops
         std::shared_ptr<ReturnStatement> parseReturnStatement();// To parse return statements
-        std::shared_ptr<Statement> parseAssignment();          // To parse variable assignments
+        bool isAssignmentExpression(TokenTypes tokenType);
+        std::shared_ptr<Statement> parseAssignment(std::shared_ptr<Statement> assignee = nullptr);          // To parse variable assignments
         std::shared_ptr<Statement> parseAssignment(parameterType paramType);          // To parse variable assignments
         std::string parseStringLiteral();                      // To parse string literals
         std::shared_ptr<Statement> parseBlock();

@@ -149,6 +149,10 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
                 }
             }
             break;
+        case TokenTypes::Increment:
+        case TokenTypes::Decrement:
+            statement = parseExpression();
+            break;
         case TokenTypes::False:
             statement = parseExpression();
             break;
@@ -1704,16 +1708,14 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     std::shared_ptr<Statement> statement = std::make_shared<GetVariable>(rootIdentifier);
     std::shared_ptr<Statement> previousStatement = statement;
 
-    // if (currentToken.getType() == TokenTypes::Assign || 
-    //     currentToken.getType() == TokenTypes::PlusAssign || 
-    //     currentToken.getType() == TokenTypes::MinusAssign || 
-    //     currentToken.getType() == TokenTypes::DivideAssign || 
-    //     currentToken.getType() == TokenTypes::MultiplyAssign || 
-    //     currentToken.getType() == TokenTypes::Increment || 
-    //     currentToken.getType() == TokenTypes::Decrement) {
-    //     DEBUG_LOG("Parsing an assignment");
-    //     return parseAssignment();
-    // }
+    if (currentToken.getType() == TokenTypes::Assign || 
+        currentToken.getType() == TokenTypes::PlusAssign || 
+        currentToken.getType() == TokenTypes::MinusAssign || 
+        currentToken.getType() == TokenTypes::DivideAssign || 
+        currentToken.getType() == TokenTypes::MultiplyAssign) {
+        DEBUG_LOG("Parsing an assignment");
+        return parseAssignment(statement);
+    }
 
     // std::string previousIdentifier;
     // std::string currentIdentifier = currentToken.getValue();
@@ -2096,6 +2098,18 @@ std::shared_ptr<Statement> Parser::parseNamespace() {
 }
 
 // Parse variable assignments
+bool Parser::isAssignmentExpression(TokenTypes tokenType) {
+    if (tokenType == TokenTypes::Assign || 
+        tokenType == TokenTypes::PlusAssign || 
+        tokenType == TokenTypes::MinusAssign || 
+        tokenType == TokenTypes::DivideAssign || 
+        tokenType == TokenTypes::MultiplyAssign || 
+        tokenType == TokenTypes::Increment || 
+        tokenType == TokenTypes::Decrement) {
+        return true;
+    }
+    return false;
+}
 std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
     // We assume this is a lambda assignment like: let fn = (x: int) => x * 2;
 
@@ -2140,11 +2154,11 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
         return std::make_shared<createConstant>(variableName, type, lambda);
     }
 
-    return std::make_shared<createVariable>(variableName, type, lambda);
+    return std::make_shared<AssignVariable>(variableName, type, lambda);
 }
 
 
-std::shared_ptr<Statement> Parser::parseAssignment() {
+std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> assignee) {
     TokenTypes variableType;
     std::string variableName;
     std::shared_ptr<Statement> value;
@@ -2154,63 +2168,63 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
     bool isArray = false;
     
     // Parse variable declarations (let or const)
-    if (currentToken.getType() == TokenTypes::Let) {
-        eat(TokenTypes::Let);
-        variableType = TokenTypes::Let;
-    } else if (currentToken.getType() == TokenTypes::Const) {
-        eat(TokenTypes::Const);
-        variableType = TokenTypes::Const;
-    } else {
-        variableName = previousToken.getValue();
+    if (!assignee) {
+        if (currentToken.getType() == TokenTypes::Let) {
+            eat(TokenTypes::Let);
+            variableType = TokenTypes::Let;
+        } else if (currentToken.getType() == TokenTypes::Const) {
+            eat(TokenTypes::Const);
+            variableType = TokenTypes::Const;
+        } else {
+            variableName = previousToken.getValue();
+        }
+        variableName = currentToken.getValue();
+        eat(TokenTypes::Identifier);
+        // Handle type annotation before variable name
+        std::vector<std::string> dataTypes;
+        if (currentToken.getType() == TokenTypes::Colon) {
+            eat(TokenTypes::Colon);
+    
+            dataTypes = parseType();
+        
+        } else if (currentToken.getType() == TokenTypes::Assign) {
+            eat(TokenTypes::Assign);
+            std::string typeName = currentToken.getValue();
+    
+            std::shared_ptr<Statement> result = parseExpression();
+    
+            if (auto objConstructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(result)) {
+                objConstructor->setInstanceName(variableName);
+                return result;
+            }
+            
+            if (auto funcDecl = std::dynamic_pointer_cast<FunctionDeclaration>(result)) {
+                if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
+                    named->setName(variableName);
+                }
+                return funcDecl;  // Return the function declaration
+            }
+    
+            if (variableType == TokenTypes::Let) {
+                return std::make_shared<AssignVariable>(variableName, nullptr, result);
+            }
+            return std::make_shared<createConstant>(variableName, nullptr, result);
+        }    
+    
+        type = Omniscript::resolveType(dataTypes);
+    
+        DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " '" + variableName + "' with type '" + type->kindName() + "'.");
     }
     
-    variableName = currentToken.getValue();
-    eat(TokenTypes::Identifier);
-    
-    // Handle type annotation before variable name
-    std::vector<std::string> dataTypes;
-    if (currentToken.getType() == TokenTypes::Colon) {
-        eat(TokenTypes::Colon);
-
-        dataTypes = parseType();
-    
-    } else if (currentToken.getType() == TokenTypes::Assign) {
-        eat(TokenTypes::Assign);
-        std::string typeName = currentToken.getValue();
-
-        std::shared_ptr<Statement> result = parseExpression();
-
-        if (auto objConstructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(result)) {
-            objConstructor->setInstanceName(variableName);
-            return result;
-        }
-        
-        if (auto funcDecl = std::dynamic_pointer_cast<FunctionDeclaration>(result)) {
-            if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
-                named->setName(variableName);
-            }
-            return funcDecl;  // Return the function declaration
-        }
-
-        if (variableType == TokenTypes::Let) {
-            return std::make_shared<createVariable>(variableName, nullptr, result);
-        }
-        return std::make_shared<createConstant>(variableName, nullptr, result);
-    }    
-
-    type = Omniscript::resolveType(dataTypes);
-
-    DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " '" + variableName + "' with type '" + type->kindName() + "'.");
-
     if (currentToken.getType() != TokenTypes::Semicolon) {
         if (currentToken.getType() == TokenTypes::Increment || currentToken.getType() == TokenTypes::Decrement) {
             DEBUG_LOG("Assigning a unary statement");
             switch (currentToken.getType()) {
                 case TokenTypes::Increment:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Increment);
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Increment);
                     break;
                 case TokenTypes::Decrement:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Decrement);
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Decrement);
                     break;
                 default:
                     eat(TokenTypes::Semicolon);
@@ -2227,16 +2241,16 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
                 case TokenTypes::Assign:
                     break;
                 case TokenTypes::PlusAssign:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Plus, value);
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Plus, value);
                     break;
                 case TokenTypes::MinusAssign:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Minus, value);
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Minus, value);
                     break;
                 case TokenTypes::DivideAssign:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Divide, value);
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Divide, value);
                     break;
                 case TokenTypes::MultiplyAssign:
-                    value = std::make_shared<BinaryExpression>(std::make_shared<GetVariable>(variableName), TokenTypes::Multiply, value);
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Multiply, value);
                     break;
                 default:
                     eat(TokenTypes::Assign, "Invalid assignment operator: " + getTokenTypeName(currentAssignmentOperation.getType()));
@@ -2252,11 +2266,13 @@ std::shared_ptr<Statement> Parser::parseAssignment() {
         }
     }
 
-    if (variableType == TokenTypes::Const) {
-        return std::make_shared<createConstant>(variableName, type, value);
+    if (!assignee) {
+        if (variableType == TokenTypes::Const) {
+            return std::make_shared<createConstant>(variableName, type, value);
+        }
+        return std::make_shared<AssignVariable>(variableName, type, value);
     }
-
-    return std::make_shared<createVariable>(variableName, type, value);
+    return std::make_shared<AssignVariable>(variableName, type, value, true);
 }
 
 

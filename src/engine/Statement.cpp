@@ -459,10 +459,16 @@ void Assignment::setGlobalVisibilityTo(bool state) {
     isGlobal = state;
 }
 
-std::shared_ptr<Omniscript::Expression> createVariable::express(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType scope) {
     DEBUG_LOG("Creating variable " + variable);
 
     std::shared_ptr<Omniscript::Expression> result;
+
+    if (isReassign) {
+        if (!scope->exists(variable)) {
+            console.log("Variable '" + variable + "' was not declared in scope '" + scope->getName() + "'.");
+        }
+    }
 
     if (type) {
         if (type->isGeneric()) {
@@ -618,6 +624,13 @@ std::shared_ptr<Omniscript::Expression> createVariable::express(SymbolTableType 
     } else {
         DEBUG_LOG("No type was deduced for variable '" + variable + "'. It had a value and no type or multiple types. Returning its result.");
         return result;
+    }
+
+    if (isReassign) {
+        std::shared_ptr<Omniscript::Expression> prevValue = scope->get(variable);
+        if (!Omniscript::isSameOrCastableTo(result->getType(), prevValue->getType())) {
+            console.error("'" + variable + "' should be of type " + prevValue->getType()->kindName() + "' not a '" + result->getType()->kindName() + "'.");
+        }
     }
 
     scope->setVariable(variable, result);
