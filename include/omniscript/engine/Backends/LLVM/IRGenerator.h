@@ -38,10 +38,12 @@ struct DynamicValue {
 };
 
 
+using IRGenSymbolTableType = std::shared_ptr<SymbolTable<llvm::Value*, llvm::Type*>>;
+
 class IRGenerator {
 private:
-    std::shared_ptr<SymbolTable<llvm::Value*>> scope = std::make_shared<SymbolTable<llvm::Value*>>();
-    std::shared_ptr<SymbolTable<llvm::Value*>> activeScope = scope;
+    IRGenSymbolTableType scope = std::make_shared<SymbolTable<llvm::Value*, llvm::Type*>>();
+    IRGenSymbolTableType activeScope = scope;
     std::stack<llvm::BasicBlock*> insertionPointStack;
     std::vector<GlobalInit> globalInitializers;
 
@@ -108,8 +110,8 @@ public:
         // If prevBlock is nullptr, the Builder remains unchanged
     }
 
-    inline void pushScope() {
-        activeScope = std::make_shared<SymbolTable<llvm::Value*>>(activeScope);
+    inline void pushScope(const std::string& name = "") {
+        activeScope = activeScope->createChildScope(name);
     }
     
     inline void popScope() {

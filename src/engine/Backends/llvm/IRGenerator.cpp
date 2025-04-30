@@ -284,19 +284,17 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         fieldTypes.reserve(structExpr->parameters.size());
     
         for (const auto& field : structExpr->parameters) {
-            auto input = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(field);
-            if (!input) {
-                console.error("Expected FunctionInputExpression in struct '" + structExpr->name + "'");
-                return nullptr;
+            if (auto input = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(field)) {
+                llvm::Type* llvmFieldType = resolveLLVMType(input->getType());
+                if (!llvmFieldType) {
+                    console.error("Failed to generate type for field '" + input->name + "' in struct '" + structExpr->name + "'.");
+                    return nullptr;
+                }
+        
+                fieldTypes.push_back(llvmFieldType);
+            } else if (auto method = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(field)) {
+                auto result = codegen(method, scope);
             }
-    
-            llvm::Type* llvmFieldType = resolveLLVMType(input->getType());
-            if (!llvmFieldType) {
-                console.error("Failed to generate type for field '" + input->name + "' in struct '" + structExpr->name + "'.");
-                return nullptr;
-            }
-    
-            fieldTypes.push_back(llvmFieldType);
         }
     
         // Create the LLVM struct type (opaque or packed depending on your system)
@@ -2031,6 +2029,8 @@ void IRGenerator::createStructType(const std::string& name, const std::vector<ll
         console.error("Failed to create struct type: " + name);
         return;
     }
+    
+    activeScope->addType(name, structType);
 
     DEBUG_LOG("Created struct prototype: " + name);
 }

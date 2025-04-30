@@ -1045,13 +1045,15 @@ std::shared_ptr<Statement> Parser::parseLambdaFunction(
 }
 
 bool Parser::checkIfLambdaExpression() {
-    int i = 1;
+    int i = 0;
     if (currentToken.getType() == TokenTypes::Identifier) {
         i++;
     }
-    if (currentToken.getType() == TokenTypes::LeftParen) {
-        bool hasValidArgument = false;
 
+    if (lexer.peekToken(i).getType() == TokenTypes::LeftParen) {
+        i++;
+        bool hasValidArgument = false;
+        
         while (
             lexer.peekToken(i).getType() == TokenTypes::Identifier ||
             lexer.peekToken(i).getType() == TokenTypes::Comma || 
@@ -2076,7 +2078,9 @@ std::shared_ptr<Statement> Parser::parseStruct() {
     while (currentToken.getType() != TokenTypes::RightBrace) {
         // Parse method or field
         if (checkIfLambdaExpression()) {
-            auto func = parseLambdaFunction(structName); // You can pass structName here for naming
+            std::string methodName = structName + "." + currentToken.getValue();
+            eat(TokenTypes::Identifier);
+            auto func = parseLambdaFunction(methodName); // You can pass structName here for naming
             body.push_back(func);
             if (currentToken.getType() == TokenTypes::Semicolon) {
                 eat(TokenTypes::Semicolon);

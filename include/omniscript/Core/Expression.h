@@ -517,13 +517,14 @@ struct Callable : public Expression {
     std::vector<std::shared_ptr<FunctionInputExpression>> cloneParameters() const {
         std::vector<std::shared_ptr<FunctionInputExpression>> clonedParams;
         for (const auto& parameter : parameters) {
-            auto param = std::dynamic_pointer_cast<FunctionInputExpression>(parameter);
-            clonedParams.push_back(std::make_shared<FunctionInputExpression>(
-                param->name,
-                param->type,
-                param->value ? param->value->clone() : nullptr,
-                param->isConstant
-            ));
+            if (auto param = std::dynamic_pointer_cast<FunctionInputExpression>(parameter)) {
+                clonedParams.push_back(std::make_shared<FunctionInputExpression>(
+                    param->name,
+                    param->type,
+                    param->value ? param->value->clone() : nullptr,
+                    param->isConstant
+                ));
+            }
         }
         return clonedParams;
     }

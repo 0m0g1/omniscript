@@ -106,10 +106,14 @@ struct Vector3 {
     x: f32 = 0;
     y: f32 = 0;
     z: f32 = 0;
-    scale(x: f32 = 1) => void {
-        
+    scale(x: f32 = 1, y: f32 = 1, z: f32 = 1) => void {
+        // this.x *= x;
+        // this.y *= y;
+        // this.z *= z;   
     }
 }
+
+let v1 = Vector3{ x: 1.0, y: 2.0};
 
 // let index = 0;
 // for (;;) {
@@ -121,7 +125,6 @@ struct Vector3 {
 // }
 
 // work on dynamic arrays
-// let v1 = Vector3{ x: 1.0, y: 2.0};
 
 // let vx = v1.x;
 // v1.x = 5.0;

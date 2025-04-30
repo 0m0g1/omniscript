@@ -1465,6 +1465,9 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
             std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(scope);
 
             fields.push_back(fieldExpr);
+        } if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
+            std::shared_ptr<Omniscript::Expression> method = methodStmt->express(scope);
+            fields.push_back(method);
         } else {
             console.warn("Skipping non-variable declaration in struct body");
         }
