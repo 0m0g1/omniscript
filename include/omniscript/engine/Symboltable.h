@@ -79,31 +79,24 @@ public:
                (parent_ && parent_->exists(name));
     }
 
-    // ==================== TYPE MANAGEMENT (optional) ====================
+    // ==================== TYPE MANAGEMENT (enabled only if TypeT != void) ====================
     template <typename U = TypeT>
-    void addType(const std::string& name, U type) {
-        if constexpr (!std::is_void_v<U>) {
-            types_[name] = std::move(type);
-        }
+    typename std::enable_if<!std::is_void<U>::value, void>::type
+    addType(const std::string& name, U type) {
+        types_[name] = std::move(type);
     }
 
     template <typename U = TypeT>
-    U getType(const std::string& name) const {
-        if constexpr (!std::is_void_v<U>) {
-            if (auto it = types_.find(name); it != types_.end()) return it->second;
-            return parent_ ? parent_->template getType<U>(name) : nullptr;
-        } else {
-            return nullptr;
-        }
+    typename std::enable_if<!std::is_void<U>::value, U>::type
+    getType(const std::string& name) const {
+        if (auto it = types_.find(name); it != types_.end()) return it->second;
+        return parent_ ? parent_->template getType<U>(name) : nullptr;
     }
 
     template <typename U = TypeT>
-    bool typeExists(const std::string& name) const {
-        if constexpr (!std::is_void_v<U>) {
-            return types_.count(name) || (parent_ && parent_->template typeExists<U>(name));
-        } else {
-            return false;
-        }
+    typename std::enable_if<!std::is_void<U>::value, bool>::type
+    typeExists(const std::string& name) const {
+        return types_.count(name) || (parent_ && parent_->template typeExists<U>(name));
     }
 
     // ==================== SCOPE MANAGEMENT ====================
@@ -124,7 +117,8 @@ private:
     std::unordered_map<std::string, T> constants_;
     std::unordered_map<std::string, std::vector<T>> overloadables_;
 
-    std::unordered_map<std::string, TypeT> types_; // Only used if TypeT ≠ void
+    typename std::conditional<std::is_void<TypeT>::value, int, std::unordered_map<std::string, TypeT>>::type types_;
+    // Note: 'types_' is an int dummy when TypeT is void, so it won’t take up space.
 };
 
 #endif // SYMBOLTABLE_H
