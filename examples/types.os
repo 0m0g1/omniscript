@@ -115,6 +115,7 @@ struct Vector3 {
 }
 
 let v1 = Vector3{ x: 1.0, y: 2.0 };
+
 let test = v1.x;
 // v1.x = 2.0;
 // let index = 0;

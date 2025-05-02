@@ -1017,7 +1017,8 @@ llvm::Value* IRGenerator::createBool(bool value) {
 }
 
 llvm::Function* IRGenerator::getOrCreateGlobalInitFunction() {
-    const char* initName = "__startup__";
+    // const char* initName = "__startup__";
+    const char* initName = "__top_level__";
     
     // First check if function already exists
     if (auto* existing = Module->getFunction(initName)) {
@@ -1185,27 +1186,41 @@ llvm::Value* IRGenerator::createVariable(
     }
 
     if (isGlobal) {
+        llvm::Constant* constInit = nullptr;
+        if (initialValue) {
+            constInit = llvm::dyn_cast<llvm::Constant>(initialValue);
+        }
+    
         llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
             *activeModule,
             type,
-            false,
+            /* isConstant = */ false,
             llvm::GlobalValue::ExternalLinkage,
-            initialValue ? llvm::dyn_cast<llvm::Constant>(initialValue) 
-                         : llvm::Constant::getNullValue(type),
+            constInit ? constInit : llvm::Constant::getNullValue(type),
             name
         );
-
+    
         DEBUG_LOG("Global variable '" + name + "' created with type: " + debugType(type));
-
-        if (!gVar->hasInitializer() && initialValue) {
-            console.warn("Warning: Global variable '" + name + 
-                         "' requires a constant initializer but received non-constant.");
-        }
-
         activeScope->set(name, gVar);
+    
+        // If initial value is not constant, emit a runtime store
+        if (initialValue && !constInit) {
+            console.warn("Global variable '" + name + "' initialized with non-constant value; adding runtime store.");
+    
+            // Get or create the global init function
+            llvm::Function* initFunc = getOrCreateGlobalInitFunction();
+    
+            // Use the iterator to get the last position in the entry block
+            llvm::BasicBlock& entryBlock = initFunc->getEntryBlock();
+            llvm::IRBuilder<> tempBuilder(&entryBlock, entryBlock.end());
+    
+            // Create the store instruction just before the terminator
+            tempBuilder.CreateStore(initialValue, gVar);
+        }
+    
         return gVar;
     }
-
+    
     // Local variable case
     llvm::Function* function = nullptr;
     llvm::IRBuilder<> tempBuilder(Builder->getContext());
