@@ -111,6 +111,7 @@ struct Vector3 {
         // this.x *= x;
         // this.y *= y;
         // this.z *= z;
+        let f: float = x + y;
     }
 }
 
