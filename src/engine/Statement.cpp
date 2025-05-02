@@ -1067,6 +1067,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         DEBUG_LOG("[Call] Returning CallExpression for '" + callee + "' with " + std::to_string(finalArgs.size()) + " args");
         return std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
     }
+
     return std::make_shared<Omniscript::CallExpression>(callee, instanceName, finalArgs);
 }
 
@@ -1455,6 +1456,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     DEBUG_LOG("[ConstructStructPrototype] Constructing a struct expression");
 
     std::vector<std::shared_ptr<Omniscript::Expression>> fields;
+    std::vector<std::shared_ptr<Omniscript::Type>> fieldTypes;
     std::vector<std::string> fieldNames;
 
     for (const auto& field : body) {
@@ -1465,7 +1467,12 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
             std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(scope);
 
             fields.push_back(fieldExpr);
-        } if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
+            fieldExpr->getType()->parameterName = fieldName;
+            fieldTypes.push_back(fieldExpr->getType());
+        } else if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
+            auto thisParam = std::make_shared<ParameterStatement>("this");
+            thisParam->setType(scope->getType(name));
+            methodStmt->parameters.insert(methodStmt->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
             std::shared_ptr<Omniscript::Expression> method = methodStmt->express(scope);
             fields.push_back(method);
         } else {
@@ -1483,9 +1490,11 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     );
 
     scope->set(getName(), structExpr);
+    auto structType = Omniscript::Type::createUserDefinedType(name, Omniscript::Kind::Struct, fieldTypes);
+    scope->addType(name,structType);
     return structExpr;
 }
-
+ 
 
 std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
     DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
@@ -1495,10 +1504,21 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
     //     argValues.push_back(arg->express(scope));
     // }
 
-    if (scope->get(objectType)) {
+    if (scope->getType(objectType)) {
         type = std::make_shared<Omniscript::UserDefinedType>(objectType);
         auto constructorCall = std::make_shared<Call>(objectType, instanceName, constructorArgs);
-        return constructorCall->express(scope);
+        auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(constructorCall->express(scope));
+
+        auto instance = std::make_shared<Omniscript::InstanceExpression>(
+            objectType,
+            instanceName,
+            call->args
+        );
+
+        instance->instanceType = scope->getType(objectType);
+        instance->type = scope->getType(objectType);
+        scope->set(instanceName, instance);
+        return call;
     } else {
         console.error("Object type was not found in the scope");
     }
@@ -1509,14 +1529,91 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
     // return std::make_shared<Omniscript::CallExpression>(objectType, instanceName, argValues); //, type);
 }
 
-std::shared_ptr<Omniscript::Expression> GetMemberValue::express(SymbolTableType scope) {
-    // DEBUG_LOG("Getting member " + propertyName + " from " + objectName);
+std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType scope) {
+    // Get base type name from the object
+    DEBUG_LOG("The object name is '" + objectName + "' of type ");
+    std::string baseTypeName = scope->get(objectName)->getType()->kindName();
+    std::shared_ptr<Omniscript::Type> baseType = scope->getType(baseTypeName);
 
-    // // DEBUG_LOG("Created value for argument " + name);
-    // // return result;
-    // return generator.loadMemberValue(objectName, propertyName);
-    return nullptr;
+    if (!baseType) {
+        console.error("Could not find base type '" + baseTypeName + "'.");
+        return nullptr;
+    }
+
+    std::shared_ptr<Omniscript::Type> currentType = baseType;
+
+    for (const auto& member : propertyPath) {
+        auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType);
+        if (!userType) {
+            console.error("Type '" + currentType->kindName() + "' is not a struct or does not have members.");
+            return nullptr;
+        }
+
+        bool found = false;
+        for (const auto& field : userType->paramTypes) {
+            if (field->getParameterName() == member) {
+                currentType = field; // Move deeper into the chain
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            console.error("Member '" + member + "' not found in type '" + userType->kindName() + "'.");
+            return nullptr;
+        }
+    }
+
+    // At this point, `currentType` is the final member's type
+    // You can now use it as `memberType` if needed
+    std::shared_ptr<Omniscript::Type> memberType = currentType;
+    setType(memberType);
+
+    if (assignmentValue) {
+        DEBUG_LOG("Setting '" + this->toString() + "' to '" + assignmentValue->toString() + "'.");
+        auto result = assignmentValue->express(scope);
+    
+        if (auto instance = std::dynamic_pointer_cast<Omniscript::InstanceExpression>(scope->get(objectName))) {
+            // Traverse into the instance fields
+            std::shared_ptr<Omniscript::InstanceExpression> currentInstance = instance;
+            std::shared_ptr<Omniscript::InstanceExpression> parentInstance = nullptr;
+            std::string lastMember;
+    
+            for (const auto& member : propertyPath) {
+                parentInstance = currentInstance;
+                lastMember = member;
+    
+                auto subInstance = currentInstance->getField(member);
+                if (!subInstance) {
+                    console.error("Member '" + member + "' not found on instance of '" + currentInstance->getType()->kindName() + "'.");
+                    return nullptr;
+                }
+    
+                currentInstance = std::dynamic_pointer_cast<Omniscript::InstanceExpression>(subInstance);
+                if (!currentInstance) {
+                    break; // Might be at the leaf now
+                }
+            }
+    
+            // Actually set the value now
+            if (parentInstance) {
+                parentInstance->setField(lastMember, result);
+            } else {
+                console.error("Unable to set field: no valid parent instance found.");
+                return nullptr;
+            }
+    
+            return std::make_shared<Omniscript::MemberAccessExpression>(baseTypeName, objectName, propertyPath, result);
+        } else {
+            console.error("Object '" + objectName + "' is not an instance.");
+            return nullptr;
+        }
+    } else {
+        DEBUG_LOG("Getting '" + this->toString() + "'.");
+        return std::make_shared<Omniscript::MemberAccessExpression>(baseTypeName, objectName, propertyPath);
+    }
 }
+
 
 std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
     return std::make_shared<IntegerLiteral>(valueIndex)->express(scope);

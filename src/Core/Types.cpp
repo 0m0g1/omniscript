@@ -150,10 +150,12 @@ std::shared_ptr<Type> Type::createMetaType() {
 std::shared_ptr<Type> Type::createUserDefinedType(
     const std::string& name,
     Kind kind,
+    const std::vector<std::shared_ptr<Type>>& paramTypes,
     const std::vector<std::shared_ptr<Type>>& typeParams,
     const std::vector<std::shared_ptr<Type>>& baseTypes
 ) {
     auto t = std::make_shared<UserDefinedType>(name, kind);
+    t->paramTypes = paramTypes;
     t->typeParams = typeParams;
     t->baseTypes = baseTypes;
     return t;

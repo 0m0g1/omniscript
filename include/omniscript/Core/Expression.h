@@ -715,14 +715,14 @@ public:
     InstanceExpression(
         const std::string& baseName,
         const std::string& instanceName,
-        std::vector<std::shared_ptr<Expression>> args = {},
-        std::vector<std::shared_ptr<Expression>> publicMembers = {},
-        std::vector<std::shared_ptr<Expression>> privateMembers = {}
+        const std::vector<std::shared_ptr<Expression>>& args = {},
+        const std::vector<std::shared_ptr<Expression>>& publicMembers = {},
+        const std::vector<std::shared_ptr<Expression>>& privateMembers = {}
     ) : baseName(baseName),
         instanceName(instanceName),
-        constructorArgs(std::move(args)),
-        publicMembers(std::move(publicMembers)),
-        privateMembers(std::move(privateMembers)) {
+        constructorArgs(args),
+        publicMembers(publicMembers),
+        privateMembers(privateMembers) {
 
         this->instanceType = std::make_shared<UserDefinedType>(baseName);
         this->type = instanceType; // inherited from Expression
@@ -730,6 +730,38 @@ public:
 
     std::string toString() const override {
         return "Instance<" + baseName + "> named " + instanceName;
+    }
+
+    // Retrieves a member by name (searches public first, then private)
+    std::shared_ptr<Expression> getField(const std::string& name) const {
+        for (const auto& member : publicMembers) {
+            if (member->getType()->getParameterName() == name) {
+                return member;
+            }
+        }
+        for (const auto& member : privateMembers) {
+            if (member->getType()->getParameterName() == name) {
+                return member;
+            }
+        }
+        return nullptr; // Not found
+    }
+
+    // Sets or replaces a member value (searches public first, then private)
+    bool setField(const std::string& name, const std::shared_ptr<Expression>& newValue) {
+        for (auto& member : publicMembers) {
+            if (member->getType()->getParameterName() == name) {
+                member = newValue;
+                return true;
+            }
+        }
+        for (auto& member : privateMembers) {
+            if (member->getType()->getParameterName() == name) {
+                member = newValue;
+                return true;
+            }
+        }
+        return false; // Not found
     }
 
     std::shared_ptr<Expression> clone() const override {
@@ -757,6 +789,62 @@ public:
         );
     }
 };
+
+class MemberAccessExpression : public Expression {
+public:
+    std::string baseType;
+    std::string instanceName;
+    std::vector<std::string> memberPath;
+    std::shared_ptr<Expression> assignmentValue; // Present if it's a setter
+
+    MemberAccessExpression(
+        const std::string& baseType,
+        const std::string& instanceName,
+        std::vector<std::string> memberPath,
+        std::shared_ptr<Expression> assignmentValue = nullptr
+    ) : baseType(baseType),
+        instanceName(instanceName),
+        memberPath(std::move(memberPath)),
+        assignmentValue(assignmentValue) {
+    }
+
+    bool isSetter() const {
+        return assignmentValue != nullptr;
+    }
+
+    std::string toString() const override {
+        std::string pathStr;
+        for (size_t i = 0; i < memberPath.size(); ++i) {
+            pathStr += memberPath[i];
+            if (i < memberPath.size() - 1) {
+                pathStr += ".";
+            }
+        }
+        if (isSetter()) {
+            return instanceName + "." + pathStr + " = " + assignmentValue->toString();
+        } else {
+            return instanceName + "." + pathStr;
+        }
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        if (isSetter()) {
+            return std::make_shared<MemberAccessExpression>(
+                baseType,
+                instanceName,
+                memberPath,
+                assignmentValue->clone()
+            );
+        } else {
+            return std::make_shared<MemberAccessExpression>(
+                baseType,
+                instanceName,
+                memberPath
+            );
+        }
+    }
+};
+
 
 struct EnumExpression : public Expression {
     EnumExpression(const std::string& enumName, bool hasLookup = false, bool isEnumClass = false)

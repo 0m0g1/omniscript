@@ -1713,18 +1713,13 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             eat(TokenTypes::Identifier);
         }
 
-        auto resolution = std::make_shared<GetMemberValue>(rootIdentifier, members[0]);
+        auto resolution = std::make_shared<MemberAccess>(rootIdentifier, members);
 
-        // if (currentToken.getType() == TokenTypes::Assign) {
-        //     for (const auto& member: members) {
-        //         resolution = std::make_shared<GetMemberValue>(rootIdentifier, members[0]);
-        //     }
-        // }
-        eat(currentToken.getType());
-        std::string member = currentToken.getValue();
-        eat(TokenTypes::Identifier);
+        if (isAssignmentExpression(currentToken.getType())) {
+            return parseAssignment(resolution);
+        }
 
-        return std::make_shared<GetMemberValue>(rootIdentifier, member);
+        return resolution;
     }
 
     std::shared_ptr<Statement> statement = std::make_shared<GetVariable>(rootIdentifier);

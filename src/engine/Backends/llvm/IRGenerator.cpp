@@ -164,7 +164,7 @@ void IRGenerator::optimizeModule(int level) {
     // printErrors();
 }
 
-llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope) {
+llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope) {
     llvm::Value* result = codegenPrimitive(value, scope);
 
     if (result) {
@@ -292,13 +292,18 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
                 }
         
                 fieldTypes.push_back(llvmFieldType);
-            } else if (auto method = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(field)) {
+            }
+        }
+        
+        // Create the LLVM struct type (opaque or packed depending on your system)
+        createStructType(structExpr->name, fieldTypes);
+        
+        for (const auto& field : structExpr->parameters) {
+            if (auto method = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(field)) {
                 auto result = codegen(method, scope);
             }
         }
-    
-        // Create the LLVM struct type (opaque or packed depending on your system)
-        createStructType(structExpr->name, fieldTypes);
+
         return nullptr;
     }
 
@@ -351,10 +356,46 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return createWhileLoop(whileExpr, scope);
     }
 
+    if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(value)) {
+       std::vector<int> memberIndexPath;
+
+       auto currentType = scope->getType(memberAccess->baseType);
+       for (const auto& member : memberAccess->memberPath) {
+           auto userdef = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType);
+           if (!userdef) break;
+       
+           int index = 0;
+           bool found = false;
+           for (const auto& field : userdef->paramTypes) {
+               if (member == field->getParameterName()) {
+                   memberIndexPath.push_back(index);
+                   currentType = field;
+                   found = true;
+                   break;
+               }
+               ++index;
+           }
+       
+           if (!found) {
+               console.error("Member '" + member + "' not found in type '" + userdef->getName() + "'.");
+               return nullptr;
+           }
+       }       
+
+        if (memberAccess->isSetter()) {
+            DEBUG_LOG("Setting '" + memberAccess->toString() + "' to '" + memberAccess->assignmentValue->toString() + "'.");
+            auto result = codegen(memberAccess->assignmentValue, scope);
+            return accessMember(memberAccess->baseType, memberAccess->instanceName, memberIndexPath, result);
+        } else {
+            DEBUG_LOG("Getting '" + memberAccess->toString() + "'.");
+            return accessMember(memberAccess->baseType, memberAccess->instanceName, memberIndexPath);
+        }
+    }
+
     return nullptr;
 }
 
-llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope) {
+llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope) {
 
     // Handle 8-bit integer (int8_t)
     if (auto integer8 = std::dynamic_pointer_cast<Omniscript::Integer<int8_t>>(value)) {
@@ -574,6 +615,15 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
     DEBUG_LOG("Resolving a '" + type->kindName() + "'.");
     llvm::LLVMContext& context = *Context;
 
+    if (auto customType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(type)) {
+        auto userType = activeScope->getType(customType->getName());
+        if (!userType) {
+            console.error("User type is null");
+            return nullptr;
+        }
+        return userType;
+    }
+
     // If the type is an array, resolve the base type first.
     if (type->isArray()) {
         DEBUG_LOG("The array is of size '" + std::to_string(type->fixedSize) + "' and holds type " + type->elementType->kindName() + "'.");
@@ -729,7 +779,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             llvmType = llvm::PointerType::get(llvm::Type::getInt32Ty(context), 0);
             break;
         default:
-            std::cerr << "[ERROR] Unknown type: " << type->kindName() << std::endl;
+            console.error("[ERROR] Unknown type: " + type->kindName());
             return nullptr;
     }
     
@@ -1481,7 +1531,7 @@ llvm::Function* IRGenerator::createFunction(
     std::vector<std::shared_ptr<Omniscript::Expression>>& body,
     llvm::Type* returnType,
     std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
 ) {
     DEBUG_LOG("Creating function: " + name + " with parameter size " + std::to_string(params.size()));
     
@@ -1606,7 +1656,7 @@ void IRGenerator::generateFunctionBody(
     const std::string& name,
     llvm::Function* function,
     std::vector<std::shared_ptr<Omniscript::Expression>>& body,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
 ) {
     DEBUG_LOG("Generating body for function: " + function->getName().str());
     DEBUG_LOG("Function return type: " + debugType(function->getReturnType()));
@@ -2029,7 +2079,7 @@ void IRGenerator::createStructType(const std::string& name, const std::vector<ll
         console.error("Failed to create struct type: " + name);
         return;
     }
-    
+    DEBUG_LOG("Created '" + debugType(structType) + "' struct type");
     activeScope->addType(name, structType);
 
     DEBUG_LOG("Created struct prototype: " + name);
@@ -2111,6 +2161,62 @@ llvm::Value* IRGenerator::createStructInstance(
         return localVar;
     }
 }
+
+llvm::Value* IRGenerator::accessMember(
+    const std::string& baseTypeName,
+    const std::string& instanceName,
+    const std::vector<int>& propertyPath,
+    llvm::Value* valueToSet
+) {
+    llvm::Value* basePtr = activeScope->get(instanceName);
+    if (!basePtr) {
+        console.error("Instance '" + instanceName + "' not found in scope.");
+        return nullptr;
+    }
+
+    // You must get the underlying pointee type from your own symbol table.
+    llvm::Type* currentType = activeScope->getType(baseTypeName); // <-- you need to implement this
+    if (!currentType) {
+        console.error("Could not determine type of '" + instanceName + "'.");
+        return nullptr;
+    }
+
+    llvm::Value* currentPtr = basePtr;
+
+    for (size_t i = 0; i < propertyPath.size(); ++i) {
+        if (!currentType->isStructTy()) {
+            console.error("Attempted to access member at index " + std::to_string(propertyPath[i]) + " on non-struct type.");
+            return nullptr;
+        }
+    
+        llvm::StructType* structType = llvm::cast<llvm::StructType>(currentType);
+        int fieldIndex = propertyPath[i];
+    
+        if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
+            console.error("Field index out of bounds in struct.");
+            return nullptr;
+        }
+    
+        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex, "field_ptr_" + std::to_string(fieldIndex));
+        currentType = structType->getElementType(fieldIndex);
+    }
+    
+
+    if (valueToSet) {
+        if (valueToSet->getType() != currentType) {
+            valueToSet = Builder->CreateBitCast(valueToSet, currentType, "bitcast.set");
+        }
+        Builder->CreateStore(valueToSet, currentPtr);
+        // DEBUG_LOG("Set value of '" + instanceName + "." + join(propertyPath, ".") + "'");
+        return valueToSet;
+    } else {
+        llvm::Value* loaded = Builder->CreateLoad(currentType, currentPtr, "load.member");
+        // DEBUG_LOG("Accessed value of '" + instanceName + "." + join(propertyPath, ".") + "'");
+        return loaded;
+    }
+}
+
+
 
 // llvm::Value* IRGenerator::getMember(llvm::Value* object, const std::string& memberName) {
 //     if (!object) {
@@ -2446,7 +2552,7 @@ llvm::Value* IRGenerator::createIfStatement(
     const std::vector<std::shared_ptr<Omniscript::Expression>>& conditions,
     const std::vector<std::shared_ptr<Omniscript::Expression>>& bodies,
     const std::shared_ptr<Omniscript::Expression>& elseBody,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope)
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope)
 {
     if (conditions.empty()) {
         return nullptr;
@@ -2528,7 +2634,7 @@ llvm::Value* IRGenerator::createIfStatement(
 
 llvm::Value* IRGenerator::createForLoop(
     const std::shared_ptr<Omniscript::ForLoopExpression>& forExpr,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
 ) {
     llvm::Function* function = Builder->GetInsertBlock()->getParent();
     llvm::LLVMContext& context = Builder->getContext();
@@ -2611,7 +2717,7 @@ llvm::Value* IRGenerator::createForLoop(
 
 llvm::Value* IRGenerator::createWhileLoop(
     const std::shared_ptr<Omniscript::WhileLoopExpression>& whileExpr,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
 ) {
     llvm::Function* function = Builder->GetInsertBlock()->getParent();
     llvm::LLVMContext& context = Builder->getContext();

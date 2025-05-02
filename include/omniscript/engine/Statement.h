@@ -10,7 +10,7 @@
 #include <omniscript/debuggingtools/console.h>
 #include <omniscript/engine/Symboltable.h>
 
-using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>>;
+using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>;
 
 // TODO: Add a formart error virtual method if needed
 class Statement { // Base class for all statements
@@ -1218,35 +1218,39 @@ public:
     void setInstanceName(const std::string& name) { instanceName = name; }
 };
 
-class GetMemberValue : public TypedStatement, public Expression {
+class MemberAccess : public TypedStatement, public Expression {
 private:
     std::string objectName;
-    std::string propertyName;
+    std::vector<std::string> propertyPath;
+    std::shared_ptr<Statement> assignmentValue;
 
 public:
-    GetMemberValue(const std::string& name, const std::string& propertyName)
-    : objectName(name), propertyName(propertyName) {}
+    MemberAccess(const std::string& name, const std::vector<std::string>& propertyPath, std::shared_ptr<Statement> assignmentValue = nullptr)
+    : objectName(name), propertyPath(propertyPath), assignmentValue(assignmentValue) {}
     
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "GetMember"; }
+    bool isSetter() const {
+        return assignmentValue != nullptr;
+    }
+    std::string toString() const override {
+        std::string propertyPath_;
+        
+        for (size_t i = 0; i < propertyPath.size(); ++i) {
+            propertyPath_ += propertyPath[i];
+            if (i < propertyPath.size() - 1) {
+                propertyPath_ += ".";
+            }
+        }
+
+        if (isSetter()) {
+            return "SetMember: " + objectName + "." + propertyPath_ + " = " + (assignmentValue ? assignmentValue->toString() : "null");
+        } else {
+            return "GetMember: " + objectName + "." + propertyPath_;
+        }
+    }
 };
 
-class SetMemberValue : public Statement {
-private:
-    std::string objectName;
-    std::string propertyName;
-    std::shared_ptr<Statement> newValue;
-
-public:
-    SetMemberValue(const std::string& name, const std::string& prop, std::shared_ptr<Statement> value)
-        : objectName(name), propertyName(prop), newValue(value) {} // ✅ Fixed constructor
-
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "SetMember"; }
-};
-    
 // class ObjectDestructorStatement : public Statement {
 // private:
 //     std::string variableName; // The variable holding the object reference

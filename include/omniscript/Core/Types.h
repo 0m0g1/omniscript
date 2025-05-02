@@ -64,6 +64,7 @@ enum class Kind {
 // Base class for all type representations
 class Type {
 public:
+    std::string parameterName;
     Kind kind = Kind::Invalid;
     std::shared_ptr<Type> returnType;
     std::shared_ptr<Type> elementType;
@@ -289,13 +290,14 @@ public:
 
     virtual std::shared_ptr<Type> getReturnType() const { return nullptr; }
 
-    std::string kindName() const;
+    virtual std::string kindName() const;
     //Todo:: Implement a description/toString method for types
     virtual std::string description() const { return kindName(); }
     std::string toString() const { return description(); }
     Kind getKind() const { return kind; }
 
     virtual std::string getName() const { return "type"; };
+    virtual std::string getParameterName() const { return parameterName; };
 
     // Access underlying types
     virtual int getReferenceDepth() const { return 0; }
@@ -325,6 +327,7 @@ public:
     static std::shared_ptr<Type> createUserDefinedType(
         const std::string& name,
         Kind kind = Kind::UserDefined,
+        const std::vector<std::shared_ptr<Type>>& paramTypes = {},
         const std::vector<std::shared_ptr<Type>>& typeParams = {},
         const std::vector<std::shared_ptr<Type>>& baseTypes = {}
     );
@@ -398,12 +401,14 @@ public:
 class UserDefinedType : public Type {
 public:
     std::string name;
+    std::vector<std::shared_ptr<Type>> paramTypes;
     std::vector<std::shared_ptr<Type>> typeParams;
     std::vector<std::shared_ptr<Type>> baseTypes;
 
     UserDefinedType(const std::string& name, Kind kind = Kind::UserDefined)
         : Type(kind), name(name) {}
 
+    std::string kindName() const override { return name; }
     std::string getName() const override { return name; }
 
     // Inheritance check (for multiple inheritance)

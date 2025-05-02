@@ -135,11 +135,11 @@ public:
     // Generate IR for different types
     llvm::Value* codegen(
         std::shared_ptr<Omniscript::Expression> value,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
     );
     llvm::Value* codegenPrimitive(
         std::shared_ptr<Omniscript::Expression> value,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope);
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope);
     llvm::Type* resolveLLVMType(std::shared_ptr<Omniscript::Type> type);
     
     llvm::Value* createNullPointer();
@@ -212,13 +212,13 @@ public:
         std::vector<std::shared_ptr<Omniscript::Expression>>& body,
         llvm::Type* returnType,
         std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
     );
     void generateFunctionBody(
         const std::string& name,
         llvm::Function* function,
         std::vector<std::shared_ptr<Omniscript::Expression>>& funcBody,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
     );
     llvm::AllocaInst* createEntryBlockAlloca(llvm::Function* function,llvm::Type* type, const std::string& name);
     // llvm::Value* createCall(const std::string& callee, std::vector<llvm::Value*>& args);
@@ -306,15 +306,21 @@ public:
         const std::vector<std::shared_ptr<Omniscript::Expression>>& conditions,
         const std::vector<std::shared_ptr<Omniscript::Expression>>& bodies,
         const std::shared_ptr<Omniscript::Expression>& elseBody,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
     );
     llvm::Value* createForLoop(
         const std::shared_ptr<Omniscript::ForLoopExpression>& forExpr,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
     );
     llvm::Value* createWhileLoop(
         const std::shared_ptr<Omniscript::WhileLoopExpression>& whileExpr,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
+    );
+    llvm::Value* accessMember(
+        const std::string& baseTypeName,
+        const std::string& instanceName,
+        const std::vector<int>& propertyPath,
+        llvm::Value* valueToSet  = nullptr
     );
 };
 

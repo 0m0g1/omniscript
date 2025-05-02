@@ -14,7 +14,7 @@ class LLVMJITBackend : public JITBackend {
 private:
     std::shared_ptr<IRGenerator> irGen;
     std::unique_ptr<llvm::orc::LLJIT> jit;
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>>> scope;
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope;
 
 public:
     LLVMJITBackend() {
@@ -29,7 +29,7 @@ public:
         }
 
         jit = std::move(*jitOrError);
-        scope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>>>();
+        scope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>();
     }
 
     void initialize() override; 
