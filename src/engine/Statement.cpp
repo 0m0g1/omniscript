@@ -1324,6 +1324,7 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
     bool isVarArg = false;
 
     for (const auto& param : parameters) {
+        DEBUG_LOG("[Function] The parameter is '" + param->toString() + "'.");
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
             auto paramType = typed->getType();
             DEBUG_LOG("[Function] Parameter has type '" + paramType->kindName() + "'.");
@@ -1472,17 +1473,26 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
             fieldExpr->getType()->parameterName = fieldName;
             fieldTypes.push_back(fieldExpr->getType());
             DEBUG_LOG("Parameter '" + fieldName + "' has type " + fieldExpr->getType()->kindName());
-        } else if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
+        } else {
+            DEBUG_LOG("Skipping non-variable declaration in struct body");
+        }
+    }
+
+    auto structType = Omniscript::Type::createUserDefinedType(name, Omniscript::Kind::Struct, fieldTypes);
+    scope->addType(name, structType);
+    
+    for (const auto& field : body) {
+        if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
             auto thisParam = std::make_shared<ParameterStatement>("this");
             thisParam->setType(scope->getType(name));
             methodStmt->parameters.insert(methodStmt->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
             std::shared_ptr<Omniscript::Expression> method = methodStmt->express(scope);
             fields.push_back(method);
         } else {
-            console.warn("Skipping non-variable declaration in struct body");
+            DEBUG_LOG("Skipping non-method declaration in struct body");
         }
     }
-
+    
     // 🧱 Construct the StructExpression as a Callable
     auto structExpr = std::make_shared<Omniscript::StructExpression>(
         getName(),
@@ -1493,8 +1503,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     );
 
     scope->set(getName(), structExpr);
-    auto structType = Omniscript::Type::createUserDefinedType(name, Omniscript::Kind::Struct, fieldTypes);
-    scope->addType(name,structType);
+
     return structExpr;
 }
  

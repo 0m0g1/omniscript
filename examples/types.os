@@ -107,17 +107,17 @@ struct Vector3 {
     x: f32 = 0;
     y: f32 = 0;
     z: f32 = 0;
-    // scale(x: f32 = 1, y: f32 = 1, z: f32 = 1) => void {
-    //     // this.x *= x;
-    //     // this.y *= y;
-    //     // this.z *= z;   
-    // }
+    scale(x: f32 = 1, y: f32 = 1, z: f32 = 1) => void {
+        // this.x *= x;
+        // this.y *= y;
+        // this.z *= z;
+    }
 }
 
 let v1 = Vector3{ x: 1.0, y: 2.0 };
 
 // let test = v1.x;
-v1.t = 2.0;
+// v1.x = 2.0;
 // for (let index = 0; index < 1000000000; index++) {
     
 // }
