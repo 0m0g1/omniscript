@@ -684,11 +684,11 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
     auto localScope = scope->createChildScope("forloop");
     DEBUG_LOG("Creating a for loop expression");
     std::shared_ptr<Omniscript::Expression> initializationExpr;
-    if (initialization) { 
-        initialization->express(localScope);
-    }
-    if (auto assign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(initializationExpr)) {
-        assign->isGlobal = false;
+    if (initialization) {
+        if (auto assign = std::dynamic_pointer_cast<Assignment>(initialization)) {
+            assign->isGlobal = false;
+        }
+        initializationExpr = initialization->express(localScope);
     }
     DEBUG_LOG("Created its initialization expression");
     std::shared_ptr<Omniscript::Expression> conditionExpr = condition? condition->express(localScope) : nullptr;
@@ -1553,6 +1553,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
 
         bool found = false;
         for (const auto& field : userType->paramTypes) {
+            DEBUG_LOG("Field parameter name is " + field->getParameterName());
             if (field->getParameterName() == member) {
                 currentType = field; // Move deeper into the chain
                 found = true;

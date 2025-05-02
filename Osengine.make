@@ -39,11 +39,6 @@ define PREBUILDCMDS
 endef
 define PRELINKCMDS
 endef
-define POSTBUILDCMDS
-	@echo Running postbuild commands
-	powershell -Command "if (-not (Test-Path -Path 'bin/Debug-windows-x86_64')) { New-Item -ItemType Directory -Force -Path 'bin/Debug-windows-x86_64' }"
-	powershell -Command "Copy-Item 'dependencies/llvm/bin/*.dll' -Destination 'bin/Debug-windows-x86_64'"
-endef
 
 ifeq ($(config),debug)
 TARGETDIR = bin/Debug-windows-x86_64
@@ -53,6 +48,11 @@ DEFINES += -DDEBUG -DPLATFORM_WINDOWS
 ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -g
 ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -m64 -g -std=c++23
 ALL_LDFLAGS += $(LDFLAGS) -Ldependencies/llvm/lib -L/usr/lib64 -m64
+define POSTBUILDCMDS
+	@echo Running postbuild commands
+	powershell -Command "if (-not (Test-Path -Path 'bin/Debug-windows-x86_64')) { New-Item -ItemType Directory -Force -Path 'bin/Debug-windows-x86_64' }"
+	powershell -Command "Copy-Item 'dependencies/llvm/bin/*.dll' -Destination 'bin/Debug-windows-x86_64'"
+endef
 
 else ifeq ($(config),release)
 TARGETDIR = bin/Release-windows-x86_64
@@ -62,6 +62,11 @@ DEFINES += -DPLATFORM_WINDOWS
 ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64
 ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -m64 -std=c++23
 ALL_LDFLAGS += $(LDFLAGS) -Ldependencies/llvm/lib -L/usr/lib64 -m64 -s
+define POSTBUILDCMDS
+	@echo Running postbuild commands
+	powershell -Command "if (-not (Test-Path -Path 'bin/Release-windows-x86_64')) { New-Item -ItemType Directory -Force -Path 'bin/Release-windows-x86_64' }"
+	powershell -Command "Copy-Item 'dependencies/llvm/bin/*.dll' -Destination 'bin/Release-windows-x86_64'"
+endef
 
 endif
 

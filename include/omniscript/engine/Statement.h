@@ -1230,6 +1230,11 @@ public:
     
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+
+    void setAssignmentValueTo(std::shared_ptr<Statement> newValue = nullptr) {
+        assignmentValue = newValue;
+    }
+
     bool isSetter() const {
         return assignmentValue != nullptr;
     }

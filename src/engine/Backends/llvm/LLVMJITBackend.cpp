@@ -29,7 +29,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     
     for (const auto& statement : statements) {
         DEBUG_LOG();
-        DEBUG_LOG("1. Evaluating a " + statement->toString());
+        DEBUG_LOG("1. Evaluating " + statement->toString());
         Omniscript::setPosition(statement->getPosition());
         std::shared_ptr<Omniscript::Expression> result = statement->express(scope);
         if (!result) continue;
