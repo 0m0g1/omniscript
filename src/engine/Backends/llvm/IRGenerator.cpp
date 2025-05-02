@@ -2129,6 +2129,7 @@ llvm::Value* IRGenerator::createStructInstance(
         );
         
         DEBUG_LOG("Created global struct instance: " + varName);
+        activeScope->set(varName, globalVar);
         return globalVar;
 
     } else {
@@ -2158,6 +2159,7 @@ llvm::Value* IRGenerator::createStructInstance(
         }
 
         DEBUG_LOG("Created local struct instance: " + varName);
+        activeScope->set(varName, localVar);
         return localVar;
     }
 }

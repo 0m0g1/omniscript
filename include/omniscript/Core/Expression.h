@@ -801,11 +801,13 @@ public:
         const std::string& baseType,
         const std::string& instanceName,
         std::vector<std::string> memberPath,
+        std::shared_ptr<Type> memberType,
         std::shared_ptr<Expression> assignmentValue = nullptr
     ) : baseType(baseType),
         instanceName(instanceName),
         memberPath(std::move(memberPath)),
         assignmentValue(assignmentValue) {
+            type = memberType;
     }
 
     bool isSetter() const {
@@ -833,13 +835,15 @@ public:
                 baseType,
                 instanceName,
                 memberPath,
+                type,
                 assignmentValue->clone()
             );
         } else {
             return std::make_shared<MemberAccessExpression>(
                 baseType,
                 instanceName,
-                memberPath
+                memberPath,
+                type
             );
         }
     }

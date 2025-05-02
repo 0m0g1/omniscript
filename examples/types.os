@@ -102,6 +102,7 @@
 
 
 // Structs (user-defined types)
+//Todo: make types infered
 struct Vector3 {
     x: f32 = 0;
     y: f32 = 0;

@@ -460,7 +460,7 @@ void Assignment::setGlobalVisibilityTo(bool state) {
 }
 
 std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType scope) {
-    DEBUG_LOG("Creating variable " + variable);
+    DEBUG_LOG("Assigning variable " + variable);
 
     std::shared_ptr<Omniscript::Expression> result;
 
@@ -612,6 +612,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 type = typed->getType();
                 result = value->express(scope);
             }
+            DEBUG_LOG("The infered type is " + result->getType()->kindName());
         }
     }
 
@@ -1469,6 +1470,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
             fields.push_back(fieldExpr);
             fieldExpr->getType()->parameterName = fieldName;
             fieldTypes.push_back(fieldExpr->getType());
+            DEBUG_LOG("Parameter '" + fieldName + "' has type " + fieldExpr->getType()->kindName());
         } else if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
             auto thisParam = std::make_shared<ParameterStatement>("this");
             thisParam->setType(scope->getType(name));
@@ -1531,7 +1533,7 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
 
 std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType scope) {
     // Get base type name from the object
-    DEBUG_LOG("The object name is '" + objectName + "' of type ");
+    DEBUG_LOG("The object name is '" + objectName + "' of type " + scope->get(objectName)->getType()->getName());
     std::string baseTypeName = scope->get(objectName)->getType()->kindName();
     std::shared_ptr<Omniscript::Type> baseType = scope->getType(baseTypeName);
 
@@ -1567,7 +1569,8 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     // At this point, `currentType` is the final member's type
     // You can now use it as `memberType` if needed
     std::shared_ptr<Omniscript::Type> memberType = currentType;
-    setType(memberType);
+    DEBUG_LOG("Member '" + propertyPath[propertyPath.size() - 1] + "' has type " + currentType->kindName());
+    setType(currentType);
 
     if (assignmentValue) {
         DEBUG_LOG("Setting '" + this->toString() + "' to '" + assignmentValue->toString() + "'.");
@@ -1603,14 +1606,14 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                 return nullptr;
             }
     
-            return std::make_shared<Omniscript::MemberAccessExpression>(baseTypeName, objectName, propertyPath, result);
+            return std::make_shared<Omniscript::MemberAccessExpression>(baseTypeName, objectName, propertyPath, currentType, result);
         } else {
             console.error("Object '" + objectName + "' is not an instance.");
             return nullptr;
         }
     } else {
         DEBUG_LOG("Getting '" + this->toString() + "'.");
-        return std::make_shared<Omniscript::MemberAccessExpression>(baseTypeName, objectName, propertyPath);
+        return std::make_shared<Omniscript::MemberAccessExpression>(baseTypeName, objectName, propertyPath, currentType);
     }
 }
 
