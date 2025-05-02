@@ -1061,6 +1061,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     std::vector<std::shared_ptr<Omniscript::Expression>> finalArgs;
     for (const auto& param : parameters) {
         auto val = localScope->get(param->name);
+        val->name = param->name;
         finalArgs.push_back(val);
     }
 

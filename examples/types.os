@@ -117,7 +117,7 @@ struct Vector3 {
 let v1 = Vector3{ x: 1.0, y: 2.0 };
 
 // let test = v1.x;
-v1.x = 2.0;
+v1.t = 2.0;
 // for (let index = 0; index < 1000000000; index++) {
     
 // }

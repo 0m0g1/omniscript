@@ -19,6 +19,7 @@ public:
     std::shared_ptr<Type> getType() const { return type; }
     std::shared_ptr<Type> getRootType() const { return rootType; }
     virtual std::string toString() const { return "Expression"; }
+    std::string getName() const { return name; }
 
     std::string name;
     std::shared_ptr<Type> type = Type::createInvalid();  // Holds a full Type object now
@@ -734,6 +735,11 @@ public:
 
     // Retrieves a member by name (searches public first, then private)
     std::shared_ptr<Expression> getField(const std::string& name) const {
+        for (const auto& member : constructorArgs) {
+            if (member->getName() == name) {
+                return member;
+            }
+        }
         for (const auto& member : publicMembers) {
             if (member->getType()->getParameterName() == name) {
                 return member;
@@ -749,20 +755,26 @@ public:
 
     // Sets or replaces a member value (searches public first, then private)
     bool setField(const std::string& name, const std::shared_ptr<Expression>& newValue) {
+        for (auto& member : constructorArgs) {
+            if (member->getType()->getParameterName() == name) {
+                member = newValue;  // This line should work now
+                return true;
+            }
+        }
         for (auto& member : publicMembers) {
             if (member->getType()->getParameterName() == name) {
-                member = newValue;
+                member = newValue;  // This line should work now
                 return true;
             }
         }
         for (auto& member : privateMembers) {
             if (member->getType()->getParameterName() == name) {
-                member = newValue;
+                member = newValue;  // This line should work now
                 return true;
             }
         }
         return false; // Not found
-    }
+    }    
 
     std::shared_ptr<Expression> clone() const override {
         std::vector<std::shared_ptr<Expression>> clonedArgs;
