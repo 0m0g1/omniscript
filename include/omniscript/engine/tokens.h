@@ -30,7 +30,6 @@ enum class TokenTypes {
     New,             // "new" for creating new objects
     Delete,
     Class,           // "class" for creating new class
-    This,            // "this"
     Struct,           // "class" for creating new class
     Namespace,         // "namespace"
     Using,

@@ -127,6 +127,7 @@ class Parser {
         std::shared_ptr<Statement> comparisonExpression();
         std::shared_ptr<Statement> term();                    // To parse multiplications and divisions
         std::shared_ptr<Statement> factor();                  // To parse bracketed expressions ()
+        std::shared_ptr<Statement> parseAs();                  // To parse bracketed expressions ()
 
         void eat(TokenTypes expectedType, const std::string& errorMessage = ""); // Helper function to consume a token if it matches the expected type
 };

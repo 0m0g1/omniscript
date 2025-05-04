@@ -540,34 +540,45 @@ std::shared_ptr<Statement> Parser::term() {
 }
 
 std::shared_ptr<Statement> Parser::parseUnaryExpression() {
-    // Handle prefix operators (+, -, !, ~, ++, --)
+    // Handle prefix operators
     if (currentToken.getType() == TokenTypes::Plus ||
         currentToken.getType() == TokenTypes::Minus ||
         currentToken.getType() == TokenTypes::LogicalNot ||
         currentToken.getType() == TokenTypes::Tilde ||
         currentToken.getType() == TokenTypes::Increment ||
         currentToken.getType() == TokenTypes::Decrement) {
-        DEBUG_LOG("Parsing a prefixed unary expression");
         TokenTypes op = currentToken.getType();
         eat(op);
-        auto operand = parseUnaryExpression();  // Recursively handle chained unary operators
+        auto operand = parseUnaryExpression();
         return std::make_shared<UnaryExpression>(op, operand, UnaryExpression::Position::Prefix);
     }
 
-    // If no prefix operator, parse the primary expression
+    // Parse primary expression
     auto expr = factor();
 
-    // Handle postfix operators (++, --)
+    // Handle postfix operators
     while (currentToken.getType() == TokenTypes::Increment ||
            currentToken.getType() == TokenTypes::Decrement) {
-        DEBUG_LOG("Parsing a post-fixed unary expression");
         TokenTypes op = currentToken.getType();
         eat(op);
         expr = std::make_shared<UnaryExpression>(op, expr, UnaryExpression::Position::Postfix);
     }
 
+    // Handle 'as' casting (lowest precedence postfix)
+    if (currentToken.getType() == TokenTypes::As) {
+        eat(TokenTypes::As);
+        std::vector<std::string> typeToCastTo = parseType();
+        std::shared_ptr<Omniscript::Type> type = Omniscript::resolveType(typeToCastTo);
+        if (auto typed = std::dynamic_pointer_cast<TypedStatement>(expr)) {
+            typed->setType(type);
+        } else {
+            expr = std::make_shared<Cast>(expr, type);
+        }
+    }
+
     return expr;
 }
+
 
 // Parse a factor, handling literals, identifiers, and parentheses
 std::shared_ptr<Statement> Parser::factor() {
@@ -1670,187 +1681,144 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
 }
 
 
+// std::shared_ptr<Statement> Parser::parseIdentifier() {
+//     // Parse the root identifier
+//     std::string rootIdentifier = currentToken.getValue();
+//     eat(TokenTypes::Identifier);
+    
+//     // Start with the base identifier as the initial statement
+//     // Parse function calls with generics
+//     if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
+//         if (isGenericCallOrConstructor()) {
+//             // Generate the specialized name when encountering a left bracket `<`
+//             std::vector<std::string> typeParams = parseTypeParametersForCall();  // Adjust this according to your needs
+            
+//             // Assuming `rootIdentifier` is the base name of the function,
+//             // we will generate a specialized name for this function call
+//             std::string specializedName = generateSpecializedNameForCall(rootIdentifier, typeParams);
+    
+//             // Do something with the specialized name if needed, e.g., logging, debugging, etc.
+//             DEBUG_LOG("Generated Specialized Name: " + specializedName);
+    
+//             // You can now create the Call object with the specialized name
+//             std::vector<std::shared_ptr<Statement>> args = parseArguments();
+//             return std::make_shared<Call>(specializedName, args);  // Use the specialized name here
+//         } else if (currentToken.getType() == TokenTypes::LeftParen) {
+//             // If it's just a normal function call (not involving `<`), we process it normally
+//             std::vector<std::shared_ptr<Statement>> args = parseArguments();
+//             return std::make_shared<Call>(rootIdentifier, args);
+//         }
+//     }
+    
+//     // Parse object instance constructors
+//     if (currentToken.getType() == TokenTypes::LeftBrace) {
+//         std::vector<std::shared_ptr<Statement>> args = parseArguments(TokenTypes::LeftBrace, TokenTypes::RightBrace, TokenTypes::Colon);
+//         return std::make_shared<ObjectConstructorStatement>(rootIdentifier, "", args);
+//     }
+    
+//     if (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
+//         std::vector<std::string> members;
+//         while (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
+//             eat(currentToken.getType());
+//             members.push_back(currentToken.getValue());
+//             eat(TokenTypes::Identifier);
+//         }
+
+//         auto resolution = std::make_shared<MemberAccess>(rootIdentifier, members);
+
+//         if (isAssignmentExpression(currentToken.getType())) {
+//             return parseAssignment(resolution);
+//         }
+
+//         return resolution;
+//     }
+
+//     std::shared_ptr<Statement> statement = std::make_shared<GetVariable>(rootIdentifier);
+//     std::shared_ptr<Statement> previousStatement = statement;
+
+//     if (currentToken.getType() == TokenTypes::Assign || 
+//         currentToken.getType() == TokenTypes::PlusAssign || 
+//         currentToken.getType() == TokenTypes::MinusAssign || 
+//         currentToken.getType() == TokenTypes::DivideAssign || 
+//         currentToken.getType() == TokenTypes::MultiplyAssign) {
+//         DEBUG_LOG("Parsing an assignment");
+//         return parseAssignment(statement);
+//     }
+
+//     return statement;
+// }
+
 std::shared_ptr<Statement> Parser::parseIdentifier() {
     // Parse the root identifier
     std::string rootIdentifier = currentToken.getValue();
     eat(TokenTypes::Identifier);
     
     // Start with the base identifier as the initial statement
-    // Parse function calls with generics
-    if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
-        if (isGenericCallOrConstructor()) {
-            // Generate the specialized name when encountering a left bracket `<`
-            std::vector<std::string> typeParams = parseTypeParametersForCall();  // Adjust this according to your needs
-            
-            // Assuming `rootIdentifier` is the base name of the function,
-            // we will generate a specialized name for this function call
-            std::string specializedName = generateSpecializedNameForCall(rootIdentifier, typeParams);
-    
-            // Do something with the specialized name if needed, e.g., logging, debugging, etc.
-            DEBUG_LOG("Generated Specialized Name: " + specializedName);
-    
-            // You can now create the Call object with the specialized name
-            std::vector<std::shared_ptr<Statement>> args = parseArguments();
-            return std::make_shared<Call>(specializedName, args);  // Use the specialized name here
-        } else if (currentToken.getType() == TokenTypes::LeftParen) {
-            // If it's just a normal function call (not involving `<`), we process it normally
-            std::vector<std::shared_ptr<Statement>> args = parseArguments();
-            return std::make_shared<Call>(rootIdentifier, args);
+    std::shared_ptr<Statement> expr = std::make_shared<GetVariable>(rootIdentifier);
+    std::string member = rootIdentifier;
+
+    // Loop to handle member accesses and function calls
+    while (true) {
+        if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
+            // Handle function calls with generics
+            if (isGenericCallOrConstructor()) {
+                std::vector<std::string> typeParams = parseTypeParametersForCall();
+                std::string specializedName = generateSpecializedNameForCall(member, typeParams);
+                DEBUG_LOG("Generated Specialized Name: " + specializedName);
+                
+                std::vector<std::shared_ptr<Statement>> args = parseArguments();
+                expr = std::make_shared<Call>(expr, specializedName, args);  // Use the specialized name
+            } else {
+                // Normal function call
+                std::vector<std::shared_ptr<Statement>> args = parseArguments();
+                expr = std::make_shared<Call>(expr, member, args);
+            }
         }
-    }
-    
-    // Parse object instance constructors
-    if (currentToken.getType() == TokenTypes::LeftBrace) {
-        std::vector<std::shared_ptr<Statement>> args = parseArguments(TokenTypes::LeftBrace, TokenTypes::RightBrace, TokenTypes::Colon);
-        return std::make_shared<ObjectConstructorStatement>(rootIdentifier, "", args);
-    }
-    
-    if (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
-        std::vector<std::string> members;
-        while (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
-            eat(currentToken.getType());
-            members.push_back(currentToken.getValue());
-            eat(TokenTypes::Identifier);
+        
+        // Object constructor
+        else if (currentToken.getType() == TokenTypes::LeftBrace) {
+            std::vector<std::shared_ptr<Statement>> args = parseArguments(TokenTypes::LeftBrace, TokenTypes::RightBrace, TokenTypes::Colon);
+            expr = std::make_shared<ObjectConstructorStatement>(expr, member, "", args);
+        }
+        
+        // Member access (.)
+        else if (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
+            eat(currentToken.getType()); // Consume the dot or scope resolution operator
+            member = currentToken.getValue();
+            eat(TokenTypes::Identifier);  // Eat the member name
+            expr = std::make_shared<MemberAccess>(expr, member);  // Add a member access
         }
 
-        auto resolution = std::make_shared<MemberAccess>(rootIdentifier, members);
-
-        if (isAssignmentExpression(currentToken.getType())) {
-            return parseAssignment(resolution);
+        // Pointer member access (->)
+        else if (currentToken.getType() == TokenTypes::Minus && lexer.peekToken(1).getType() == TokenTypes::GreaterThan) {
+            eat(TokenTypes::Minus);
+            eat(TokenTypes::GreaterThan);
+            member = currentToken.getValue();
+            eat(TokenTypes::Identifier);  // Eat the member name
+            expr = std::make_shared<ArrowAccess>(expr, member);  // Add a pointer member access
         }
 
-        return resolution;
+        // Index access ([])
+        else if (currentToken.getType() == TokenTypes::LeftBracket) {
+            eat(TokenTypes::LeftBracket);
+            auto index = parseExpression();
+            eat(TokenTypes::RightBracket);
+            expr = std::make_shared<IndexAccess>(expr, index);  // Add an index access
+        }
+
+        // Assignment handling
+        else if (isAssignmentExpression(currentToken.getType())) {
+            return parseAssignment(expr);
+        }
+
+        // Break if no more valid tokens
+        else {
+            break;
+        }
     }
 
-    std::shared_ptr<Statement> statement = std::make_shared<GetVariable>(rootIdentifier);
-    std::shared_ptr<Statement> previousStatement = statement;
-
-    if (currentToken.getType() == TokenTypes::Assign || 
-        currentToken.getType() == TokenTypes::PlusAssign || 
-        currentToken.getType() == TokenTypes::MinusAssign || 
-        currentToken.getType() == TokenTypes::DivideAssign || 
-        currentToken.getType() == TokenTypes::MultiplyAssign) {
-        DEBUG_LOG("Parsing an assignment");
-        return parseAssignment(statement);
-    }
-
-    // std::string previousIdentifier;
-    // std::string currentIdentifier = currentToken.getValue();
-    // std::string member;
-
-    // while (true) {
-    //     if (currentToken.getType() == TokenTypes::Dot) {
-    //         eat(TokenTypes::Dot);
-    //         member = currentToken.getValue();
-    //         eat(TokenTypes::Identifier);
-
-    //         if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
-    //             auto [types, args] = parseArguments();
-
-    //             previousStatement = statement;
-
-    //             if (!types.empty()) {
-    //                 std::string specializedMethodName = generateSpecializedNameForCall(member, types);
-    //                 statement = std::make_shared<CallMethod>(statement, specializedMethodName, args);
-    //             } else {
-    //                 statement = std::make_shared<CallMethod>(statement, member, args);
-    //             }
-    //         } else {
-    //             previousStatement = statement;
-    //             statement = std::make_shared<GetProperty>(statement, member);
-    //         }
-    //     } else if (currentToken.getType() == TokenTypes::Assign) {
-    //         eat(TokenTypes::Assign);
-    //         if (checkIfLambdaExpression()) {
-    //             std::vector<std::shared_ptr<Statement>> args;
-    //             auto propertyName = std::make_shared<StringLiteral>(member);
-    //             // std::shared_ptr<Function> value = parseLambdaFunction();
-    //             // args.push_back(propertyName);
-    //             // args.push_back(std::make_shared<Literal>(value));
-    //             // statement = std::make_shared<CallMethod>(previousStatement, "setMethod", args);
-    //         } else {
-    //             std::vector<std::shared_ptr<Statement>> args;
-    //             auto propertyName = std::make_shared<StringLiteral>(member);
-    //             std::shared_ptr<Statement> value = parseExpression();
-    //             args.push_back(propertyName);
-    //             args.push_back(value);
-    //             statement = std::make_shared<CallMethod>(previousStatement, "setProperty", args);
-    //         }
-    //     } else if (
-    //         currentToken.getType() == TokenTypes::BitwiseXorAssign ||
-    //         currentToken.getType() == TokenTypes::BitwiseAndAssign ||
-    //         currentToken.getType() == TokenTypes::BitwiseOrAssign ||
-    //         currentToken.getType() == TokenTypes::ShiftLeftAssign ||
-    //         currentToken.getType() == TokenTypes::ShiftRightAssign
-    //         ) {
-
-    //         TokenTypes assignType; // Store the assignment operator
-    //         if (currentToken.getType() == TokenTypes::BitwiseXorAssign) {
-    //             assignType = TokenTypes::BitwiseXor;
-    //         } else if (currentToken.getType() == TokenTypes::BitwiseXorAssign) {
-    //             assignType = TokenTypes::BitwiseAnd;
-    //         } else if (currentToken.getType() == TokenTypes::BitwiseXorAssign) {
-    //             assignType = TokenTypes::BitwiseOr;
-    //         } else if (currentToken.getType() == TokenTypes::ShiftLeftAssign) {
-    //             assignType = TokenTypes::ShiftLeft;
-    //         } else if (currentToken.getType() == TokenTypes::ShiftRightAssign) {
-    //             assignType = TokenTypes::ShiftRight;
-    //         }
-    //         eat(currentToken.getType());
-            
-    //         std::vector<std::shared_ptr<Statement>> args;
-    //         auto propertyName = std::make_shared<StringLiteral>(member);
-    //         std::shared_ptr<Statement> value = parseExpression();
-
-    //         // Get the current value of the variable
-    //             auto currentValue = std::make_shared<CallMethod>(
-    //                 previousStatement, "getProperty",
-    //                 std::vector<std::shared_ptr<Statement>>{propertyName}
-    //             );
-
-    //             // Create an expression: property = property <op> value
-    //             auto result = std::make_shared<BinaryExpression>(currentValue, assignType, value);
-
-    //             args.push_back(propertyName);
-    //             args.push_back(result);
-    //             statement = std::make_shared<CallMethod>(previousStatement, "setProperty", args);
-    //             }   else if (currentToken.getType() == TokenTypes::LeftBracket) {
-    //         eat(TokenTypes::LeftBracket);
-    //         std::vector<std::shared_ptr<Statement>> args;
-    //         std::shared_ptr<Statement> index = parseExpression();
-    //         previousStatement = statement;
-    //         args.push_back(index);
-    //         eat(TokenTypes::RightBracket);
-    //         if (currentToken.getType() == TokenTypes::Assign) {
-    //             eat(TokenTypes::Assign);
-    //             std::shared_ptr<Statement> value = parseExpression();
-    //             args.push_back(value);
-    //             statement = std::make_shared<CallMethod>(previousStatement, "set", args);
-    //         } else {
-    //             statement = std::make_shared<CallMethod>(statement, "get", args);
-    //         }
-    //     } else if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
-    //         auto [types, args] = parseArguments();
-    //         if (!types.empty()) {
-    //             std::string name = generateSpecializedNameForCall(rootIdentifier, types);
-    //             if (rootIdentifier != name) {
-    //                 console.log(rootIdentifier + "__" + name);
-    //                 statement = std::make_shared<FunctionCallStatement>(previousStatement, args, rootIdentifier, name, types);
-    //             } else {
-    //                 statement = std::make_shared<FunctionCallStatement>(previousStatement, args);
-    //             }
-    //         } else {
-    //             statement = std::make_shared<FunctionCallStatement>(previousStatement, args);
-    //         }
-    //     } else {
-    //         break;
-    //     }
-    //     previousIdentifier = currentIdentifier;
-    // }
-    
-    return statement;
+    return expr;
 }
-
 
 
 std::shared_ptr<Statement> Parser::parseBlock() {
@@ -2299,10 +2267,12 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
     }
     if (auto varGetter = std::dynamic_pointer_cast<GetVariable>(assignee)) {
         return std::make_shared<AssignVariable>(varGetter->getName(), type, value, true);
-    } else if (auto memberReassign = std::dynamic_pointer_cast<MemberAccess>(assignee)) {
-        memberReassign->setAssignmentValueTo(value);
-        return memberReassign;
+    } else if (auto reassignAccess = std::dynamic_pointer_cast<Access>(assignee)) {
+        auto accessClone = std::dynamic_pointer_cast<Access>(reassignAccess->clone());
+        accessClone->setAssignmentValueTo(value);
+        return accessClone;
     }
+
     console.error("The assignee is unnasignable");
     return nullptr;
 }

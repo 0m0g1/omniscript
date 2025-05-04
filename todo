@@ -5,7 +5,6 @@
 - add a toString method on Omniscript::type and make it easier to get the kindName of a value
 - create a separate file for expressions not value.cpp
 - add general kind types so that the root/base type is string and not utf32string
-- throw an error when the wrong type is inputed in function call
 - check if the body needs to be cloned so that generics are properly handled
 - handle unresolved types
 - handle default arguments / parameters

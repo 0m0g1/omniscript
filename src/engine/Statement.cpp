@@ -42,6 +42,7 @@ std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::expressAsVe
     // // Generate code for each statement in order
     for (const auto& stmt : statements) {
         // Handle type propagation if needed
+        DEBUG_LOG(stmt->toString());
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(stmt)) {
             if (type) {
                 typed->setType(type);
@@ -165,6 +166,13 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
     // If the variable isn't found, handle the error (e.g., return nullptr)
     console.error("Error: Variable " + name + " not found.\n");
     return nullptr;
+}
+
+std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
+    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
+        typed->setType(targetType);
+    }
+    return value->express(scope); // Or handle casting explicitly at runtime/codegen
 }
 
 std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
@@ -657,6 +665,9 @@ std::shared_ptr<Omniscript::Expression> createDynamicVariable::express(SymbolTab
 
 // Get Variable
 std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType scope) {
+    if (!type) {
+        setType(scope->get(name)->getType());
+    }
     return std::make_shared<Omniscript::VariableAccess>(name, type);
 }
 
@@ -756,39 +767,60 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
 
 std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableType scope) {
     DEBUG_LOG();
-    // Set the expected result type for child expressions
-    std::shared_ptr<Omniscript::Expression> leftValue;
-    std::shared_ptr<Omniscript::Expression> rightValue;
-     
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(left)) {
-        if (!type) {
-            leftValue = left->express(scope);
-            setType(stmt->getType());
-        } else {
-            stmt->setType(type);
-        }
-        DEBUG_LOG("Set the type for the left expression");
+
+    DEBUG_LOG("Left expression: " + (left ? left->toString() : "null"));
+    DEBUG_LOG("Right expression: " + (right ? right->toString() : "null"));
+
+    // Always evaluate expressions first
+    std::shared_ptr<Omniscript::Expression> leftValue = left->express(scope);
+    std::shared_ptr<Omniscript::Expression> rightValue = right->express(scope);
+
+    if (!leftValue || !rightValue) return nullptr;
+
+    auto leftTyped = std::dynamic_pointer_cast<TypedStatement>(left);
+    auto rightTyped = std::dynamic_pointer_cast<TypedStatement>(right);
+
+    if (!leftTyped || !rightTyped) {
+        DEBUG_LOG("One or both expressions are not typed after evaluation.");
+        return nullptr;
     }
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(right)) {
-        if (!type) {
-            rightValue = right->express(scope);
-            setType(stmt->getType());
-        } else {
-            stmt->setType(type);
-        }
-        DEBUG_LOG("Set the type for the right expression");
+
+    auto leftType = leftTyped->getType();
+    auto rightType = rightTyped->getType();
+
+    if (!leftType) {
+        DEBUG_LOG("left is null");
     }
     
-    DEBUG_LOG("Creating a binary expression of kind '" + type->kindName() + "'.");
+    if (!rightType) {
+        DEBUG_LOG("right is null");
+    }
 
-    // Evaluate left and right operands
-    if (!leftValue) return nullptr;
-    DEBUG_LOG("The left value is " + leftValue->toString());
-    
-    if (!rightValue) return nullptr;
-    DEBUG_LOG("The right value is " + rightValue->toString());
+    if (!leftType || !rightType) {
+        DEBUG_LOG("One or both types are still null after evaluation.");
+        return nullptr;
+    }
 
-    // Wrap both evaluated values into a BinaryExpressionValue
+    // Infer a common type if type hasn't been set
+    if (!type) {
+        if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
+            type = rightType;
+        } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
+            type = leftType;
+        } else {
+            DEBUG_LOG("Incompatible types: " + leftType->kindName() + " vs " + rightType->kindName());
+            return nullptr;
+        }
+        DEBUG_LOG("Inferred binary expression type as: " + type->kindName());
+    }
+
+    // Set the inferred type on both typed statements
+    leftTyped->setType(type);
+    rightTyped->setType(type);
+
+    DEBUG_LOG("The left value is: " + leftValue->toString());
+    DEBUG_LOG("The right value is: " + rightValue->toString());
+
     return std::make_shared<Omniscript::BinaryExpression>(leftValue, op, rightValue, type);
 }
 
@@ -869,6 +901,12 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
 
 // TODO: Add the name of the object being called
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
+    auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
+    if (named) {
+        callee = named->getName();
+    }
+
+
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
     
     std::string originalCallee = callee;
@@ -1334,7 +1372,7 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
             }
         }
         auto result = param->express(localScope);
-        argValues.push_back(result);
+        argValues.push_back(result);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
         DEBUG_LOG("[Function] Parameter '" + result->name + "' has type " + result->getType()->kindName());
     }
 
@@ -1434,6 +1472,11 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
         }
     }
     DEBUG_LOG("[Parameter] Created value for parameter " + name + " of kind " + result->getType()->kindName());
+    if (isConstant) {
+        scope->setConstant(name, result);
+    } else {
+        scope->set(name, result);
+    }
     return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result, isConstant);
 }
 
@@ -1509,7 +1552,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
  
 
 std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
-    DEBUG_LOG("Constructing object: " + objectType + " " + instanceName);
+    DEBUG_LOG("Constructing " + objectType + " " + instanceName);
 
     // std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
     // for (const auto& arg : constructorArgs) {
@@ -1543,6 +1586,16 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
 
 std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType scope) {
     // Get base type name from the object
+    auto obj = expr->express(scope);
+    auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
+
+    if (!named) {
+        console.error("The object holding the member being accessed should be named");
+    }
+
+    objectName = named->getName();
+
+    // auto typed = 
     DEBUG_LOG("The object name is '" + objectName + "' of type " + scope->get(objectName)->getType()->getName());
     std::string baseTypeName = scope->get(objectName)->getType()->kindName();
     std::shared_ptr<Omniscript::Type> baseType = scope->getType(baseTypeName);
@@ -1554,28 +1607,28 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
 
     std::shared_ptr<Omniscript::Type> currentType = baseType;
 
-    for (const auto& member : propertyPath) {
-        auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType);
-        if (!userType) {
-            console.error("Type '" + currentType->kindName() + "' is not a struct or does not have members.");
-            return nullptr;
-        }
+    // for (const auto& member : propertyPath) {
+    auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType);
+    if (!userType) {
+        console.error("Type '" + currentType->kindName() + "' is not a struct or does not have members.");
+        return nullptr;
+    }
 
-        bool found = false;
-        for (const auto& field : userType->paramTypes) {
-            DEBUG_LOG("Field parameter name is " + field->getParameterName());
-            if (field->getParameterName() == member) {
-                currentType = field; // Move deeper into the chain
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            console.error("Member '" + member + "' not found in type '" + userType->kindName() + "'.");
-            return nullptr;
+    bool found = false;
+    for (const auto& field : userType->paramTypes) {
+        DEBUG_LOG("Field parameter name is " + field->getParameterName());
+        if (field->getParameterName() == member) {
+            currentType = field; // Move deeper into the chain
+            found = true;
+            break;
         }
     }
+
+    if (!found) {
+        console.error("Member '" + member + "' not found in type '" + userType->kindName() + "'.");
+        return nullptr;
+    }
+    // }
 
     // At this point, `currentType` is the final member's type
     // You can now use it as `memberType` if needed
@@ -1618,6 +1671,55 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             }
     
             return std::make_shared<Omniscript::MemberAccessExpression>(baseTypeName, objectName, propertyPath, currentType, result);
+        } else if (auto typeExpr = scope->get(objectName)) {
+            auto type = typeExpr->getType();
+            if (auto userDefined = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(type)) {
+                std::shared_ptr<Omniscript::Type> currentType = userDefined;
+                std::string lastMember;
+                bool foundAll = true;
+        
+                for (const auto& member : propertyPath) {
+                    lastMember = member;
+                    bool found = false;
+        
+                    for (const auto& field : userDefined->paramTypes) {
+                        if (field->getParameterName() == member) {
+                            currentType = field;
+                            found = true;
+                            break;
+                        }
+                    }
+        
+                    if (!found) {
+                        console.error("Member '" + member + "' not found in type '" + userDefined->kindName() + "'.");
+                        foundAll = false;
+                        break;
+                    }
+        
+                    // If the member is itself a user-defined type, descend into it
+                    userDefined = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType);
+                    if (!userDefined && member != propertyPath.back()) {
+                        console.error("Cannot traverse into non-user-defined member '" + member + "'.");
+                        foundAll = false;
+                        break;
+                    }
+                }
+        
+                if (foundAll) {
+                    return std::make_shared<Omniscript::MemberAccessExpression>(
+                        baseTypeName,
+                        objectName,
+                        propertyPath,
+                        currentType,
+                        result 
+                    );
+                }
+        
+                return nullptr;
+            }
+        
+            console.error("Type of '" + objectName + "' is not a user-defined type.");
+            return nullptr;
         } else {
             console.error("Object '" + objectName + "' is not an instance.");
             return nullptr;
@@ -1628,6 +1730,13 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     }
 }
 
+std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType scope) {
+    return nullptr;
+}
+
+std::shared_ptr<Omniscript::Expression> IndexAccess::express(SymbolTableType scope) {
+    return nullptr;
+}
 
 std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
     return std::make_shared<IntegerLiteral>(valueIndex)->express(scope);

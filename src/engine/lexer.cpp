@@ -159,10 +159,7 @@ Token Lexer::getNextToken() {
             return Token(TokenTypes::Variant, "", line, column, sourceFilePath);
         }  else if (identifier == "any") {
             return Token(TokenTypes::Any, "", line, column, sourceFilePath);
-        } //else if (identifier == "this") {
-            //return Token(TokenTypes::This, "", line, column, sourceFilePath);
-        //}
-        else if (identifier == "enum") {
+        } else if (identifier == "enum") {
             return Token(TokenTypes::Enum, "", line, column, sourceFilePath);
         } else if (identifier == "public") {
             return Token(TokenTypes::Public, "", line, column, sourceFilePath);
