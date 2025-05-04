@@ -1586,14 +1586,14 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
 
 std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType scope) {
     // Get base type name from the object
-    auto obj = expr->express(scope);
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
-
+    
     if (!named) {
         console.error("The object holding the member being accessed should be named");
     }
-
+    
     objectName = named->getName();
+    auto obj = expr->express(scope);
 
     // auto typed = 
     DEBUG_LOG("The object name is '" + objectName + "' of type " + scope->get(objectName)->getType()->getName());
@@ -1633,7 +1633,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     // At this point, `currentType` is the final member's type
     // You can now use it as `memberType` if needed
     std::shared_ptr<Omniscript::Type> memberType = currentType;
-    DEBUG_LOG("Member '" + propertyPath[propertyPath.size() - 1] + "' has type " + currentType->kindName());
+    DEBUG_LOG("Member '" + member + "' has type " + currentType->kindName());
     setType(currentType);
 
     if (assignmentValue) {
