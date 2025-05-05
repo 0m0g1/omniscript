@@ -905,6 +905,11 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     if (named) {
         std::string typeName = scope->get(named->getName())->getType()->getName();
         callee = typeName + "." + callee;
+        auto objectGetter = std::make_shared<AddressOf>(named->getName());
+        auto thisParam = std::make_shared<ParameterStatement>("this", objectGetter, true);
+        thisParam->setType(scope->get(named->getName())->getType());
+        // args.insert(args.begin(), thisParam);
+        args[0] = thisParam;
     }
 
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
@@ -1103,20 +1108,19 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         val->name = param->name;
         
         DEBUG_LOG("Parameter '" + std::to_string(paramIndex) + "' is '" + val->name + "'.");
-        if (val->name == "this" && paramIndex == 0 && named != nullptr) {
-            auto instance = scope->get(named->getName());
-            if (instance) {
-                auto objectGetter = std::make_shared<AddressOf>(named->getName());
-                auto getExpr = objectGetter->express(scope);
-                val = getExpr;
-                DEBUG_LOG("[Call] Bound 'this' to instance '" + getExpr->toString() + "'");
-            } else {
-                DEBUG_LOG("[Call] ERROR: Could not bind 'this'; '" + named->getName() + "' not found");
-                console.error(formatError("Could not bind 'this' to '" + named->getName() + "'"));
-            }
-        }
+        // if (val->name == "this" && paramIndex == 0 && named != nullptr) {
+        //     auto instance = scope->get(named->getName());
+        //     if (instance) {
+        //         auto objectGetter = std::make_shared<AddressOf>(named->getName());
+        //         auto getExpr = objectGetter->express(scope);
+        //         val = getExpr;
+        //         DEBUG_LOG("[Call] Bound 'this' to instance '" + getExpr->toString() + "'");
+        //     } else {
+        //         DEBUG_LOG("[Call] ERROR: Could not bind 'this'; '" + named->getName() + "' not found");
+        //         console.error(formatError("Could not bind 'this' to '" + named->getName() + "'"));
+        //     }
+        // }
         
-
         paramIndex++;
         finalArgs.push_back(val);
     }
@@ -1174,6 +1178,7 @@ bool Call::matchArgumentsToParameters(
             return false;
         }
 
+        // if (!Omniscript::isSameOrCastableTo((matchingArg->value->getType()->isPointer() ? matchingArg->value->getType() : matchingArg->value->getRootType()), param->getType())) {
         if (!Omniscript::isSameOrCastableTo(matchingArg->value->getRootType(), param->getType())) {
             DEBUG_LOG("[Call] Type mismatch for parameter: " + paramName);
             return false;
@@ -1474,6 +1479,7 @@ void FunctionDeclaration::setReturnTypesInStatement(
 
 
 std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
+    DEBUG_LOG(type->toString());
     DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + type->kindName());
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
         stmt->setType(type);
