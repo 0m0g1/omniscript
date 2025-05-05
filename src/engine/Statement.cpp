@@ -903,12 +903,14 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
     if (named) {
-        std::string typeName = scope->get(named->getName())->getType()->getName();
-        callee = typeName + "." + callee;
-        auto thisArg = std::make_shared<AddressOf>(named->getName());
-        thisArg->setType(Omniscript::Type::createPointerType(scope->get(named->getName())->getType()));
-        thisArg->setRootType(thisArg->getType());
-        args.insert(args.begin(), thisArg);
+        if (auto obj = scope->get(named->getName())) {
+            std::string typeName = obj->getType()->getName();
+            callee = typeName + "." + callee;
+            auto thisArg = std::make_shared<AddressOf>(named->getName());
+            thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
+            thisArg->setRootType(thisArg->getType());
+            args.insert(args.begin(), thisArg);
+        }
     }
 
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
@@ -1144,6 +1146,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     }
 
     DEBUG_LOG("[Call] Preparing arguments for CallExpression");
+    
     std::vector<std::shared_ptr<Omniscript::Expression>> finalArgs;
     int paramIndex = 0;
     for (const auto& param : parameters) {
@@ -1417,6 +1420,7 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
     std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
     bool isVarArg = false;
 
+    int paramIndex = 0;
     for (const auto& param : parameters) {
         DEBUG_LOG("[Function] The parameter is '" + param->toString() + "'.");
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
@@ -1428,8 +1432,16 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
             }
         }
         auto result = param->express(localScope);
+        if (auto paramStmt = std::dynamic_pointer_cast<ParameterStatement>(param)) {
+            if (paramIndex == 0 && paramStmt->getName() == "this") {
+                std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(result)->isConstant = true;
+            } else {
+                std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(result)->isConstant = false;
+            }
+        }
         argValues.push_back(result);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
         DEBUG_LOG("[Function] Parameter '" + result->name + "' has type " + result->getType()->kindName());
+        paramIndex++;
     }
 
     DEBUG_LOG("[Function] Passing generic type bindings from function to body block");

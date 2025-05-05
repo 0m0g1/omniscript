@@ -695,9 +695,15 @@ std::shared_ptr<Statement> Parser::factor() {
     }
 
     // Handle expressions within parentheses
-    else if (currentToken.getType() == TokenTypes::LeftParen) {
-        // console.warn(valueToString(left));
-        if (checkIfLambdaExpression()) {
+    else if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
+        int i = 0;
+        //Todo: create an overload for tryParseTypeParametersLookahead(i) that takes in no references
+        if (tryParseTypeParametersLookahead(i)) {
+            parameterType paramTypes = parseTypeParametersForDeclaration();
+            if (checkIfLambdaExpression()) {
+                left = parseLambdaFunction("", paramTypes);
+            }
+        } else if (checkIfLambdaExpression()) {
             left = parseLambdaFunction();
         } else {
             eat(TokenTypes::LeftParen);
@@ -1055,13 +1061,64 @@ std::shared_ptr<Statement> Parser::parseLambdaFunction(
     return parseFunctionDeclaration(lambdaName, paramTypes, type);
 }
 
+bool Parser::tryParseTypeParametersLookahead(int& i) {
+    if ((i == 0 ? currentToken.getType() : lexer.peekToken(i).getType()) != TokenTypes::LessThan)
+        return false;
+
+    i++; // Skip '<'
+
+    while (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+        i++; // type name
+
+        if (lexer.peekToken(i).getType() == TokenTypes::Extends) {
+            i++; // skip 'extends'
+
+            // Parse constraints
+            while (true) {
+                TokenTypes t = lexer.peekToken(i).getType();
+                if (t == TokenTypes::Variant || t == TokenTypes::Any) {
+                    i++;
+                } else if (t == TokenTypes::Identifier) {
+                    while (lexer.peekToken(i).getType() == TokenTypes::Identifier || lexer.peekToken(i).getType() == TokenTypes::Dot) {
+                        i++;
+                    }
+                } else {
+                    return false;
+                }
+
+                if (lexer.peekToken(i).getType() == TokenTypes::BitwiseOr) {
+                    i++;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        if (lexer.peekToken(i).getType() == TokenTypes::Comma) {
+            i++;
+        } else {
+            break;
+        }
+    }
+
+    if (lexer.peekToken(i).getType() != TokenTypes::GreaterThan) {
+        return false;
+    }
+
+    i++; // Skip '>'
+
+    return true;
+}
+
 bool Parser::checkIfLambdaExpression() {
     int i = 0;
+    DEBUG_LOG(getTokenTypeName(currentToken.getType()));
     if (currentToken.getType() == TokenTypes::Identifier) {
         i++;
     }
-
-    if (lexer.peekToken(i).getType() == TokenTypes::LeftParen) {
+    
+    DEBUG_LOG(getTokenTypeName(lexer.peekToken(i).getType()));
+    if ((i == 0 ? currentToken.getType() : lexer.peekToken(i).getType()) == TokenTypes::LeftParen) {
         i++;
         bool hasValidArgument = false;
         
@@ -1081,7 +1138,7 @@ bool Parser::checkIfLambdaExpression() {
                 i++;
             }
             
-            // Check for argument type annotation (e.g., `a: int`)
+            // Check for argument type annotation (e.g., a: int)
             if (lexer.peekToken(i).getType() == TokenTypes::Colon) {
                 i++; // Skip over the colon
                 if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
@@ -1090,9 +1147,9 @@ bool Parser::checkIfLambdaExpression() {
                 }
             }
             
-            // Check for default value (e.g., `a: int = 1`)
+            // Check for default value (e.g., a: int = 1)
             if (lexer.peekToken(i).getType() == TokenTypes::Assign) {
-                i++; // Skip over the `=`
+                i++; // Skip over the =
                 if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
                     lexer.peekToken(i).getType() == TokenTypes::FloatLiteral ||
                     lexer.peekToken(i).getType() == TokenTypes::StringLiteral) {
@@ -1183,47 +1240,45 @@ bool Parser::checkIfFunctionCall() {
 
 
 bool Parser::isGenericCallOrConstructor() {
-    // Check for initial identifier
-    if (currentToken.getType() != TokenTypes::Identifier) {
+    int i = 0;
+
+    // Check for <...> generic parameters
+    if ((i == 0? currentToken.getType() : lexer.peekToken(i).getType()) != TokenTypes::LessThan)
         return false;
-    }
 
-    int i = 1;
+    i++; // Skip '<'
 
-    // Check for opening angle bracket (e.g., identifier<...>)
-    if (lexer.peekToken(i).getType() != TokenTypes::LessThan) {
-        return false;
-    }
+    // Parse comma-separated type names
+    while (true) {
+        if (lexer.peekToken(i).getType() != TokenTypes::Identifier)
+            return false;
 
-    i++; // move past '<'
-    int angleDepth = 1;
+        i++; // Type name
 
-    // Parse inside angle brackets: e.g., <A, B<C>>
-    while (angleDepth > 0) {
-        TokenTypes type = lexer.peekToken(i).getType();
-
-        if (type == TokenTypes::LessThan) {
-            angleDepth++;
-        } else if (type == TokenTypes::GreaterThan) {
-            angleDepth--;
-        } else if (type == TokenTypes::EOI) {
-            return false; // Malformed generics
+        // Support dotted generic types (e.g., ns.Type)
+        while (lexer.peekToken(i).getType() == TokenTypes::Dot) {
+            i++;
+            if (lexer.peekToken(i).getType() != TokenTypes::Identifier)
+                return false;
+            i++;
         }
 
-        i++;
+        if (lexer.peekToken(i).getType() == TokenTypes::Comma) {
+            i++; // More types coming
+        } else {
+            break;
+        }
     }
 
-    // Now we expect a left parenthesis for function/constructor call
-    if (lexer.peekToken(i).getType() != TokenTypes::LeftParen) {
+    // Check for closing '>'
+    if (lexer.peekToken(i).getType() != TokenTypes::GreaterThan)
         return false;
-    }
 
-    // Optionally: parse the function parameters like in checkIfLambdaExpression()
-    // to verify it's syntactically a call
+    i++; // Skip '>'
 
-    return true;
+    // Next must be a LeftParen — function call or constructor
+    return lexer.peekToken(i).getType() == TokenTypes::LeftParen;
 }
-
 
 std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
     eat(TokenTypes::LeftParen); // Start of parameters

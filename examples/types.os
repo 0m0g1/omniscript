@@ -103,19 +103,19 @@
 
 // Structs (user-defined types)
 //Todo: make types infered
-struct Vector3 {
-    x: f32 = 0;
-    y: f32 = 0;
-    z: f32 = 0;
-    scale(x: f32 = 1, y: f32 = 1, z: f32 = 1) => void {
-        this.x *= x;
-        this.y *= y;
-        this.z *= z;
-    }
-}
+// struct Vector3 {
+//     x: f32 = 0;
+//     y: f32 = 0;
+//     z: f32 = 0;
+//     scale(x: f32 = 1, y: f32 = 1, z: f32 = 1) => void {
+//         this.x *= x;
+//         this.y *= y;
+//         this.z *= z;
+//     }
+// }
 
-let v1 = Vector3{ x: 0, y: 0, z: 0 };
-v1.scale();
+// let v1 = Vector3{ x: 0, y: 0, z: 0 };
+// v1.scale();
 // v1.scale(2.0, 1.0, 1.0);
 
 // let test = v1.x;
@@ -190,10 +190,10 @@ v1.scale();
 //     banana
 // }
 
-// <Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
-// let add = (a: Number, b: Number) => Number {
-//     return a + b;
-// }
+<Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
+let add = (a: Number, b: Number) => Number {
+    return a + b;
+}
 
 
 // TODO Add support none predetermined types
@@ -204,17 +204,17 @@ v1.scale();
 // let sth : int = add<i32>(1, 2);
 
 
-// function add(a : i32 = 1, b : i32 = 1) => i32  {
-//     return a + b;
-// }
+function add(a : i32 = 1, b : i32 = 1) => i32  {
+    return a + b;
+}
 
-// function add(a : i32 = 1, b : i32 = 1, c : i32 = 0) => i32  {
-//     return a + b + c;
-// }
+function add(a : i32 = 1, b : i32 = 1, c : i32 = 0) => i32  {
+    return a + b + c;
+}
 
-// function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
-//     return a + b;
-// }
+function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
+    return a + b;
+}
 
 // let isRaining: bool = true;
 // if (isRaining) {
@@ -222,9 +222,10 @@ v1.scale();
 // } 
 
 // function main() => i32 {
-//     // return add(b = 1, a = 2, c = 10);
+//     return add(b = 1, a = 2, c = 10);
+//     // return add();
 //     // return c;
-//     return 0;
+//     // return 0;
 // }
 
 

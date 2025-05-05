@@ -86,6 +86,7 @@ class Parser {
             parameterType paramTypes = {},
             std::shared_ptr<Omniscript::Type> type = nullptr
         );
+        bool tryParseTypeParametersLookahead(int& i);
         bool checkIfLambdaExpression();
         bool isGenericCallOrConstructor();
         bool checkIfFunctionCall();

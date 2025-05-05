@@ -49,3 +49,4 @@
 - resolve void pointer types correctly
 - resolve all string types in statement.cpp
 - multidimentional arrays
+- The omniscript hasher should ignore comments and spaces and not re-compile when just comments or spaces have been added
