@@ -243,7 +243,7 @@ struct NullExpression : public Expression {
 struct NullPointerExpression : public Expression {
     std::shared_ptr<Type> expectedType;
     NullPointerExpression(std::shared_ptr<Type> expectedType = nullptr) : expectedType(expectedType) {
-        type = expectedType;
+        type = Type::createPointerType(expectedType);
         rootType = Type::createNullPointerType();
     }
 
@@ -803,8 +803,10 @@ public:
 };
 
 // Base class for all access expressions
-class AccessExpression : public Expression {
-public:
+struct AccessExpression : public Expression {
+    std::shared_ptr<Expression> expr; // expression that represents the parent obj
+    std::string member;           // Name of the member
+
     virtual std::string toString() const override = 0;  // Pure virtual method for string representation
     virtual std::shared_ptr<Expression> clone() const = 0;  // Clone method for deep copying
 };
@@ -828,6 +830,21 @@ public:
         memberPath(std::move(memberPath)),
         assignmentValue(assignmentValue) {
         type = memberType;
+    }
+
+    MemberAccessExpression(
+        const std::string& baseType,
+        const std::string& instanceName,
+        std::shared_ptr<Expression> expr,
+        std::string member,
+        std::shared_ptr<Type> memberType,
+        std::shared_ptr<Expression> assignmentValue = nullptr
+    ) : baseType(baseType),
+        instanceName(instanceName),
+        assignmentValue(assignmentValue) {
+        this->member = member;
+        this->expr = expr;
+        this->type = memberType;
     }
 
     // Check if it's a setter (assignment expression)

@@ -1255,15 +1255,16 @@ public:
     void setInstanceName(const std::string& name) { instanceName = name; }
 };
 
-class Access : public virtual TypedStatement, public virtual Expression {
+class Access : public virtual TypedStatement, public virtual Expression, public virtual NamedStatement {
 protected:
-    std::shared_ptr<Statement> expr;
+    // std::shared_ptr<Statement> expr;
     std::string member;
     std::shared_ptr<Statement> assignmentValue = nullptr;
     std::vector<std::shared_ptr<Statement>> arguments;
     bool isCall = false;
 
 public:
+    std::shared_ptr<Statement> expr;
     virtual ~Access() = default;
 
     void setAssignmentValueTo(std::shared_ptr<Statement> newVal = nullptr) {
@@ -1305,7 +1306,13 @@ private:
 public:
     MemberAccess(std::shared_ptr<Statement> obj, const std::string& member, std::shared_ptr<Statement> assignVal = nullptr) {
         this->expr = obj;
+        this->object = obj;
         this->member = member;
+        auto named = std::dynamic_pointer_cast<NamedStatement>(obj);
+        if (!named) {
+            console.error("The object having member '" + member + "' should be named");
+        }
+        this->name = named->getName();
         setAssignmentValueTo(assignVal);
     }
 
@@ -1319,7 +1326,7 @@ public:
 
     std::shared_ptr<Statement> clone() const override {
         auto cloned = object
-            ? std::make_shared<MemberAccess>(object->clone(), member, assignmentValue ? assignmentValue->clone() : nullptr)
+            ? std::make_shared<MemberAccess>(expr->clone(), member, assignmentValue ? assignmentValue->clone() : nullptr)
             : std::make_shared<MemberAccess>(objectName, propertyPath, assignmentValue ? assignmentValue->clone() : nullptr);
 
         cloned->arguments.reserve(arguments.size());
@@ -1366,10 +1373,20 @@ private:
 public:
     Dereference(std::shared_ptr<Statement> ptr, const std::string& member)
         : pointer(ptr) {
-        this->member = member;
+        this->member = member;auto named = std::dynamic_pointer_cast<NamedStatement>(ptr);
+        if (!named) {
+            console.error("The object having member '" + member + "' should be named");
+        }
+        this->name = named->getName();
+
     }
     Dereference(std::shared_ptr<Statement> ptr, std::shared_ptr<Statement> assignVal = nullptr)
         : pointer(ptr) {
+        auto named = std::dynamic_pointer_cast<NamedStatement>(ptr);
+        if (!named) {
+            console.error("The object having member '" + member + "' should be named");
+        }
+        this->name = named->getName();
         setAssignmentValueTo(assignVal);
     }
 
@@ -1403,10 +1420,20 @@ public:
     ArrowAccess(std::shared_ptr<Statement> ptr, const std::string& member)
         : pointer(ptr) {
             this->member = member;
+            auto named = std::dynamic_pointer_cast<NamedStatement>(ptr);
+            if (!named) {
+                console.error("The object having member '" + member + "' should be named");
+            }
+            this->name = named->getName();
     }
     ArrowAccess(std::shared_ptr<Statement> ptr, std::shared_ptr<Statement> assignVal = nullptr)
         : pointer(ptr) {
-        assignmentValue = assignVal;
+            auto named = std::dynamic_pointer_cast<NamedStatement>(ptr);
+            if (!named) {
+                console.error("The object having member '" + member + "' should be named");
+            }
+            this->name = named->getName();
+            assignmentValue = assignVal;
     }
 
     std::shared_ptr<Statement> clone() const override {
@@ -1437,7 +1464,12 @@ private:
 public:
     IndexAccess(std::shared_ptr<Statement> base, std::shared_ptr<Statement> index, std::shared_ptr<Statement> assignVal = nullptr)
         : baseExpression(base), indexExpression(index) {
-        setAssignmentValueTo(assignVal);
+            auto named = std::dynamic_pointer_cast<NamedStatement>(base);
+            if (!named) {
+                console.error("The object having member '" + member + "' should be named");
+            }
+            this->name = named->getName();
+            setAssignmentValueTo(assignVal);
     }
 
     const std::shared_ptr<Statement>& getBase() const { return baseExpression; }

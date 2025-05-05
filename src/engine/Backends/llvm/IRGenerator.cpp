@@ -268,6 +268,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         args.reserve(call->args.size());
 
         for (const auto& arg : call->args) {
+            DEBUG_LOG(arg->toString());
             args.emplace_back(codegen(arg, scope));
         }
 
@@ -357,38 +358,34 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(value)) {
-       std::vector<int> memberIndexPath;
-
        auto currentType = scope->getType(memberAccess->baseType);
-       for (const auto& member : memberAccess->memberPath) {
-           auto userdef = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType);
-           if (!userdef) break;
-       
-           int index = 0;
-           bool found = false;
-           for (const auto& field : userdef->paramTypes) {
-               if (member == field->getParameterName()) {
-                   memberIndexPath.push_back(index);
-                   currentType = field;
-                   found = true;
-                   break;
-               }
-               ++index;
-           }
-       
-           if (!found) {
-               console.error("Member '" + member + "' not found in type '" + userdef->getName() + "'.");
-               return nullptr;
-           }
-       }       
+
+        auto userdef = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType);
+    //    if (!userdef) break;
+    
+        int index = 0;
+        bool found = false;
+        for (const auto& field : userdef->paramTypes) {
+            if (memberAccess->member == field->getParameterName()) {
+                currentType = field;
+                found = true;
+                break;
+            }
+            ++index;
+        }
+    
+        if (!found) {
+            console.error("Member '" + memberAccess->member + "' not found in type '" + userdef->getName() + "'.");
+            return nullptr;
+        }     
 
         if (memberAccess->isSetter()) {
             DEBUG_LOG("Setting '" + memberAccess->toString() + "' to '" + memberAccess->assignmentValue->toString() + "'.");
             auto result = codegen(memberAccess->assignmentValue, scope);
-            return accessMember(memberAccess->baseType, memberAccess->instanceName, memberIndexPath, result);
+            return accessMember(memberAccess->baseType, memberAccess->instanceName, index, result);
         } else {
             DEBUG_LOG("Getting '" + memberAccess->toString() + "'.");
-            return accessMember(memberAccess->baseType, memberAccess->instanceName, memberIndexPath);
+            return accessMember(memberAccess->baseType, memberAccess->instanceName, index);
         }
     }
 
@@ -1599,7 +1596,7 @@ llvm::Function* IRGenerator::createFunction(
     DEBUG_LOG("Stored function: " + name + " in scope");
 
     // Generate function body
-    generateFunctionBody(name, function, body, scope);
+    generateFunctionBody(name, function, params, body, scope);
 
     return function;
 }
@@ -1670,6 +1667,7 @@ llvm::Value* IRGenerator::createCall(
 void IRGenerator::generateFunctionBody( 
     const std::string& name,
     llvm::Function* function,
+    std::vector<std::shared_ptr<Omniscript::Expression>>& params,
     std::vector<std::shared_ptr<Omniscript::Expression>>& body,
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
 ) {
@@ -1706,13 +1704,22 @@ void IRGenerator::generateFunctionBody(
     DEBUG_LOG("Pushed new scope for function");
 
     // Create allocas for parameters in the entry block
+    int index = 0;
     for (auto& arg : function->args()) {
         std::string argName = arg.getName().str();
         DEBUG_LOG("Allocating parameter: " + argName + " with type: " + debugType(arg.getType()));
-        llvm::AllocaInst* alloca = createEntryBlockAlloca(function, arg.getType(), argName);
-        Builder->CreateStore(&arg, alloca);
-        activeScope->set(argName, alloca);
+        auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(params[index]);
+
+        if (param->getName() == "this" && index == 0) {
+            activeScope->set(argName, &arg); // Use directly
+        } else {
+            llvm::AllocaInst* alloca = createEntryBlockAlloca(function, arg.getType(), argName);
+            Builder->CreateStore(&arg, alloca);
+            activeScope->set(argName, alloca);
+        }        
+
         DEBUG_LOG("Stored parameter in scope: " + argName);
+        index++;
     }
 
     // Generate function body
@@ -2182,7 +2189,7 @@ llvm::Value* IRGenerator::createStructInstance(
 llvm::Value* IRGenerator::accessMember(
     const std::string& baseTypeName,
     const std::string& instanceName,
-    const std::vector<int>& propertyPath,
+    const int& index,
     llvm::Value* valueToSet
 ) {
     llvm::Value* basePtr = activeScope->get(instanceName);
@@ -2200,24 +2207,21 @@ llvm::Value* IRGenerator::accessMember(
 
     llvm::Value* currentPtr = basePtr;
 
-    for (size_t i = 0; i < propertyPath.size(); ++i) {
-        if (!currentType->isStructTy()) {
-            console.error("Attempted to access member at index " + std::to_string(propertyPath[i]) + " on non-struct type.");
-            return nullptr;
-        }
-    
-        llvm::StructType* structType = llvm::cast<llvm::StructType>(currentType);
-        int fieldIndex = propertyPath[i];
-    
-        if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
-            console.error("Field index out of bounds in struct.");
-            return nullptr;
-        }
-    
-        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex, "field_ptr_" + std::to_string(fieldIndex));
-        currentType = structType->getElementType(fieldIndex);
+    if (!currentType->isStructTy()) {
+        console.error("Attempted to access member at index " + std::to_string(index) + " on non-struct type.");
+        return nullptr;
     }
-    
+
+    llvm::StructType* structType = llvm::cast<llvm::StructType>(currentType);
+    int fieldIndex = index;
+
+    if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
+        console.error("Field index out of bounds in struct.");
+        return nullptr;
+    }
+
+    currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex, "field_ptr_" + std::to_string(fieldIndex));
+    currentType = structType->getElementType(fieldIndex);
 
     if (valueToSet) {
         if (valueToSet->getType() != currentType) {

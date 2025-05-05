@@ -1118,21 +1118,21 @@ bool Parser::checkIfLambdaExpression() {
 bool Parser::checkIfFunctionCall() {
     int i = 0;
     
-    console.info(currentToken.getValue());
+    DEBUG_LOG(currentToken.getValue());
     // Check if it's a valid function name (identifier)
     if (currentToken.getType() == TokenTypes::Identifier) {
         i++;
     }
     
-    console.info(getTokenTypeName(lexer.peekToken(i).getType()) + ' ' + lexer.peekToken(i).getValue());
+    DEBUG_LOG(getTokenTypeName(lexer.peekToken(i).getType()) + ' ' + lexer.peekToken(i).getValue());
     // Check for optional type parameters `<T>`
     if (lexer.peekToken(i).getType() == TokenTypes::LessThan) {
         i++; // Move past '<'
-        console.info(getTokenTypeName(lexer.peekToken(i).getType()) + ' ' + lexer.peekToken(i).getValue());
+        DEBUG_LOG(getTokenTypeName(lexer.peekToken(i).getType()) + ' ' + lexer.peekToken(i).getValue());
         while (true) {
             Token token = lexer.peekToken(i);
             
-            console.info(getTokenTypeName(token.getType()) + ' ' + token.getValue());
+            DEBUG_LOG(getTokenTypeName(token.getType()) + ' ' + token.getValue());
             if (token.getType() == TokenTypes::Identifier) {
                 i++; // Consume type identifier
             } else if (token.getType() == TokenTypes::Comma) {
@@ -1147,7 +1147,7 @@ bool Parser::checkIfFunctionCall() {
     }
     
     // Ensure we have `(` after function name
-    console.info(getTokenTypeName(lexer.peekToken(i).getType()) + ' ' + lexer.peekToken(i).getValue());
+    DEBUG_LOG(getTokenTypeName(lexer.peekToken(i).getType()) + ' ' + lexer.peekToken(i).getValue());
     if (lexer.peekToken(i).getType() != TokenTypes::LeftParen) {
         return false;
     }
@@ -1157,7 +1157,7 @@ bool Parser::checkIfFunctionCall() {
     bool hasAtLeastOneArg = false;
     while (true) {
         Token token = lexer.peekToken(i);
-        console.info(getTokenTypeName(token.getType()) + ' ' + token.getValue());
+        DEBUG_LOG(getTokenTypeName(token.getType()) + ' ' + token.getValue());
         
         if (token.getType() == TokenTypes::RightParen) {
             return true; // End of function call
@@ -1786,6 +1786,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             eat(currentToken.getType()); // Consume the dot or scope resolution operator
             member = currentToken.getValue();
             eat(TokenTypes::Identifier);  // Eat the member name
+            DEBUG_LOG(expr->toString());
             expr = std::make_shared<MemberAccess>(expr, member);  // Add a member access
         }
 

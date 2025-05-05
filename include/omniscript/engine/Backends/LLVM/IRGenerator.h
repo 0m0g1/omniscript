@@ -217,6 +217,7 @@ public:
     void generateFunctionBody(
         const std::string& name,
         llvm::Function* function,
+        std::vector<std::shared_ptr<Omniscript::Expression>>& params,
         std::vector<std::shared_ptr<Omniscript::Expression>>& funcBody,
         std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
     );
@@ -319,7 +320,7 @@ public:
     llvm::Value* accessMember(
         const std::string& baseTypeName,
         const std::string& instanceName,
-        const std::vector<int>& propertyPath,
+        const int& index,
         llvm::Value* valueToSet  = nullptr
     );
 };
