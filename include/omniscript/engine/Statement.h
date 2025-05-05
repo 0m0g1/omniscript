@@ -777,9 +777,10 @@ class ArgumentStatement : public NamedStatement, public TypedStatement {
 public:
     std::string name;
     std::shared_ptr<Statement> value;
+    bool isConstant;
 
-    ArgumentStatement(std::string name, std::shared_ptr<Statement> value = nullptr)
-        : name(std::move(name)), value(std::move(value)) {}
+    ArgumentStatement(std::string name, std::shared_ptr<Statement> value = nullptr, bool isConstant = false)
+        : name(std::move(name)), value(std::move(value)), isConstant(isConstant) {}
 
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }

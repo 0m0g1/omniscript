@@ -1309,7 +1309,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
 
     if (type) {
         auto param = std::make_shared<ParameterStatement>("this", nullptr, true);
-        param->setType(type);
+        param->setType(Omniscript::Type::createPointerType(type));
         parameters.insert(parameters.begin(), std::dynamic_pointer_cast<Statement>(param));
     }
 

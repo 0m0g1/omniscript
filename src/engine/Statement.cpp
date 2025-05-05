@@ -905,11 +905,25 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     if (named) {
         std::string typeName = scope->get(named->getName())->getType()->getName();
         callee = typeName + "." + callee;
-        auto objectGetter = std::make_shared<AddressOf>(named->getName());
-        auto thisParam = std::make_shared<ParameterStatement>("this", objectGetter, true);
-        thisParam->setType(scope->get(named->getName())->getType());
-        // args.insert(args.begin(), thisParam);
-        args[0] = thisParam;
+        auto thisArg = std::make_shared<AddressOf>(named->getName());
+        // auto thisArg = std::make_shared<ArgumentStatement>("this", objectGetter, true);
+        thisArg->setType(Omniscript::Type::createPointerType(scope->get(named->getName())->getType()));
+        thisArg->setRootType(thisArg->getType());
+        args.insert(args.begin(), thisArg);
+        // DEBUG_LOG("This has type: " + thisArg->getType()->pointerDescription());
+
+        // if (val->name == "this" && paramIndex == 0 && named != nullptr) {
+        //     auto instance = scope->get(named->getName());
+        //     if (instance) {
+        //         auto objectGetter = std::make_shared<AddressOf>(named->getName());
+        //         auto getExpr = objectGetter->express(scope);
+        //         val = getExpr;
+        //         DEBUG_LOG("[Call] Bound 'this' to instance '" + getExpr->toString() + "'");
+        //     } else {
+        //         DEBUG_LOG("[Call] ERROR: Could not bind 'this'; '" + named->getName() + "' not found");
+        //         console.error(formatError("Could not bind 'this' to '" + named->getName() + "'"));
+        //     }
+        // }
     }
 
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
@@ -949,6 +963,9 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     auto inputExpr = std::make_shared<Omniscript::FunctionInputExpression>("", result->getType(), result);
                     evaluatedArgs.push_back(inputExpr);
                     DEBUG_LOG("[Call] Evaluated argument: " + std::string(inputExpr ? "OK" : "null (treated as undefined)"));
+                }
+                if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
+                    DEBUG_LOG("[Call] Evaluated argument has type: " + typed->getType()->kindName() + "'.");
                 }
             }
         
@@ -1062,7 +1079,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             }
 
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
-                if (Omniscript::isSameOrCastableTo(typed->getRootType(), param->getType())) {
+                if (Omniscript::isSameOrCastableTo(typed->getRootType(), param->getType()) || Omniscript::isSameOrCastableTo(typed->getType(), param->getType())) {
                     if (!typed->getType()) {
                         typed->setType(param->getType());
                     }
@@ -1108,18 +1125,6 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         val->name = param->name;
         
         DEBUG_LOG("Parameter '" + std::to_string(paramIndex) + "' is '" + val->name + "'.");
-        // if (val->name == "this" && paramIndex == 0 && named != nullptr) {
-        //     auto instance = scope->get(named->getName());
-        //     if (instance) {
-        //         auto objectGetter = std::make_shared<AddressOf>(named->getName());
-        //         auto getExpr = objectGetter->express(scope);
-        //         val = getExpr;
-        //         DEBUG_LOG("[Call] Bound 'this' to instance '" + getExpr->toString() + "'");
-        //     } else {
-        //         DEBUG_LOG("[Call] ERROR: Could not bind 'this'; '" + named->getName() + "' not found");
-        //         console.error(formatError("Could not bind 'this' to '" + named->getName() + "'"));
-        //     }
-        // }
         
         paramIndex++;
         finalArgs.push_back(val);
@@ -1178,9 +1183,11 @@ bool Call::matchArgumentsToParameters(
             return false;
         }
 
-        // if (!Omniscript::isSameOrCastableTo((matchingArg->value->getType()->isPointer() ? matchingArg->value->getType() : matchingArg->value->getRootType()), param->getType())) {
-        if (!Omniscript::isSameOrCastableTo(matchingArg->value->getRootType(), param->getType())) {
+        if (!Omniscript::isSameOrCastableTo(matchingArg->value->getRootType(), param->getType()) &&
+            !Omniscript::isSameOrCastableTo(matchingArg->value->getType(), param->getType())) {
             DEBUG_LOG("[Call] Type mismatch for parameter: " + paramName);
+            DEBUG_LOG("[Call] Expected type: " + param->getType()->kindName());
+            DEBUG_LOG("[Call] Provided argument type: " + matchingArg->value->getRootType()->kindName());
             return false;
         }
     }
@@ -1507,10 +1514,16 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
 
 std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableType scope) {
     DEBUG_LOG("[Argument] Creating argument " + name);
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
-        stmt->setType(type);
+    std::shared_ptr<Omniscript::Expression> result;
+    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
+        if (type) {
+            typed->setType(type);
+            result = value->express(scope);
+        } else {
+            result = value->express(scope);
+            setType(typed->getType());
+        }
     }
-    std::shared_ptr<Omniscript::Expression> result = value->express(scope);
     DEBUG_LOG("[Argument] The value for argument '" + name + "' is " + result->toString());
     return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
 }
