@@ -906,24 +906,9 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         std::string typeName = scope->get(named->getName())->getType()->getName();
         callee = typeName + "." + callee;
         auto thisArg = std::make_shared<AddressOf>(named->getName());
-        // auto thisArg = std::make_shared<ArgumentStatement>("this", objectGetter, true);
         thisArg->setType(Omniscript::Type::createPointerType(scope->get(named->getName())->getType()));
         thisArg->setRootType(thisArg->getType());
         args.insert(args.begin(), thisArg);
-        // DEBUG_LOG("This has type: " + thisArg->getType()->pointerDescription());
-
-        // if (val->name == "this" && paramIndex == 0 && named != nullptr) {
-        //     auto instance = scope->get(named->getName());
-        //     if (instance) {
-        //         auto objectGetter = std::make_shared<AddressOf>(named->getName());
-        //         auto getExpr = objectGetter->express(scope);
-        //         val = getExpr;
-        //         DEBUG_LOG("[Call] Bound 'this' to instance '" + getExpr->toString() + "'");
-        //     } else {
-        //         DEBUG_LOG("[Call] ERROR: Could not bind 'this'; '" + named->getName() + "' not found");
-        //         console.error(formatError("Could not bind 'this' to '" + named->getName() + "'"));
-        //     }
-        // }
     }
 
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
@@ -950,34 +935,75 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             auto paramList = funcExpr->getParameters();
             DEBUG_LOG("[Call] Function '" + funcExpr->mangledName + "' expects " + std::to_string(paramList.size()) + " parameters.");
         
-            std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>> evaluatedArgs;
-            for (const auto& arg : args) {
-                auto result = arg->express(scope);
-                if (auto argStatement = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
-                    DEBUG_LOG("[Call] Evaluated a named argument '" + argStatement->getName() + "'.");
-                    auto inputExpr = std::make_shared<Omniscript::FunctionInputExpression>(argStatement->getName(), result->getType(), result);
-                    evaluatedArgs.push_back(inputExpr);
-                    DEBUG_LOG("[Call] Evaluated argument: " + std::string(inputExpr ? "OK" : "null (treated as undefined)"));
-                } else {
-                    DEBUG_LOG("[Call] Evaluated an unamed argument");
-                    auto inputExpr = std::make_shared<Omniscript::FunctionInputExpression>("", result->getType(), result);
-                    evaluatedArgs.push_back(inputExpr);
-                    DEBUG_LOG("[Call] Evaluated argument: " + std::string(inputExpr ? "OK" : "null (treated as undefined)"));
-                }
-                if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
-                    DEBUG_LOG("[Call] Evaluated argument has type: " + typed->getType()->kindName() + "'.");
-                }
-            }
-        
+            // First, collect parameter information
             std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>> inputParams;
             for (const auto& param : paramList) {
                 auto casted = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(param);
                 if (!casted) {
                     console.error(formatError("Failed to cast parameter to FunctionInputExpression."));
-                    continue; // or return nullptr / throw, depending on your error handling
+                    continue;
                 }
                 inputParams.push_back(casted);
                 DEBUG_LOG("[Call] Parameter '" + casted->name + "' of type '" + casted->getType()->kindName() + "'");
+            }
+
+            // Then, set argument types based on parameters before evaluation
+            std::unordered_set<std::string> providedParams;
+            size_t positionalArgIndex = 0;
+            bool typeMismatch = false;
+
+            for (const auto& param : inputParams) {
+                const std::string& paramName = param->name;
+                std::shared_ptr<Statement> matchingArg;
+
+                // Find matching argument
+                for (const auto& arg : args) {
+                    if (auto namedArg = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
+                        if (namedArg->getName() == paramName) {
+                            matchingArg = namedArg->value;
+                            providedParams.insert(paramName);
+                            break;
+                        }
+                    }
+                }
+
+                if (!matchingArg && positionalArgIndex < args.size()) {
+                    matchingArg = args[positionalArgIndex++];
+                }
+
+                if (matchingArg) {
+                    if (auto typedArg = std::dynamic_pointer_cast<TypedStatement>(matchingArg)) {
+                        if (!typedArg->getType() || 
+                            (!Omniscript::isSameOrCastableTo(typedArg->getRootType(), param->getType()) &&
+                             !Omniscript::isSameOrCastableTo(typedArg->getType(), param->getType()))) {
+                            // Set the expected type before evaluation
+                            typedArg->setType(param->getType());
+                            typedArg->setRootType(param->getType());
+                            DEBUG_LOG("[Call] Set type for argument to match parameter '" + paramName + 
+                                     "': " + param->getType()->kindName());
+                        }
+                    }
+                }
+            }
+
+            // Now evaluate arguments with proper types set
+            std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>> evaluatedArgs;
+            for (const auto& arg : args) {
+                std::shared_ptr<Omniscript::Expression> result;
+                if (auto argStatement = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
+                    result = argStatement->value->express(scope);
+                    DEBUG_LOG("[Call] Evaluated a named argument '" + argStatement->getName() + "'.");
+                    auto inputExpr = std::make_shared<Omniscript::FunctionInputExpression>(argStatement->getName(), result->getType(), result);
+                    evaluatedArgs.push_back(inputExpr);
+                } else {
+                    result = arg->express(scope);
+                    DEBUG_LOG("[Call] Evaluated an unamed argument");
+                    auto inputExpr = std::make_shared<Omniscript::FunctionInputExpression>("", result->getType(), result);
+                    evaluatedArgs.push_back(inputExpr);
+                }
+                if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
+                    DEBUG_LOG("[Call] Evaluated argument has type: " + typed->getType()->kindName() + "'.");
+                }
             }
         
             if (matchArgumentsToParameters(evaluatedArgs, inputParams, scope)) {
@@ -1049,15 +1075,15 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 continue;
             }
 
-            auto evaluated = namedArg->value ? namedArg->value->express(scope) : nullptr;
-            localScope->set(paramName, evaluated);
-            providedParams.insert(paramName);
-            DEBUG_LOG("[Call] Set named parameter '" + paramName + "' in local scope");
-
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(namedArg->value)) {
                 typed->setType(type);
                 DEBUG_LOG("[Call] Set type for named argument '" + paramName + "'");
             }
+
+            auto evaluated = namedArg->value ? namedArg->value->express(scope) : nullptr;
+            localScope->set(paramName, evaluated);
+            providedParams.insert(paramName);
+            DEBUG_LOG("[Call] Set named parameter '" + paramName + "' in local scope");
         }
     }
 
