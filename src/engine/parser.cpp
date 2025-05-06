@@ -669,7 +669,10 @@ std::shared_ptr<Statement> Parser::factor() {
         left = std::make_shared<Null>();
     }
     // Handle identifiers (variables and functions)
-    else if (currentToken.getType() == TokenTypes::Identifier) {
+    else if (currentToken.getType() == TokenTypes::Identifier || currentToken.getType() == TokenTypes::New) {
+        if (currentToken.getType() == TokenTypes::New) {
+            eat(TokenTypes::New);
+        }
         left = parseIdentifier();
         DEBUG_LOG("Parsed the identifier and got " + left->toString() + "'.");
     }
@@ -734,14 +737,6 @@ std::shared_ptr<Statement> Parser::factor() {
     // {a, b} 
     else if (currentToken.getType() == TokenTypes::LeftBrace) {
         left = parseObject();
-    } else if (currentToken.getType() == TokenTypes::New) {
-        eat(TokenTypes::New);
-        std::string objectClassName = currentToken.getValue();
-        eat(TokenTypes::Identifier);
-        auto args = parseArguments();
-        // auto objectType = std::make_shared<GetVariable>(objectClassName);
-        // left = std::make_shared<ObjectConstructorStatement>(objectType, args);
-        left = nullptr;
     }
 
     // Handle dot operator for method calls (e.g., object.method())
@@ -917,135 +912,80 @@ ClassMemberModifiers Parser::parseClassMemberModifiers() {
 
 
 std::shared_ptr<Statement> Parser::parseClass() {
-    // eat(TokenTypes::Class);
+    eat(TokenTypes::Class);
+    std::string className = currentToken.getValue();
+    eat(TokenTypes::Identifier);
 
-    // std::string className = currentToken.getValue();
-    // auto new_Class = std::make_shared<Class>(className);
-    
-    // eat(TokenTypes::Identifier);
+    parameterType types;
+    if (currentToken.getType() == TokenTypes::LessThan) {
+        types = parseTypeParametersForDeclaration();
+    }
 
-    // std::vector<std::pair<std::string, std::string>> types;
+    std::vector<std::string> parentClasses;
+    if (currentToken.getType() == TokenTypes::Colon) {
+        eat(TokenTypes::Colon);
+        while (currentToken.getType() != TokenTypes::LeftBrace) {
+            if (currentToken.getType() == TokenTypes::Comma) eat(TokenTypes::Comma);
+            if (currentToken.getType() == TokenTypes::Public || currentToken.getType() == TokenTypes::Private)
+                eat(currentToken.getType()); // Ignore for now
+            std::string parent = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+            parentClasses.push_back(parent);
+        }
+    }
 
-    // if (currentToken.getType() == TokenTypes::LessThan) {
-    //     types = parseTypeParametersForDeclaration();
-    // }
+    std::shared_ptr<Omniscript::Type> thisType = Omniscript::Type::createUserDefinedType(className, Omniscript::Kind::Class);
+    std::vector<std::shared_ptr<ClassMember>> members;
 
-    // DEBUG_LOG("Parsing a class " + className);
+    eat(TokenTypes::LeftBrace);
 
-    // if (currentToken.getType() == TokenTypes::Colon) {
-    //     eat(TokenTypes::Colon);
+    while (currentToken.getType() != TokenTypes::RightBrace) {
+        ClassMemberModifiers modifiers = parseClassMemberModifiers();
 
-    //     while (currentToken.getType() != TokenTypes::LeftBrace) {
-    //         if (currentToken.getType() == TokenTypes::Comma) {
-    //             eat(TokenTypes::Comma);
-    //         }
-    //         if (currentToken.getType() == TokenTypes::Public || currentToken.getType() == TokenTypes::Private) {
-    //             eat(currentToken.getType());
-    //         }
-    //         std::string parentClassName = currentToken.getValue();
-    //         eat(TokenTypes::Identifier);
-    //         new_Class->classNames.push_back(parentClassName);
-    //     }
-    // }
-    
-    // eat(TokenTypes::LeftBrace);
+        std::string memberName;
+        if (currentToken.getType() == TokenTypes::Tilde) {
+            eat(currentToken.getType());
+            memberName = "~";
+        }
 
-    // bool hasConstructor = false;
-    // bool hasDestructor = false;
+        // Expect identifier: either field name or method name
+        if (currentToken.getType() != TokenTypes::Identifier) {
+            eat(TokenTypes::Identifier, "Expected identifier in class body.");
+            return nullptr;
+        }
 
-    // while (currentToken.getType() != TokenTypes::RightBrace) {
-    //     // Parse modifiers before method name
-    //     ClassMemberModifiers preModifiers = parseClassMemberModifiers();
+        memberName += currentToken.getValue();
+        eat(TokenTypes::Identifier);
 
-    //     if (currentToken.getType() == TokenTypes::Identifier && currentToken.getValue() == "constructor") {
-    //         if (hasConstructor) {
-    //             console.error("Class " + className + " has multiple constructors.");
-    //             return nullptr;
-    //         }
-    //         hasConstructor = true;
-    //         eat(TokenTypes::Identifier);
+        // Optional type
+        std::shared_ptr<Omniscript::Type> typeExpr = nullptr;
+        if (currentToken.getType() == TokenTypes::Colon) {
+            eat(TokenTypes::Colon);
+            auto parsedType = parseType(); // returns vector<string>
+            typeExpr = Omniscript::resolveType(parsedType);
+        }
 
-    //         auto [paramNames, parameters] = parseParameters();
+        // Optional value or method body
+        std::shared_ptr<Statement> valueExpr = nullptr;
+        if (currentToken.getType() == TokenTypes::Assign) {
+            eat(TokenTypes::Assign);
+            valueExpr = parseExpression();
+        } else if (currentToken.getType() == TokenTypes::LeftParen) {
+            // Method (lambda-style)
+            valueExpr = parseLambdaFunction(className + "." + memberName);
+        }
 
-    //         // Parse modifiers after parameters
-    //         ClassMemberModifiers postModifiers = parseClassMemberModifiers();
+        auto member = std::make_shared<ClassMember>(memberName, typeExpr, valueExpr, modifiers);
+        members.push_back(member);
 
-    //         if (preModifiers.isInitialized || postModifiers.isInitialized) {
-    //             console.error("The constructor takes in no modifiers.");
-    //             return nullptr;
-    //         }
+        if (currentToken.getType() == TokenTypes::Semicolon) {
+            eat(TokenTypes::Semicolon);
+        }
+    }
 
-    //         std::vector<std::shared_ptr<Statement>> body = parseBlock();
+    eat(TokenTypes::RightBrace);
 
-    //         auto constructor = std::make_shared<Function>("constructor", paramNames, parameters, body);
-    //         constructor->addParameter("this", nullptr);
-
-    //         new_Class->addConstructor(constructor);
-    //     } else if (currentToken.getType() == TokenTypes::Identifier && currentToken.getValue() == "destructor") {
-    //         if (hasDestructor) {
-    //             console.error("Class " + className + " has multiple destructors.");
-    //             return nullptr;
-    //         }
-    //         hasDestructor = true;
-    //         eat(TokenTypes::Identifier);
-
-    //         auto [paramNames, parameters] = parseParameters();
-
-    //         // Parse modifiers after parameters
-    //         ClassMemberModifiers postModifiers = parseClassMemberModifiers();
-
-    //         if (preModifiers.isInitialized || postModifiers.isInitialized) {
-    //             console.error("The destructor takes in no modifiers.");
-    //             return nullptr;
-    //         }
-
-    //         auto body = parseBlock();
-    //         auto destructor = std::make_shared<Function>("destructor", paramNames, parameters, body);
-    //         destructor->addParameter("this", nullptr);
-    //         new_Class->addDestructor(destructor);
-    //     } else if (currentToken.getType() == TokenTypes::Identifier) {
-    //         std::string methodName = currentToken.getValue();
-    //         eat(TokenTypes::Identifier);
-
-    //         auto [paramNames, parameters] = parseParameters();
-
-    //         // Parse modifiers after parameters
-    //         ClassMemberModifiers postModifiers = parseClassMemberModifiers();
-
-    //         if (preModifiers.isInitialized && postModifiers.isInitialized) {
-    //             console.error("Modifiers should appear only before or after the method name, not both.");
-    //             return nullptr;
-    //         }
-
-    //         // Use the modifiers (either preModifiers or postModifiers)
-    //         ClassMemberModifiers methodModifiers = preModifiers.isInitialized ? preModifiers : postModifiers;
-
-    //         auto body = parseBlock();
-    //         auto method = std::make_shared<Function>(methodName, paramNames, parameters, body);
-
-    //         if (methodModifiers.shouldOverride) {
-    //             auto [methodToOverride, parentModifiers] = new_Class->getClassMethod(methodName);
-
-    //             if (std::holds_alternative<std::nullptr_t>(methodToOverride)) {
-    //                 console.error("Method " + methodName + " marked as override but does not override any virtual method.");
-    //             }
-    //             if (parentModifiers.isFinal) {
-    //                 console.error("Method " + methodName + " is a final member of its parent class and cannot be overridden. Remove the 'final' keyword from the parent class.");
-    //             }
-    //         }
-
-    //         method->addParameter("this", nullptr);
-    //         new_Class->addClassMethod(methodName, method, methodModifiers);
-    //     } else {
-    //         console.error("Unexpected token in class definition.");
-    //         return nullptr;
-    //     }
-    // }
-
-    // eat(TokenTypes::RightBrace); // End of class body
-
-    // return std::make_shared<ConstantAssignment>(className, std::make_shared<ObjectConstructorStatement>(new_Class));
-    return nullptr;
+    return std::make_shared<ConstructClassPrototype>(className, parentClasses, members);
 }
 
 std::shared_ptr<Statement> Parser::parseLambdaFunction(
@@ -1735,73 +1675,6 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
     return typeParams;
 }
 
-
-// std::shared_ptr<Statement> Parser::parseIdentifier() {
-//     // Parse the root identifier
-//     std::string rootIdentifier = currentToken.getValue();
-//     eat(TokenTypes::Identifier);
-    
-//     // Start with the base identifier as the initial statement
-//     // Parse function calls with generics
-//     if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
-//         if (isGenericCallOrConstructor()) {
-//             // Generate the specialized name when encountering a left bracket `<`
-//             std::vector<std::string> typeParams = parseTypeParametersForCall();  // Adjust this according to your needs
-            
-//             // Assuming `rootIdentifier` is the base name of the function,
-//             // we will generate a specialized name for this function call
-//             std::string specializedName = generateSpecializedNameForCall(rootIdentifier, typeParams);
-    
-//             // Do something with the specialized name if needed, e.g., logging, debugging, etc.
-//             DEBUG_LOG("Generated Specialized Name: " + specializedName);
-    
-//             // You can now create the Call object with the specialized name
-//             std::vector<std::shared_ptr<Statement>> args = parseArguments();
-//             return std::make_shared<Call>(specializedName, args);  // Use the specialized name here
-//         } else if (currentToken.getType() == TokenTypes::LeftParen) {
-//             // If it's just a normal function call (not involving `<`), we process it normally
-//             std::vector<std::shared_ptr<Statement>> args = parseArguments();
-//             return std::make_shared<Call>(rootIdentifier, args);
-//         }
-//     }
-    
-//     // Parse object instance constructors
-//     if (currentToken.getType() == TokenTypes::LeftBrace) {
-//         std::vector<std::shared_ptr<Statement>> args = parseArguments(TokenTypes::LeftBrace, TokenTypes::RightBrace, TokenTypes::Colon);
-//         return std::make_shared<ObjectConstructorStatement>(rootIdentifier, "", args);
-//     }
-    
-//     if (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
-//         std::vector<std::string> members;
-//         while (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
-//             eat(currentToken.getType());
-//             members.push_back(currentToken.getValue());
-//             eat(TokenTypes::Identifier);
-//         }
-
-//         auto resolution = std::make_shared<MemberAccess>(rootIdentifier, members);
-
-//         if (isAssignmentExpression(currentToken.getType())) {
-//             return parseAssignment(resolution);
-//         }
-
-//         return resolution;
-//     }
-
-//     std::shared_ptr<Statement> statement = std::make_shared<GetVariable>(rootIdentifier);
-//     std::shared_ptr<Statement> previousStatement = statement;
-
-//     if (currentToken.getType() == TokenTypes::Assign || 
-//         currentToken.getType() == TokenTypes::PlusAssign || 
-//         currentToken.getType() == TokenTypes::MinusAssign || 
-//         currentToken.getType() == TokenTypes::DivideAssign || 
-//         currentToken.getType() == TokenTypes::MultiplyAssign) {
-//         DEBUG_LOG("Parsing an assignment");
-//         return parseAssignment(statement);
-//     }
-
-//     return statement;
-// }
 
 std::shared_ptr<Statement> Parser::parseIdentifier() {
     // Parse the root identifier

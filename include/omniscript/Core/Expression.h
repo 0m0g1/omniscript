@@ -703,6 +703,45 @@ struct StructExpression : public Callable {
     }
 };
 
+struct ClassExpression : public Expression {
+    std::string name;
+    std::shared_ptr<StructExpression> structExpr;
+    std::vector<std::shared_ptr<FunctionExpression>> constructors;
+    std::shared_ptr<FunctionExpression> destructor;
+
+    ClassExpression(
+        const std::string& name,
+        std::shared_ptr<StructExpression> structExpr,
+        std::vector<std::shared_ptr<FunctionExpression>> constructors = {},
+        std::shared_ptr<FunctionExpression> destructor = nullptr
+    )
+        :   name(name),
+            structExpr(std::move(structExpr)),
+            constructors(std::move(constructors)),
+            destructor(std::move(destructor))
+    {
+        type = this->structExpr->getType(); // Inherit type from struct
+    }
+
+    std::string toString() const override {
+        return "Class: " + structExpr->structName +
+               " [Constructors: " + std::to_string(constructors.size()) +
+               ", Destructor: " + (destructor ? "yes" : "none") + "]";
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        auto clonedStruct = std::dynamic_pointer_cast<StructExpression>(structExpr->clone());
+
+        std::vector<std::shared_ptr<FunctionExpression>> clonedCtors;
+        for (const auto& ctor : constructors)
+            clonedCtors.push_back(std::dynamic_pointer_cast<FunctionExpression>(ctor->clone()));
+
+        auto clonedDtor = destructor ? std::dynamic_pointer_cast<FunctionExpression>(destructor->clone()) : nullptr;
+
+        return std::make_shared<ClassExpression>(name, clonedStruct, clonedCtors, clonedDtor);
+    }
+};
+
 class InstanceExpression : public Expression {
 public:
     std::string baseName;

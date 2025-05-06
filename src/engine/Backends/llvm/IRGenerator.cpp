@@ -308,6 +308,10 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return nullptr;
     }
 
+    if (auto classExpr = std::dynamic_pointer_cast<Omniscript::ClassExpression>(value)) {
+        return codegen(classExpr->structExpr, scope);
+    }
+
     if (auto ifExpr = std::dynamic_pointer_cast<Omniscript::IfExpression>(value)) {
         DEBUG_LOG("Creating an if expression");
         return createIfStatement(ifExpr->conditions, ifExpr->bodies, ifExpr->elseBody, scope);

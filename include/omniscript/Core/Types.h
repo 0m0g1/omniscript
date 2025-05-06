@@ -30,6 +30,7 @@ enum class Kind {
     Metadata,
 
     // Aggregate Types
+    Class,
     Struct,
     Enum,
     Array,

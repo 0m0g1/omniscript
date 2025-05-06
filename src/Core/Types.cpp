@@ -50,6 +50,7 @@ std::string Type::kindName() const {
 
         // Aggregate Types
         case Kind::Struct:      return "Struct";
+        case Kind::Class:      return "Class";
         case Kind::Enum:        return "Enum";
         case Kind::Array:       return "Array";
         case Kind::FixedArray:       return "FixedArray";

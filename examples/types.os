@@ -114,9 +114,10 @@
 //     }
 // }
 
-// let v1 = Vector3{ x: 0, y: 0, z: 0 };
+// let v1 = new Vector3{ x: 0, y: 0, z: 0 };
 // v1.scale();
 // v1.scale(2.0, 1.0, 1.0);
+
 
 // let test = v1.x;
 // v1.x = 2.0;
@@ -127,6 +128,7 @@
     
 //     return v1.z;
 // }
+
 // for (let index = 0; index < 1000000000; index++) {
     
 // }
@@ -190,10 +192,10 @@
 //     banana
 // }
 
-<Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
-let add = (a: Number, b: Number) => Number {
-    return a + b;
-}
+// <Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
+// let add = (a: Number, b: Number) => Number {
+//     return a + b;
+// }
 
 
 // TODO Add support none predetermined types
@@ -204,17 +206,17 @@ let add = (a: Number, b: Number) => Number {
 // let sth : int = add<i32>(1, 2);
 
 
-function add(a : i32 = 1, b : i32 = 1) => i32  {
-    return a + b;
-}
+// function add(a : i32 = 1, b : i32 = 1) => i32  {
+//     return a + b;
+// }
 
-function add(a : i32 = 1, b : i32 = 1, c : i32 = 0) => i32  {
-    return a + b + c;
-}
+// function add(a : i32 = 1, b : i32 = 1, c : i32 = 0) => i32  {
+//     return a + b + c;
+// }
 
-function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
-    return a + b;
-}
+// function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
+//     return a + b;
+// }
 
 // let isRaining: bool = true;
 // if (isRaining) {
@@ -242,3 +244,17 @@ function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
 //     n = 10;
 //     return n;
 // }
+
+class Particle {
+    constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) {
+        
+    }
+    destructor() {
+        
+    }
+    public name() => void {
+        
+    }
+}
+
+let p1 = Particle();
