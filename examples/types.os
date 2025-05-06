@@ -246,15 +246,22 @@
 // }
 
 class Particle {
-    constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) {
+    // constructor() => void {
+        
+    // }
+    constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) => void {
         
     }
-    destructor() {
+    // destructor() => void {
         
-    }
-    public name() => void {
-        
-    }
+    // }
 }
 
 let p1 = Particle();
+
+
+// struct Person {
+//     age : int = 0;
+// }
+
+// let p1 = Person{};

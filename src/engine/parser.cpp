@@ -939,16 +939,20 @@ std::shared_ptr<Statement> Parser::parseClass() {
 
     eat(TokenTypes::LeftBrace);
 
+    bool hasConstructor = false;
+    bool hasDestructor = false;
+
     while (currentToken.getType() != TokenTypes::RightBrace) {
         ClassMemberModifiers modifiers = parseClassMemberModifiers();
 
         std::string memberName;
+        bool isDestructor = false;
         if (currentToken.getType() == TokenTypes::Tilde) {
             eat(currentToken.getType());
-            memberName = "~";
+            // memberName = "~";
+            isDestructor = true;
         }
 
-        // Expect identifier: either field name or method name
         if (currentToken.getType() != TokenTypes::Identifier) {
             eat(TokenTypes::Identifier, "Expected identifier in class body.");
             return nullptr;
@@ -957,21 +961,21 @@ std::shared_ptr<Statement> Parser::parseClass() {
         memberName += currentToken.getValue();
         eat(TokenTypes::Identifier);
 
-        // Optional type
+        if (memberName == "constructor") hasConstructor = true;
+        if (isDestructor && memberName == "destructor") hasDestructor = true;
+
         std::shared_ptr<Omniscript::Type> typeExpr = nullptr;
         if (currentToken.getType() == TokenTypes::Colon) {
             eat(TokenTypes::Colon);
-            auto parsedType = parseType(); // returns vector<string>
+            auto parsedType = parseType();
             typeExpr = Omniscript::resolveType(parsedType);
         }
 
-        // Optional value or method body
         std::shared_ptr<Statement> valueExpr = nullptr;
         if (currentToken.getType() == TokenTypes::Assign) {
             eat(TokenTypes::Assign);
             valueExpr = parseExpression();
         } else if (currentToken.getType() == TokenTypes::LeftParen) {
-            // Method (lambda-style)
             valueExpr = parseLambdaFunction(className + "." + memberName);
         }
 
@@ -984,6 +988,42 @@ std::shared_ptr<Statement> Parser::parseClass() {
     }
 
     eat(TokenTypes::RightBrace);
+    
+    if (!hasConstructor) {
+        ClassMemberModifiers modifiers;
+        auto emptyBody = BlockStatement::create();
+        auto defaultCtor = std::make_shared<FunctionDeclaration>(
+            className + ".constructor",
+            std::vector<std::shared_ptr<Statement>>{},
+            emptyBody,
+            Omniscript::resolveType({"void"})
+        );
+        auto ctorMember = std::make_shared<ClassMember>(
+            className,
+            Omniscript::resolveType({"void"}),
+            defaultCtor,
+            modifiers
+        );
+        members.insert(members.begin(), ctorMember);
+    }
+    
+    if (!hasDestructor) {
+        ClassMemberModifiers modifiers;
+        auto emptyBody = BlockStatement::create();
+        auto defaultDtor = std::make_shared<FunctionDeclaration>(
+            className + ".destructor",
+            std::vector<std::shared_ptr<Statement>>{},
+            emptyBody,
+            Omniscript::resolveType({"void"})
+        );
+        auto dtorMember = std::make_shared<ClassMember>(
+            "~" + className,
+            Omniscript::resolveType({"void"}),
+            defaultDtor,
+            modifiers
+        );
+        members.push_back(dtorMember);
+    }    
 
     return std::make_shared<ConstructClassPrototype>(className, parentClasses, members);
 }
@@ -996,7 +1036,7 @@ std::shared_ptr<Statement> Parser::parseLambdaFunction(
     static int anonCounter = 0;
     if (lambdaName.empty()) {
         std::string name = "lambda_" + std::to_string(anonCounter++);
-        return parseFunctionDeclaration(name, paramTypes,type);
+        return parseFunctionDeclaration(name, paramTypes, type);
     }
     return parseFunctionDeclaration(lambdaName, paramTypes, type);
 }
@@ -1314,6 +1354,8 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
         eat(TokenTypes::Arrow);
         returnDataType = parseType();
         returnType = Omniscript::resolveType(returnDataType);
+    } else {
+        returnType = Omniscript::resolveType({"void"});
     }
 
     auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
@@ -2117,6 +2159,9 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
     
             if (auto objConstructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(result)) {
                 objConstructor->setInstanceName(variableName);
+                return result;
+            } else if (auto call = std::dynamic_pointer_cast<Call>(result)) {
+                call->setInstanceName(variableName);
                 return result;
             }
             

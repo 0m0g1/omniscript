@@ -95,6 +95,8 @@ public:
     bool isGeneric() const { return kind == Kind::Generic || kind == Kind::Unresolved; }
     bool isBlock() const { return kind == Kind::Block; }
     bool isBool() const { return kind == Kind::Bool; }
+    bool isStruct() const { return kind == Kind::Struct; }
+    bool isClass() const { return kind == Kind::Class; }
 
     bool isNumericLiteral() const {
         return isInteger() || isFloat();

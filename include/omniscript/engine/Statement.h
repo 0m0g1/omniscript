@@ -1072,6 +1072,7 @@ public:
         const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& params,
         SymbolTableType scope
     );
+    void setInstanceName(const std::string& name) { instanceName = name; }
     std::string formatError(const std::string& msg) const override {
         return (instanceName.empty() ? "" : instanceName + ".") + callee + ": " + msg;
     };

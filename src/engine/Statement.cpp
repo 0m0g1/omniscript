@@ -901,18 +901,30 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
 
 // TODO: Add the name of the object being called
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
+    DEBUG_LOG();
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
-    if (named) {
-        if (auto obj = scope->get(named->getName())) {
+    std::string targetName = named ? named->getName() : instanceName;
+    if (!targetName.empty()) {
+        if (auto obj = scope->get(targetName)) {
             std::string typeName = obj->getType()->getName();
+            if (typeName == callee) {
+                std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
+                auto realExpr = std::make_shared<ObjectConstructorStatement>(nullptr, typeName, instanceName, args);
+                auto objConstructor = realExpr->express(scope);
+                ctorExpressions.push_back(std::dynamic_pointer_cast<Omniscript::Expression>(objConstructor));
+                auto ctorCall = std::make_shared<Call>(typeName, "constructor", args)->express(scope);
+                ctorExpressions.push_back(std::dynamic_pointer_cast<Omniscript::Expression>(ctorCall));
+                auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
+                return constructionBlock;
+            }
             callee = typeName + "." + callee;
-            auto thisArg = std::make_shared<AddressOf>(named->getName());
+            auto thisArg = std::make_shared<AddressOf>(targetName);
             thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
             thisArg->setRootType(thisArg->getType());
             args.insert(args.begin(), thisArg);
         }
     }
-
+    
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
     
     std::string originalCallee = callee;
@@ -1607,7 +1619,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
 
     // Step 3: Process methods (functions, constructor, destructor)
     for (const auto& member : body) {
-        if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member)) {
+        if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getDefaultValue())) {
             auto funcName = func->getName();
 
             // add `this` parameter
@@ -1618,6 +1630,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
             auto methodExpr = func->express(scope);
             fields.push_back(methodExpr);
 
+            console.info(funcName + " " + name + ".constructor");
             if (funcName == name + ".constructor") {
 
                 auto ctorExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(methodExpr);

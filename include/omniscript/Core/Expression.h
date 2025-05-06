@@ -703,8 +703,7 @@ struct StructExpression : public Callable {
     }
 };
 
-struct ClassExpression : public Expression {
-    std::string name;
+struct ClassExpression : public Callable {
     std::shared_ptr<StructExpression> structExpr;
     std::vector<std::shared_ptr<FunctionExpression>> constructors;
     std::shared_ptr<FunctionExpression> destructor;
@@ -715,18 +714,28 @@ struct ClassExpression : public Expression {
         std::vector<std::shared_ptr<FunctionExpression>> constructors = {},
         std::shared_ptr<FunctionExpression> destructor = nullptr
     )
-        :   name(name),
-            structExpr(std::move(structExpr)),
-            constructors(std::move(constructors)),
-            destructor(std::move(destructor))
+        : Callable(name, name, {}, false),  // Dummy mangled name for now
+          structExpr(std::move(structExpr)),
+          constructors(std::move(constructors)),
+          destructor(std::move(destructor))
     {
-        type = this->structExpr->getType(); // Inherit type from struct
+        type = this->structExpr->getType(); // Inherit struct type
     }
 
     std::string toString() const override {
         return "Class: " + structExpr->structName +
                " [Constructors: " + std::to_string(constructors.size()) +
                ", Destructor: " + (destructor ? "yes" : "none") + "]";
+    }
+
+    std::shared_ptr<FunctionExpression> resolveConstructor(const std::vector<std::shared_ptr<Expression>>& args) const {
+        // Simple match: in real implementation, do overload resolution
+        for (const auto& ctor : constructors) {
+            if (ctor->getParameters().size() == args.size()) {
+                return ctor;
+            }
+        }
+        return nullptr;
     }
 
     std::shared_ptr<Expression> clone() const override {
@@ -741,6 +750,7 @@ struct ClassExpression : public Expression {
         return std::make_shared<ClassExpression>(name, clonedStruct, clonedCtors, clonedDtor);
     }
 };
+
 
 class InstanceExpression : public Expression {
 public:
