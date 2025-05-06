@@ -687,10 +687,6 @@ std::shared_ptr<Omniscript::Expression> ContinueStatement::express(SymbolTableTy
     return nullptr;
 }
 
-// std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
-//     return nullptr;
-// }
-
 std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) {
     auto localScope = scope->createChildScope("forloop");
     DEBUG_LOG("Creating a for loop expression");
@@ -904,6 +900,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     DEBUG_LOG();
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
     std::string targetName = named ? named->getName() : instanceName;
+    DEBUG_LOG("The target name is: " + targetName);
     if (!targetName.empty()) {
         if (auto obj = scope->get(targetName)) {
             std::string typeName = obj->getType()->getName();
@@ -911,21 +908,27 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
                 auto realExpr = std::make_shared<ObjectConstructorStatement>(nullptr, typeName, instanceName, args);
                 auto objConstructor = realExpr->express(scope);
-                ctorExpressions.push_back(std::dynamic_pointer_cast<Omniscript::Expression>(objConstructor));
-                auto ctorCall = std::make_shared<Call>(typeName, "constructor", args)->express(scope);
-                ctorExpressions.push_back(std::dynamic_pointer_cast<Omniscript::Expression>(ctorCall));
+                ctorExpressions.push_back(objConstructor);
+                auto ctorCall = std::make_shared<Call>("constructor", instanceName, args)->express(scope);
+                auto callExpr = std::dynamic_pointer_cast<Omniscript::CallExpression>(ctorCall);
+                callExpr->instanceName = "";
+                ctorExpressions.push_back(ctorCall);
                 auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
                 return constructionBlock;
             }
             callee = typeName + "." + callee;
-            auto thisArg = std::make_shared<AddressOf>(targetName);
+            auto thisArg = std::make_shared<AddressOf>(instanceName);
             thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
             thisArg->setRootType(thisArg->getType());
             args.insert(args.begin(), thisArg);
+            DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
         }
     }
     
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
+    if (!instanceName.empty()) {
+        DEBUG_LOG("For " + instanceName);
+    }
     
     std::string originalCallee = callee;
     DEBUG_LOG("[Call] Looking up callee '" + originalCallee + "' in scope");
