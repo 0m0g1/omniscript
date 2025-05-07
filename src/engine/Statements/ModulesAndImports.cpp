@@ -45,14 +45,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     return nullptr; // Modules themselves don't return a value
 }
 
-std::shared_ptr<Omniscript::Expression> PublicMember::express(SymbolTableType scope) {
-    if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
-        assignment->setGlobalVisibilityTo(true);
-    }
-    return value->express(scope);
-}
-
-std::shared_ptr<Omniscript::Expression> PrivateMember::express(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> ModuleMember::express(SymbolTableType scope) {
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }

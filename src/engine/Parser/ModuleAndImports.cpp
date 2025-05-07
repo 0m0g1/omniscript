@@ -103,7 +103,6 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
 std::shared_ptr<Statement> Parser::parseModule() {
     std::string moduleName;
     std::vector<std::shared_ptr<Statement>> members;
-    std::unordered_map<std::string, bool> publicMembers;
 
     eat(TokenTypes::Module);
     moduleName = currentToken.getValue();
@@ -111,11 +110,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
     eat(TokenTypes::LeftBrace);
 
     while (currentToken.getType() != TokenTypes::RightBrace) {
-        bool isPublicMember = false;
-        if (currentToken.getType() == TokenTypes::Public) {
-            isPublicMember = true;
-            eat(TokenTypes::Public);
-        }
+        MemberModifiers modifiers = parseMemberModifiers();
 
         // **Check for Nested Module Import Assignment**
         if (currentToken.getType() == TokenTypes::Module) {
@@ -127,32 +122,25 @@ std::shared_ptr<Statement> Parser::parseModule() {
             eat(TokenTypes::Import);
             std::string modulePath = currentToken.getValue();
             eat(TokenTypes::StringLiteral);
-
             eat(TokenTypes::Semicolon);
-            // expectSemicolonOrNewLine();
 
-            // Parse the module immediately instead of treating it as an ImportModule
             std::string sourceCode = readFile(modulePath);
             if (sourceCode.empty()) {
                 return nullptr;
-                // throw std::runtime_error("Failed to read module: " + modulePath);
             }
 
             Lexer lexer(sourceCode);
             Parser parser(lexer);
-            
             std::vector<std::shared_ptr<Statement>> moduleStatements = parser.Parse();
             auto moduleStmt = std::make_shared<CreateModule>(moduleAlias, moduleStatements);
 
-            if (isPublicMember) {
-                members.push_back(std::make_shared<PublicMember>(moduleAlias, moduleStmt));
-            } else {
-                members.push_back(std::make_shared<PrivateMember>(moduleAlias, moduleStmt));
-            }
+            std::shared_ptr<Statement> wrapped = modifiers.isPublic
+                ? std::make_shared<PublicMember>(moduleAlias, moduleStmt)
+                : std::make_shared<PrivateMember>(moduleAlias, moduleStmt);
 
-            continue;  // Skip further processing for this iteration
+            members.push_back(wrapped);
+            continue;
         }
-
 
         // **Handle Regular Module Members (Variables, Functions, etc.)**
         std::shared_ptr<Statement> member = parseStatement();
@@ -161,15 +149,13 @@ std::shared_ptr<Statement> Parser::parseModule() {
         if (auto named = std::dynamic_pointer_cast<NamedStatement>(member)) {
             memberName = named->getName();
         } else {
-            console.error("Cannot determine name of public member in module: " + moduleName);
+            console.error("Cannot determine name of member in module: " + moduleName);
             continue;
         }
 
-        if (isPublicMember) {
-            members.push_back(std::make_shared<PublicMember>(memberName, member));
-        } else {
-            members.push_back(std::make_shared<PrivateMember>(memberName, member));
-        }
+        std::shared_ptr<Statement> wrapped = std::make_shared<ModuleMember>(memberName, member, modifiers)
+
+        members.push_back(wrapped);
     }
 
     eat(TokenTypes::RightBrace);

@@ -80,8 +80,8 @@ std::shared_ptr<Statement> Parser::parseObject() {
 
 // }
 
-ClassMemberModifiers Parser::parseClassMemberModifiers() {
-    ClassMemberModifiers modifiers;
+MemberModifiers Parser::parseMemberModifiers() {
+    MemberModifiers modifiers;
 
     while (currentToken.getType() == TokenTypes::Private || 
            currentToken.getType() == TokenTypes::Public || 
@@ -170,7 +170,7 @@ std::shared_ptr<Statement> Parser::parseClass() {
     bool hasDestructor = false;
 
     while (currentToken.getType() != TokenTypes::RightBrace) {
-        ClassMemberModifiers modifiers = parseClassMemberModifiers();
+        MemberModifiers modifiers = parseMemberModifiers();
 
         std::string memberName;
         bool isDestructor = false;
@@ -217,7 +217,7 @@ std::shared_ptr<Statement> Parser::parseClass() {
     eat(TokenTypes::RightBrace);
     
     if (!hasConstructor) {
-        ClassMemberModifiers modifiers;
+        MemberModifiers modifiers;
         auto emptyBody = BlockStatement::create();
         auto defaultCtor = std::make_shared<FunctionDeclaration>(
             className + ".constructor",
@@ -235,7 +235,7 @@ std::shared_ptr<Statement> Parser::parseClass() {
     }
     
     if (!hasDestructor) {
-        ClassMemberModifiers modifiers;
+        MemberModifiers modifiers;
         auto emptyBody = BlockStatement::create();
         auto defaultDtor = std::make_shared<FunctionDeclaration>(
             className + ".destructor",

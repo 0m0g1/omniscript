@@ -312,12 +312,13 @@ public:
 };
 
 
-class PublicMember : public NamedStatement {
+class ModuleMember : public NamedStatement {
 public:
+    MemberModifiers modifiers;
     std::shared_ptr<Statement> value;
 
-    PublicMember(std::string memberName, std::shared_ptr<Statement> value)
-        : value(std::move(value)) {
+    ModuleMember(std::string memberName, std::shared_ptr<Statement> value, MemberModifiers modifiers)
+        : value(std::move(value)), modifiers(modifiers) {
             setName(memberName);
         }
 
@@ -326,22 +327,6 @@ public:
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
 };
-
-class PrivateMember : public NamedStatement {
-public:
-    std::shared_ptr<Statement> value;
-
-    PrivateMember(std::string memberName, std::shared_ptr<Statement> value)
-        : value(std::move(value)) {
-            setName(memberName);
-        }
-
-    std::string getName() const override { return name; }
-    std::string toString() const override { return "PrivateMemberStatement"; }
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-};
-
 
 class AddressOf : public NamedStatement, public TypedStatement {
 public:
@@ -877,7 +862,7 @@ private:
     std::vector<std::shared_ptr<Statement>> body;
 };
 
-struct ClassMemberModifiers {
+struct MemberModifiers {
     // Access modifiers
     enum class AccessModifier { Public, Protected, Private };
     AccessModifier access = AccessModifier::Public; // Default to private
@@ -958,8 +943,8 @@ struct ClassMemberModifiers {
 
 namespace std {
     template <>
-    struct hash<ClassMemberModifiers> {
-        size_t operator()(const ClassMemberModifiers& modifiers) const {
+    struct hash<MemberModifiers> {
+        size_t operator()(const MemberModifiers& modifiers) const {
             size_t result = 0;
 
             // Hash the access modifier (enum class)
@@ -999,7 +984,7 @@ public:
         const std::string& memberName,
         std::shared_ptr<Omniscript::Type> memberType,
         std::shared_ptr<Statement> defaultValue,
-        const ClassMemberModifiers& memberModifiers
+        const MemberModifiers& memberModifiers
     ) : type(memberType), value(defaultValue), modifiers(memberModifiers) {
         setName(memberName);
         setType(memberType);
@@ -1009,7 +994,7 @@ public:
 
     // std::shared_ptr<Statement> getType() const { return type; }
     std::shared_ptr<Statement> getDefaultValue() const { return value; }
-    const ClassMemberModifiers& getModifiers() const { return modifiers; }
+    const MemberModifiers& getModifiers() const { return modifiers; }
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override {
         // No runtime evaluation needed during declaration
@@ -1025,7 +1010,7 @@ public:
 private:
     std::shared_ptr<Omniscript::Type> type;
     std::shared_ptr<Statement> value;
-    ClassMemberModifiers modifiers;
+    MemberModifiers modifiers;
 };
 
 

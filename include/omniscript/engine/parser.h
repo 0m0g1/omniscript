@@ -113,7 +113,7 @@ class Parser {
         */
         std::shared_ptr<Statement> parseObject();
         std::shared_ptr<Statement> parseClass();
-        ClassMemberModifiers parseClassMemberModifiers();
+        MemberModifiers parseMemberModifiers();
 
         // Parse binary and operational expressions (e.g., mathematical expressions)
         std::shared_ptr<Statement> parseTernaryExpression();   // Parse a ternary expression
