@@ -80,39 +80,59 @@ endif
 GENERATED :=
 OBJECTS :=
 
+GENERATED += $(OBJDIR)/Access.o
 GENERATED += $(OBJDIR)/Allocator.o
 GENERATED += $(OBJDIR)/Application.o
+GENERATED += $(OBJDIR)/Assignments.o
+GENERATED += $(OBJDIR)/AssignmentsAndGetters.o
 GENERATED += $(OBJDIR)/Audio.o
 GENERATED += $(OBJDIR)/AudioAccess.o
+GENERATED += $(OBJDIR)/Block.o
 GENERATED += $(OBJDIR)/Class.o
 GENERATED += $(OBJDIR)/Context2D.o
 GENERATED += $(OBJDIR)/Context3D.o
+GENERATED += $(OBJDIR)/ControlFlow.o
+GENERATED += $(OBJDIR)/ControlFlow1.o
 GENERATED += $(OBJDIR)/Core.o
 GENERATED += $(OBJDIR)/Date.o
 GENERATED += $(OBJDIR)/EngineConfigs.o
+GENERATED += $(OBJDIR)/Entities.o
+GENERATED += $(OBJDIR)/Entities1.o
 GENERATED += $(OBJDIR)/Enum.o
 GENERATED += $(OBJDIR)/Event.o
 GENERATED += $(OBJDIR)/Expression.o
+GENERATED += $(OBJDIR)/Expression1.o
+GENERATED += $(OBJDIR)/Expressions.o
 GENERATED += $(OBJDIR)/File.o
 GENERATED += $(OBJDIR)/FileAccess.o
 GENERATED += $(OBJDIR)/Function.o
+GENERATED += $(OBJDIR)/Functions.o
+GENERATED += $(OBJDIR)/Helpers.o
 GENERATED += $(OBJDIR)/Http.o
 GENERATED += $(OBJDIR)/IRGenerator.o
+GENERATED += $(OBJDIR)/Identifiers.o
 GENERATED += $(OBJDIR)/JITBackend.o
 GENERATED += $(OBJDIR)/JITCompiler.o
 GENERATED += $(OBJDIR)/Json.o
 GENERATED += $(OBJDIR)/KeyEvent.o
 GENERATED += $(OBJDIR)/LLVMJITBackend.o
+GENERATED += $(OBJDIR)/Literals.o
 GENERATED += $(OBJDIR)/Math.o
+GENERATED += $(OBJDIR)/ModuleAndImports.o
 GENERATED += $(OBJDIR)/MouseEvent.o
 GENERATED += $(OBJDIR)/Namespace.o
 GENERATED += $(OBJDIR)/Number.o
 GENERATED += $(OBJDIR)/OS.o
+GENERATED += $(OBJDIR)/Objects.o
+GENERATED += $(OBJDIR)/Parser.o
 GENERATED += $(OBJDIR)/Path.o
 GENERATED += $(OBJDIR)/Pointer.o
+GENERATED += $(OBJDIR)/Prototypes.o
 GENERATED += $(OBJDIR)/RenderingContext.o
 GENERATED += $(OBJDIR)/Statement.o
+GENERATED += $(OBJDIR)/Statements.o
 GENERATED += $(OBJDIR)/String.o
+GENERATED += $(OBJDIR)/String1.o
 GENERATED += $(OBJDIR)/Time.o
 GENERATED += $(OBJDIR)/Types.o
 GENERATED += $(OBJDIR)/Window.o
@@ -122,43 +142,62 @@ GENERATED += $(OBJDIR)/lexer.o
 GENERATED += $(OBJDIR)/main.o
 GENERATED += $(OBJDIR)/object.o
 GENERATED += $(OBJDIR)/omniscript_pch.o
-GENERATED += $(OBJDIR)/parser.o
 GENERATED += $(OBJDIR)/symboltable.o
 GENERATED += $(OBJDIR)/tokens.o
 GENERATED += $(OBJDIR)/utils.o
+OBJECTS += $(OBJDIR)/Access.o
 OBJECTS += $(OBJDIR)/Allocator.o
 OBJECTS += $(OBJDIR)/Application.o
+OBJECTS += $(OBJDIR)/Assignments.o
+OBJECTS += $(OBJDIR)/AssignmentsAndGetters.o
 OBJECTS += $(OBJDIR)/Audio.o
 OBJECTS += $(OBJDIR)/AudioAccess.o
+OBJECTS += $(OBJDIR)/Block.o
 OBJECTS += $(OBJDIR)/Class.o
 OBJECTS += $(OBJDIR)/Context2D.o
 OBJECTS += $(OBJDIR)/Context3D.o
+OBJECTS += $(OBJDIR)/ControlFlow.o
+OBJECTS += $(OBJDIR)/ControlFlow1.o
 OBJECTS += $(OBJDIR)/Core.o
 OBJECTS += $(OBJDIR)/Date.o
 OBJECTS += $(OBJDIR)/EngineConfigs.o
+OBJECTS += $(OBJDIR)/Entities.o
+OBJECTS += $(OBJDIR)/Entities1.o
 OBJECTS += $(OBJDIR)/Enum.o
 OBJECTS += $(OBJDIR)/Event.o
 OBJECTS += $(OBJDIR)/Expression.o
+OBJECTS += $(OBJDIR)/Expression1.o
+OBJECTS += $(OBJDIR)/Expressions.o
 OBJECTS += $(OBJDIR)/File.o
 OBJECTS += $(OBJDIR)/FileAccess.o
 OBJECTS += $(OBJDIR)/Function.o
+OBJECTS += $(OBJDIR)/Functions.o
+OBJECTS += $(OBJDIR)/Helpers.o
 OBJECTS += $(OBJDIR)/Http.o
 OBJECTS += $(OBJDIR)/IRGenerator.o
+OBJECTS += $(OBJDIR)/Identifiers.o
 OBJECTS += $(OBJDIR)/JITBackend.o
 OBJECTS += $(OBJDIR)/JITCompiler.o
 OBJECTS += $(OBJDIR)/Json.o
 OBJECTS += $(OBJDIR)/KeyEvent.o
 OBJECTS += $(OBJDIR)/LLVMJITBackend.o
+OBJECTS += $(OBJDIR)/Literals.o
 OBJECTS += $(OBJDIR)/Math.o
+OBJECTS += $(OBJDIR)/ModuleAndImports.o
 OBJECTS += $(OBJDIR)/MouseEvent.o
 OBJECTS += $(OBJDIR)/Namespace.o
 OBJECTS += $(OBJDIR)/Number.o
 OBJECTS += $(OBJDIR)/OS.o
+OBJECTS += $(OBJDIR)/Objects.o
+OBJECTS += $(OBJDIR)/Parser.o
 OBJECTS += $(OBJDIR)/Path.o
 OBJECTS += $(OBJDIR)/Pointer.o
+OBJECTS += $(OBJDIR)/Prototypes.o
 OBJECTS += $(OBJDIR)/RenderingContext.o
 OBJECTS += $(OBJDIR)/Statement.o
+OBJECTS += $(OBJDIR)/Statements.o
 OBJECTS += $(OBJDIR)/String.o
+OBJECTS += $(OBJDIR)/String1.o
 OBJECTS += $(OBJDIR)/Time.o
 OBJECTS += $(OBJDIR)/Types.o
 OBJECTS += $(OBJDIR)/Window.o
@@ -168,7 +207,6 @@ OBJECTS += $(OBJDIR)/lexer.o
 OBJECTS += $(OBJDIR)/main.o
 OBJECTS += $(OBJDIR)/object.o
 OBJECTS += $(OBJDIR)/omniscript_pch.o
-OBJECTS += $(OBJDIR)/parser.o
 OBJECTS += $(OBJDIR)/symboltable.o
 OBJECTS += $(OBJDIR)/tokens.o
 OBJECTS += $(OBJDIR)/utils.o
@@ -262,13 +300,70 @@ $(OBJDIR)/EngineConfigs.o: src/engine/EngineConfigs.cpp
 $(OBJDIR)/JITCompiler.o: src/engine/JITCompiler.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Assignments.o: src/engine/Parser/Assignments.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Block.o: src/engine/Parser/Block.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/ControlFlow.o: src/engine/Parser/ControlFlow.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Entities.o: src/engine/Parser/Entities.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Expression1.o: src/engine/Parser/Expression.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Functions.o: src/engine/Parser/Functions.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Helpers.o: src/engine/Parser/Helpers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Identifiers.o: src/engine/Parser/Identifiers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/ModuleAndImports.o: src/engine/Parser/ModuleAndImports.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Objects.o: src/engine/Parser/Objects.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Parser.o: src/engine/Parser/Parser.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Statements.o: src/engine/Parser/Statements.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/String.o: src/engine/Parser/String.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Access.o: src/engine/Statements/Access.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/AssignmentsAndGetters.o: src/engine/Statements/AssignmentsAndGetters.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/ControlFlow1.o: src/engine/Statements/ControlFlow.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Entities1.o: src/engine/Statements/Entities.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Expressions.o: src/engine/Statements/Expressions.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Literals.o: src/engine/Statements/Literals.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Prototypes.o: src/engine/Statements/Prototypes.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Statement.o: src/engine/Statements/Statement.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/lexer.o: src/engine/lexer.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/parser.o: src/engine/parser.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/tokens.o: src/engine/tokens.cpp
@@ -316,7 +411,7 @@ $(OBJDIR)/Path.o: src/runtime/Path/Path.cpp
 $(OBJDIR)/Pointer.o: src/runtime/Pointer.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/String.o: src/runtime/String.cpp
+$(OBJDIR)/String1.o: src/runtime/String.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Time.o: src/runtime/Time/Time.cpp

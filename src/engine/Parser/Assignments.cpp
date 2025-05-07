@@ -1,0 +1,201 @@
+#include <omniscript/Core.h>
+#include <omniscript/utils.h>
+#include <omniscript/runtime/object.h>
+#include <omniscript/engine/parser.h>
+#include <omniscript/engine/lexer.h>
+#include <omniscript/engine/tokens.h>
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Symboltable.h>
+#include <omniscript/mainthreadrunner.h>
+#include <omniscript/omniscript_pch.h>
+
+// Parse variable assignments
+bool Parser::isAssignmentExpression(TokenTypes tokenType) {
+    if (tokenType == TokenTypes::Assign || 
+        tokenType == TokenTypes::PlusAssign || 
+        tokenType == TokenTypes::MinusAssign || 
+        tokenType == TokenTypes::DivideAssign || 
+        tokenType == TokenTypes::MultiplyAssign || 
+        tokenType == TokenTypes::Increment || 
+        tokenType == TokenTypes::Decrement) {
+        return true;
+    }
+    return false;
+}
+
+std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
+    // We assume this is a lambda assignment like: let fn = (x: int) => x * 2;
+
+    TokenTypes variableType = TokenTypes::Let; // Default to let, or adapt as needed
+    std::string variableName;
+    std::shared_ptr<Omniscript::Type> type = nullptr;
+
+    // Parse `let` or `const`
+    if (currentToken.getType() == TokenTypes::Let) {
+        eat(TokenTypes::Let);
+        variableType = TokenTypes::Let;
+    } else if (currentToken.getType() == TokenTypes::Const) {
+        eat(TokenTypes::Const);
+        variableType = TokenTypes::Const;
+    }
+
+    // Parse variable name
+    variableName = currentToken.getValue();
+    eat(TokenTypes::Identifier);
+
+    // Parse optional type annotation
+    if (currentToken.getType() == TokenTypes::Colon) {
+        eat(TokenTypes::Colon);
+        std::vector<std::string> dataTypes = parseType();
+        type = Omniscript::resolveType(dataTypes);
+    }
+
+    // Parse assignment
+    eat(TokenTypes::Assign);
+
+    // Parse lambda using provided paramTypes
+    std::shared_ptr<Statement> lambda = parseLambdaFunction(variableName, paramTypes);
+
+    // Set lambda's name if it's a FunctionDeclaration
+    if (auto funcDecl = std::dynamic_pointer_cast<FunctionDeclaration>(lambda)) {
+        if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
+            named->setName(variableName);
+        }
+    }
+
+    if (variableType == TokenTypes::Const) {
+        return std::make_shared<createConstant>(variableName, type, lambda);
+    }
+
+    return std::make_shared<AssignVariable>(variableName, type, lambda);
+}
+
+
+std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> assignee) {
+    TokenTypes variableType;
+    std::string variableName;
+    std::shared_ptr<Statement> value;
+    std::shared_ptr<Omniscript::Type> type;
+    bool isReference = false;
+    bool isPointer = false;
+    bool isArray = false;
+    
+    // Parse variable declarations (let or const)
+    if (!assignee) {
+        if (currentToken.getType() == TokenTypes::Let) {
+            eat(TokenTypes::Let);
+            variableType = TokenTypes::Let;
+        } else if (currentToken.getType() == TokenTypes::Const) {
+            eat(TokenTypes::Const);
+            variableType = TokenTypes::Const;
+        } else {
+            variableName = previousToken.getValue();
+        }
+        variableName = currentToken.getValue();
+        eat(TokenTypes::Identifier);
+        // Handle type annotation before variable name
+        std::vector<std::string> dataTypes;
+        if (currentToken.getType() == TokenTypes::Colon) {
+            eat(TokenTypes::Colon);
+    
+            dataTypes = parseType();
+        
+        } else if (currentToken.getType() == TokenTypes::Assign) {
+            eat(TokenTypes::Assign);
+            std::string typeName = currentToken.getValue();
+    
+            std::shared_ptr<Statement> result = parseExpression();
+    
+            if (auto objConstructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(result)) {
+                objConstructor->setInstanceName(variableName);
+                return result;
+            } else if (auto call = std::dynamic_pointer_cast<Call>(result)) {
+                call->setInstanceName(variableName);
+                return result;
+            }
+            
+            if (auto funcDecl = std::dynamic_pointer_cast<FunctionDeclaration>(result)) {
+                if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
+                    named->setName(variableName);
+                }
+                return funcDecl;  // Return the function declaration
+            }
+    
+            if (variableType == TokenTypes::Let) {
+                return std::make_shared<AssignVariable>(variableName, nullptr, result);
+            }
+            return std::make_shared<createConstant>(variableName, nullptr, result);
+        }    
+    
+        type = Omniscript::resolveType(dataTypes);
+    
+        DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " '" + variableName + "' with type '" + type->kindName() + "'.");
+    }
+    
+    if (currentToken.getType() != TokenTypes::Semicolon) {
+        if (currentToken.getType() == TokenTypes::Increment || currentToken.getType() == TokenTypes::Decrement) {
+            DEBUG_LOG("Assigning a unary statement");
+            switch (currentToken.getType()) {
+                case TokenTypes::Increment:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Increment);
+                    break;
+                case TokenTypes::Decrement:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Decrement);
+                    break;
+                default:
+                    eat(TokenTypes::Semicolon);
+            }
+            eat(currentToken.getType());
+        } else {
+            DEBUG_LOG("Assigning a binary or ternary expression");
+            Token currentAssignmentOperation = currentToken;
+            eat(currentToken.getType());
+            
+            value = parseExpression(); // Parse right-hand side
+            
+            switch (currentAssignmentOperation.getType()) {
+                case TokenTypes::Assign:
+                    break;
+                case TokenTypes::PlusAssign:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Plus, value);
+                    break;
+                case TokenTypes::MinusAssign:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Minus, value);
+                    break;
+                case TokenTypes::DivideAssign:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Divide, value);
+                    break;
+                case TokenTypes::MultiplyAssign:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Multiply, value);
+                    break;
+                default:
+                    eat(TokenTypes::Assign, "Invalid assignment operator: " + getTokenTypeName(currentAssignmentOperation.getType()));
+                    break;
+            }
+        }
+    } else {
+        value = nullptr; // Handle cases like `let a;`
+        if (currentToken.getType() != TokenTypes::Newline &&
+            currentToken.getType() != TokenTypes::Semicolon &&
+            currentToken.getType() != TokenTypes::EOI) {
+            eat(TokenTypes::Semicolon);
+        }
+    }
+
+    if (!assignee) {
+        if (variableType == TokenTypes::Const) {
+            return std::make_shared<createConstant>(variableName, type, value);
+        }
+        return std::make_shared<AssignVariable>(variableName, type, value);
+    }
+    if (auto varGetter = std::dynamic_pointer_cast<GetVariable>(assignee)) {
+        return std::make_shared<AssignVariable>(varGetter->getName(), type, value, true);
+    } else if (auto reassignAccess = std::dynamic_pointer_cast<Access>(assignee)) {
+        auto accessClone = std::dynamic_pointer_cast<Access>(reassignAccess->clone());
+        accessClone->setAssignmentValueTo(value);
+        return accessClone;
+    }
+
+    console.error("The assignee is unnasignable");
+    return nullptr;
+}

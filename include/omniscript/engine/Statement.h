@@ -1330,41 +1330,6 @@ private:
     }
 };
 
-
-// A class to call methods on objects
-class CallMethod : public Expression {
-public:
-    CallMethod(std::shared_ptr<Statement> object, const std::string& methodName, std::vector<std::shared_ptr<Statement>> args)
-        : object(object), methodName(methodName), arguments(std::move(args)) {}
-    
-    
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    
-private:
-    std::shared_ptr<Statement> object; // The base object on which the method is called.
-    std::string methodName; // The method name.
-    std::vector<std::shared_ptr<Statement>> arguments; // The arguments to the method.
-    std::string toString() const override { return "LiteralStatement"; }
-};
-
-class GetProperty : public Statement {
-private:
-    std::shared_ptr<Statement> object; // The base object on which the method is called.
-    std::string propertyName; // The method name.
-    std::vector<std::shared_ptr<Statement>> arguments; // The arguments to the method.
-
-public:
-    GetProperty(std::shared_ptr<Statement> object, const std::string& propertyName)
-        : object(object), propertyName(propertyName) {}
-    
-    
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
-};
-
-
 class ForLoop : public Statement {
     std::shared_ptr<Statement> initialization;
     std::shared_ptr<Statement> condition;

@@ -89,8 +89,6 @@ class Parser {
         bool tryParseTypeParametersLookahead(int& i);
         bool checkIfLambdaExpression();
         bool isGenericCallOrConstructor();
-        bool checkIfFunctionCall();
-        // SymbolTable::ValueType parseFunctionArrow();
         std::shared_ptr<Statement> parseStruct();
         std::shared_ptr<Statement> parseEnum();
         std::shared_ptr<Statement> parseNamespace();

@@ -1,0 +1,177 @@
+#include <omniscript/Core.h>
+#include <omniscript/utils.h>
+#include <omniscript/runtime/object.h>
+#include <omniscript/engine/parser.h>
+#include <omniscript/engine/lexer.h>
+#include <omniscript/engine/tokens.h>
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Symboltable.h>
+#include <omniscript/omniscript_pch.h>
+
+
+std::shared_ptr<Statement> Parser::parseModuleImport() {
+    eat(TokenTypes::Import);
+
+    std::unordered_map<std::string, std::string> importedAliases;
+    bool importAll = false;
+    std::string moduleName;
+    std::string alias;
+    std::string path; // Path of the module (if from a file)
+
+    // Handle selective import: `import { console } from "std";`
+    if (currentToken.getType() == TokenTypes::LeftBrace) {
+        eat(TokenTypes::LeftBrace);
+        while (currentToken.getType() == TokenTypes::Identifier) {
+            std::string originalName = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+
+            std::string aliasName = originalName; // Default alias is the same as the original
+
+            // Handle `import { foreign as test }`
+            if (currentToken.getType() == TokenTypes::As) {
+                eat(TokenTypes::As);
+                if (currentToken.getType() == TokenTypes::Identifier) {
+                    aliasName = currentToken.getValue();
+                    eat(TokenTypes::Identifier);
+                } else {
+                    throw std::runtime_error("Syntax Error: Expected alias name after 'as'");
+                }
+            }
+
+            importedAliases[aliasName] = originalName;
+
+            if (currentToken.getType() == TokenTypes::Comma) {
+                eat(TokenTypes::Comma);
+            } else {
+                break;
+            }
+        }
+        eat(TokenTypes::RightBrace);
+        eat(TokenTypes::From);
+
+        // Expect module name (either an identifier or a string path)
+        if (currentToken.getType() == TokenTypes::Identifier) {
+            moduleName = currentToken.getValue();
+            path = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+        } else if (currentToken.getType() == TokenTypes::StringLiteral) {
+            path = currentToken.getValue();
+            eat(TokenTypes::StringLiteral);
+        }
+    }
+    // Handle wildcard import: `import * from "test.os";`
+    else if (currentToken.getType() == TokenTypes::Multiply) {
+        eat(TokenTypes::Multiply);
+        eat(TokenTypes::From);
+        if (currentToken.getType() == TokenTypes::Identifier) {
+            moduleName = currentToken.getValue();
+            path = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+        } else if (currentToken.getType() == TokenTypes::StringLiteral) {
+            path = currentToken.getValue();
+            eat(TokenTypes::StringLiteral);
+        }
+        importAll = true;
+    }
+    // Handle full module import: `import "test.os";` or `import std;`
+    else if (currentToken.getType() == TokenTypes::Identifier) {
+        moduleName = currentToken.getValue();
+        path = currentToken.getValue();
+        eat(TokenTypes::Identifier);
+    } else if (currentToken.getType() == TokenTypes::StringLiteral) {
+        path = currentToken.getValue();
+        eat(TokenTypes::StringLiteral);
+    }
+
+    // Handle aliasing: `import { console } from "std" as c;`
+    if (currentToken.getType() == TokenTypes::As) {
+        eat(TokenTypes::As);
+        if (currentToken.getType() == TokenTypes::Identifier) {
+            alias = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+        } else {
+            throw std::runtime_error("Syntax Error: Expected alias name after 'as'");
+        }
+    }
+
+    eat(TokenTypes::Semicolon);
+
+    return std::make_shared<ImportModule>(moduleName, alias, importedAliases, path, importAll);
+}
+
+
+std::shared_ptr<Statement> Parser::parseModule() {
+    std::string moduleName;
+    std::vector<std::shared_ptr<Statement>> members;
+    std::unordered_map<std::string, bool> publicMembers;
+
+    eat(TokenTypes::Module);
+    moduleName = currentToken.getValue();
+    eat(TokenTypes::Identifier);
+    eat(TokenTypes::LeftBrace);
+
+    while (currentToken.getType() != TokenTypes::RightBrace) {
+        bool isPublicMember = false;
+        if (currentToken.getType() == TokenTypes::Public) {
+            isPublicMember = true;
+            eat(TokenTypes::Public);
+        }
+
+        // **Check for Nested Module Import Assignment**
+        if (currentToken.getType() == TokenTypes::Module) {
+            eat(TokenTypes::Module);
+            std::string moduleAlias = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+
+            eat(TokenTypes::Assign);
+            eat(TokenTypes::Import);
+            std::string modulePath = currentToken.getValue();
+            eat(TokenTypes::StringLiteral);
+
+            eat(TokenTypes::Semicolon);
+            // expectSemicolonOrNewLine();
+
+            // Parse the module immediately instead of treating it as an ImportModule
+            std::string sourceCode = readFile(modulePath);
+            if (sourceCode.empty()) {
+                return nullptr;
+                // throw std::runtime_error("Failed to read module: " + modulePath);
+            }
+
+            Lexer lexer(sourceCode);
+            Parser parser(lexer);
+            
+            std::vector<std::shared_ptr<Statement>> moduleStatements = parser.Parse();
+            auto moduleStmt = std::make_shared<CreateModule>(moduleAlias, moduleStatements);
+
+            if (isPublicMember) {
+                members.push_back(std::make_shared<PublicMember>(moduleAlias, moduleStmt));
+            } else {
+                members.push_back(std::make_shared<PrivateMember>(moduleAlias, moduleStmt));
+            }
+
+            continue;  // Skip further processing for this iteration
+        }
+
+
+        // **Handle Regular Module Members (Variables, Functions, etc.)**
+        std::shared_ptr<Statement> member = parseStatement();
+        std::string memberName;
+
+        if (auto named = std::dynamic_pointer_cast<NamedStatement>(member)) {
+            memberName = named->getName();
+        } else {
+            console.error("Cannot determine name of public member in module: " + moduleName);
+            continue;
+        }
+
+        if (isPublicMember) {
+            members.push_back(std::make_shared<PublicMember>(memberName, member));
+        } else {
+            members.push_back(std::make_shared<PrivateMember>(memberName, member));
+        }
+    }
+
+    eat(TokenTypes::RightBrace);
+    return std::make_shared<CreateModule>(moduleName, members);
+}
