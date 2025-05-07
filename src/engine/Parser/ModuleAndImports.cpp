@@ -153,7 +153,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
             continue;
         }
 
-        std::shared_ptr<Statement> wrapped = std::make_shared<ModuleMember>(memberName, member, modifiers)
+        std::shared_ptr<Statement> wrapped = std::make_shared<ModuleMember>(memberName, member, modifiers);
 
         members.push_back(wrapped);
     }
