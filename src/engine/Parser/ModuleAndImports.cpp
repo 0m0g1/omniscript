@@ -112,7 +112,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
     while (currentToken.getType() != TokenTypes::RightBrace) {
         MemberModifiers modifiers = parseMemberModifiers();
 
-        // **Check for Nested Module Import Assignment**
+        // Handle nested module import assignment
         if (currentToken.getType() == TokenTypes::Module) {
             eat(TokenTypes::Module);
             std::string moduleAlias = currentToken.getValue();
@@ -126,23 +126,22 @@ std::shared_ptr<Statement> Parser::parseModule() {
 
             std::string sourceCode = readFile(modulePath);
             if (sourceCode.empty()) {
+                console.error("Failed to read module file: " + modulePath);
                 return nullptr;
             }
 
             Lexer lexer(sourceCode);
             Parser parser(lexer);
             std::vector<std::shared_ptr<Statement>> moduleStatements = parser.Parse();
-            auto moduleStmt = std::make_shared<CreateModule>(moduleAlias, moduleStatements);
 
-            std::shared_ptr<Statement> wrapped = modifiers.isPublic
-                ? std::make_shared<PublicMember>(moduleAlias, moduleStmt)
-                : std::make_shared<PrivateMember>(moduleAlias, moduleStmt);
+            auto moduleStmt = std::make_shared<CreateModule>(moduleAlias, moduleStatements);
+            auto wrapped = std::make_shared<ModuleMember>(moduleAlias, moduleStmt, modifiers);
 
             members.push_back(wrapped);
             continue;
         }
 
-        // **Handle Regular Module Members (Variables, Functions, etc.)**
+        // Handle regular members (functions, variables, etc.)
         std::shared_ptr<Statement> member = parseStatement();
         std::string memberName;
 
@@ -153,8 +152,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
             continue;
         }
 
-        std::shared_ptr<Statement> wrapped = std::make_shared<ModuleMember>(memberName, member, modifiers);
-
+        auto wrapped = std::make_shared<ModuleMember>(memberName, member, modifiers);
         members.push_back(wrapped);
     }
 
