@@ -1000,6 +1000,7 @@ public:
         const ClassMemberModifiers& memberModifiers
     ) : type(memberType), value(defaultValue), modifiers(memberModifiers) {
         setName(memberName);
+        setType(memberType);
     }
 
     std::string getName() const override { return name; }

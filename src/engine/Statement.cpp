@@ -1700,6 +1700,8 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
         destructor
     );
 
+    classExpr->parameters = structExpr->parameters;
+
     scope->set(name, classExpr);
     return classExpr;
 }
