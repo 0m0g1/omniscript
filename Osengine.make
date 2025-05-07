@@ -262,7 +262,7 @@ $(OBJDIR)/EngineConfigs.o: src/engine/EngineConfigs.cpp
 $(OBJDIR)/JITCompiler.o: src/engine/JITCompiler.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Statement.o: src/engine/Statement.cpp
+$(OBJDIR)/Statement.o: src/engine/Statements/Statement.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/lexer.o: src/engine/lexer.cpp

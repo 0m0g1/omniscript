@@ -245,24 +245,23 @@
 //     return n;
 // }
 
-class Particle {
-    // constructor() => void {
-        
-    // }
-    x: f32 = 0;
-    y: f32 = 0;
-    z: f32 = 0;
-    constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) => void {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-    }
-    destructor() => void {
-        
-    }
-}
+let f: int32 = 64.0 as int32;
 
-let p1 = Particle();
+// class Particle {
+//     x: f32 = 0;
+//     y: f32 = 0;
+//     z: f32 = 0;
+//     constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) => void {
+//         this.x = x;
+//         this.y = y;
+//         this.z = z;
+//     }
+//     destructor() => void {
+        
+//     }
+// }
+
+// let p1 = Particle();
 
 
 // struct Person {
