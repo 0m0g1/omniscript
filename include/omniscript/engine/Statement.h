@@ -312,22 +312,6 @@ public:
 };
 
 
-class ModuleMember : public NamedStatement {
-public:
-    MemberModifiers modifiers;
-    std::shared_ptr<Statement> value;
-
-    ModuleMember(std::string memberName, std::shared_ptr<Statement> value, MemberModifiers modifiers)
-        : value(std::move(value)), modifiers(modifiers) {
-            setName(memberName);
-        }
-
-    std::string getName() const override { return name; }
-    std::shared_ptr<Statement> getValue() { return value; }
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-};
-
 class AddressOf : public NamedStatement, public TypedStatement {
 public:
     AddressOf(const std::string& value) {
@@ -977,6 +961,23 @@ namespace std {
         }
     };
 }
+
+class ModuleMember : public NamedStatement {
+public:
+    MemberModifiers modifiers;
+    std::shared_ptr<Statement> value;
+
+    ModuleMember(std::string memberName, std::shared_ptr<Statement> value, MemberModifiers modifiers)
+        : value(std::move(value)), modifiers(modifiers) {
+            setName(memberName);
+        }
+
+    std::string getName() const override { return name; }
+    std::shared_ptr<Statement> getValue() { return value; }
+    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
+    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+};
+
 
 class ClassMember : public NamedStatement, public TypedStatement {
 public:
