@@ -119,6 +119,7 @@ GENERATED += $(OBJDIR)/LLVMJITBackend.o
 GENERATED += $(OBJDIR)/Literals.o
 GENERATED += $(OBJDIR)/Math.o
 GENERATED += $(OBJDIR)/ModuleAndImports.o
+GENERATED += $(OBJDIR)/ModulesAndImports.o
 GENERATED += $(OBJDIR)/MouseEvent.o
 GENERATED += $(OBJDIR)/Namespace.o
 GENERATED += $(OBJDIR)/Number.o
@@ -184,6 +185,7 @@ OBJECTS += $(OBJDIR)/LLVMJITBackend.o
 OBJECTS += $(OBJDIR)/Literals.o
 OBJECTS += $(OBJDIR)/Math.o
 OBJECTS += $(OBJDIR)/ModuleAndImports.o
+OBJECTS += $(OBJDIR)/ModulesAndImports.o
 OBJECTS += $(OBJDIR)/MouseEvent.o
 OBJECTS += $(OBJDIR)/Namespace.o
 OBJECTS += $(OBJDIR)/Number.o
@@ -355,6 +357,9 @@ $(OBJDIR)/Expressions.o: src/engine/Statements/Expressions.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Literals.o: src/engine/Statements/Literals.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/ModulesAndImports.o: src/engine/Statements/ModulesAndImports.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Prototypes.o: src/engine/Statements/Prototypes.cpp

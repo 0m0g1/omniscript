@@ -245,7 +245,7 @@
 //     return n;
 // }
 
-let f: int32 = 64.0 as int32;
+// let f: int32 = 64.0 as int32;
 
 // class Particle {
 //     x: f32 = 0;

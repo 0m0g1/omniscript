@@ -1,14 +1,14 @@
 import { Math } from std;
 // import { foreign , foreign2, otherForeign} from "examples/test2.os" as test;
 
-let a : i8 = 1;
-let b : i16 = 2;
-let c : i32 = 3;
-let d : i64 = 4;
-let e : i128 = 4;
-let f : i256 = 4;
-let g : i512 = 4;
-let h : i1024 = 40000000000000000000000000000000000000000000000000000000;
+// let a : i8 = 1;
+// let b : i16 = 2;
+// let c : i32 = 3;
+// let d : i64 = 4;
+// let e : i128 = 4;
+// let f : i256 = 4;
+// let g : i512 = 4;
+// let h : i1024 = 40000000000000000000000000000000000000000000000000000000;
 // let c : std::string = "hello";
    
 /* This is a function */
