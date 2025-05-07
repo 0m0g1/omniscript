@@ -35,6 +35,7 @@ enum class TokenTypes {
     Using,
     Public,          // "public"
     Private,         // "private"
+    Protected,
     Override,        // "override"
     Virtual,        // "virtual"
     Static,         // "static"

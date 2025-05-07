@@ -94,19 +94,19 @@ MemberModifiers Parser::parseMemberModifiers() {
         modifiers.isInitialized = true;
 
         if (currentToken.getType() == TokenTypes::Private) {
-            modifiers.access = ClassMemberModifiers::AccessModifier::Private;
+            modifiers.access = MemberModifiers::AccessModifier::Private;
             eat(TokenTypes::Private);
         }
 
         if (currentToken.getType() == TokenTypes::Public) {
-            modifiers.access = ClassMemberModifiers::AccessModifier::Public;
+            modifiers.access = MemberModifiers::AccessModifier::Public;
             eat(TokenTypes::Public);
         }
 
-        // if (currentToken.getType() == TokenTypes::Protected) {
-        //     modifiers.access = MemberModifiers::AccessModifier::Protected;
-        //     eat(TokenTypes::Protected);
-        // }
+        if (currentToken.getType() == TokenTypes::Protected) {
+            modifiers.access = MemberModifiers::AccessModifier::Protected;
+            eat(TokenTypes::Protected);
+        }
 
         if (currentToken.getType() == TokenTypes::Override) {
             modifiers.shouldOverride = true;

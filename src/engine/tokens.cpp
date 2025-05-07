@@ -26,6 +26,7 @@ std::unordered_map<TokenTypes, std::string> tokenTypeNames = {
     {TokenTypes::Struct, "Struct"},
     {TokenTypes::Public, "public"},
     {TokenTypes::Private, "Private"},
+    {TokenTypes::Protected, "Protected"},
     {TokenTypes::Override, "Override"},
     {TokenTypes::Virtual, "Virtual"},
     {TokenTypes::Static, "Static"},
