@@ -249,8 +249,13 @@ class Particle {
     // constructor() => void {
         
     // }
+    x: f32 = 0;
+    y: f32 = 0;
+    z: f32 = 0;
     constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) => void {
-        
+        // this.x = x;
+        // this.y = y;
+        // this.z = z;
     }
     // destructor() => void {
         

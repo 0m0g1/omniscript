@@ -1539,29 +1539,46 @@ void FunctionDeclaration::setReturnTypesInStatement(
 
 
 std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
-    DEBUG_LOG(type->toString());
-    DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + type->kindName());
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
-        stmt->setType(type);
-    }
+    DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + (type ? type->kindName() : "undefined"));
 
     std::shared_ptr<Omniscript::Expression> result;
-    
+
     if (defaultValue) {
-        result = defaultValue->express(scope);
+        if (auto typed = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
+            if (!type) {
+                if (!typed->getType()) {
+                    result = defaultValue->express(scope);
+                    type = result->getType();
+                } else {
+                    type = typed->getType();
+                    result = defaultValue->express(scope);
+                }
+                DEBUG_LOG("The inferred type is " + type->kindName());
+            } else {
+                typed->setType(type);
+                result = defaultValue->express(scope);
+            }
+        } else {
+            // Not a TypedStatement — just evaluate it
+            result = defaultValue->express(scope);
+        }
     } else {
+        // No default value — use null expression based on type
         if (type->isPointer()) {
             result = std::make_shared<Omniscript::NullPointerExpression>(type);
         } else {
             result = std::make_shared<Omniscript::NullExpression>(type);
         }
     }
+
     DEBUG_LOG("[Parameter] Created value for parameter " + name + " of kind " + result->getType()->kindName());
+
     if (isConstant) {
         scope->setConstant(name, result);
     } else {
         scope->set(name, result);
     }
+
     return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result, isConstant);
 }
 
@@ -1605,15 +1622,34 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
 
     // Step 1: Process parameters (fields)
     for (const auto& member : body) {
-        if (auto param = std::dynamic_pointer_cast<ParameterStatement>(member)) {
-            std::string fieldName = param->getName();
-            fieldNames.push_back(fieldName);
-
-            std::shared_ptr<Omniscript::Expression> fieldExpr = param->express(scope);
-            fields.push_back(fieldExpr);
-            fieldExpr->getType()->parameterName = fieldName;
-            fieldTypes.push_back(fieldExpr->getType());
+        if (auto method = std::dynamic_pointer_cast<FunctionDeclaration>(member->getDefaultValue())) {
+            continue;
         }
+        auto param = std::make_shared<ParameterStatement>(
+            member->getName(),
+            member->getDefaultValue(),
+            false
+        );
+        if (member->getType()) {
+            param->setType(member->getType());
+        }
+        std::string fieldName = param->getName();
+        fieldNames.push_back(fieldName);
+
+        std::shared_ptr<Omniscript::Expression> fieldExpr = param->express(scope);
+        fields.push_back(fieldExpr);
+        fieldExpr->getType()->parameterName = fieldName;
+        fieldTypes.push_back(fieldExpr->getType());
+
+        // if (auto param = std::dynamic_pointer_cast<ParameterStatement>(member)) {
+        //     std::string fieldName = param->getName();
+        //     fieldNames.push_back(fieldName);
+
+        //     std::shared_ptr<Omniscript::Expression> fieldExpr = param->express(scope);
+        //     fields.push_back(fieldExpr);
+        //     fieldExpr->getType()->parameterName = fieldName;
+        //     fieldTypes.push_back(fieldExpr->getType());
+        // }
     }
 
     // Step 2: Create class type
