@@ -118,8 +118,8 @@ GENERATED += $(OBJDIR)/KeyEvent.o
 GENERATED += $(OBJDIR)/LLVMJITBackend.o
 GENERATED += $(OBJDIR)/Literals.o
 GENERATED += $(OBJDIR)/Math.o
-GENERATED += $(OBJDIR)/ModuleAndImports.o
 GENERATED += $(OBJDIR)/ModulesAndImports.o
+GENERATED += $(OBJDIR)/ModulesAndImports1.o
 GENERATED += $(OBJDIR)/MouseEvent.o
 GENERATED += $(OBJDIR)/Namespace.o
 GENERATED += $(OBJDIR)/Number.o
@@ -184,8 +184,8 @@ OBJECTS += $(OBJDIR)/KeyEvent.o
 OBJECTS += $(OBJDIR)/LLVMJITBackend.o
 OBJECTS += $(OBJDIR)/Literals.o
 OBJECTS += $(OBJDIR)/Math.o
-OBJECTS += $(OBJDIR)/ModuleAndImports.o
 OBJECTS += $(OBJDIR)/ModulesAndImports.o
+OBJECTS += $(OBJDIR)/ModulesAndImports1.o
 OBJECTS += $(OBJDIR)/MouseEvent.o
 OBJECTS += $(OBJDIR)/Namespace.o
 OBJECTS += $(OBJDIR)/Number.o
@@ -326,7 +326,7 @@ $(OBJDIR)/Helpers.o: src/engine/Parser/Helpers.cpp
 $(OBJDIR)/Identifiers.o: src/engine/Parser/Identifiers.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/ModuleAndImports.o: src/engine/Parser/ModuleAndImports.cpp
+$(OBJDIR)/ModulesAndImports.o: src/engine/Parser/ModulesAndImports.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Objects.o: src/engine/Parser/Objects.cpp
@@ -359,7 +359,7 @@ $(OBJDIR)/Expressions.o: src/engine/Statements/Expressions.cpp
 $(OBJDIR)/Literals.o: src/engine/Statements/Literals.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/ModulesAndImports.o: src/engine/Statements/ModulesAndImports.cpp
+$(OBJDIR)/ModulesAndImports1.o: src/engine/Statements/ModulesAndImports.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Prototypes.o: src/engine/Statements/Prototypes.cpp

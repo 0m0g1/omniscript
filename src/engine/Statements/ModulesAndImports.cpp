@@ -9,29 +9,29 @@
 
 
 std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType scope) {
-    // if (path.empty()) {
-    //     console.error("ImportModule::codegen - Module path is empty.");
-    // }
+    if (path.empty()) {
+        console.error("ImportModule::codegen - Module path is empty.");
+    }
 
-    // if (path == "std") {
-    //     path = "standard/1/std.os";
-    // }
+    if (path == "std") {
+        path = "standard/1/std.os";
+    }
 
-    // std::string sourceCode = readFile(path);
-    // if (sourceCode.empty()) {
-    //     console.error("ImportModule::codegen - Failed to read module: " + path);
-    // }
+    std::string sourceCode = readFile(path);
+    if (sourceCode.empty()) {
+        console.error("ImportModule::codegen - Failed to read module: " + path);
+    }
 
-    // Lexer lexer(sourceCode, path);
-    // Parser parser(lexer);
+    Lexer lexer(sourceCode, path);
+    Parser parser(lexer);
 
-    // // parser.setScopeName(alias.empty() ? moduleName : alias);
+    // parser.setScopeName(alias.empty() ? moduleName : alias);
 
-    // std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
+    std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
 
-    // console.log("Importing " + (importAll ? "everything" : joinMapKeys(importedAliases)) + " from " + path + ".");
+    DEBUG_LOG("Importing " + (importAll ? "everything" : joinMapKeys(importedAliases)) + " from " + path + ".");
 
-    // // Ensure module is only loaded once
+    // Ensure module is only loaded once
     // if (!generator.isLoadedModule(path)) {
     //     generator.generateModule(path, alias, statements, importedAliases, importAll);
     // }

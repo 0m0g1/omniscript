@@ -80,63 +80,6 @@ std::shared_ptr<Statement> Parser::parseObject() {
 
 // }
 
-MemberModifiers Parser::parseMemberModifiers() {
-    MemberModifiers modifiers;
-
-    while (currentToken.getType() == TokenTypes::Private || 
-           currentToken.getType() == TokenTypes::Public || 
-           currentToken.getType() == TokenTypes::Override ||
-           currentToken.getType() == TokenTypes::Static ||
-           currentToken.getType() == TokenTypes::Final ||
-           currentToken.getType() == TokenTypes::Virtual ||
-           currentToken.getType() == TokenTypes::Const) {
-
-        modifiers.isInitialized = true;
-
-        if (currentToken.getType() == TokenTypes::Private) {
-            modifiers.access = MemberModifiers::AccessModifier::Private;
-            eat(TokenTypes::Private);
-        }
-
-        if (currentToken.getType() == TokenTypes::Public) {
-            modifiers.access = MemberModifiers::AccessModifier::Public;
-            eat(TokenTypes::Public);
-        }
-
-        if (currentToken.getType() == TokenTypes::Protected) {
-            modifiers.access = MemberModifiers::AccessModifier::Protected;
-            eat(TokenTypes::Protected);
-        }
-
-        if (currentToken.getType() == TokenTypes::Override) {
-            modifiers.shouldOverride = true;
-            eat(TokenTypes::Override);
-        }
-
-        if (currentToken.getType() == TokenTypes::Static) {
-            modifiers.isStatic = true;
-            eat(TokenTypes::Static);
-        }
-
-        if (currentToken.getType() == TokenTypes::Final) {
-            modifiers.isFinal = true;
-            eat(TokenTypes::Final);
-        }
-
-        if (currentToken.getType() == TokenTypes::Virtual) {
-            modifiers.isVirtual = true;
-            eat(TokenTypes::Virtual);
-        }
-
-        if (currentToken.getType() == TokenTypes::Const) {
-            modifiers.isConst = true;
-            eat(TokenTypes::Const);
-        }
-    }
-
-    return modifiers;
-}
-
 
 std::shared_ptr<Statement> Parser::parseClass() {
     eat(TokenTypes::Class);
