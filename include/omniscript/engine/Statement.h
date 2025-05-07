@@ -535,6 +535,7 @@ public:
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<CharacterLiteral>(value);  // Clone using copy constructor
     }
+    std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const override;
 };
     
 
@@ -551,6 +552,7 @@ public:
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<StringLiteral>(value);  // Clone using copy constructor
     }
+    std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const override;
 };
 
 class BoolLiteral : public Literal {

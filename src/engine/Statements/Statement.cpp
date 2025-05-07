@@ -169,10 +169,16 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
 }
 
 std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
+    DEBUG_LOG("");
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
-        typed->setType(targetType);
+        DEBUG_LOG("[Cast] Casting a '" + typed->getRootType()->kindName() + "' to a '" + targetType->kindName() + "'.");
     }
-    return value->express(scope); // Or handle casting explicitly at runtime/codegen
+    if (auto literal = std::dynamic_pointer_cast<Literal>(value)) {
+        auto castedStmt = literal->castTo(targetType);
+        return castedStmt->express(scope);
+    }
+
+    return nullptr;// Or handle casting explicitly at runtime/codegen
 }
 
 std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
@@ -429,6 +435,30 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
     return std::make_shared<Omniscript::Primitive<char>>(value);
 }
 
+std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
+    using Kind = Omniscript::Kind;
+    switch (targetType->getKind()) {
+        case Kind::Char:
+            return std::make_shared<CharacterLiteral>(value);  // Already a character
+        case Kind::Int8:
+        case Kind::Int16:
+        case Kind::Int32:
+        case Kind::Int64: {
+            auto val = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
+            val->setType(targetType);
+            return val;
+        }
+        case Kind::String: {
+            auto val = std::make_shared<StringLiteral>(std::string(1, value));
+            val->setType(targetType);
+            return val;
+        }
+        default:
+            return nullptr;
+    }
+}
+
+
 std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType scope) {
     if (!type) {
         DEBUG_LOG("Creating a string value");
@@ -458,6 +488,26 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
     }
     
     return nullptr;
+}
+
+std::shared_ptr<Literal> StringLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
+    using Kind = Omniscript::Kind;
+    switch (targetType->getKind()) {
+        case Kind::String:
+            return std::make_shared<StringLiteral>(value);  // Already a string
+        case Kind::Char: {
+            if (!value.empty()) {
+                auto val = std::make_shared<CharacterLiteral>(value[0]);  // First character
+                val->setType(targetType);
+                return val;
+            }
+            return nullptr;
+        }
+        case Kind::Bool:
+            return std::make_shared<BoolLiteral>(!value.empty());
+        default:
+            return nullptr;
+    }
 }
 
 
