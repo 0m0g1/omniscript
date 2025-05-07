@@ -1,6 +1,24 @@
 import { Math } from std;
 // import { foreign , foreign2, otherForeign} from "examples/test2.os" as test;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // let a : i8 = 1;
 // let b : i16 = 2;
 // let c : i32 = 3;

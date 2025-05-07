@@ -178,7 +178,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         DEBUG_LOG("Variable '" + varAssign->variableName + "' has type '" + debugType(type) + "'.");
         llvm::Value* value = codegen(varAssign->getValue(), scope);
         DEBUG_LOG("Got variable '" + varAssign->variableName + "''s value.");
-        return createVariable(
+        return assignVariable(
             varAssign->variableName,
             type,
             value, 
@@ -393,6 +393,39 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         }
     }
 
+    if (auto moduleExpr = std::dynamic_pointer_cast<Omniscript::ModuleExpression>(value)) {
+        DEBUG_LOG("Processing ModuleExpression: " + moduleExpr->name);
+    
+        // Create a new scope for the module
+        auto moduleScope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>(scope);
+    
+        // Store generated IR values for module members
+        std::unordered_map<std::string, llvm::Value*> memberIRValues;
+    
+        for (const auto& member : moduleExpr->members) {
+            std::string memberName = member->name;
+            DEBUG_LOG("Generating IR for module member: " + memberName);
+    
+            llvm::Value* memberValue = codegen(member->value, moduleScope);
+            if (!memberValue) {
+                console.error("Failed to generate IR for module member: " + memberName);
+                continue;
+            }
+    
+            // Save the member value and type
+            memberIRValues[memberName] = memberValue;
+            // moduleScope->define(memberName, memberExpr->getType());
+        }
+    
+        // Generate the actual module object
+        llvm::Value* moduleInstance = createModuleObject(
+            moduleExpr->name,
+            memberIRValues
+        );
+    
+        return moduleInstance;
+    }    
+
     return nullptr;
 }
 
@@ -486,7 +519,6 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expressio
     // Return nullptr if no matching type was found
     return nullptr;
 }
-
 
 
 void IRGenerator::generateModule(
@@ -1153,12 +1185,13 @@ void IRGenerator::finalizeGlobalInitializers() {
     globalInitializers.clear();
 }
 
-llvm::Value* IRGenerator::createVariable( 
+llvm::Value* IRGenerator::AssignVariable( 
     const std::string& name, 
     llvm::Type* type, 
     llvm::Value* initialValue, 
     bool isGlobal, 
-    llvm::BasicBlock* activeBlock 
+    llvm::BasicBlock* activeBlock,
+    llvm::GlobalValue::LinkageTypes linkage
 ) {
     llvm::Module* activeModule = CurrentModule;
 
@@ -1365,31 +1398,6 @@ llvm::Value* IRGenerator::createVariable(
     return alloca;
 }
 
-llvm::GlobalVariable* IRGenerator::createGlobalVariable(
-    const std::string& name, 
-    llvm::Type* type, 
-    llvm::Value* initialValue, 
-    llvm::GlobalValue::LinkageTypes linkage
-) {
-    llvm::Module* activeModule = CurrentModule; // Ensure it's created in the current module
-
-    // Create a global variable inside the active module
-    llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
-        *activeModule, 
-        type,
-        false,  // Not constant
-        linkage, // Use the specified linkage type (default is InternalLinkage)
-        llvm::Constant::getNullValue(type), // Default initializer
-        name
-    );
-
-    // Set the initializer if the value is a constant
-    if (llvm::Constant* constValue = llvm::dyn_cast<llvm::Constant>(initialValue)) {
-        gVar->setInitializer(constValue);
-    }
-
-    return gVar;
-}
 
 llvm::Value* IRGenerator::getAddressOf(const std::string& varname) {
     return activeScope->get(varname);
@@ -2395,7 +2403,7 @@ llvm::Value* IRGenerator::createEnum(
     bool isGlobal
 ) {
     for (size_t i = 0; i < names.size(); ++i) {
-        createVariable(enumName + "." + names[i], values[i]->getType(), values[i], isGlobal, nullptr);
+        assignVariable(enumName + "." + names[i], values[i]->getType(), values[i], isGlobal, nullptr);
     }
     return nullptr;
 }
@@ -2413,7 +2421,7 @@ llvm::Value* IRGenerator::createEnumWithLookup(
 
     for (size_t i = 0; i < values.size(); ++i) {
         // Declare each enum value as a global/local variable
-        createVariable(enumName + "." + names[i], valueType, values[i], isGlobal, nullptr);
+        assignVariable(enumName + "." + names[i], valueType, values[i], isGlobal, nullptr);
 
         // Handle the constant value for the value array
         if (auto* constantVal = llvm::dyn_cast<llvm::Constant>(values[i])) {
@@ -2431,13 +2439,13 @@ llvm::Value* IRGenerator::createEnumWithLookup(
     // Create value lookup array
     llvm::ArrayType* valueArrayType = llvm::ArrayType::get(valueType, constValues.size());
     llvm::Constant* valueArray = llvm::ConstantArray::get(valueArrayType, constValues);
-    createVariable(enumName + "_lookup", valueArrayType, valueArray, isGlobal, nullptr);
+    assignVariable(enumName + "_lookup", valueArrayType, valueArray, isGlobal, nullptr);
 
     // Create name (string) lookup array
     llvm::Type* stringPtrType = nameConstants[0]->getType(); // i8*
     llvm::ArrayType* nameArrayType = llvm::ArrayType::get(stringPtrType, nameConstants.size());
     llvm::Constant* nameArray = llvm::ConstantArray::get(nameArrayType, nameConstants);
-    createVariable(enumName + "_name_lookup", nameArrayType, nameArray, isGlobal, nullptr);
+    assignVariable(enumName + "_name_lookup", nameArrayType, nameArray, isGlobal, nullptr);
 
     return valueArray; // or nullptr if you don't need to return a value
 }
@@ -2466,7 +2474,7 @@ llvm::Value* IRGenerator::createEnumClass(
     llvm::StructType* structType = llvm::StructType::create(ctx, fieldTypes, className);
     llvm::Constant* structConst = llvm::ConstantStruct::get(structType, fieldValues);
 
-    return createVariable(className, structType, structConst, isGlobal, nullptr);
+    return assignVariable(className, structType, structConst, isGlobal, nullptr);
 }
 
 llvm::Value* IRGenerator::createEnumClassWithLookup(
@@ -2501,18 +2509,18 @@ llvm::Value* IRGenerator::createEnumClassWithLookup(
     // Step 2: Create the struct for the enum class
     llvm::StructType* structType = llvm::StructType::create(ctx, fieldTypes, className);
     llvm::Constant* structConst = llvm::ConstantStruct::get(structType, fieldValues);
-    llvm::Value* enumClass = createVariable(className, structType, structConst, isGlobal, nullptr);
+    llvm::Value* enumClass = assignVariable(className, structType, structConst, isGlobal, nullptr);
 
     // Step 3: Create value lookup array (flat version of struct)
     llvm::ArrayType* lookupArrayType = llvm::ArrayType::get(valueType, fieldValues.size());
     llvm::Constant* lookupArray = llvm::ConstantArray::get(lookupArrayType, fieldValues);
-    createVariable(className + "_lookup", lookupArrayType, lookupArray, isGlobal, nullptr);
+    assignVariable(className + "_lookup", lookupArrayType, lookupArray, isGlobal, nullptr);
 
     // Step 4: Create name lookup array
     llvm::Type* stringPtrType = nameConstants[0]->getType(); // i8*
     llvm::ArrayType* nameArrayType = llvm::ArrayType::get(stringPtrType, nameConstants.size());
     llvm::Constant* nameArray = llvm::ConstantArray::get(nameArrayType, nameConstants);
-    createVariable(className + "_name_lookup", nameArrayType, nameArray, isGlobal, nullptr);
+    assignVariable(className + "_name_lookup", nameArrayType, nameArray, isGlobal, nullptr);
 
     return enumClass;
 }
@@ -2802,3 +2810,49 @@ llvm::Value* IRGenerator::createWhileLoop(
 }
 
 
+llvm::Value* IRGenerator::createModuleObject(
+    const std::string& moduleName,
+    const std::unordered_map<std::string, llvm::Value*>& members
+) {
+    llvm::LLVMContext& ctx = Builder->getContext();
+    llvm::Module* mod = CurrentModule;
+
+    DEBUG_LOG("Creating module object: " + moduleName);
+
+    // Create an object-like struct type for the module
+    std::vector<llvm::Type*> memberTypes;
+    std::vector<std::string> memberNames;
+
+    for (const auto& [key, val] : members) {
+        memberTypes.push_back(val->getType());
+        memberNames.push_back(key);
+    }
+
+    llvm::StructType* moduleStructType = llvm::StructType::create(ctx, memberTypes, moduleName + "_type");
+
+    // Allocate the struct
+    llvm::Function* function = Builder->GetInsertBlock()->getParent();
+    llvm::IRBuilder<> tempBuilder(&function->getEntryBlock(), function->getEntryBlock().begin());
+    llvm::Value* moduleInstance = tempBuilder.CreateAlloca(moduleStructType, nullptr, moduleName);
+
+    DEBUG_LOG("Module struct allocated: " + moduleName);
+
+    // Populate struct fields (members)
+    for (size_t i = 0; i < memberNames.size(); ++i) {
+        llvm::Value* gep = Builder->CreateStructGEP(moduleStructType, moduleInstance, i, moduleName + "." + memberNames[i]);
+
+        llvm::Value* memberValue = members.at(memberNames[i]);
+        if (memberValue->getType() != memberTypes[i]) {
+            memberValue = Builder->CreateBitCast(memberValue, memberTypes[i], "bitcast");
+        }
+
+        Builder->CreateStore(memberValue, gep);
+        DEBUG_LOG("Stored member '" + memberNames[i] + "' in module '" + moduleName + "'");
+    }
+
+    // Optionally, wrap the struct in a pointer-to-generic-object (like JS object base type)
+    activeScope->set(moduleName, moduleInstance);
+    DEBUG_LOG("Module '" + moduleName + "' registered in active scope");
+
+    return moduleInstance;
+}

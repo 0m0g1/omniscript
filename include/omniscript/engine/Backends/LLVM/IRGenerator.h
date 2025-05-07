@@ -179,18 +179,13 @@ public:
         llvm::Value* initialValue
     );
     void finalizeGlobalInitializers();
-    llvm::GlobalVariable* createGlobalVariable(
-        const std::string& name, 
-        llvm::Type* type, 
-        llvm::Value* initialValue, 
-        llvm::GlobalValue::LinkageTypes linkage = llvm::GlobalValue::InternalLinkage // Default to internal
-    );
-    llvm::Value* createVariable(
+    llvm::Value* assignVariable(
         const std::string& name, 
         llvm::Type* type = nullptr, 
         llvm::Value* initialValue = nullptr, 
         bool isGlobal = true, 
-        llvm::BasicBlock* activeBlock = nullptr
+        llvm::BasicBlock* activeBlock = nullptr,
+        llvm::GlobalValue::LinkageTypes linkage = llvm::GlobalValue::InternalLinkage
     );
     llvm::Value* createConstant(const std::string& name, llvm::Type* type, llvm::Value* value);
     llvm::Value* reassign(const std::string& name, llvm::Value* newValue);
@@ -322,6 +317,10 @@ public:
         const std::string& instanceName,
         const int& index,
         llvm::Value* valueToSet  = nullptr
+    );
+    llvm::Value* IRGenerator::createModuleObject(
+        const std::string& moduleName,
+        const std::unordered_map<std::string, llvm::Value*>& members
     );
 };
 

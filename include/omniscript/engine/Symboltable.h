@@ -1,12 +1,7 @@
 #ifndef SYMBOLTABLE_H
 #define SYMBOLTABLE_H
 
-#include <string>
-#include <unordered_map>
-#include <vector>
-#include <memory>
-#include <type_traits>
-#include <iostream>
+#include <omniscript/omniscript_pch.h>
 
 template <typename T, typename TypeT = void>
 class SymbolTable : public std::enable_shared_from_this<SymbolTable<T, TypeT>> {
@@ -15,9 +10,7 @@ public:
         : parent_(std::move(parent)), name_(name) {}
 
     // ==================== VALUE MANAGEMENT ====================
-    void set(const std::string& name, T value) {
-        setVariable(name, value);
-    }
+    void set(const std::string& name, T value) { setVariable(name, value); }
 
     void setVariable(const std::string& name, T value) {
         if (overloadables_.count(name)) {
@@ -51,9 +44,7 @@ public:
         overloadables_[name].push_back(std::move(value));
     }
 
-    T get(const std::string& name) const {
-        return getValue(name);
-    }
+    T get(const std::string& name) const { return getValue(name); }
 
     T getValue(const std::string& name) const {
         if (auto it = variables_.find(name); it != variables_.end()) return it->second;
@@ -76,10 +67,11 @@ public:
         return variables_.count(name) ||
                constants_.count(name) ||
                overloadables_.count(name) ||
+               localModuleAliases_.count(name) ||
                (parent_ && parent_->exists(name));
     }
 
-    // ==================== TYPE MANAGEMENT (enabled only if TypeT != void) ====================
+    // ==================== TYPE MANAGEMENT ====================
     template <typename U = TypeT>
     typename std::enable_if<!std::is_void<U>::value, void>::type
     addType(const std::string& name, U type) {
@@ -99,7 +91,7 @@ public:
         return types_.count(name) || (parent_ && parent_->template typeExists<U>(name));
     }
 
-    // ==================== SCOPE MANAGEMENT ====================
+    // ==================== SCOPE / MODULE MANAGEMENT ====================
     std::shared_ptr<SymbolTable<T, TypeT>> createChildScope(const std::string& name) {
         return std::make_shared<SymbolTable<T, TypeT>>(this->shared_from_this(), name);
     }
@@ -108,6 +100,37 @@ public:
 
     std::string getName() const { return name_; }
     void setName(const std::string& name) { name_ = name; }
+
+    // ----- Module Registry (Global) -----
+    static void defineModule(const std::string& path, std::shared_ptr<SymbolTable<T, TypeT>> module) {
+        globalModules_[path] = std::move(module);
+    }
+
+    static std::shared_ptr<SymbolTable<T, TypeT>> getModuleByPath(const std::string& path) {
+        auto it = globalModules_.find(path);
+        return it != globalModules_.end() ? it->second : nullptr;
+    }
+
+    // ----- Local aliasing -----
+    void aliasModule(const std::string& alias, const std::string& fullPath) {
+        if (exists(alias)) {
+            std::cerr << "Cannot alias '" << alias << "' because a symbol already exists with that name.\n";
+            return;
+        }
+        if (!globalModules_.count(fullPath)) {
+            std::cerr << "Cannot alias '" << alias << "' because module path '" << fullPath << "' not found.\n";
+            return;
+        }
+        localModuleAliases_[alias] = fullPath;
+    }
+
+    std::shared_ptr<SymbolTable<T, TypeT>> getModule(const std::string& alias) const {
+        if (auto it = localModuleAliases_.find(alias); it != localModuleAliases_.end()) {
+            auto globalIt = globalModules_.find(it->second);
+            if (globalIt != globalModules_.end()) return globalIt->second;
+        }
+        return parent_ ? parent_->getModule(alias) : nullptr;
+    }
 
 private:
     std::string name_;
@@ -118,7 +141,10 @@ private:
     std::unordered_map<std::string, std::vector<T>> overloadables_;
 
     typename std::conditional<std::is_void<TypeT>::value, int, std::unordered_map<std::string, TypeT>>::type types_;
-    // Note: 'types_' is an int dummy when TypeT is void, so it won’t take up space.
+
+    // ====== Module support ======
+    static inline std::unordered_map<std::string, std::shared_ptr<SymbolTable<T, TypeT>>> globalModules_;
+    std::unordered_map<std::string, std::string> localModuleAliases_; // alias → full path
 };
 
 #endif // SYMBOLTABLE_H

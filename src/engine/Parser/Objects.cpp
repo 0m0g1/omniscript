@@ -7,7 +7,6 @@
 #include <omniscript/omniscript_pch.h>
 
 
-
 std::shared_ptr<Statement> Parser::parseObject() {
     // eat(TokenTypes::LeftBrace);
 
