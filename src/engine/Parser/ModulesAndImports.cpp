@@ -142,9 +142,16 @@ std::shared_ptr<Statement> Parser::parseModule() {
         }
 
         // Handle regular members (functions, variables, etc.)
-        std::shared_ptr<Statement> member = parseStatement();
+        std::shared_ptr<Statement> member; 
         std::string memberName;
-
+        if (checkIfLambdaExpression()) {
+            memberName = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+            member = parseLambdaFunction(memberName);
+        } else {
+            member = parseStatement();
+        }
+        
         if (auto named = std::dynamic_pointer_cast<NamedStatement>(member)) {
             memberName = named->getName();
         } else {
@@ -157,5 +164,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
     }
 
     eat(TokenTypes::RightBrace);
+
+    eat(TokenTypes::EOI, "There can only be one module per file and nothing declared after the module.");
     return std::make_shared<CreateModule>(moduleName, members);
 }

@@ -29,6 +29,8 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
         name = currentToken.getValue();
         eat(TokenTypes::Identifier);
     }
+    
+    DEBUG_LOG("Parsing function " + name);
 
     parameterType types;
     if (paramTypes.empty()) {

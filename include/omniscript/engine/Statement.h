@@ -856,56 +856,58 @@ private:
     std::vector<std::shared_ptr<Statement>> body;
 };
 
-class ModuleMember : public NamedStatement {
+class Member : public NamedStatement {
 public:
-    MemberModifiers modifiers;
-    std::shared_ptr<Statement> value;
-
-    ModuleMember(std::string memberName, std::shared_ptr<Statement> value, MemberModifiers modifiers)
+    Member(const std::string& memberName, std::shared_ptr<Statement> value, const MemberModifiers& modifiers)
         : value(std::move(value)), modifiers(modifiers) {
-            setName(memberName);
-        }
+        setName(memberName);
+    }
 
     std::string getName() const override { return name; }
-    std::shared_ptr<Statement> getValue() { return value; }
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Statement> getValue() const { return value; }
+    const MemberModifiers& getModifiers() const { return modifiers; }
+
+    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override {
+        return nullptr; // Base members do not evaluate by default
+    }
+
+    // Keep express() abstract to enforce implementation in subclasses
+    virtual std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override = 0;
+
+protected:
+    std::shared_ptr<Statement> value;
+    MemberModifiers modifiers;
 };
 
-class ClassMember : public NamedStatement, public TypedStatement {
+class ModuleMember : public Member {
+public:
+    ModuleMember(const std::string& memberName, std::shared_ptr<Statement> value, MemberModifiers modifiers)
+        : Member(memberName, std::move(value), modifiers) {}
+
+    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+};
+    
+
+class ClassMember : public Member, public TypedStatement {
 public:
     ClassMember(
         const std::string& memberName,
         std::shared_ptr<Omniscript::Type> memberType,
         std::shared_ptr<Statement> defaultValue,
         const MemberModifiers& memberModifiers
-    ) : type(memberType), value(defaultValue), modifiers(memberModifiers) {
-        setName(memberName);
+    ) : Member(memberName, std::move(defaultValue), memberModifiers) {
         setType(memberType);
     }
 
-    std::string getName() const override { return name; }
-
-    // std::shared_ptr<Statement> getType() const { return type; }
     std::shared_ptr<Statement> getDefaultValue() const { return value; }
-    const MemberModifiers& getModifiers() const { return modifiers; }
-
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override {
-        // No runtime evaluation needed during declaration
-        return nullptr;
-    }
 
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
 
     std::string toString() const override {
         return "ClassMember(" + modifiers.toString() + name + ")";
     }
-
-private:
-    std::shared_ptr<Omniscript::Type> type;
-    std::shared_ptr<Statement> value;
-    MemberModifiers modifiers;
 };
+
 
 class ConstructClassPrototype : public NamedStatement, public TypedStatement {
 public:

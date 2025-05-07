@@ -1185,7 +1185,7 @@ void IRGenerator::finalizeGlobalInitializers() {
     globalInitializers.clear();
 }
 
-llvm::Value* IRGenerator::AssignVariable( 
+llvm::Value* IRGenerator::assignVariable( 
     const std::string& name, 
     llvm::Type* type, 
     llvm::Value* initialValue, 

@@ -318,7 +318,7 @@ public:
         const int& index,
         llvm::Value* valueToSet  = nullptr
     );
-    llvm::Value* IRGenerator::createModuleObject(
+    llvm::Value* createModuleObject(
         const std::string& moduleName,
         const std::unordered_map<std::string, llvm::Value*>& members
     );

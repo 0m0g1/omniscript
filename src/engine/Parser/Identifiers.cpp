@@ -17,20 +17,19 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
 
     // Loop to handle member accesses and function calls
     while (true) {
-        if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
-            // Handle function calls with generics
-            if (isGenericCallOrConstructor()) {
-                std::vector<std::string> typeParams = parseTypeParametersForCall();
-                std::string specializedName = generateSpecializedNameForCall(member, typeParams);
-                DEBUG_LOG("Generated Specialized Name: " + specializedName);
-                
-                std::vector<std::shared_ptr<Statement>> args = parseArguments();
-                expr = std::make_shared<Call>(expr, specializedName, args);  // Use the specialized name
-            } else {
-                // Normal function call
-                std::vector<std::shared_ptr<Statement>> args = parseArguments();
-                expr = std::make_shared<Call>(expr, member, args);
-            }
+        if (currentToken.getType() == TokenTypes::LeftParen) {
+            // Normal function call
+            std::vector<std::shared_ptr<Statement>> args = parseArguments();
+            expr = std::make_shared<Call>(expr, member, args);
+        } 
+        // Handle function calls with generics
+        else if (isGenericCallOrConstructor()) {
+            std::vector<std::string> typeParams = parseTypeParametersForCall();
+            std::string specializedName = generateSpecializedNameForCall(member, typeParams);
+            DEBUG_LOG("Generated Specialized Name: " + specializedName);
+            
+            std::vector<std::shared_ptr<Statement>> args = parseArguments();
+            expr = std::make_shared<Call>(expr, specializedName, args);  // Use the specialized name
         }
         
         // Object constructor
