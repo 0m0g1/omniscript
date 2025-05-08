@@ -1,5 +1,4 @@
 import { Math } from std;
-// import { foreign , foreign2, otherForeign} from "examples/test2.os" as test;
 
 
 
