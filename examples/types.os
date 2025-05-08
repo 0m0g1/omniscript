@@ -193,20 +193,20 @@
 //     banana
 // }
 
-// <Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
-// let add = (a: Number, b: Number) => Number {
-//     return a + b;
-// }
+<Number extends i8 | i16 | i32 | i64 | f32 | f64 | f128>
+let add = (a: Number, b: Number) => Number {
+    return a + b;
+}
 
-// /*
-// /***/
-// */
+/*
+/***/
+*/
 
-// // TODO Add support none predetermined types
-// // TODO LLVM automatically cleans up unused codes but not all backends do ensure that only the used type gets generated the rest to be discarded
-// let add = <T>(a: T, b: T) => T {
-//     return a + b;
-// }
+// TODO Add support none predetermined types
+// TODO LLVM automatically cleans up unused codes but not all backends do ensure that only the used type gets generated the rest to be discarded
+let add = <T>(a: T, b: T) => T {
+    return a + b;
+}
 // let sth : int = add<i32>(1, 2);
 
 
@@ -251,21 +251,39 @@
 
 // let f: int32 = 64.0 as int32;
 
-// class Particle {
-//     x: f32 = 0;
-//     y: f32 = 0;
-//     z: f32 = 0;
-//     constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) => void {
-//         this.x = x;
-//         this.y = y;
-//         this.z = z;
-//     }
-//     destructor() => void {
-        
-//     }
-// }
+// // Structs (user-defined types)
+// // Todo: make types infered
+struct Vector3 {
+    x: f32 = 0;
+    y: f32 = 0;
+    z: f32 = 0;
+    scale(x: f32 = 1, y: f32 = 1, z: f32 = 1) => void {
+        this.x *= x;
+        this.y *= y;
+        this.z *= z;
+    }
+}
 
-// let p1 = Particle();
+class Particle {
+    x: f32 = 0;
+    y: f32 = 0;
+    z: f32 = 0;
+    constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) => void {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+    destructor() => void {
+        
+    }
+}
+
+let v1 = new Vector3{ x: 0, y: 0, z: 0 };
+let p1 = Particle();
+
+v1.scale();
+v1.scale(2.0, 1.0, 1.0);
+
 
 
 // struct Person {
