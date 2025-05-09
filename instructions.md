@@ -3,8 +3,8 @@ OmniScript Build Instructions
 
 Prerequisites:
 --------------
-- No external installation required.
-- All necessary tools (`make.exe` and `premake5.exe`) are included in the `scripts` folder and can be used directly from there.
+- No external downloads required.
+- All necessary tools (`make.exe` and `premake5.exe`) are included in the `scripts` folder and can be used and installed directly from there.
 
 Build Steps:
 ------------
