@@ -12,6 +12,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     std::vector<std::shared_ptr<Statement>> parameterStatements;  // Vector for ParameterStatements
 
     for (auto& stmt : statements) {
+        DEBUG_LOG("[CreateModule] Working on module member '" + stmt->toString() + "'.");
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
 
@@ -65,6 +66,7 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
     std::shared_ptr<Statement> moduleStmt;
     std::shared_ptr<Omniscript::Expression> moduleValue;
     for (const auto& stmt : statements) {
+        DEBUG_LOG("[ImportModule] Found statement '" + stmt->toString() + "' in file '" + path + "'.");
         if (auto createModule = std::dynamic_pointer_cast<CreateModule>(stmt)) {
             if (createModule->getName() == moduleName || moduleName.empty()) {
                 createModule->setName(createModule->getName() + "_type");
@@ -89,7 +91,7 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
         moduleName,
         std::vector<std::shared_ptr<Statement>>{}
     );
-    
+
     std::vector<std::shared_ptr<Statement>> moduleStatements = { moduleStmt, createModuleInstance };
     auto moduleBlock = std::make_shared<BlockStatement>(moduleStatements);
 
