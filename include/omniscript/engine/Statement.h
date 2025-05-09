@@ -76,7 +76,7 @@ public:
     ~NamedStatement() = default;
     virtual std::string getName() const { return name; };
     void setName(const std::string& newName) { name = newName; }
-    virtual std::string toString() const override { return "NamedStatement"; }
+    virtual std::string toString() const override { return name; }
 
 protected:
     std::string name;
@@ -306,7 +306,10 @@ public:
 
 };
     
-class CreateModule : public NamedStatement {
+class CreateModule : public NamedStatement, public TypedStatement {
+private:
+    std::string modulePath;
+
 public:
     std::vector<std::shared_ptr<Statement>> statements;
 
@@ -316,9 +319,12 @@ public:
     }
     
     std::string getName() const override { return name; }
+    std::string getPath() const { return modulePath; }
+    void setPath(const std::string& newPath) { modulePath = newPath; }
     std::vector<std::shared_ptr<Statement>> getStatements() { return statements; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::string toString() const override { return "Create module '" + name + "'."; }
 };
 
 

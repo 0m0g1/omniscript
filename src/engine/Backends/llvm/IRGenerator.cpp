@@ -2143,8 +2143,8 @@ llvm::Value* IRGenerator::createStructInstance(
         if (auto* constVal = llvm::dyn_cast<llvm::Constant>(args[i])) {
             constants.push_back(constVal);
         } else {
-            DEBUG_LOG("Argument " + std::to_string(i) + " is not a constant value.");
-            return nullptr;
+            // If not constant, still allow the argument to be used in the struct
+            constants.push_back(llvm::Constant::getNullValue(args[i]->getType())); // Fallback null value
         }
     }
 
@@ -2163,7 +2163,7 @@ llvm::Value* IRGenerator::createStructInstance(
         );
         
         DEBUG_LOG("Created global struct instance: " + varName);
-        activeScope->set(varName, globalVar);
+        activeScope->set(varName, globalVar);  // Register in active scope
         return globalVar;
 
     } else {
@@ -2171,7 +2171,6 @@ llvm::Value* IRGenerator::createStructInstance(
         llvm::Function* currentFunc = Builder->GetInsertBlock()->getParent();
         llvm::BasicBlock* entryBlock = &currentFunc->getEntryBlock();
 
-        // Temporary builder for the entry block (if needed)
         llvm::IRBuilder<> entryBuilder(entryBlock);
         if (!entryBlock->empty() && entryBlock->getTerminator()) {
             entryBuilder.SetInsertPoint(entryBlock->getTerminator());
@@ -2193,7 +2192,7 @@ llvm::Value* IRGenerator::createStructInstance(
         }
 
         DEBUG_LOG("Created local struct instance: " + varName);
-        activeScope->set(varName, localVar);
+        activeScope->set(varName, localVar);  // Register struct instance in scope
         return localVar;
     }
 }

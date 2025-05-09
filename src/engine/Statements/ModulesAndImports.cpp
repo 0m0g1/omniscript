@@ -7,41 +7,56 @@
 #include <omniscript/engine/Parser.h>
 #include <omniscript/utils.h>
 
-std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType scope) { 
-    std::vector<std::shared_ptr<Omniscript::ModuleMemberExpression>> memberExpressions;
-    std::vector<std::shared_ptr<Statement>> parameterStatements;  // Vector for ParameterStatements
+std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType scope) {
+    std::vector<std::shared_ptr<Statement>> moduleStatements;
+    std::vector<std::shared_ptr<Statement>> parameterStatements;
 
+    // First, evaluate nested modules
     for (auto& stmt : statements) {
-        DEBUG_LOG("[CreateModule] Working on module member '" + stmt->toString() + "'.");
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
 
-        // Convert members to ParameterStatements and store them
-        if (!std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
-            auto parameterStmt = std::make_shared<ParameterStatement>(member->getName(), member->getValue());
-            parameterStatements.push_back(std::static_pointer_cast<Statement>(parameterStmt));
-        }
-        
-        // Cast ParameterStatement to Statement before pushing
+        if (auto nestedModule = std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
+            // Nested module should register its type and instance in the scope
+            moduleStatements.push_back(nestedModule);
 
-        // Create member expressions
-        // std::shared_ptr<Omniscript::Expression> result = member->express(scope);
-        // auto memberExpr = std::make_shared<Omniscript::ModuleMemberExpression>(
-        //     member->getName(), result, member->getModifiers()
-        // );
-        // memberExpressions.push_back(memberExpr);
+            // Now we can reference the nested module by name
+            auto getModuleRef = std::make_shared<ReferenceTo>(member->getName());
+            auto parameterStmt = std::make_shared<ParameterStatement>(member->getName(), getModuleRef);
+            parameterStatements.push_back(parameterStmt);
+        } else {
+            auto parameterStmt = std::make_shared<ParameterStatement>(member->getName(), member->getValue());
+            parameterStatements.push_back(parameterStmt);
+        }
     }
 
-    // Create a module expression with the processed member expressions
-    std::shared_ptr<Omniscript::Expression> moduleExpr = std::make_shared<Omniscript::ModuleExpression>(name, memberExpressions);
+    // Create struct type for this module
+    auto structStmt = std::make_shared<ConstructStructPrototype>(getName() + "_type", parameterStatements);
 
-    // Now, use parameterStatements to create the struct prototype
-    auto structStatement = std::make_shared<ConstructStructPrototype>(getName(), parameterStatements);
-    auto structExpr = structStatement->express(scope);
+    // Create module instance
+    auto createModuleInstance = std::make_shared<ObjectConstructorStatement>(
+        getName() + "_type",  // Type name
+        getName(),            // Variable name
+        std::vector<std::shared_ptr<Statement>>{}                    // Constructor args
+    );
 
-    // Return the struct expression
-    return structExpr;
+    // Add struct and constructor
+    moduleStatements.push_back(structStmt);
+    moduleStatements.push_back(createModuleInstance);
+
+    // Block for all operations
+    auto moduleBlock = std::make_shared<BlockStatement>(moduleStatements);
+
+    // Evaluate block
+    auto result = moduleBlock->express(scope);
+
+    // Record the module's type
+    setType(scope->getType(getName() + "_type"));
+
+    // Wrap as BlockExpression so we return final result
+    return std::make_shared<Omniscript::BlockExpression>(std::vector{result});
 }
+
 
 std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType scope) { 
     if (path.empty()) {
@@ -69,7 +84,7 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
         DEBUG_LOG("[ImportModule] Found statement '" + stmt->toString() + "' in file '" + path + "'.");
         if (auto createModule = std::dynamic_pointer_cast<CreateModule>(stmt)) {
             if (createModule->getName() == moduleName || moduleName.empty()) {
-                createModule->setName(createModule->getName() + "_type");
+                createModule->setPath(path);
                 moduleStmt = createModule;
                 break;
             }
@@ -86,15 +101,7 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
         return nullptr;
     }
     
-    auto createModuleInstance = std::make_shared<ObjectConstructorStatement>(
-        moduleName + "_type",
-        moduleName,
-        std::vector<std::shared_ptr<Statement>>{}
-    );
-
-    std::vector<std::shared_ptr<Statement>> moduleStatements = { moduleStmt, createModuleInstance };
-    auto moduleBlock = std::make_shared<BlockStatement>(moduleStatements);
-
+   
     // if (importAll) {
     //     for (const auto& member : moduleExpr->members) {
     //         // Directly add module members to the scope
@@ -123,7 +130,8 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
     //     scope->set(moduleName, moduleExpr);
     // }
 
-    return moduleBlock->express(scope);
+    
+    return moduleStmt->express(scope);
 }
 
 // Helper function to split module path into components (e.g., Math.Algebra.Matrix -> {"Math", "Algebra", "Matrix"})

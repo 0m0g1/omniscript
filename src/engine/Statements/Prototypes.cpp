@@ -700,6 +700,8 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     auto structType = Omniscript::Type::createUserDefinedType(name, Omniscript::Kind::Struct, fieldTypes);
     scope->addType(name, structType);
     
+    setType(structType);
+
     for (const auto& field : body) {
         if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
             auto thisParam = std::make_shared<ParameterStatement>("this");
