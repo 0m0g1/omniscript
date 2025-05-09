@@ -2819,7 +2819,7 @@ llvm::Value* IRGenerator::createModuleObject(
 
     DEBUG_LOG("Creating module object: " + moduleName);
 
-    // Create an object-like struct type for the module
+    // Step 1: Create the struct type for the module using the member types
     std::vector<llvm::Type*> memberTypes;
     std::vector<std::string> memberNames;
 
@@ -2828,31 +2828,27 @@ llvm::Value* IRGenerator::createModuleObject(
         memberNames.push_back(key);
     }
 
-    llvm::StructType* moduleStructType = llvm::StructType::create(ctx, memberTypes, moduleName + "_type");
-
-    // Allocate the struct
-    llvm::Function* function = Builder->GetInsertBlock()->getParent();
-    llvm::IRBuilder<> tempBuilder(&function->getEntryBlock(), function->getEntryBlock().begin());
-    llvm::Value* moduleInstance = tempBuilder.CreateAlloca(moduleStructType, nullptr, moduleName);
-
-    DEBUG_LOG("Module struct allocated: " + moduleName);
-
-    // Populate struct fields (members)
-    for (size_t i = 0; i < memberNames.size(); ++i) {
-        llvm::Value* gep = Builder->CreateStructGEP(moduleStructType, moduleInstance, i, moduleName + "." + memberNames[i]);
-
-        llvm::Value* memberValue = members.at(memberNames[i]);
-        if (memberValue->getType() != memberTypes[i]) {
-            memberValue = Builder->CreateBitCast(memberValue, memberTypes[i], "bitcast");
-        }
-
-        Builder->CreateStore(memberValue, gep);
-        DEBUG_LOG("Stored member '" + memberNames[i] + "' in module '" + moduleName + "'");
+    // Create the struct type using `createStructType`
+    if (llvm::StructType::getTypeByName(*Context, moduleName)) {
+        console.error("Cannot create module " + moduleName + "as a symbol with the name '" + moduleName + "' already exists in the scope.");
+        return nullptr;
     }
+    
+    createStructType(moduleName, memberTypes);
 
-    // Optionally, wrap the struct in a pointer-to-generic-object (like JS object base type)
-    activeScope->set(moduleName, moduleInstance);
-    DEBUG_LOG("Module '" + moduleName + "' registered in active scope");
+    // // Step 2: Create an instance of the struct
+    // llvm::Function* function = Builder->GetInsertBlock()->getParent();
+    // llvm::IRBuilder<> tempBuilder(&function->getEntryBlock(), function->getEntryBlock().begin());
+
+    // Create the struct instance using `createObjectInstance`
+    llvm::Value* moduleInstance = createObjectInstance(
+        moduleName,
+        moduleName,
+        std::vector<llvm::Value*> {},
+        true
+    );
+
+    DEBUG_LOG("Module struct instance created: " + moduleName);
 
     return moduleInstance;
 }

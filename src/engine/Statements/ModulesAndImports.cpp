@@ -7,6 +7,40 @@
 #include <omniscript/engine/Parser.h>
 #include <omniscript/utils.h>
 
+std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType scope) { 
+    std::vector<std::shared_ptr<Omniscript::ModuleMemberExpression>> memberExpressions;
+    std::vector<std::shared_ptr<Statement>> parameterStatements;  // Vector for ParameterStatements
+
+    for (auto& stmt : statements) {
+        auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
+        if (!member) continue;
+
+        // Convert members to ParameterStatements and store them
+        if (!std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
+            auto parameterStmt = std::make_shared<ParameterStatement>(member->getName(), member->getValue());
+            parameterStatements.push_back(std::static_pointer_cast<Statement>(parameterStmt));
+        }
+        
+        // Cast ParameterStatement to Statement before pushing
+
+        // Create member expressions
+        // std::shared_ptr<Omniscript::Expression> result = member->express(scope);
+        // auto memberExpr = std::make_shared<Omniscript::ModuleMemberExpression>(
+        //     member->getName(), result, member->getModifiers()
+        // );
+        // memberExpressions.push_back(memberExpr);
+    }
+
+    // Create a module expression with the processed member expressions
+    std::shared_ptr<Omniscript::Expression> moduleExpr = std::make_shared<Omniscript::ModuleExpression>(name, memberExpressions);
+
+    // Now, use parameterStatements to create the struct prototype
+    auto structStatement = std::make_shared<ConstructStructPrototype>(getName(), parameterStatements);
+    auto structExpr = structStatement->express(scope);
+
+    // Return the struct expression
+    return structExpr;
+}
 
 std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType scope) { 
     if (path.empty()) {
@@ -23,61 +57,71 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
         return nullptr;
     }
 
-    Lexer lexer(sourceCode);
+    Lexer lexer(sourceCode, path);
     Parser parser(lexer);
     std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
 
     // Find the module we're importing
+    std::shared_ptr<Statement> moduleStmt;
     std::shared_ptr<Omniscript::Expression> moduleValue;
     for (const auto& stmt : statements) {
         if (auto createModule = std::dynamic_pointer_cast<CreateModule>(stmt)) {
             if (createModule->getName() == moduleName || moduleName.empty()) {
-                moduleValue = createModule->express(scope);
+                createModule->setName(createModule->getName() + "_type");
+                moduleStmt = createModule;
                 break;
             }
         }
     }
 
-    if (!moduleValue) {
-        console.error("Module not found: " + moduleName);
-        return nullptr;
-    }
-
-    auto moduleExpr = std::dynamic_pointer_cast<Omniscript::ModuleExpression>(moduleValue);
-    if (!moduleExpr) {
+    if (!moduleStmt) {
         console.error("Invalid module: not a ModuleExpression");
         return nullptr;
     }
 
-    if (importAll) {
-        for (const auto& member : moduleExpr->members) {
-            // Directly add module members to the scope
-            scope->set(member->name, member->value);
-        }
-    } else if (!importedAliases.empty()) {
-        for (const auto& [alias, original] : importedAliases) {
-            // Search for the member with the name matching 'original'
-            auto it = std::find_if(moduleExpr->members.begin(), moduleExpr->members.end(),
-                [&original](const std::shared_ptr<Omniscript::ModuleMemberExpression>& member) {
-                    return member->getName() == original;  // assuming you have a 'getName()' method
-                });
-    
-            if (it != moduleExpr->members.end()) {
-                scope->set(alias, (*it)->value);  // assuming you have a 'getValue()' method
-            } else {
-                console.error("Symbol not found in module: " + original);
-            }
-        }
-    } else if (!alias.empty()) {
-        // Full module import with alias
-        scope->aliasModule(alias, moduleName);
-        scope->set(alias, moduleExpr);
-    } else {
-        // Full module import without alias (optional — usually you'd assign it)
-        scope->set(moduleName, moduleExpr);
+    if (!moduleStmt) {
+        console.error("Module not found: " + moduleName);
+        return nullptr;
     }
+    
+    auto createModuleInstance = std::make_shared<ObjectConstructorStatement>(
+        moduleName + "_type",
+        moduleName,
+        std::vector<std::shared_ptr<Statement>>{}
+    );
+    
+    std::vector<std::shared_ptr<Statement>> moduleStatements = { moduleStmt, createModuleInstance };
+    auto moduleBlock = std::make_shared<BlockStatement>(moduleStatements);
 
-    return moduleExpr;
+    // if (importAll) {
+    //     for (const auto& member : moduleExpr->members) {
+    //         // Directly add module members to the scope
+    //         scope->set(member->name, member->value);
+    //     }
+    // } else if (!importedAliases.empty()) {
+    //     for (const auto& [alias, original] : importedAliases) {
+    //         // Search for the member with the name matching 'original'
+    //         auto it = std::find_if(moduleExpr->members.begin(), moduleExpr->members.end(),
+    //             [&original](const std::shared_ptr<Omniscript::ModuleMemberExpression>& member) {
+    //                 return member->getName() == original;  // assuming you have a 'getName()' method
+    //             });
+    
+    //         if (it != moduleExpr->members.end()) {
+    //             scope->set(alias, (*it)->value);  // assuming you have a 'getValue()' method
+    //         } else {
+    //             console.error("Symbol not found in module: " + original);
+    //         }
+    //     }
+    // } else if (!alias.empty()) {
+    //     // Full module import with alias
+    //     scope->aliasModule(alias, moduleName);
+    //     scope->set(alias, moduleExpr);
+    // } else {
+    //     // Full module import without alias (optional — usually you'd assign it)
+    //     scope->set(moduleName, moduleExpr);
+    // }
+
+    return moduleBlock->express(scope);
 }
 
 // Helper function to split module path into components (e.g., Math.Algebra.Matrix -> {"Math", "Algebra", "Matrix"})
@@ -130,25 +174,6 @@ std::shared_ptr<Omniscript::Expression> ImportModule::generateModuleExpression(s
 
     // return expression; // Return the final expression representing the nested module
     return nullptr;
-}
-
-
-std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType scope) {
-    std::vector<std::shared_ptr<Omniscript::ModuleMemberExpression>> memberExpressions;
-
-    for (auto& stmt : statements) {
-        auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
-        if (!member) continue;
-    
-        std::shared_ptr<Omniscript::Expression> result = member->express(scope);
-        auto memberExpr = std::make_shared<Omniscript::ModuleMemberExpression>(
-            member->getName(), result, member->getModifiers()
-        );
-        memberExpressions.push_back(memberExpr);
-    }
-    
-    std::shared_ptr<Omniscript::Expression> moduleExpr = std::make_shared<Omniscript::ModuleExpression>(name, memberExpressions);
-    return moduleExpr;
 }
 
 std::shared_ptr<Omniscript::Expression> ModuleMember::express(SymbolTableType scope) {
