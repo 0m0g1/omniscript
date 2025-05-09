@@ -44,7 +44,6 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
         if (auto nestedModule = std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
             auto ref = std::make_shared<ReferenceTo>(member->getName());
-            ref->setType(scope->getType(member->getName() + "_type"));
             ref->setRootType(ref->getType());
             constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), ref));
         } else {
