@@ -23,8 +23,8 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
             // Create pointer-type parameter for the nested module
             auto paramStmt = std::make_shared<ParameterStatement>(member->getName());
-            // paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_type")));
-            paramStmt->setType(scope->getType(member->getName() + "_type"));
+            paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_type")));
+            // paramStmt->setType(scope->getType(member->getName() + "_type"));
             parameterStatements.push_back(paramStmt);
         } else {
             // Direct value member parameter

@@ -183,12 +183,14 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
 
     std::unordered_set<std::string> providedParams;
     size_t positionalArgIndex = 0;
+    size_t namedArgsCount = 0;
 
     DEBUG_LOG("[Call] Processing " + std::to_string(args.size()) + " arguments");
 
     // First pass: named arguments
     for (const auto& arg : args) {
         if (auto namedArg = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
+            namedArgsCount++;
             const std::string& paramName = namedArg->getName();
             DEBUG_LOG("[Call] Processing named argument '" + paramName + "'");
 
@@ -263,7 +265,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     }
 
     // Check for extra args (varargs or error)
-    if (positionalArgIndex < args.size()) {
+    if (positionalArgIndex + namedArgsCount < args.size()) {
         if (auto func = std::dynamic_pointer_cast<Omniscript::Callable>(called)) {
             if (!func->isVarArg) {
                 DEBUG_LOG("[Call] ERROR: Too many arguments provided");
