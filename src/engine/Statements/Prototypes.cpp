@@ -505,7 +505,6 @@ void FunctionDeclaration::setReturnTypesInStatement(
     // }
 }
 
-
 std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
     DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + (type ? type->kindName() : "undefined"));
 
@@ -570,8 +569,8 @@ std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
     // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
     //     stmt->setType(type);
     // }
-    // return defaultValue;
-    return nullptr;
+    return defaultValue;
+    // return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> ClassMember::express(SymbolTableType scope) {

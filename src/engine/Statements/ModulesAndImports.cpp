@@ -8,55 +8,64 @@
 #include <omniscript/utils.h>
 
 std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType scope) {
-    std::vector<std::shared_ptr<Statement>> moduleStatements;
+    std::vector<std::shared_ptr<Omniscript::Expression>> expressions;
     std::vector<std::shared_ptr<Statement>> parameterStatements;
+    std::vector<std::shared_ptr<Statement>> constructorArgs;
 
-    // First, evaluate nested modules
-    for (auto& stmt : statements) {
+    // 1. Handle nested modules and prepare parameters
+    for (const auto& stmt : statements) {
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
 
         if (auto nestedModule = std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
-            // Nested module should register its type and instance in the scope
-            moduleStatements.push_back(nestedModule);
+            // Add nested module statement first
+            expressions.push_back(nestedModule->express(scope));
 
-            // Now we can reference the nested module by name
-            auto getModuleRef = std::make_shared<ReferenceTo>(member->getName());
-            auto parameterStmt = std::make_shared<ParameterStatement>(member->getName(), getModuleRef);
-            parameterStatements.push_back(parameterStmt);
+            // Create pointer-type parameter for the nested module
+            auto paramStmt = std::make_shared<ParameterStatement>(member->getName());
+            // paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_type")));
+            paramStmt->setType(scope->getType(member->getName() + "_type"));
+            parameterStatements.push_back(paramStmt);
         } else {
-            auto parameterStmt = std::make_shared<ParameterStatement>(member->getName(), member->getValue());
-            parameterStatements.push_back(parameterStmt);
+            // Direct value member parameter
+            auto paramStmt = std::make_shared<ParameterStatement>(member->getName(), member->getValue());
+            parameterStatements.push_back(paramStmt);
         }
     }
 
-    // Create struct type for this module
+    // 2. Create the struct type for the module
     auto structStmt = std::make_shared<ConstructStructPrototype>(getName() + "_type", parameterStatements);
+    expressions.push_back(structStmt->express(scope));
 
-    // Create module instance
-    auto createModuleInstance = std::make_shared<ObjectConstructorStatement>(
-        getName() + "_type",  // Type name
-        getName(),            // Variable name
-        std::vector<std::shared_ptr<Statement>>{}                    // Constructor args
+    // 3. Build arguments for constructor
+    for (const auto& stmt : statements) {
+        auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
+        if (!member) continue;
+
+        if (auto nestedModule = std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
+            auto ref = std::make_shared<ReferenceTo>(member->getName());
+            ref->setType(scope->getType(member->getName() + "_type"));
+            ref->setRootType(ref->getType());
+            constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), ref));
+        } else {
+            constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), member->getValue()));
+        }
+    }
+
+    // 4. Create and evaluate the module instance
+    auto instanceStmt = std::make_shared<ObjectConstructorStatement>(
+        getName() + "_type",
+        getName(),
+        constructorArgs
     );
+    expressions.push_back(instanceStmt->express(scope));
 
-    // Add struct and constructor
-    moduleStatements.push_back(structStmt);
-    moduleStatements.push_back(createModuleInstance);
-
-    // Block for all operations
-    auto moduleBlock = std::make_shared<BlockStatement>(moduleStatements);
-
-    // Evaluate block
-    auto result = moduleBlock->express(scope);
-
-    // Record the module's type
+    // 5. Record the type of this module
     setType(scope->getType(getName() + "_type"));
 
-    // Wrap as BlockExpression so we return final result
-    return std::make_shared<Omniscript::BlockExpression>(std::vector{result});
+    // 6. Return final BlockExpression wrapping all sub-expressions
+    return std::make_shared<Omniscript::BlockExpression>(expressions);
 }
-
 
 std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType scope) { 
     if (path.empty()) {
