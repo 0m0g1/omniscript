@@ -42,10 +42,6 @@ std::shared_ptr<Omniscript::Expression> GetDynamicVariable::express(SymbolTableT
     return nullptr;
 }
 
-void Assignment::setGlobalVisibilityTo(bool state) {
-    isGlobal = state;
-}
-
 std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType scope) {
     DEBUG_LOG("Assigning variable " + variable);
 
@@ -74,7 +70,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
         
         if (!type->isPointer() && !type->isReference()) {
             if (!value) {
-                result = std::make_shared<Omniscript::NullPointerExpression>(type);
+                result = std::make_shared<Omniscript::NullExpression>(type);
             } else if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
                 if (!typed->getType()) {
                     typed->setType(type);
@@ -224,13 +220,6 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     scope->setVariable(variable, result);
 
     return Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result, isGlobal, true);
-}    
-
-
-// Constant Assignment
-std::shared_ptr<Omniscript::Expression> createConstant::express(SymbolTableType scope) {
-    // return generator.createConstant(variable, type, value->express(scope));
-    return nullptr;
 }
 
 // Dynamic Assignment

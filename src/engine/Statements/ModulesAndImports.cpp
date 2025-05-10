@@ -8,6 +8,8 @@
 #include <omniscript/utils.h>
 
 std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType scope) {
+    DEBUG_LOG();
+
     std::vector<std::shared_ptr<Omniscript::Expression>> expressions;
     std::vector<std::shared_ptr<Statement>> parameterStatements;
     std::vector<std::shared_ptr<Statement>> constructorArgs;
@@ -16,19 +18,23 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     for (const auto& stmt : statements) {
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
+        
+        DEBUG_LOG("Passing '" + member->toString() + "' as a parameter to create module type '" + getName() + "_type'."); 
 
         if (auto nestedModule = std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
-            // Add nested module statement first
-            expressions.push_back(nestedModule->express(scope));
+        //     // Add nested module statement first
+        //     expressions.push_back(nestedModule->express(scope));
 
-            // Create pointer-type parameter for the nested module
-            auto paramStmt = std::make_shared<ParameterStatement>(member->getName());
-            paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_type")));
-            // paramStmt->setType(scope->getType(member->getName() + "_type"));
-            parameterStatements.push_back(paramStmt);
+        //     // Create pointer-type parameter for the nested module
+        //     auto paramStmt = std::make_shared<ParameterStatement>(member->getName());
+        //     paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_type")));
+        //     // paramStmt->setType(scope->getType(member->getName() + "_type"));
+        //     parameterStatements.push_back(paramStmt);
         } else {
-            // Direct value member parameter
-            auto paramStmt = std::make_shared<ParameterStatement>(member->getName(), member->getValue());
+        //     // Direct value member parameter
+            // auto paramStmt = std::make_shared<ParameterStatement>(member->getName(), member->getValue());
+            auto paramStmt = reinterprateStatement(member->getValue());
+
             parameterStatements.push_back(paramStmt);
         }
     }
@@ -39,16 +45,19 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
     // 3. Build arguments for constructor
     for (const auto& stmt : statements) {
-        auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
-        if (!member) continue;
+        // auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
+        // if (!member) continue;
 
-        if (auto nestedModule = std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
-            auto ref = std::make_shared<ReferenceTo>(member->getName());
-            ref->setRootType(ref->getType());
-            constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), ref));
-        } else {
-            constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), member->getValue()));
-        }
+        // DEBUG_LOG("Passing '" + member->toString() + "' as an argument to create an instance module type '" + getName() + "_type'.");
+        
+        // if (auto nestedModule = std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
+        // //     auto ref = std::make_shared<ReferenceTo>(member->getName());
+        // //     ref->setRootType(ref->getType());
+        // //     constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), ref));
+        // } else {
+        // //     auto stmt = std::dynamic_pointer_cast<ParameterStatement>(reinterprateStatement(member->getValue()));
+        // //     constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), stmt->getDefaultValue()));
+        // }
     }
 
     // 4. Create and evaluate the module instance
@@ -64,6 +73,15 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
     // 6. Return final BlockExpression wrapping all sub-expressions
     return std::make_shared<Omniscript::BlockExpression>(expressions);
+}
+
+std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<Statement> statement) {
+    DEBUG_LOG("Reinterprating statement '" + statement->toString() + "'.");
+    if (auto assignment = std::dynamic_pointer_cast<Assignment>(statement)) {
+        auto memberStatement = std::make_shared<ParameterStatement>(assignment->getName(), assignment->getValue());
+        return memberStatement;
+    }
+    return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType scope) { 

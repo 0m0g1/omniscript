@@ -324,6 +324,7 @@ public:
     std::vector<std::shared_ptr<Statement>> getStatements() { return statements; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Statement> reinterprateStatement(std::shared_ptr<Statement> statement);
     std::string toString() const override { return "Create module '" + name + "'."; }
 };
 
@@ -584,51 +585,45 @@ public:
 // Assignments
 class Assignment : public virtual NamedStatement, public virtual TypedStatement {
 public:
-    void setGlobalVisibilityTo(bool state);
     bool isStatic = false;
+    bool isConstant = false;
     bool isGlobal = true;
+    std::shared_ptr<Statement> value;
+
+    void setGlobalVisibilityTo(bool state) {
+        isGlobal = state;
+    }
+    void markAsConstant(bool state = true)  {
+        isConstant = state;
+    }
+    std::shared_ptr<Statement> getValue() { return value; }
     virtual std::string toString() const override { return "Assignment"; }
 };
 
 class AssignVariable : public Assignment {
 public:
-    AssignVariable(const std::string &variable, std::shared_ptr<Omniscript::Type> type, std::shared_ptr<Statement> value, bool isReassign = false)
-    : variable(variable), type(std::move(type)), value(std::move(value)), isReassign(isReassign) {}
+    AssignVariable(const std::string &var, std::shared_ptr<Omniscript::Type> ty, std::shared_ptr<Statement> val, bool isReassign = false)
+    : variable(var), type(std::move(ty)), isReassign(isReassign) {
+        this->value = std::move(val);
+    }
 
-    std::string getName() const override {return variable;}
+    std::string getName() const override { return variable; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "AssignVariableStatement"; }
-    std::shared_ptr<Statement> clone() const override {
-        return std::make_shared<AssignVariable>(variable, type, value->clone());  // Clone the value as well
+    std::string toString() const override {
+        return (isConstant ? "AssignConstant" : "AssignVariableStatement") + std::string(": ") + (value ? value->toString() : "null");
     }
-    std::shared_ptr<Statement> getValue() { return value; }
+    std::shared_ptr<Statement> clone() const override {
+        return std::make_shared<AssignVariable>(variable, type, value->clone(), isReassign);
+    }
 
 private:
     std::string variable;
     std::shared_ptr<Omniscript::Type> type;
-    std::shared_ptr<Statement> value;
     bool isReassign;
 };
 
-class createConstant : public Assignment {
-public:
-    createConstant(const std::string &variable, std::shared_ptr<Omniscript::Type> type, std::shared_ptr<Statement> value)
-    : variable(variable), type(type), value(value) {}
-    std::string getName() const override {return variable;}
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "ConstantStatement"; }
 
-    std::shared_ptr<Statement> clone() const override {
-        return std::make_shared<createConstant>(variable, type, value->clone());  // Clone the value as well
-    }
-
-private:
-    std::string variable;
-    std::shared_ptr<Omniscript::Type> type;
-    std::shared_ptr<Statement> value;
-};
 
 class createDynamicVariable : public Assignment {
 public:

@@ -64,7 +64,9 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
     }
 
     if (variableType == TokenTypes::Const) {
-        return std::make_shared<createConstant>(variableName, type, lambda);
+        auto constant = std::make_shared<AssignVariable>(variableName, type, lambda);
+        constant->markAsConstant();
+        return constant;
     }
 
     return std::make_shared<AssignVariable>(variableName, type, lambda);
@@ -124,7 +126,9 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
             if (variableType == TokenTypes::Let) {
                 return std::make_shared<AssignVariable>(variableName, nullptr, result);
             }
-            return std::make_shared<createConstant>(variableName, nullptr, result);
+            auto constant = std::make_shared<AssignVariable>(variableName, nullptr, result);
+            constant->markAsConstant();
+            return constant;
         }    
     
         type = Omniscript::resolveType(dataTypes);
@@ -184,7 +188,9 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
 
     if (!assignee) {
         if (variableType == TokenTypes::Const) {
-            return std::make_shared<createConstant>(variableName, type, value);
+            auto constant = std::make_shared<AssignVariable>(variableName, type, value);
+            constant->markAsConstant();
+            return constant;
         }
         return std::make_shared<AssignVariable>(variableName, type, value);
     }

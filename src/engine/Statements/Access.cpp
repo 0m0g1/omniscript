@@ -51,7 +51,19 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
         return nullptr;
     }
 
-    setType(currentType);
+    std::shared_ptr<Omniscript::Type> typeToCastFrom = nullptr;
+
+    if (type) {
+        if (Omniscript::isSameOrCastableTo(currentType, type)) {
+            typeToCastFrom = currentType;
+            currentType = type;
+        } else {
+            console.error("Cannot cast member '" + member + "' of object '" + objectName + "' to type '" + type->toString() + "'.");
+            return nullptr;
+        }
+    } else {
+        setType(currentType);
+    }
 
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(assignmentValue)) {
         if (!typed->getType()) {
@@ -140,13 +152,18 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     } else {
         DEBUG_LOG("Getting '" + this->toString() + "'.");
         // ✅ Use consistent constructor (getter form)
-        return std::make_shared<Omniscript::MemberAccessExpression>(
+        auto memberAcc = std::make_shared<Omniscript::MemberAccessExpression>(
             baseTypeName,
             objectName,
             obj,
             member,
             currentType
         );
+
+        // if (typeToCastFrom) {
+        //     auto stmt = std::make_shared<Cast
+        // }
+        return memberAcc;
     }
 }
 
