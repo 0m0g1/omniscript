@@ -217,9 +217,15 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
         }
     }
 
-    scope->setVariable(variable, result);
+    if (isConstant) {
+        scope->setConstant(variable, result);
+    } else {
+        scope->setVariable(variable, result);
+    }
 
-    return Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result, isGlobal, true);
+    auto assignment = Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result, isGlobal, true);
+    assignment->isConstant = isConstant;
+    return assignment;
 }
 
 // Dynamic Assignment

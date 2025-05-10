@@ -182,7 +182,8 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
             varAssign->variableName,
             type,
             value, 
-            varAssign->isGlobal
+            varAssign->isGlobal,
+            varAssign->isConstant
         );
     }
 
@@ -1185,216 +1186,101 @@ void IRGenerator::finalizeGlobalInitializers() {
     globalInitializers.clear();
 }
 
-llvm::Value* IRGenerator::assignVariable( 
-    const std::string& name, 
-    llvm::Type* type, 
-    llvm::Value* initialValue, 
-    bool isGlobal, 
+llvm::Value* IRGenerator::assignVariable(
+    const std::string& name,
+    llvm::Type* type,
+    llvm::Value* initialValue,
+    bool isGlobal,
+    bool isConstant,
     llvm::BasicBlock* activeBlock,
     llvm::GlobalValue::LinkageTypes linkage
 ) {
     llvm::Module* activeModule = CurrentModule;
-
-    DEBUG_LOG("Creating variable: " + name + (isGlobal ? " (global)" : " (local)"));
+    DEBUG_LOG("Creating variable: " + name + (isGlobal ? " (global)" : " (local)") + (isConstant ? " [const]" : ""));
 
     if (scope->exists(name)) {
         llvm::Value* existingVar = activeScope->get(name);
         DEBUG_LOG("Variable '" + name + "' already exists. Reassigning value...");
 
-        if (initialValue) {
-            llvm::Value* ptr = existingVar;
-
-            // Assume valueType is known from the frontend
-            llvm::Type* valueType = type; // already determined earlier
-
-            // Optional: Bitcast if types differ
+        if (initialValue && !isConstant) {
+            llvm::Type* valueType = type;
             if (initialValue->getType() != valueType) {
                 initialValue = Builder->CreateBitCast(initialValue, valueType, "bitcast");
             }
 
-            llvm::StoreInst* store = Builder->CreateStore(initialValue, ptr);
-            store->setAlignment(llvm::Align(4)); // adjust as needed
-            DEBUG_LOG("Reassigned variable '" + name + "' with new value.");
+            llvm::StoreInst* store = Builder->CreateStore(initialValue, existingVar);
+            store->setAlignment(llvm::Align(4)); // Adjust based on type if needed
         }
         return existingVar;
     }
 
+    // --- Global variable ---
     if (isGlobal) {
-        llvm::Constant* constInit = nullptr;
-        if (initialValue) {
-            constInit = llvm::dyn_cast<llvm::Constant>(initialValue);
-        }
-    
+        llvm::Constant* constInit = llvm::dyn_cast<llvm::Constant>(initialValue);
         llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
             *activeModule,
             type,
-            /* isConstant = */ false,
-            llvm::GlobalValue::ExternalLinkage,
+            isConstant,
+            linkage,
             constInit ? constInit : llvm::Constant::getNullValue(type),
             name
         );
-    
-        DEBUG_LOG("Global variable '" + name + "' created with type: " + debugType(type));
+
         activeScope->set(name, gVar);
-    
-        // If initial value is not constant, emit a runtime store
-        if (initialValue && !constInit) {
+        DEBUG_LOG("Global variable '" + name + "' created with type: " + debugType(type));
+
+        // If not constant and initializer isn't a constant, emit store in init func
+        if (initialValue && !constInit && !isConstant) {
             console.warn("Global variable '" + name + "' initialized with non-constant value; adding runtime store.");
-    
-            // Get or create the global init function
+
             llvm::Function* initFunc = getOrCreateGlobalInitFunction();
-    
-            // Use the iterator to get the last position in the entry block
-            llvm::BasicBlock& entryBlock = initFunc->getEntryBlock();
-            llvm::IRBuilder<> tempBuilder(&entryBlock, entryBlock.end());
-    
-            // Create the store instruction just before the terminator
+            llvm::IRBuilder<> tempBuilder(&initFunc->getEntryBlock(), initFunc->getEntryBlock().end());
             tempBuilder.CreateStore(initialValue, gVar);
         }
-    
+
         return gVar;
     }
-    
-    // Local variable case
-    llvm::Function* function = nullptr;
-    llvm::IRBuilder<> tempBuilder(Builder->getContext());
 
-    if (activeBlock) {
-        function = activeBlock->getParent();
-        tempBuilder.SetInsertPoint(activeBlock, activeBlock->begin());
-    } else {
-        function = Builder->GetInsertBlock()->getParent();
-        tempBuilder.SetInsertPoint(&function->getEntryBlock(), function->getEntryBlock().begin());
-    }
+    // --- Local variable ---
+    llvm::Function* function = (activeBlock ? activeBlock->getParent() : Builder->GetInsertBlock()->getParent());
+    llvm::IRBuilder<> tempBuilder(Builder->getContext());
+    tempBuilder.SetInsertPoint(activeBlock ? activeBlock : &function->getEntryBlock(), (activeBlock ? activeBlock->begin() : function->getEntryBlock().begin()));
 
     llvm::AllocaInst* alloca = tempBuilder.CreateAlloca(type, nullptr, name);
-    DEBUG_LOG("Local variable '" + name + "' allocated in function: " + function->getName().str());
 
-    llvm::BasicBlock* entryBlock = &function->getEntryBlock();
-    llvm::Instruction* retInst = nullptr;
-    for (llvm::Instruction& I : *entryBlock) {
-        if (llvm::isa<llvm::ReturnInst>(&I)) {
-            retInst = &I;
-            break;
-        }
-    }
-    
-    if (type->isArrayTy()) {
-        DEBUG_LOG("Here");
-        llvm::ArrayType* arrayType = llvm::dyn_cast<llvm::ArrayType>(type);
-        DEBUG_LOG("Here 1");
-        llvm::Type* elementType = arrayType->getElementType();
-        DEBUG_LOG("Here 2");
-        
-        const llvm::DataLayout& dataLayout = activeModule->getDataLayout();
-        DEBUG_LOG("Here 3");
-        DEBUG_LOG("Element type of array: " + debugType(elementType));
-
-        if (activeModule->getDataLayout().isDefault()) {
-            DEBUG_LOG("Warning: DataLayout not initialized in activeModule!");
-        }
-        
-        llvm::MaybeAlign maybeAlign = dataLayout.getABITypeAlign(elementType);
-        unsigned elementAlign = 0;
-
-        if (!maybeAlign) {
-            DEBUG_LOG("Failed to get ABI alignment for element type of array '" + name + "'");
-            elementAlign = 1; // Fallback
-        } else {
-            elementAlign = maybeAlign->value();
-        }
-        DEBUG_LOG("Here 4");
-
-        alloca->setAlignment(llvm::Align(elementAlign));
-        DEBUG_LOG("Set alignment for array '" + name + "' to " + std::to_string(elementAlign));
-
-        if (initialValue) {
-            if (auto* constArray = llvm::dyn_cast<llvm::ConstantArray>(initialValue)) {
-                for (unsigned i = 0; i < arrayType->getNumElements(); ++i) {
-                    llvm::Value* index = llvm::ConstantInt::get(
-                        llvm::Type::getInt32Ty(activeModule->getContext()), i);
-                    llvm::Value* elementPtr = Builder->CreateGEP(
-                        arrayType, alloca, {Builder->getInt32(0), index});
-                    llvm::StoreInst* store = Builder->CreateStore(
-                        constArray->getAggregateElement(i), elementPtr);
-                    store->setAlignment(llvm::Align(elementAlign));
-                    if (retInst) store->moveBefore(*retInst->getParent(), retInst->getIterator());
-                    DEBUG_LOG("Initialized array element " + std::to_string(i) + " of '" + name + "'");
-                }
-            }
-        }
-    } else if (type->isIntegerTy()) {
-        unsigned bitWidth = type->getIntegerBitWidth();
-        unsigned align = 1;
-
-        if (bitWidth >= 1024) align = 128;
-        else if (bitWidth >= 512) align = 64;
-        else if (bitWidth >= 256) align = 32;
-        else if (bitWidth >= 128) align = 16;
-        else if (bitWidth >= 64) align = 8;
-        else if (bitWidth >= 32) align = 4;
-        else if (bitWidth >= 16) align = 2;
-
-        alloca->setAlignment(llvm::Align(align));
-        DEBUG_LOG("Integer '" + name + "' alignment set to " + std::to_string(align));
-
-        if (initialValue) {
-            llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
-            store->setAlignment(llvm::Align(align));
-            if (retInst) store->moveBefore(*retInst->getParent(), retInst->getIterator());
-            DEBUG_LOG("Stored initial value for integer '" + name + "'");
-        }
+    // Apply alignment (based on type as before)
+    unsigned align = 4;
+    if (type->isIntegerTy()) {
+        unsigned bits = type->getIntegerBitWidth();
+        align = (bits >= 64) ? 8 : (bits >= 32) ? 4 : 2;
     } else if (type->isFloatingPointTy()) {
-        unsigned align = 1;
-        if (type->isHalfTy()) align = 2;
-        else if (type->isFloatTy()) align = 4;
-        else if (type->isDoubleTy()) align = 8;
-        else if (type->isFP128Ty() || type->isX86_FP80Ty() || type->isPPC_FP128Ty()) align = 16;
+        align = type->isDoubleTy() ? 8 : 4;
+    }
+    alloca->setAlignment(llvm::Align(align));
 
-        alloca->setAlignment(llvm::Align(align));
-        DEBUG_LOG("Floating-point '" + name + "' alignment set to " + std::to_string(align));
+    // Store initializer if present
+    if (initialValue) {
+        llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
+        store->setAlignment(llvm::Align(align));
 
-        if (initialValue) {
-            llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
-            store->setAlignment(llvm::Align(align));
-            if (retInst) store->moveBefore(*retInst->getParent(), retInst->getIterator());
-            DEBUG_LOG("Stored initial value for floating-point '" + name + "'");
-        }
-    } else if (type->isPointerTy()) {
-        if (initialValue) {
-            llvm::Type* initType = initialValue->getType();
-            if (!initType->isPointerTy()) {
-                llvm::errs() << "Error: Attempting to store a non-pointer value into a pointer variable.\n";
-            } else {
-                llvm::PointerType* targetPtrType = llvm::cast<llvm::PointerType>(type);
-                llvm::PointerType* sourcePtrType = llvm::cast<llvm::PointerType>(initType);
-
-                llvm::Value* castedValue = initialValue;
-                std::string castType;
-
-                if (sourcePtrType->getAddressSpace() != targetPtrType->getAddressSpace()) {
-                    castedValue = Builder->CreateAddrSpaceCast(initialValue, targetPtrType, "addrspace.cast");
-                    castType = "addrspacecast";
-                } else if (initType != type) {
-                    castedValue = Builder->CreateBitCast(initialValue, type, "bit.cast");
-                    castType = "bitcast";
-                }
-
-                if (retInst) {
-                    if (auto* castInst = llvm::dyn_cast<llvm::Instruction>(castedValue)) {
-                        castInst->moveBefore(*retInst->getParent(), retInst->getIterator());
-                    }
-                }
-
-                llvm::StoreInst* store = Builder->CreateStore(castedValue, alloca);
-                if (retInst) store->moveBefore(*retInst->getParent(), retInst->getIterator());
-                DEBUG_LOG("Pointer '" + name + "' initialized with " + castType);
+        // Move before return if one exists
+        llvm::BasicBlock* entryBlock = &function->getEntryBlock();
+        for (llvm::Instruction& I : *entryBlock) {
+            if (llvm::isa<llvm::ReturnInst>(&I)) {
+                store->moveBefore(I.getIterator());
+                break;
             }
         }
     }
 
-    activeScope->set(name, alloca);
-    DEBUG_LOG("Variable '" + name + "' registered in active scope");
+    // Register in scope
+    if (isConstant) {
+        activeScope->setConstant(name, alloca);
+    } else {
+        activeScope->set(name, alloca);
+    }
+
+    DEBUG_LOG("Local variable '" + name + "' allocated and initialized" + (isConstant ? " (const)" : ""));
     return alloca;
 }
 
@@ -2402,7 +2288,7 @@ llvm::Value* IRGenerator::createEnum(
     bool isGlobal
 ) {
     for (size_t i = 0; i < names.size(); ++i) {
-        assignVariable(enumName + "." + names[i], values[i]->getType(), values[i], isGlobal, nullptr);
+        assignVariable(enumName + "." + names[i], values[i]->getType(), values[i], isGlobal, true);
     }
     return nullptr;
 }
@@ -2420,7 +2306,7 @@ llvm::Value* IRGenerator::createEnumWithLookup(
 
     for (size_t i = 0; i < values.size(); ++i) {
         // Declare each enum value as a global/local variable
-        assignVariable(enumName + "." + names[i], valueType, values[i], isGlobal, nullptr);
+        assignVariable(enumName + "." + names[i], valueType, values[i], isGlobal, true);
 
         // Handle the constant value for the value array
         if (auto* constantVal = llvm::dyn_cast<llvm::Constant>(values[i])) {
@@ -2438,13 +2324,13 @@ llvm::Value* IRGenerator::createEnumWithLookup(
     // Create value lookup array
     llvm::ArrayType* valueArrayType = llvm::ArrayType::get(valueType, constValues.size());
     llvm::Constant* valueArray = llvm::ConstantArray::get(valueArrayType, constValues);
-    assignVariable(enumName + "_lookup", valueArrayType, valueArray, isGlobal, nullptr);
+    assignVariable(enumName + "_lookup", valueArrayType, valueArray, isGlobal, true);
 
     // Create name (string) lookup array
     llvm::Type* stringPtrType = nameConstants[0]->getType(); // i8*
     llvm::ArrayType* nameArrayType = llvm::ArrayType::get(stringPtrType, nameConstants.size());
     llvm::Constant* nameArray = llvm::ConstantArray::get(nameArrayType, nameConstants);
-    assignVariable(enumName + "_name_lookup", nameArrayType, nameArray, isGlobal, nullptr);
+    assignVariable(enumName + "_name_lookup", nameArrayType, nameArray, isGlobal, true);
 
     return valueArray; // or nullptr if you don't need to return a value
 }
@@ -2473,7 +2359,7 @@ llvm::Value* IRGenerator::createEnumClass(
     llvm::StructType* structType = llvm::StructType::create(ctx, fieldTypes, className);
     llvm::Constant* structConst = llvm::ConstantStruct::get(structType, fieldValues);
 
-    return assignVariable(className, structType, structConst, isGlobal, nullptr);
+    return assignVariable(className, structType, structConst, isGlobal, true);
 }
 
 llvm::Value* IRGenerator::createEnumClassWithLookup(
@@ -2508,18 +2394,18 @@ llvm::Value* IRGenerator::createEnumClassWithLookup(
     // Step 2: Create the struct for the enum class
     llvm::StructType* structType = llvm::StructType::create(ctx, fieldTypes, className);
     llvm::Constant* structConst = llvm::ConstantStruct::get(structType, fieldValues);
-    llvm::Value* enumClass = assignVariable(className, structType, structConst, isGlobal, nullptr);
+    llvm::Value* enumClass = assignVariable(className, structType, structConst, isGlobal, true);
 
     // Step 3: Create value lookup array (flat version of struct)
     llvm::ArrayType* lookupArrayType = llvm::ArrayType::get(valueType, fieldValues.size());
     llvm::Constant* lookupArray = llvm::ConstantArray::get(lookupArrayType, fieldValues);
-    assignVariable(className + "_lookup", lookupArrayType, lookupArray, isGlobal, nullptr);
+    assignVariable(className + "_lookup", lookupArrayType, lookupArray, isGlobal, true);
 
     // Step 4: Create name lookup array
     llvm::Type* stringPtrType = nameConstants[0]->getType(); // i8*
     llvm::ArrayType* nameArrayType = llvm::ArrayType::get(stringPtrType, nameConstants.size());
     llvm::Constant* nameArray = llvm::ConstantArray::get(nameArrayType, nameConstants);
-    assignVariable(className + "_name_lookup", nameArrayType, nameArray, isGlobal, nullptr);
+    assignVariable(className + "_name_lookup", nameArrayType, nameArray, isGlobal, true);
 
     return enumClass;
 }

@@ -184,6 +184,7 @@ public:
         llvm::Type* type = nullptr, 
         llvm::Value* initialValue = nullptr, 
         bool isGlobal = true, 
+        bool isConstant = false, 
         llvm::BasicBlock* activeBlock = nullptr,
         llvm::GlobalValue::LinkageTypes linkage = llvm::GlobalValue::InternalLinkage
     );

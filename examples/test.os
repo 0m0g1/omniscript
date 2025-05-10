@@ -1,6 +1,6 @@
 import { Math } from std;
 
-let pi: f32 = std.n;
+const pi: f32 = 3.14;
 
 
 

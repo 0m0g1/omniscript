@@ -1270,6 +1270,7 @@ public:
 };
 
 struct VariableAssignment : public Expression {
+    bool isConstant;
     bool isGlobal;
     bool isReassignment;
     std::string variableName;
