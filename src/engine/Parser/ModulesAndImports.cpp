@@ -134,8 +134,16 @@ std::shared_ptr<Statement> Parser::parseModule() {
             Parser parser(lexer);
             std::vector<std::shared_ptr<Statement>> moduleStatements = parser.Parse();
 
-            auto moduleStmt = std::make_shared<CreateModule>(moduleAlias, moduleStatements);
-            auto wrapped = std::make_shared<ModuleMember>(moduleAlias, moduleStmt, modifiers);
+            auto importStmt = std::make_shared<ImportModule>(
+                /* moduleName */ moduleAlias,
+                /* alias */ moduleAlias,
+                /* importedAliases */ std::unordered_map<std::string, std::string>{},  // you can extend this for `import { x as y } from ...` later
+                /* path */ modulePath,
+                /* importAll */ true       // simple wildcard import for now
+            );
+
+            auto wrapped = std::make_shared<ModuleMember>(moduleAlias, importStmt, modifiers);
+
 
             members.push_back(wrapped);
             continue;
