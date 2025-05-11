@@ -11,7 +11,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     DEBUG_LOG();
     DEBUG_LOG("Creating module '" + modulePath + "'.");
 
-    std::vector<std::shared_ptr<Omniscript::Expression>> expressions;
+qo    std::vector<std::shared_ptr<Omniscript::Expression>> expressions;
     std::vector<std::shared_ptr<Statement>> parameterStatements;
     std::vector<std::shared_ptr<Statement>> constructorArgs;
 
@@ -34,6 +34,9 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
             auto paramStmt = std::make_shared<ParameterStatement>(member->getName());
             paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_type")));
             parameterStatements.push_back(paramStmt);
+        } else if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
+            auto result = func->express(scope);
+            expressions.push_back(result);
         } else {
             // Direct value member parameter
             auto paramStmt = reinterprateStatement(member->getValue());
@@ -56,6 +59,8 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
             auto ref = std::make_shared<ReferenceTo>(member->getName());
             ref->setRootType(ref->getType());
             constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), ref));
+        } else if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
+            continue;
         } else {
         // //     auto stmt = std::dynamic_pointer_cast<ParameterStatement>(reinterprateStatement(member->getValue()));
         // //     constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), stmt->getDefaultValue()));
@@ -82,7 +87,10 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(statement)) {
         auto memberStatement = std::make_shared<ParameterStatement>(assignment->getName(), assignment->getValue());
         return memberStatement;
+    } else if (auto function = std::dynamic_pointer_cast<FunctionDeclaration>(statement)) {
+        return function;
     }
+
     return nullptr;
 }
 
