@@ -225,6 +225,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     }
 
     auto assignment = Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result, isGlobal, true);
+    assignment->isGlobal = isGlobal;
     assignment->isConstant = isConstant;
     return assignment;
 }

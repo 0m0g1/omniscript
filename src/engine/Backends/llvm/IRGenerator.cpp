@@ -1198,7 +1198,7 @@ llvm::Value* IRGenerator::assignVariable(
     llvm::Module* activeModule = CurrentModule;
     DEBUG_LOG("Creating variable: " + name + (isGlobal ? " (global)" : " (local)") + (isConstant ? " [const]" : ""));
 
-    if (scope->exists(name)) {
+    if (activeScope->exists(name)) {
         llvm::Value* existingVar = activeScope->get(name);
         DEBUG_LOG("Variable '" + name + "' already exists. Reassigning value...");
 
@@ -2558,6 +2558,7 @@ llvm::Value* IRGenerator::createForLoop(
     llvm::LLVMContext& context = Builder->getContext();
 
     // Create a local scope for loop
+    pushScope();
     auto localScope = scope->createChildScope("forloop");
 
     // Emit initializer if present
@@ -2629,6 +2630,7 @@ llvm::Value* IRGenerator::createForLoop(
 
     // Final block
     Builder->SetInsertPoint(afterBlock);
+    popScope();
 
     return nullptr;
 }

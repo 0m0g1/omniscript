@@ -11,7 +11,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     DEBUG_LOG();
     DEBUG_LOG("Creating module '" + modulePath + "'.");
 
-qo    std::vector<std::shared_ptr<Omniscript::Expression>> expressions;
+    std::vector<std::shared_ptr<Omniscript::Expression>> expressions;
     std::vector<std::shared_ptr<Statement>> parameterStatements;
     std::vector<std::shared_ptr<Statement>> constructorArgs;
 
