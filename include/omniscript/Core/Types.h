@@ -464,6 +464,7 @@ public:
         return currentPointee;
     }
 
+    std::string description() const override { return pointerDescription(); }
     std::string pointerDescription() const override {
         std::vector<std::string> parts;
         std::shared_ptr<Type> current = pointee;  // start from the first pointee
@@ -475,7 +476,7 @@ public:
         }
     
         // Add the base type at the end
-        parts.push_back(current->kindName());
+        parts.push_back(current->description());
     
         // Reverse to get natural order (base type first)
         std::reverse(parts.begin(), parts.end());
@@ -573,7 +574,7 @@ public:
             current = std::dynamic_pointer_cast<ReferenceType>(current)->getReferencedType();
         }
 
-        parts.push_back(current->kindName());
+        parts.push_back(current->description());
         std::reverse(parts.begin(), parts.end());
 
         std::string desc;

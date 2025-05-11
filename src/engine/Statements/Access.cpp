@@ -20,7 +20,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
 
     std::string baseTypeName = (scope->get(objectName)->getType()->isPointer()) ? 
                                 scope->get(objectName)->getType()->getBasePointeeType()->getName() :
-                                scope->get(objectName)->getType()->kindName();
+                                scope->get(objectName)->getType()->description();
     std::shared_ptr<Omniscript::Type> baseType = scope->getType(baseTypeName);
 
     if (!baseType) {
@@ -32,7 +32,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType);
 
     if (!userType) {
-        console.error("Type '" + currentType->kindName() + "' is not a struct or does not have members.");
+        console.error("Type '" + currentType->description() + "' is not a struct or does not have members.");
         return nullptr;
     }
 
@@ -47,7 +47,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     }
 
     if (!found) {
-        console.error("Member '" + member + "' not found in type '" + userType->kindName() + "'.");
+        console.error("Member '" + member + "' not found in type '" + userType->description() + "'.");
         return nullptr;
     }
 
@@ -83,7 +83,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             auto subInstance = parentInstance->getField(member);
 
             if (!subInstance) {
-                console.error("Member '" + member + "' not found on instance of '" + parentInstance->getType()->kindName() + "'.");
+                console.error("Member '" + member + "' not found on instance of '" + parentInstance->getType()->description() + "'.");
                 return nullptr;
             }
 
@@ -114,7 +114,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                     }
 
                     if (!found) {
-                        console.error("Member '" + member + "' not found in type '" + userDefined->kindName() + "'.");
+                        console.error("Member '" + member + "' not found in type '" + userDefined->description() + "'.");
                         foundAll = false;
                         break;
                     }

@@ -173,7 +173,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
 
     // Handle VariableAssignment
     if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(value)) {
-        DEBUG_LOG("Assigning variable " + varAssign->variableName + " of type " + varAssign->getType()->kindName());
+        DEBUG_LOG("Assigning variable " + varAssign->variableName + " of type " + varAssign->getType()->description());
         llvm::Type* type = resolveLLVMType(varAssign->getType());
         DEBUG_LOG("Variable '" + varAssign->variableName + "' has type '" + debugType(type) + "'.");
         llvm::Value* value = codegen(varAssign->getValue(), scope);
@@ -226,7 +226,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(value)) {
-        DEBUG_LOG("Creating a return statement of kind '" + ret->getType()->kindName() + "'.");
+        DEBUG_LOG("Creating a return statement of kind '" + ret->getType()->description() + "'.");
 
         llvm::Type* type = resolveLLVMType(ret->getType());
         llvm::Value* val = codegen(ret->value, scope);
@@ -646,7 +646,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         return nullptr;
     }
 
-    DEBUG_LOG("Resolving a '" + type->kindName() + "'.");
+    DEBUG_LOG("Resolving a '" + type->description() + "'.");
     llvm::LLVMContext& context = *Context;
 
     if (auto customType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(type)) {
@@ -660,7 +660,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
 
     // If the type is an array, resolve the base type first.
     if (type->isArray()) {
-        DEBUG_LOG("The array is of size '" + std::to_string(type->fixedSize) + "' and holds type " + type->elementType->kindName() + "'.");
+        DEBUG_LOG("The array is of size '" + std::to_string(type->fixedSize) + "' and holds type " + type->elementType->description() + "'.");
         auto elementType = resolveLLVMType(type->elementType);
         uint64_t arraySize = type->fixedSize;
         return llvm::ArrayType::get(elementType, arraySize);
@@ -813,7 +813,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             llvmType = llvm::PointerType::get(llvm::Type::getInt32Ty(context), 0);
             break;
         default:
-            console.error("[ERROR] Unknown type: " + type->kindName());
+            console.error("[ERROR] Unknown type: " + type->description());
             return nullptr;
     }
     
@@ -1291,12 +1291,12 @@ llvm::Value* IRGenerator::getAddressOf(const std::string& varname) {
 
 
 llvm::Value* IRGenerator::getReferenceToVariable(const std::string& varname) {
-    // if (!activeScope->has(varname)) {
-    //     throw std::runtime_error("Cannot get reference to: " + varname);
-    // }
+    if (activeScope->exists(varname)) {
+        return activeScope->get(varname);
+    }
     
     // // Return the pointer/alloca directly
-    // return activeScope->get(varname);
+    console.error("Cannot get reference to: " + varname);
     return nullptr;
 }
 
@@ -1452,7 +1452,7 @@ llvm::Function* IRGenerator::createFunction(
         auto llvmType = resolveLLVMType(type);
         paramTypes.push_back(llvmType);
         
-        DEBUG_LOG("Resolved parameter type: " + type->kindName() + " to LLVM type: " + debugType(llvmType));
+        DEBUG_LOG("Resolved parameter type: " + type->description() + " to LLVM type: " + debugType(llvmType));
     }
 
     DEBUG_LOG("Resolved return type LLVM: " + debugType(returnType));
@@ -1482,10 +1482,10 @@ llvm::Function* IRGenerator::createFunction(
                 arg.addAttr(llvm::Attribute::ReadOnly); // <--- Mark as readonly if constant
             }
             DEBUG_LOG("Setting function argument: " + param->name + 
-                    " of kind: " + param->getType()->kindName() + 
+                    " of kind: " + param->getType()->description() + 
                     (inpt->isConstant ? " [const]" : ""));
         }
-        DEBUG_LOG("Setting function argument: " + param->name + " of kind: " + param->getType()->kindName());
+        DEBUG_LOG("Setting function argument: " + param->name + " of kind: " + param->getType()->description());
         idx++;
     }
 
@@ -1623,7 +1623,7 @@ void IRGenerator::generateFunctionBody(
     // Generate function body
     llvm::Value* retVal = nullptr;
     for (const auto& expr : body) {
-        DEBUG_LOG("Generating code for body expression of kind: " + expr->getType()->kindName());
+        DEBUG_LOG("Generating code for body expression of kind: " + expr->getType()->description());
         retVal = codegen(expr, scope);
         if (retVal) {
             DEBUG_LOG("Body expression result type: " + debugType(retVal->getType()));

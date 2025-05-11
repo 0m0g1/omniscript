@@ -375,7 +375,14 @@ MemberModifiers Parser::parseMemberModifiers() {
            currentToken.getType() == TokenTypes::Static ||
            currentToken.getType() == TokenTypes::Final ||
            currentToken.getType() == TokenTypes::Virtual ||
-           currentToken.getType() == TokenTypes::Const) {
+           (
+            currentToken.getType() == TokenTypes::Const
+            && (lexer.peekToken(1).getType() != TokenTypes::Identifier && 
+                (lexer.peekToken(2).getType() != TokenTypes::Colon || 
+                lexer.peekToken(2).getType() != TokenTypes::Equals)
+            )
+            ) 
+        ) {
 
         modifiers.isInitialized = true;
 

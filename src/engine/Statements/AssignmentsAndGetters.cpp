@@ -18,6 +18,7 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
     // Look up the value in the scope to get the variable
     auto variable = scope->getValue(name);
     if (variable) {
+        setType(Omniscript::Type::createPointerType(variable->getType()));
         return std::make_shared<Omniscript::ReferenceExpression>(name, variable);
     }
     
@@ -57,7 +58,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
         if (type->isGeneric()) {
             auto genericVal = scope->get(type->getName());
             if (auto generic = std::dynamic_pointer_cast<Omniscript::TypeExpression>(genericVal)) {
-                DEBUG_LOG("The generic type is " + generic->getTypeExpression()->kindName());
+                DEBUG_LOG("The generic type is " + generic->getTypeExpression()->description());
                 type = generic->getTypeExpression()->clone();
             }
         }
@@ -78,8 +79,8 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 } else {
                     result = value->express(scope);
                     if (type->getKind() != result->getType()->getKind() && !result->getType()->isNull()) {
-                        console.error("The variable '" + variable + "' expects type '" + type->kindName() + "' or 'null' "+ 
-                        " but got '" + result->getType()->kindName() + "' instead.");
+                        console.error("The variable '" + variable + "' expects type '" + type->description() + "' or 'null' "+ 
+                        " but got '" + result->getType()->description() + "' instead.");
                     }
                 }
             }
@@ -92,11 +93,11 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 } else if (auto addressOf = std::dynamic_pointer_cast<AddressOf>(value)) {
                     result = addressOf->express(scope);
                     if (auto ptr = std::dynamic_pointer_cast<Omniscript::PointerExpression>(result)) {
-                        console.info("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->kindName() + "' and is pointing to a '" +
-                        ptr->getType()->getPointeeType()->kindName() + "'.");
+                        console.info("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->description() + "' and is pointing to a '" +
+                        ptr->getType()->getPointeeType()->description() + "'.");
                         if (ptr->getType()->getPointeeType()->getKind() != type->getPointeeType()->getKind()) {
-                            console.error("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->kindName() + "' but is pointing to a '" +
-                            ptr->getType()->getPointeeType()->kindName() + "' instead.");
+                            console.error("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->description() + "' but is pointing to a '" +
+                            ptr->getType()->getPointeeType()->description() + "' instead.");
                         }
                     } else if (auto addr = std::dynamic_pointer_cast<Omniscript::AddressOfExpression>(result)) {
                         if (addr->getType()->getBasePointeeType()->getKind() != type->getBasePointeeType()->getKind()) {
@@ -110,8 +111,8 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                     result = referenceTo->express(scope);
                     
                     if (result->getType()->getKind() != type->getPointeeType()->getKind()) {
-                        console.error("Pointer '" + variable + "' should point to a '" + type->kindName() + "' but is pointing to a '" +
-                        type->getPointeeType()->kindName() + "' instead.");
+                        console.error("Pointer '" + variable + "' should point to a '" + type->description() + "' but is pointing to a '" +
+                        type->getPointeeType()->description() + "' instead.");
                     }
                 } else if (auto string = std::dynamic_pointer_cast<StringLiteral>(value)) {
                     if (!type->getPointeeType()->isChar() && !type->getPointeeType()->isString()) {
@@ -125,8 +126,8 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                     result = string->express(scope);
                     
                     // if (result->getType()->getKind() != type->getPointeeType()->getKind()) {
-                    //     console.error("Pointer '" + variable + "' should point to a '" + type->kindName() + "' but is pointing to a '" +
-                    //     type->getPointeeType()->kindName() + "' instead.");
+                    //     console.error("Pointer '" + variable + "' should point to a '" + type->description() + "' but is pointing to a '" +
+                    //     type->getPointeeType()->description() + "' instead.");
                     // }
                 } else {
                     console.error("Pointer '" + variable + "' can only be created from an integer, a reference to an already existing variable, nullptr or a string from a (char*).");
@@ -150,12 +151,12 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
 
                         DEBUG_LOG("HERE 2.4");
                         
-                        DEBUG_LOG(expectedBaseType->kindName() + " " + actualBaseType->kindName());
+                        DEBUG_LOG(expectedBaseType->description() + " " + actualBaseType->description());
                         if (expectedBaseType->getKind() != actualBaseType->getKind()) {
                             DEBUG_LOG("HERE 2.4.1");
                             console.error("Reference '" + variable + "' expects base type '" +
-                                expectedBaseType->kindName() + "' but got '" +
-                                actualBaseType->kindName() + "' instead.");
+                                expectedBaseType->description() + "' but got '" +
+                                actualBaseType->description() + "' instead.");
                         }
                         DEBUG_LOG("HERE 2.5");
                         // Check reference depth matches
@@ -195,14 +196,14 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 type = typed->getType();
                 result = value->express(scope);
             }
-            DEBUG_LOG("The infered type is " + result->getType()->kindName());
+            DEBUG_LOG("The infered type is " + result->getType()->description());
         }
     }
 
     if (type) {     
         DEBUG_LOG(
                     "The result is " + variable + " " + 
-                    (result->getType()->elementType ? result->getType()->elementType->kindName() + " " + result->getType()->kindName() : result->getType()->kindName())
+                    (result->getType()->elementType ? result->getType()->elementType->description() + " " + result->getType()->description() : result->getType()->description())
                     + " = " + result->toString()
                 );
     } else {
@@ -213,7 +214,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     if (isReassign) {
         std::shared_ptr<Omniscript::Expression> prevValue = scope->get(variable);
         if (!Omniscript::isSameOrCastableTo(result->getType(), prevValue->getType())) {
-            console.error("'" + variable + "' should be of type " + prevValue->getType()->kindName() + "' not a '" + result->getType()->kindName() + "'.");
+            console.error("'" + variable + "' should be of type " + prevValue->getType()->description() + "' not a '" + result->getType()->description() + "'.");
         }
     }
 

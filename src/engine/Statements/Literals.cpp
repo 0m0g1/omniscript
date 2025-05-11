@@ -11,7 +11,7 @@
 std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
     DEBUG_LOG("");
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
-        DEBUG_LOG("[Cast] Casting a '" + typed->getRootType()->kindName() + "' to a '" + targetType->kindName() + "'.");
+        DEBUG_LOG("[Cast] Casting a '" + typed->getRootType()->description() + "' to a '" + targetType->description() + "'.");
     }
     if (auto literal = std::dynamic_pointer_cast<Literal>(value)) {
         auto castedStmt = literal->castTo(targetType);
@@ -45,13 +45,13 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Int8);
 
     if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type)) {
-        console.error("The specified type is '" + type->kindName() + "' but '" + std::to_string(value) + "' is an integer.");
+        console.error("The specified type is '" + type->description() + "' but '" + std::to_string(value) + "' is an integer.");
     } else {
         if (!type->isInteger()) {
-            DEBUG_LOG("Casting integer to '" + type->kindName() + "'.");
+            DEBUG_LOG("Casting integer to '" + type->description() + "'.");
             return castTo(type)->express(scope);
         }
-        DEBUG_LOG("Creating an '" + type->kindName() + "' integer");
+        DEBUG_LOG("Creating an '" + type->description() + "' integer");
     }
     
     // Check for specific bit-widths using the isInteger function with optional bitwidth argument
@@ -120,13 +120,13 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Half);
 
     if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type))  {
-        console.error("The specified type is " + type->kindName() + " but '" + std::to_string(value) + "' is a float.");
+        console.error("The specified type is " + type->description() + " but '" + std::to_string(value) + "' is a float.");
     } else {
         if (!type->isFloat()) {
-            DEBUG_LOG("Casting float to '" + type->kindName() + "'.");
+            DEBUG_LOG("Casting float to '" + type->description() + "'.");
             return castTo(type)->express(scope);
         }
-        DEBUG_LOG("Creating an '" + type->kindName() + "' float.");
+        DEBUG_LOG("Creating an '" + type->description() + "' float.");
     }
 
 
@@ -225,13 +225,13 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType sco
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Bool);
 
     if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type))  {
-        console.error("The specified type is " + type->kindName() + " but '" + std::to_string(value) + "' is a bool.");
+        console.error("The specified type is " + type->description() + " but '" + std::to_string(value) + "' is a bool.");
     } else {
         if (!type->isBool()) {
-            DEBUG_LOG("Casting bool to '" + type->kindName() + "'.");
+            DEBUG_LOG("Casting bool to '" + type->description() + "'.");
             return castTo(type)->express(scope);
         }
-        DEBUG_LOG("Creating an '" + type->kindName() + "'.");
+        DEBUG_LOG("Creating an '" + type->description() + "'.");
     }
 
     return std::make_shared<Omniscript::Primitive<bool>>(value);
@@ -266,9 +266,9 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
     }
 
     if (!type->isChar()) {
-        console.error("The specified type is " + type->kindName() + " but '" + std::to_string(value) + "' is a char.");
+        console.error("The specified type is " + type->description() + " but '" + std::to_string(value) + "' is a char.");
     } else {
-        DEBUG_LOG("Creating a '" + type->kindName() + value + "'.");
+        DEBUG_LOG("Creating a '" + type->description() + value + "'.");
     }
 
     return std::make_shared<Omniscript::Primitive<char>>(value);
@@ -308,9 +308,9 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Utf8);
 
     if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type))  {
-        console.error("The specified type is " + type->kindName() + " but '" + value + "' is a string.");
+        console.error("The specified type is " + type->description() + " but '" + value + "' is a string.");
     } else {
-        DEBUG_LOG("Creating a '" + type->kindName() + value + "'.");
+        DEBUG_LOG("Creating a '" + type->description() + value + "'.");
     }
 
     if (type->isString(8)) {
@@ -382,13 +382,13 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
         return std::make_shared<Omniscript::FixedArrayExpression>(values, inferredType);
     }
     
-    DEBUG_LOG("[Array] The array has a type '" + type->kindName() + "' of element types '" + type->elementType->kindName() + "'.");
+    DEBUG_LOG("[Array] The array has a type '" + type->description() + "' of element types '" + type->elementType->description() + "'.");
     size_t n = 0;
     if (type->isFixedArray()) {
         DEBUG_LOG("[Array] Creating a fixed Array");
         std::vector<std::shared_ptr<Omniscript::Expression>> values;
         std::shared_ptr<Omniscript::Type> expectedElementType = type->elementType;  // Assume you have this method
-        DEBUG_LOG("[Array] The expected element kind is '" + expectedElementType->kindName() + "'.");
+        DEBUG_LOG("[Array] The expected element kind is '" + expectedElementType->description() + "'.");
         for (const auto& expr : initialValues) {
             std::shared_ptr<Omniscript::Expression> val;
 
@@ -428,12 +428,12 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
                     console.error("Array element is of type " + actualType->pointerDescription() +
                                   " but expected type " + expectedElementType->pointerDescription());
                 } else {
-                    console.error("Array element is of type " + actualType->kindName() +
-                                  " but expected type " + expectedElementType->kindName());
+                    console.error("Array element is of type " + actualType->description() +
+                                  " but expected type " + expectedElementType->description());
                 }
             }
 
-            DEBUG_LOG("[Array] Value '" + std::to_string(n) + "' is '" + expectedElementType->kindName() + " " + val->toString() + "'.");
+            DEBUG_LOG("[Array] Value '" + std::to_string(n) + "' is '" + expectedElementType->description() + " " + val->toString() + "'.");
             values.push_back(val);
             n++;
         }

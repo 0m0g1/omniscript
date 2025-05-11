@@ -689,7 +689,7 @@ struct FunctionExpression : public Callable {
     }
 
     std::string toString() const override {
-        return "Function: " + name + " [Returns: " + (returnType ? returnType->kindName() : "void") + "]";
+        return "Function: " + name + " [Returns: " + (returnType ? returnType->description() : "void") + "]";
     }
 
     std::shared_ptr<Type> getReturnType() {
@@ -1364,7 +1364,7 @@ public:
         }
 
     std::string typeName() const {
-        return "FixedArray<" + (elementType ? elementType->kindName() : "unknown") + ">";
+        return "FixedArray<" + (elementType ? elementType->description() : "unknown") + ">";
     }
 
     std::string toString() const override {

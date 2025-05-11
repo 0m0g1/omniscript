@@ -192,7 +192,7 @@ public:
         result.reserve(genericTypeMap.size());
     
         for (const auto& [name, typePtr] : genericTypeMap) {
-            DEBUG_LOG("Creating generic '" + name + "' of kind '" + typePtr->kindName() + "'.");
+            DEBUG_LOG("Creating generic '" + name + "' of kind '" + typePtr->description() + "'.");
             result.emplace_back(std::make_shared<Omniscript::TypeExpression>(name, typePtr));
         }
     
@@ -371,7 +371,7 @@ public:
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
 
     std::string toString() const override {
-        return "((" + targetType->kindName() + ") " + value->toString() + ")";
+        return "((" + targetType->description() + ") " + value->toString() + ")";
     }
 };
 

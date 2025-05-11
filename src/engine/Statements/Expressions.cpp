@@ -81,10 +81,10 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
             type = leftType;
         } else {
-            DEBUG_LOG("Incompatible types: " + leftType->kindName() + " vs " + rightType->kindName());
+            DEBUG_LOG("Incompatible types: " + leftType->description() + " vs " + rightType->description());
             return nullptr;
         }
-        DEBUG_LOG("Inferred binary expression type as: " + type->kindName());
+        DEBUG_LOG("Inferred binary expression type as: " + type->description());
     }
 
     // Set the inferred type on both typed statements

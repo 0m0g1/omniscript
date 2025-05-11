@@ -23,13 +23,16 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
         if (auto nestedModule = std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
         //     // Add nested module statement first
-        //     expressions.push_back(nestedModule->express(scope));
+            auto nestedModuleExpressionBlock = std::dynamic_pointer_cast<Omniscript::BlockExpression>(nestedModule->express(scope));
+            for (const auto& val : nestedModuleExpressionBlock->values) {
+                expressions.push_back(val);
+            }    
 
         //     // Create pointer-type parameter for the nested module
-        //     auto paramStmt = std::make_shared<ParameterStatement>(member->getName());
-        //     paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_type")));
+            auto paramStmt = std::make_shared<ParameterStatement>(member->getName());
+            paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_type")));
         //     // paramStmt->setType(scope->getType(member->getName() + "_type"));
-        //     parameterStatements.push_back(paramStmt);
+            parameterStatements.push_back(paramStmt);
         } else {
         //     // Direct value member parameter
             // auto paramStmt = std::make_shared<ParameterStatement>(member->getName(), member->getValue());
@@ -45,19 +48,19 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
     // 3. Build arguments for constructor
     for (const auto& stmt : statements) {
-        // auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
-        // if (!member) continue;
+        auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
+        if (!member) continue;
 
-        // DEBUG_LOG("Passing '" + member->toString() + "' as an argument to create an instance module type '" + getName() + "_type'.");
+        DEBUG_LOG("Passing '" + member->toString() + "' as an argument to create an instance module type '" + getName() + "_type'.");
         
-        // if (auto nestedModule = std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
-        // //     auto ref = std::make_shared<ReferenceTo>(member->getName());
-        // //     ref->setRootType(ref->getType());
-        // //     constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), ref));
-        // } else {
+        if (auto nestedModule = std::dynamic_pointer_cast<CreateModule>(member->getValue())) {
+            auto ref = std::make_shared<ReferenceTo>(member->getName());
+            ref->setRootType(ref->getType());
+            constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), ref));
+        } else {
         // //     auto stmt = std::dynamic_pointer_cast<ParameterStatement>(reinterprateStatement(member->getValue()));
         // //     constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), stmt->getDefaultValue()));
-        // }
+        }
     }
 
     // 4. Create and evaluate the module instance
