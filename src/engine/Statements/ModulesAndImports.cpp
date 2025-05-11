@@ -35,7 +35,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
             paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_type")));
             parameterStatements.push_back(paramStmt);
         } else if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
-            auto result = func->express(scope);
+            auto result = reinterprateStatement(func)->express(scope);
             expressions.push_back(result);
         } else {
             // Direct value member parameter
@@ -88,6 +88,7 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
         auto memberStatement = std::make_shared<ParameterStatement>(assignment->getName(), assignment->getValue());
         return memberStatement;
     } else if (auto function = std::dynamic_pointer_cast<FunctionDeclaration>(statement)) {
+        function->setName(getName() + "." + function->getName());
         return function;
     }
 
