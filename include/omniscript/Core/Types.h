@@ -321,7 +321,12 @@ public:
     static std::shared_ptr<Type> createMetaType();
     static std::shared_ptr<Type> createPointerType(std::shared_ptr<Type> pointee);
     static std::shared_ptr<Type> createReferenceType(std::shared_ptr<Type> referent);
-    static std::shared_ptr<Type> createFunctionType(std::shared_ptr<Type> returnType, bool isVarArg = false);
+    static std::shared_ptr<Type> createFunctionType(
+        const std::string& name,
+        const std::vector<std::shared_ptr<Type>>& paramTypes = {},
+        std::shared_ptr<Type> returnType = nullptr,
+        bool isVarArg = false
+    );
     static std::shared_ptr<Type> createStringType(Kind stringKind = Kind::String);
     static std::shared_ptr<Type> createFixedArrayType(std::shared_ptr<Type> elementType, size_t size);
     static std::shared_ptr<Type> createDynamicArrayType(std::shared_ptr<Type> elementType);
@@ -594,23 +599,52 @@ public:
 
 class FunctionType : public Type {
 public:
-    bool isVarArg;
+    std::string functionName;
+    std::vector<std::shared_ptr<Type>> parameterTypes;
+    std::shared_ptr<Type> returnType;
+    bool isVarArg = false;
 
-    FunctionType(std::shared_ptr<Type> returnType, bool isVarArg)
-        : isVarArg(isVarArg) {
-        this->returnType = std::move(returnType);
+    FunctionType(
+        const std::string& name,
+        std::shared_ptr<Type> returnType,
+        const std::vector<std::shared_ptr<Type>>& params,
+        bool isVarArg = false
+    ) {
         kind = Kind::Function;
+        functionName = name;
+        this->returnType = returnType;
+        parameterTypes = params;
+        this->isVarArg = isVarArg;
     }
 
-    std::shared_ptr<Type> getReturnType() const override {
-        return returnType; // You may replace this with actual type resolution
+    size_t getArity() const {
+        return parameterTypes.size();
     }
 
-    std::shared_ptr<Type> clone() const override {
-        std::vector<std::shared_ptr<Type>> clonedParams;
-        return std::make_shared<FunctionType>(returnType->clone(), isVarArg);
-    }    
+    std::shared_ptr<Type> getParamType(size_t index) const {
+        if (index < parameterTypes.size()) {
+            return parameterTypes[index];
+        }
+        return nullptr;
+    }
+
+    std::string toString() const {
+        std::string result = functionName + "(";
+        for (size_t i = 0; i < parameterTypes.size(); ++i) {
+            result += parameterTypes[i]->parameterName;
+            if (i < parameterTypes.size() - 1)
+                result += ", ";
+        }
+        if (isVarArg) {
+            if (!parameterTypes.empty()) result += ", ";
+            result += "...";
+        }
+        result += ") -> ";
+        result += returnType ? returnType->parameterName : "void";
+        return result;
+    }
 };
+
 
 class GenericType : public Type {
 public:

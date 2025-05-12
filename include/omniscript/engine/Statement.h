@@ -951,7 +951,7 @@ public:
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
     std::string toString() const override { return "CallStatement"; }
     std::string getName() const override { return callee; }
-    bool matchArgumentsToParameters(
+    static bool matchArgumentsToParameters(
         const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& args,
         const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& params,
         SymbolTableType scope
@@ -960,6 +960,11 @@ public:
     std::string formatError(const std::string& msg) const override {
         return (instanceName.empty() ? "" : instanceName + ".") + callee + ": " + msg;
     };
+    static std::string resolveFunctionOverload(
+        const std::string& calleeName,
+        const std::vector<std::shared_ptr<Statement>>& args,
+        const SymbolTableType& scope
+    );
     
     private:
         std::string callee;

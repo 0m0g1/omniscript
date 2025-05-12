@@ -673,6 +673,7 @@ struct Callable : public Expression {
 struct FunctionExpression : public Callable {
     std::vector<std::shared_ptr<Expression>> body;
     std::shared_ptr<Type> returnType;
+    std::vector<std::shared_ptr<Type>> paramTypes;
 
     FunctionExpression(
                         const std::string& name, 
@@ -680,11 +681,12 @@ struct FunctionExpression : public Callable {
                         std::shared_ptr<Type> returnType,
                         std::vector<std::shared_ptr<Expression>> body,
                         std::vector<std::shared_ptr<Expression>> params = {},
+                        std::vector<std::shared_ptr<Type>> paramTypes = {},
                         bool isVarArg = false)
         : Callable(name, mangledName, std::move(params), isVarArg),
-            body(std::move(body)),
+            body(std::move(body)), paramTypes(paramTypes),
             returnType(returnType) {
-        type = Type::createFunctionType(returnType, isVarArg);
+        type = Type::createFunctionType(name, paramTypes, returnType, isVarArg);
         returnType = type->getReturnType();
     }
 
@@ -714,6 +716,7 @@ struct FunctionExpression : public Callable {
                 returnType ? returnType->clone() : nullptr,
                 clonedBody,
                 clonedParams,
+                paramTypes,
                 isVarArg
             );
         }

@@ -10,16 +10,44 @@
 // ============================== Getters  ============================== //
 std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope) {
     std::shared_ptr<Omniscript::Expression> referent = scope->getValue(name);
+
+    DEBUG_LOG("Getting the address of '" + name + "'.");
+    
+    if (!scope->exists(name)) {
+        console.error("Symbol '" + name + "' was not found in the scope");
+    }
+    
+    if (!referent) {
+        auto overloads = scope->getOverloads(name);
+        referent = overloads[0];
+        auto mangledName = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(referent)->mangledName;
+        DEBUG_LOG("Mangled name '" + mangledName + "'.");
+        setType(Omniscript::Type::createPointerType(referent->getType()));
+        return std::make_shared<Omniscript::AddressOfExpression>(mangledName, referent);
+    }
+
     setType(Omniscript::Type::createPointerType(referent->getType()));
     return std::make_shared<Omniscript::AddressOfExpression>(name, referent);
 }
 
 std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType scope) {
+    DEBUG_LOG("Getting a reference to '" + name + "'.");
     // Look up the value in the scope to get the variable
+    if (!scope->exists(name)) {
+        console.error("Symbol '" + name + "' was not found in the scope");
+    }
+
     auto variable = scope->getValue(name);
     if (variable) {
         setType(Omniscript::Type::createPointerType(variable->getType()));
         return std::make_shared<Omniscript::ReferenceExpression>(name, variable);
+    }
+
+    if (!variable) {
+        auto overloads = scope->getOverloads(name);
+        auto mangledName = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overloads[0])->mangledName;
+        setType(Omniscript::Type::createPointerType(variable->getType()));
+        return std::make_shared<Omniscript::ReferenceExpression>(mangledName, variable);
     }
     
     // If the variable isn't found, handle the error (e.g., return nullptr)

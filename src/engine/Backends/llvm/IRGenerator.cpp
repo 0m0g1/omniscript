@@ -221,7 +221,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
 
     if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(value)) {
         DEBUG_LOG("Creating an overload for function " + func->name + " with mangled name '" + func->mangledName + "'");
-        llvm::Type* returnType = resolveLLVMType(func->getType()->getReturnType());
+        llvm::Type* returnType = resolveLLVMType(func->returnType);
         return createFunction(func->mangledName, func->body, returnType, func->parameters, scope);
     }
 
@@ -656,6 +656,27 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             return nullptr;
         }
         return userType;
+    }
+
+    if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(type)) {
+        llvm::Type* returnType = resolveLLVMType(funcType->returnType);
+        if (!returnType) {
+            console.error("[ERROR] Failed to resolve function return type: " + funcType->getReturnType()->description());
+            return nullptr;
+        }
+
+        std::vector<llvm::Type*> paramTypes;
+        for (const auto& param : funcType->parameterTypes) {
+            llvm::Type* paramLLVMType = resolveLLVMType(param);
+            if (!paramLLVMType) {
+                console.error("[ERROR] Failed to resolve function parameter type: " + param->description());
+                return nullptr;
+            }
+            paramTypes.push_back(paramLLVMType);
+        }
+
+        // Create the LLVM function type with vararg info
+        return llvm::FunctionType::get(returnType, paramTypes, funcType->isVarArg);
     }
 
     // If the type is an array, resolve the base type first.

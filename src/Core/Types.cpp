@@ -107,9 +107,15 @@ std::shared_ptr<Type> Type::createReferenceType(std::shared_ptr<Type> referent) 
     return std::make_shared<ReferenceType>(std::move(referent));
 }
 
-std::shared_ptr<Type> Type::createFunctionType(std::shared_ptr<Type> returnType, bool isVarArg) {
-    return std::make_shared<FunctionType>(returnType, isVarArg);
+std::shared_ptr<Type> Type::createFunctionType(
+    const std::string& name,
+    const std::vector<std::shared_ptr<Type>>& paramTypes,
+    std::shared_ptr<Type> returnType,
+    bool isVarArg
+) {
+    return std::make_shared<FunctionType>(name, returnType, paramTypes, isVarArg);
 }
+
 
 std::shared_ptr<Type> Type::createStringType(Kind stringKind) {
     auto t = std::make_shared<Type>();
