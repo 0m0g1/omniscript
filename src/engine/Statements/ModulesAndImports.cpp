@@ -21,7 +21,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
         
-        DEBUG_LOG("Passing '" + member->toString() + "' as a parameter to create module type '" + getName() + "_type'."); 
+        DEBUG_LOG("Passing '" + member->toString() + "' as a parameter to create module type '" + getName() + "_module_type'."); 
 
         if (auto nestedModule = std::dynamic_pointer_cast<ImportModule>(member->getValue())) {
             // Add nested module statement first
@@ -32,7 +32,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
             // Create pointer-type parameter for the nested module
             auto paramStmt = std::make_shared<ParameterStatement>(member->getName());
-            paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_type")));
+            paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_module_type")));
             parameterStatements.push_back(paramStmt);
         } else if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
             auto result = reinterprateStatement(func)->express(scope);
@@ -50,7 +50,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     }
 
     // 2. Create the struct type for the module
-    auto structStmt = std::make_shared<ConstructStructPrototype>(getName() + "_type", parameterStatements);
+    auto structStmt = std::make_shared<ConstructStructPrototype>(getName() + "_module_type", parameterStatements);
     expressions.push_back(structStmt->express(scope));
 
     // 3. Build arguments for constructor
@@ -58,7 +58,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
 
-        DEBUG_LOG("Passing '" + member->toString() + "' as an argument to create an instance module type '" + getName() + "_type'.");
+        DEBUG_LOG("Passing '" + member->toString() + "' as an argument to create an instance module type '" + getName() + "_module_type'.");
         
         if (auto nestedModule = std::dynamic_pointer_cast<ImportModule>(member->getValue())) {
             auto ref = std::make_shared<ReferenceTo>(member->getName());
@@ -79,14 +79,14 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
     // 4. Create and evaluate the module instance
     auto instanceStmt = std::make_shared<ObjectConstructorStatement>(
-        getName() + "_type",
+        getName() + "_module_type",
         getName(),
         constructorArgs
     );
     expressions.push_back(instanceStmt->express(scope));
 
     // 5. Record the type of this module
-    setType(scope->getType(getName() + "_type"));
+    setType(scope->getType(getName() + "_module_type"));
 
     // 6. Return final BlockExpression wrapping all sub-expressions
     return std::make_shared<Omniscript::BlockExpression>(expressions);

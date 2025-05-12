@@ -362,36 +362,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return createWhileLoop(whileExpr, scope);
     }
 
-    if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(value)) {
-       auto currentType = scope->getType(memberAccess->baseType);
-
-        auto userdef = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType);
-    //    if (!userdef) break;
-    
-        int index = 0;
-        bool found = false;
-        for (const auto& field : userdef->paramTypes) {
-            if (memberAccess->member == field->getParameterName()) {
-                currentType = field;
-                found = true;
-                break;
-            }
-            ++index;
-        }
-    
-        if (!found) {
-            console.error("Member '" + memberAccess->member + "' not found in type '" + userdef->getName() + "'.");
-            return nullptr;
-        }     
-
-        if (memberAccess->isSetter()) {
-            DEBUG_LOG("Setting '" + memberAccess->toString() + "' to '" + memberAccess->assignmentValue->toString() + "'.");
-            auto result = codegen(memberAccess->assignmentValue, scope);
-            return accessMember(memberAccess->baseType, memberAccess->instanceName, index, result);
-        } else {
-            DEBUG_LOG("Getting '" + memberAccess->toString() + "'.");
-            return accessMember(memberAccess->baseType, memberAccess->instanceName, index);
-        }
+    // Handle access expressions recursively
+    if (auto accessExpr = std::dynamic_pointer_cast<Omniscript::AccessExpression>(value)) {
+        return handleAccessExpression(accessExpr, scope);
     }
 
     if (auto moduleExpr = std::dynamic_pointer_cast<Omniscript::ModuleExpression>(value)) {
@@ -521,6 +494,30 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expressio
     return nullptr;
 }
 
+llvm::Value* IRGenerator::handleAccessExpression(std::shared_ptr<Omniscript::AccessExpression> expr, SymbolTableType scope) {
+    // First evaluate the base expression recursively
+    llvm::Value* baseValue = codegen(expr->expr, scope);
+    if (!baseValue) {
+        return nullptr;
+    }
+
+    // Handle specific access types
+    if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(expr)) {
+        return handleMemberAccess(memberAccess, baseValue, scope);
+    }
+    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::ArrowAccessExpression>(expr)) {
+        return handleArrowAccess(arrowAccess, baseValue, scope);
+    }
+    else if (auto derefAccess = std::dynamic_pointer_cast<Omniscript::DereferenceExpression>(expr)) {
+        return handleDereference(derefAccess, baseValue, scope);
+    }
+    else if (auto indexAccess = std::dynamic_pointer_cast<Omniscript::IndexAccessExpression>(expr)) {
+        return handleIndexAccess(indexAccess, baseValue, scope);
+    }
+
+    console.error("Unknown access expression type");
+    return nullptr;
+}
 
 void IRGenerator::generateModule(
     const std::string& modulePath,
@@ -2104,58 +2101,180 @@ llvm::Value* IRGenerator::createStructInstance(
     }
 }
 
-llvm::Value* IRGenerator::accessMember(
-    const std::string& baseTypeName,
-    const std::string& instanceName,
-    const int& index,
-    llvm::Value* valueToSet
+llvm::Value* IRGenerator::handleMemberAccess(
+    std::shared_ptr<Omniscript::MemberAccessExpression> expr,
+    llvm::Value* baseValue,
+    SymbolTableType scope
 ) {
-    llvm::Value* basePtr = activeScope->get(instanceName);
-    if (!basePtr) {
-        console.error("Instance '" + instanceName + "' not found in scope.");
-        return nullptr;
-    }
+    llvm::Type* currentType = baseValue->getType();
+    llvm::Value* currentPtr = baseValue;
 
-    // You must get the underlying pointee type from your own symbol table.
-    llvm::Type* currentType = activeScope->getType(baseTypeName); // <-- you need to implement this
-    if (!currentType) {
-        console.error("Could not determine type of '" + instanceName + "'.");
-        return nullptr;
-    }
+    // For each member in the path
+    for (size_t i = 0; i < expr->memberIndexPath.size(); ++i) {
+        int fieldIndex = expr->memberIndexPath[i];
 
-    llvm::Value* currentPtr = basePtr;
-
-    if (!currentType->isStructTy()) {
-        console.error("Attempted to access member at index " + std::to_string(index) + " on non-struct type.");
-        return nullptr;
-    }
-
-    llvm::StructType* structType = llvm::cast<llvm::StructType>(currentType);
-    int fieldIndex = index;
-
-    if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
-        console.error("Field index out of bounds in struct.");
-        return nullptr;
-    }
-
-    currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex, "field_ptr_" + std::to_string(fieldIndex));
-    currentType = structType->getElementType(fieldIndex);
-
-    if (valueToSet) {
-        if (valueToSet->getType() != currentType) {
-            valueToSet = Builder->CreateBitCast(valueToSet, currentType, "bitcast.set");
+        if (!currentType->isStructTy()) {
+            console.error("Member access requires struct type, got: " + debugType(currentType));
+            return nullptr;
         }
-        Builder->CreateStore(valueToSet, currentPtr);
-        // DEBUG_LOG("Set value of '" + instanceName + "." + join(propertyPath, ".") + "'");
-        return valueToSet;
-    } else {
-        llvm::Value* loaded = Builder->CreateLoad(currentType, currentPtr, "load.member");
-        // DEBUG_LOG("Accessed value of '" + instanceName + "." + join(propertyPath, ".") + "'");
-        return loaded;
+
+        auto* structType = llvm::cast<llvm::StructType>(currentType);
+        if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
+            console.error("Invalid field index: " + std::to_string(fieldIndex));
+            return nullptr;
+        }
+
+        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex, 
+                                            "member." + expr->memberPath[i]);
+        currentType = structType->getElementType(fieldIndex);
     }
+
+    // Handle assignment if present
+    if (expr->isSetter()) {
+        llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
+        if (!valueToStore) return nullptr;
+        
+        if (valueToStore->getType() != currentType) {
+            valueToStore = Builder->CreateBitCast(valueToStore, currentType, "bitcast.store");
+        }
+        Builder->CreateStore(valueToStore, currentPtr);
+        return valueToStore;
+    }
+
+    // Otherwise load the value
+    return Builder->CreateLoad(currentType, currentPtr, "load.member");
+}
+
+llvm::Value* IRGenerator::handleArrowAccess(
+    std::shared_ptr<Omniscript::ArrowAccessExpression> expr,
+    llvm::Value* baseValue,
+    SymbolTableType scope
+) {
+    llvm::Type* ptrType = baseValue->getType();
+    if (!ptrType->isPointerTy()) {
+        console.error("Arrow access requires pointer type");
+        return nullptr;
+    }
+
+    llvm::PointerType* pointerType = llvm::dyn_cast<llvm::PointerType>(ptrType);
+    if (!pointerType) {
+        console.error("Base value is not a pointer.");
+        return nullptr;
+    }
+
+    llvm::Type* currentType = resolveLLVMType(expr->getType());  // Get the type pointed to by the pointer
+    llvm::Value* currentPtr = baseValue;
+
+    for (size_t i = 0; i < expr->memberIndexPath.size(); ++i) {
+        int fieldIndex = expr->memberIndexPath[i];
+
+        if (!currentType->isStructTy()) {
+            console.error("Arrow access requires pointer to struct");
+            return nullptr;
+        }
+
+        auto* structType = llvm::cast<llvm::StructType>(currentType);
+        if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
+            console.error("Invalid field index: " + std::to_string(fieldIndex));
+            return nullptr;
+        }
+
+        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex,
+                                            "arrow." + expr->memberPath[i]);
+        currentType = structType->getElementType(fieldIndex);
+    }
+
+    if (expr->isSetter()) {
+        llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
+        if (!valueToStore) return nullptr;
+        
+        if (valueToStore->getType() != currentType) {
+            valueToStore = Builder->CreateBitCast(valueToStore, currentType, "bitcast.store");
+        }
+        Builder->CreateStore(valueToStore, currentPtr);
+        return valueToStore;
+    }
+
+    return Builder->CreateLoad(currentType, currentPtr, "load.arrow");
 }
 
 
+llvm::Value* IRGenerator::handleDereference(
+    std::shared_ptr<Omniscript::DereferenceExpression> expr,
+    llvm::Value* baseValue,
+    SymbolTableType scope
+) {
+    llvm::Type* ptrType = baseValue->getType();
+    if (!ptrType->isPointerTy()) {
+        console.error("Dereference requires pointer type");
+        return nullptr;
+    }
+
+    llvm::PointerType* pointerType = llvm::dyn_cast<llvm::PointerType>(ptrType);
+    if (!pointerType) {
+        console.error("Base value is not a pointer.");
+        return nullptr;
+    }
+
+    llvm::Type* pointeeType = resolveLLVMType(expr->getType());  // Get the type pointed to by the pointer
+    llvm::Value* loadedPtr = baseValue;
+
+    if (expr->valueExpr) {
+        // This is a dereference assignment (*ptr = value)
+        llvm::Value* valueToStore = codegen(expr->valueExpr, scope);
+        if (!valueToStore) return nullptr;
+        
+        if (valueToStore->getType() != pointeeType) {
+            valueToStore = Builder->CreateBitCast(valueToStore, pointeeType, "bitcast.store");
+        }
+        Builder->CreateStore(valueToStore, loadedPtr);
+        return valueToStore;
+    }
+
+    // Regular dereference (*ptr)
+    return Builder->CreateLoad(pointeeType, loadedPtr, "load.deref");
+}
+
+llvm::Value* IRGenerator::handleIndexAccess(
+    std::shared_ptr<Omniscript::IndexAccessExpression> expr,
+    llvm::Value* baseValue,
+    SymbolTableType scope
+) {
+    // Evaluate the index expression
+    llvm::Value* indexValue = codegen(expr->indexExpr, scope);
+    if (!indexValue) return nullptr;
+
+    llvm::Type* baseType = baseValue->getType();
+    if (!baseType->isPointerTy() && !baseType->isArrayTy()) {
+        console.error("Index access requires pointer or array type");
+        return nullptr;
+    }
+
+    llvm::PointerType* pointerType = llvm::dyn_cast<llvm::PointerType>(baseType);
+    if (!pointerType) {
+        console.error("Base value is neither pointer nor array.");
+        return nullptr;
+    }
+
+    // Get pointer to element
+    llvm::Value* elementPtr = Builder->CreateGEP(
+        resolveLLVMType(expr->getType()),  // The type pointed to by the pointer
+        baseValue, 
+        indexValue, 
+        "index.ptr"
+    );
+
+    if (expr->isSetter()) {
+        llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
+        if (!valueToStore) return nullptr;
+        
+        Builder->CreateStore(valueToStore, elementPtr);
+        return valueToStore;
+    }
+
+    // Load the value
+    return Builder->CreateLoad(resolveLLVMType(expr->getType()), elementPtr, "load.index");
+}
 
 // llvm::Value* IRGenerator::getMember(llvm::Value* object, const std::string& memberName) {
 //     if (!object) {

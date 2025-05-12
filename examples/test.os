@@ -1,11 +1,6 @@
 import { Math } from std;
 
-
-
-
-
-
-
+let n: f32 = std.Math->pi;
 
 
 

@@ -1024,176 +1024,162 @@ public:
 
 // Base class for all access expressions
 struct AccessExpression : public Expression {
-    std::shared_ptr<Expression> expr; // expression that represents the parent obj
-    std::string member;           // Name of the member
+    std::shared_ptr<Expression> expr;              // expression that represents the parent object
+    std::vector<std::string> memberPath;           // Path of member names
+    std::vector<int> memberIndexPath;              // Optional index path (e.g., for array fields)
+    std::shared_ptr<Expression> assignmentValue;
 
-    virtual std::string toString() const override = 0;  // Pure virtual method for string representation
-    virtual std::shared_ptr<Expression> clone() const = 0;  // Clone method for deep copying
-};
-
-// MemberAccessExpression represents access to a member of an object
-class MemberAccessExpression : public AccessExpression {
-public:
-    std::string baseType;               // Type of the base object
-    std::string instanceName;           // Name of the instance (e.g., "obj")
-    std::vector<std::string> memberPath; // Path of members (e.g., ["member1", "member2"])
-    std::shared_ptr<Expression> assignmentValue; // Present if it's a setter (assignment expression)
-
-    MemberAccessExpression(
-        const std::string& baseType,
-        const std::string& instanceName,
-        std::vector<std::string> memberPath,
-        std::shared_ptr<Type> memberType,
-        std::shared_ptr<Expression> assignmentValue = nullptr
-    ) : baseType(baseType),
-        instanceName(instanceName),
-        memberPath(std::move(memberPath)),
-        assignmentValue(assignmentValue) {
-        type = memberType;
-    }
-
-    MemberAccessExpression(
-        const std::string& baseType,
-        const std::string& instanceName,
-        std::shared_ptr<Expression> expr,
-        std::string member,
-        std::shared_ptr<Type> memberType,
-        std::shared_ptr<Expression> assignmentValue = nullptr
-    ) : baseType(baseType),
-        instanceName(instanceName),
-        assignmentValue(assignmentValue) {
-        this->member = member;
-        this->expr = expr;
-        this->type = memberType;
-    }
-
-    // Check if it's a setter (assignment expression)
     bool isSetter() const {
         return assignmentValue != nullptr;
     }
 
-    // Override toString to generate the string representation
+    virtual std::string toString() const override = 0;       // String representation
+    virtual std::shared_ptr<Expression> clone() const = 0;   // Clone for deep copy
+};
+
+struct MemberAccessExpression : public AccessExpression {
+public:
+    std::string baseType;
+    std::string instanceName;
+
+    MemberAccessExpression(
+        std::shared_ptr<Expression> parentExpr,
+        const std::string& baseType,
+        const std::string& instanceName,
+        const std::vector<std::string>& memberPath,
+        const std::vector<int>& memberIndexPath,
+        std::shared_ptr<Type> memberType,
+        std::shared_ptr<Expression> assignmentValue = nullptr
+    ) : baseType(baseType),
+        instanceName(instanceName) {
+        expr = parentExpr;
+        this->assignmentValue = assignmentValue;
+        this->memberPath = memberPath;
+        this->memberIndexPath = memberIndexPath;
+        this->type = memberType;
+    }
+
     std::string toString() const override {
         std::string pathStr;
         for (size_t i = 0; i < memberPath.size(); ++i) {
             pathStr += memberPath[i];
+            if (i < memberIndexPath.size()) {
+                pathStr += "[" + std::to_string(memberIndexPath[i]) + "]";
+            }
             if (i < memberPath.size() - 1) {
                 pathStr += ".";
             }
         }
 
         if (isSetter()) {
-            return instanceName + "." + pathStr + " = " + assignmentValue->toString();
+            return expr->toString() + "." + pathStr + " = " + assignmentValue->toString();
         } else {
-            return instanceName + "." + pathStr;
+            return expr->toString() + "." + pathStr;
         }
     }
 
-    // Clone method to create a deep copy of the expression
     std::shared_ptr<Expression> clone() const override {
-        if (isSetter()) {
-            return std::make_shared<MemberAccessExpression>(
-                baseType,
-                instanceName,
-                memberPath,
-                type,
-                assignmentValue->clone()
-            );
-        } else {
-            return std::make_shared<MemberAccessExpression>(
-                baseType,
-                instanceName,
-                memberPath,
-                type
-            );
-        }
+        return std::make_shared<MemberAccessExpression>(
+            expr->clone(),
+            baseType,
+            instanceName,
+            memberPath,
+            memberIndexPath,
+            type,
+            assignmentValue ? assignmentValue->clone() : nullptr
+        );
     }
 };
 
-// DereferenceExpression represents dereferencing a pointer or assignment to a pointer
-class DereferenceExpression : public AccessExpression {
-private:
-    std::shared_ptr<Expression> pointerExpr;  // Pointer expression
-    std::shared_ptr<Expression> valueExpr;    // Value being assigned (optional, for setters)
-    std::shared_ptr<Type> type;               // Type of the dereferenced value
-
+struct ArrowAccessExpression : public AccessExpression {
 public:
+    ArrowAccessExpression(
+        std::shared_ptr<Expression> parentExpr,
+        const std::vector<std::string>& memberPath,
+        const std::vector<int>& memberIndexPath = {}
+    ) {
+        expr = parentExpr;
+        this->memberPath = memberPath;
+        this->memberIndexPath = memberIndexPath;
+    }
+
+    std::string toString() const override {
+        std::string pathStr;
+        for (size_t i = 0; i < memberPath.size(); ++i) {
+            pathStr += memberPath[i];
+            if (i < memberIndexPath.size()) {
+                pathStr += "[" + std::to_string(memberIndexPath[i]) + "]";
+            }
+            if (i < memberPath.size() - 1) {
+                pathStr += "->";
+            }
+        }
+        return expr->toString() + "->" + pathStr;
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<ArrowAccessExpression>(
+            expr->clone(),
+            memberPath,
+            memberIndexPath
+        );
+    }
+};
+
+struct IndexAccessExpression : public AccessExpression {
+public:
+    std::shared_ptr<Expression> indexExpr;
+
+    IndexAccessExpression(
+        std::shared_ptr<Expression> containerExpr,
+        std::shared_ptr<Expression> indexExpr
+    ) : indexExpr(indexExpr) {
+        expr = containerExpr;
+    }
+
+    std::string toString() const override {
+        return expr->toString() + "[" + indexExpr->toString() + "]";
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<IndexAccessExpression>(
+            expr->clone(),
+            indexExpr->clone()
+        );
+    }
+};
+
+struct DereferenceExpression : public AccessExpression {
+public:
+    std::shared_ptr<Expression> valueExpr;
+    std::shared_ptr<Type> type;
+
     DereferenceExpression(
-        std::shared_ptr<Expression> ptr,
+        std::shared_ptr<Expression> pointerExpr,
         std::shared_ptr<Expression> val,
         std::shared_ptr<Type> resultType
-    ) : pointerExpr(ptr), valueExpr(val), type(resultType) {}
+    ) : valueExpr(val), type(resultType)
+    {
+        expr = pointerExpr;
+    }
 
-    // Override toString to generate the string representation
     std::string toString() const override {
         if (valueExpr) {
-            return "*(" + pointerExpr->toString() + ") = " + valueExpr->toString();
+            return "*(" + expr->toString() + ") = " + valueExpr->toString();
         } else {
-            return "*(" + pointerExpr->toString() + ")";
+            return "*(" + expr->toString() + ")";
         }
     }
 
-    // Clone method to create a deep copy of the dereference expression
     std::shared_ptr<Expression> clone() const override {
         return std::make_shared<DereferenceExpression>(
-            pointerExpr->clone(),
+            expr->clone(),
             valueExpr ? valueExpr->clone() : nullptr,
             type
         );
     }
 };
 
-// ArrowAccessExpression represents accessing a member of an object via the arrow operator (->)
-class ArrowAccessExpression : public AccessExpression {
-private:
-    std::shared_ptr<Expression> pointerExpr;  // Pointer expression (e.g., "ptr")
-    std::string memberName;                   // The member name being accessed (e.g., "member")
-
-public:
-    ArrowAccessExpression(
-        std::shared_ptr<Expression> ptr,
-        const std::string& member
-    ) : pointerExpr(ptr), memberName(member) {}
-
-    // Override toString to generate the string representation
-    std::string toString() const override {
-        return pointerExpr->toString() + "->" + memberName;
-    }
-
-    // Clone method to create a deep copy of the arrow access expression
-    std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<ArrowAccessExpression>(
-            pointerExpr->clone(),
-            memberName
-        );
-    }
-};
-
-// IndexAccessExpression represents accessing an element of an array or container via an index
-class IndexAccessExpression : public AccessExpression {
-private:
-    std::shared_ptr<Expression> containerExpr;  // Container expression (e.g., "array")
-    std::shared_ptr<Expression> indexExpr;      // Index expression (e.g., "0")
-
-public:
-    IndexAccessExpression(
-        std::shared_ptr<Expression> container,
-        std::shared_ptr<Expression> index
-    ) : containerExpr(container), indexExpr(index) {}
-
-    // Override toString to generate the string representation
-    std::string toString() const override {
-        return containerExpr->toString() + "[" + indexExpr->toString() + "]";
-    }
-
-    // Clone method to create a deep copy of the index access expression
-    std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<IndexAccessExpression>(
-            containerExpr->clone(),
-            indexExpr->clone()
-        );
-    }
-};
 
 struct EnumExpression : public Expression {
     EnumExpression(const std::string& enumName, bool hasLookup = false, bool isEnumClass = false)

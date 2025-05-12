@@ -8,169 +8,306 @@
 // ============================== Accesses  ============================== //
 
 std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType scope) {
-    auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
-
-    if (!named) {
-        console.error("The object holding the member being accessed should be named");
-        return nullptr;
+    std::vector<int> memberIndexPath;
+    
+    // Evaluate the base expression recursively
+    std::shared_ptr<Omniscript::Expression> baseExpr = nullptr;
+    std::string baseTypeName;
+    
+    if (object) {
+        if (auto getter = std::dynamic_pointer_cast<GetVariable>(object)) {
+            objectName = getter->getName();
+        }
+        baseExpr = object->express(scope);
+        if (!baseExpr) {
+            console.error("Failed to evaluate base expression for member access");
+            return nullptr;
+        }
+        
+        auto baseType = baseExpr->getType();
+        baseTypeName = (baseType->isPointer()) ? 
+                      baseType->getBasePointeeType()->getName() :
+                      baseType->description();
+    } else {
+        // Handle direct variable access case
+        auto var = scope->get(objectName);
+        if (!var) {
+            console.error("Variable '" + objectName + "' not found in scope");
+            return nullptr;
+        }
+        baseTypeName = (var->getType()->isPointer()) ? 
+                      var->getType()->getBasePointeeType()->getName() :
+                      var->getType()->description();
     }
 
-    objectName = named->getName();
-    DEBUG_LOG("The object name is '" + objectName + "' of type " + scope->get(objectName)->getType()->getName());
-
-    std::string baseTypeName = (scope->get(objectName)->getType()->isPointer()) ? 
-                                scope->get(objectName)->getType()->getBasePointeeType()->getName() :
-                                scope->get(objectName)->getType()->description();
-    std::shared_ptr<Omniscript::Type> baseType = scope->getType(baseTypeName);
-
-    if (!baseType) {
+    std::shared_ptr<Omniscript::Type> currentType = scope->getType(baseTypeName);
+    
+    if (!currentType) {
         console.error("Could not find base type '" + baseTypeName + "'.");
         return nullptr;
     }
 
-    std::shared_ptr<Omniscript::Type> currentType = baseType;
     auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType);
-
     if (!userType) {
-        console.error("Type '" + currentType->description() + "' is not a struct or does not have members.");
+        console.error("Type '" + baseTypeName + "' is not a user-defined type.");
         return nullptr;
     }
 
-    bool found = false;
-    for (const auto& field : userType->paramTypes) {
-        DEBUG_LOG("Field parameter name is " + field->getParameterName());
-        if (field->getParameterName() == member) {
-            currentType = field;
-            found = true;
-            break;
-        }
-    }
-
-    if (!found) {
-        console.error("Member '" + member + "' not found in type '" + userType->description() + "'.");
-        return nullptr;
-    }
-
-    std::shared_ptr<Omniscript::Type> typeToCastFrom = nullptr;
-
-    if (type) {
-        if (Omniscript::isSameOrCastableTo(currentType, type)) {
-            typeToCastFrom = currentType;
-            currentType = type;
-        } else {
-            console.error("Cannot cast member '" + member + "' of object '" + objectName + "' to type '" + type->toString() + "'.");
-            return nullptr;
-        }
-    } else {
-        setType(currentType);
-    }
-
-    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(assignmentValue)) {
-        if (!typed->getType()) {
-            typed->setType(currentType);
-        }
-    }
-
-    DEBUG_LOG("The member being accessed is '" + expr->toString() + "'.");
-    auto obj = expr->express(scope);
-
-    if (assignmentValue) {
-        DEBUG_LOG("Setting '" + this->toString() + "' to '" + assignmentValue->toString() + "'.");
-        auto result = assignmentValue->express(scope);
-
-        if (auto instance = std::dynamic_pointer_cast<Omniscript::InstanceExpression>(scope->get(objectName))) {
-            auto parentInstance = instance;
-            auto subInstance = parentInstance->getField(member);
-
-            if (!subInstance) {
-                console.error("Member '" + member + "' not found on instance of '" + parentInstance->getType()->description() + "'.");
-                return nullptr;
+    // Traverse property path and build index path
+    for (const std::string& memberName : memberPath) {
+        bool found = false;
+        for (int i = 0; i < userType->paramTypes.size(); ++i) {
+            if (userType->paramTypes[i]->getParameterName() == memberName) {
+                memberIndexPath.push_back(i);
+                currentType = userType->paramTypes[i];
+                found = true;
+                break;
             }
+        }
 
-            auto currentInstance = std::dynamic_pointer_cast<Omniscript::InstanceExpression>(subInstance);
-
-            parentInstance->setField(member, result);
-
-            // ✅ Always return the working constructor
-            return std::make_shared<Omniscript::MemberAccessExpression>(baseTypeName, objectName, obj, member, currentType, result);
-
-        } else if (auto typeExpr = scope->get(objectName)) {
-            auto type = typeExpr->getType();
-            if (auto userDefined = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(type->isPointer() ? type->getBasePointeeType() : type)) {
-                std::shared_ptr<Omniscript::Type> currentType = userDefined;
-                std::string lastMember;
-                bool foundAll = true;
-
-                for (const auto& member : propertyPath) {
-                    lastMember = member;
-                    bool found = false;
-
-                    for (const auto& field : userDefined->paramTypes) {
-                        if (field->getParameterName() == member) {
-                            currentType = field;
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    if (!found) {
-                        console.error("Member '" + member + "' not found in type '" + userDefined->description() + "'.");
-                        foundAll = false;
-                        break;
-                    }
-
-                    userDefined = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(currentType->isPointer() ? currentType->getBasePointeeType() : currentType);
-                    if (!userDefined && member != propertyPath.back()) {
-                        console.error("Cannot traverse into non-user-defined member '" + member + "'.");
-                        foundAll = false;
-                        break;
-                    }
-                }
-
-                if (foundAll) {
-                    // ✅ Use the same working constructor
-                    return std::make_shared<Omniscript::MemberAccessExpression>(
-                        baseTypeName,
-                        objectName,
-                        obj,
-                        member,
-                        currentType,
-                        result
-                    );
-                }
-
-                return nullptr;
-            }
-
-            console.error("Type of '" + objectName + "' is not a user-defined type.");
+        if (!found) {
+            console.error("Member '" + memberName + "' not found in type '" + userType->description() + "'.");
             return nullptr;
         }
 
-        console.error("Object '" + objectName + "' is not an instance.");
-        return nullptr;
-
-    } else {
-        DEBUG_LOG("Getting '" + this->toString() + "'.");
-        // ✅ Use consistent constructor (getter form)
-        auto memberAcc = std::make_shared<Omniscript::MemberAccessExpression>(
-            baseTypeName,
-            objectName,
-            obj,
-            member,
-            currentType
+        // Descend into nested type
+        userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(
+            currentType->isPointer() ? currentType->getBasePointeeType() : currentType
         );
 
-        // if (typeToCastFrom) {
-        //     auto stmt = std::make_shared<Cast
-        // }
-        return memberAcc;
+        if (!userType && memberName != memberPath.back()) {
+            console.error("Cannot traverse non-user-defined member '" + memberName + "'.");
+            return nullptr;
+        }
     }
+
+    setType(currentType);
+
+    // Handle assignment if present
+    std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
+    if (assignmentValue) {
+        assignmentExpr = assignmentValue->express(scope);
+        if (!assignmentExpr) {
+            console.error("Failed to evaluate assignment expression");
+            return nullptr;
+        }
+    }
+
+    // If we have a base expression (from nested access), use it
+    if (baseExpr) {
+        return std::make_shared<Omniscript::MemberAccessExpression>(
+            baseExpr,
+            baseTypeName,
+            objectName,
+            memberPath,
+            memberIndexPath,
+            currentType,
+            assignmentExpr
+        );
+    }
+    
+    // Otherwise create a variable reference as the base
+    auto varExpr = std::make_shared<Omniscript::VariableAccess>(objectName, scope->get(objectName)->getType());
+    return std::make_shared<Omniscript::MemberAccessExpression>(
+        varExpr,
+        baseTypeName,
+        objectName,
+        memberPath,
+        memberIndexPath,
+        currentType,
+        assignmentExpr
+    );
 }
 
 std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType scope) {
-    return nullptr;
+    // Evaluate the pointer expression recursively
+    auto pointerExpr = pointer->express(scope);
+    if (!pointerExpr) {
+        console.error("Failed to evaluate pointer expression for arrow access");
+        return nullptr;
+    }
+
+    auto pointerType = pointerExpr->getType();
+    if (!pointerType->isPointer()) {
+        console.error("Arrow access requires a pointer type");
+        return nullptr;
+    }
+
+    auto baseType = pointerType->getBasePointeeType();
+    auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(baseType);
+    if (!userType) {
+        console.error("Arrow access requires a pointer to user-defined type");
+        return nullptr;
+    }
+
+    std::vector<int> memberIndexPath;
+    std::shared_ptr<Omniscript::Type> currentType = baseType;
+
+    // Traverse member path
+    for (const std::string& memberName : memberPath) {
+        bool found = false;
+        for (int i = 0; i < userType->paramTypes.size(); ++i) {
+            if (userType->paramTypes[i]->getParameterName() == memberName) {
+                memberIndexPath.push_back(i);
+                currentType = userType->paramTypes[i];
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            console.error("Member '" + memberName + "' not found in type '" + userType->description() + "'");
+            return nullptr;
+        }
+
+        // Descend into nested type if needed
+        if (memberName != memberPath.back()) {
+            userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(
+                currentType->isPointer() ? currentType->getBasePointeeType() : currentType
+            );
+            if (!userType) {
+                console.error("Cannot traverse non-user-defined member '" + memberName + "'");
+                return nullptr;
+            }
+        }
+    }
+
+    setType(currentType);
+
+    // Handle assignment if present
+    std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
+    if (assignmentValue) {
+        assignmentExpr = assignmentValue->express(scope);
+        if (!assignmentExpr) {
+            console.error("Failed to evaluate assignment expression");
+            return nullptr;
+        }
+    }
+
+    return std::make_shared<Omniscript::ArrowAccessExpression>(
+        pointerExpr,
+        memberPath,
+        memberIndexPath
+    );
+}
+
+std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType scope) {
+    // Evaluate the pointer expression recursively
+    auto pointerExpr = pointer->express(scope);
+    if (!pointerExpr) {
+        console.error("Failed to evaluate pointer expression for dereference");
+        return nullptr;
+    }
+
+    auto pointerType = pointerExpr->getType();
+    if (!pointerType->isPointer()) {
+        console.error("Dereference requires a pointer type");
+        return nullptr;
+    }
+
+    auto baseType = pointerType->getBasePointeeType();
+    setType(baseType);
+
+    // Handle member access if present
+    if (!memberPath.empty()) {
+        auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(baseType);
+        if (!userType) {
+            console.error("Cannot access members of non-user-defined type");
+            return nullptr;
+        }
+
+        std::vector<int> memberIndexPath;
+        std::shared_ptr<Omniscript::Type> currentType = baseType;
+
+        // Traverse member path
+        for (const std::string& memberName : memberPath) {
+            bool found = false;
+            for (int i = 0; i < userType->paramTypes.size(); ++i) {
+                if (userType->paramTypes[i]->getParameterName() == memberName) {
+                    memberIndexPath.push_back(i);
+                    currentType = userType->paramTypes[i];
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                console.error("Member '" + memberName + "' not found in type '" + userType->description() + "'");
+                return nullptr;
+            }
+
+            // Descend into nested type if needed
+            if (memberName != memberPath.back()) {
+                userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(
+                    currentType->isPointer() ? currentType->getBasePointeeType() : currentType
+                );
+                if (!userType) {
+                    console.error("Cannot traverse non-user-defined member '" + memberName + "'");
+                    return nullptr;
+                }
+            }
+        }
+
+        setType(currentType);
+    }
+
+    // Handle assignment if present
+    std::shared_ptr<Omniscript::Expression> valueExpr = nullptr;
+    if (assignmentValue) {
+        valueExpr = assignmentValue->express(scope);
+        if (!valueExpr) {
+            console.error("Failed to evaluate assignment expression");
+            return nullptr;
+        }
+    }
+
+    return std::make_shared<Omniscript::DereferenceExpression>(
+        pointerExpr,
+        valueExpr,
+        getType()
+    );
 }
 
 std::shared_ptr<Omniscript::Expression> IndexAccess::express(SymbolTableType scope) {
-    return nullptr;
+    // Evaluate the container expression recursively
+    auto containerExpr = expr->express(scope);
+    if (!containerExpr) {
+        console.error("Failed to evaluate container expression for index access");
+        return nullptr;
+    }
+
+    // Evaluate the index expression recursively
+    auto indexExprValue = index->express(scope);
+    if (!indexExprValue) {
+        console.error("Failed to evaluate index expression");
+        return nullptr;
+    }
+
+    auto containerType = containerExpr->getType();
+    if (!containerType->isArray() && !containerType->isPointer()) {
+        console.error("Index access requires an array or pointer type");
+        return nullptr;
+    }
+
+    // Set the result type (for pointer it's the pointee type, for array it's the element type)
+    auto resultType = containerType->isPointer() 
+        ? containerType->getBasePointeeType() 
+        : containerType->getElementType();
+    setType(resultType);
+
+    // Handle assignment if present
+    std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
+    if (assignmentValue) {
+        assignmentExpr = assignmentValue->express(scope);
+        if (!assignmentExpr) {
+            console.error("Failed to evaluate assignment expression");
+            return nullptr;
+        }
+    }
+
+    return std::make_shared<Omniscript::IndexAccessExpression>(
+        containerExpr,
+        indexExprValue
+    );
 }
+

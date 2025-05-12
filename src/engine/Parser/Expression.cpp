@@ -354,10 +354,11 @@ std::shared_ptr<Statement> Parser::factor() {
 
             // Create call for method invocation
             left = std::make_shared<Call>(left, methodName, args);
-        } else {
-            DEBUG_LOG("Got property " + methodName);
-            left = std::make_shared<MemberAccess>(left, methodName);
-        }
+        } 
+        // else {
+        //     DEBUG_LOG("Got property " + methodName);
+        //     left = std::make_shared<MemberAccess>(left, methodName);
+        // }
     }
     
     // Parse a parentheses after a string, dictionary, or an array to access a key

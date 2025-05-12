@@ -313,12 +313,26 @@ public:
         const std::shared_ptr<Omniscript::WhileLoopExpression>& whileExpr,
         std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
     );
-    llvm::Value* accessMember(
-        const std::string& baseTypeName,
-        const std::string& instanceName,
-        const int& index,
-        llvm::Value* valueToSet  = nullptr
-    );
+     // Access expression handling
+    llvm::Value* handleAccessExpression(std::shared_ptr<Omniscript::AccessExpression> expr, 
+                                      SymbolTableType scope);
+    
+    // Specific access type handlers
+    llvm::Value* handleMemberAccess(std::shared_ptr<Omniscript::MemberAccessExpression> expr,
+                                  llvm::Value* baseValue,
+                                  SymbolTableType scope);
+    
+    llvm::Value* handleArrowAccess(std::shared_ptr<Omniscript::ArrowAccessExpression> expr,
+                                 llvm::Value* baseValue,
+                                 SymbolTableType scope);
+    
+    llvm::Value* handleDereference(std::shared_ptr<Omniscript::DereferenceExpression> expr,
+                                 llvm::Value* baseValue,
+                                 SymbolTableType scope);
+    
+    llvm::Value* handleIndexAccess(std::shared_ptr<Omniscript::IndexAccessExpression> expr,
+                                  llvm::Value* baseValue,
+                                  SymbolTableType scope);
     llvm::Value* createModuleObject(
         const std::string& moduleName,
         const std::unordered_map<std::string, llvm::Value*>& members
