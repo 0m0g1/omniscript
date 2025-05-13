@@ -2139,27 +2139,51 @@ llvm::Value* IRGenerator::handleMemberAccess(
     SymbolTableType scope,
     bool preservePointer
 ) {
-    llvm::Type* currentType = baseValue->getType();
+    // Verify we have a pointer to a struct
+    if (!baseValue->getType()->isPointerTy()) {
+        console.error("Member access requires pointer to struct, got: " + debugType(baseValue->getType()));
+        return nullptr;
+    }
+
+    // llvm::Type* currentType = resolveLLVMType(expr->getType()->isPointer() ? expr->getType()->getBasePointeeType() : expr->getType());
+    llvm::Type* currentType = activeScope->getType(expr->baseType);
     llvm::Value* currentPtr = baseValue;
 
     for (size_t i = 0; i < expr->memberIndexPath.size(); ++i) {
         int fieldIndex = expr->memberIndexPath[i];
 
         if (!currentType->isStructTy()) {
-            console.error("Member access requires struct type");
+            console.error("Member access requires struct type, got: " + debugType(currentType));
             return nullptr;
         }
 
         auto* structType = llvm::cast<llvm::StructType>(currentType);
-        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex);
+        
+        // Get pointer to member
+        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex,
+                                           "member." + expr->memberPath[i]);
+        
+        // Update type to the member's type
         currentType = structType->getElementType(fieldIndex);
     }
 
-    // Only load if we're not preserving pointers AND it's not a setter
-    if (!preservePointer && !expr->isSetter()) {
-        return Builder->CreateLoad(currentType, currentPtr);
+    if (expr->isSetter()) {
+        // For setters, we always want the pointer to store through
+        return currentPtr;
     }
-    return currentPtr;  // Return the pointer if preserving
+
+    if (preservePointer) {
+        // Return pointer to member if requested
+        return currentPtr;
+    }
+
+    // Otherwise load the value
+    if (!currentType->isAggregateType()) {
+        // Load simple types (int, float, etc.)
+        return Builder->CreateLoad(currentType, currentPtr, "load.member");
+    }
+    // For structs/arrays, return the pointer (LLVM prefers to keep aggregates in memory)
+    return currentPtr;
 }
 
 llvm::Value* IRGenerator::handleArrowAccess(
