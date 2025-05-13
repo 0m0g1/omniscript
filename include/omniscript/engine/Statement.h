@@ -603,7 +603,8 @@ public:
 class AssignVariable : public Assignment {
 public:
     AssignVariable(const std::string &var, std::shared_ptr<Omniscript::Type> ty, std::shared_ptr<Statement> val, bool isReassign = false)
-    : variable(var), type(std::move(ty)), isReassign(isReassign) {
+    : variable(var), isReassign(isReassign) {
+        setType(ty);
         this->value = std::move(val);
     }
 
@@ -619,7 +620,6 @@ public:
 
 private:
     std::string variable;
-    std::shared_ptr<Omniscript::Type> type;
     bool isReassign;
 };
 

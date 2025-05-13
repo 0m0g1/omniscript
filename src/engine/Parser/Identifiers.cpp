@@ -14,6 +14,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     // Start with base identifier
     std::shared_ptr<Statement> expr = std::make_shared<GetVariable>(rootIdentifier);
     std::vector<std::string> memberPath = {};
+    std::string member;
 
     // Loop for dot/arrow/call access
     while (true) {
@@ -42,19 +43,21 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
         else if (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
             eat(currentToken.getType()); // Eat dot or scope resolution
             std::string nextMember = currentToken.getValue();
+            member = nextMember;
             eat(TokenTypes::Identifier);
             memberPath.push_back(nextMember);
             // expr = std::make_shared<MemberAccess>(rootIdentifier, memberPath);  // Pass full path
-            expr = std::make_shared<MemberAccess>(expr, memberPath);  // Pass full path
+            expr = std::make_shared<MemberAccess>(expr, std::vector<std::string>{ member });  // Pass full path
         }
 
         // Pointer member access (->)
         else if (currentToken.getType() == TokenTypes::Arrow) {
             eat(TokenTypes::Arrow);
             std::string nextMember = currentToken.getValue();
+            member = nextMember;
             eat(TokenTypes::Identifier);
             memberPath.push_back(nextMember);
-            expr = std::make_shared<ArrowAccess>(expr, memberPath);  // Pass full path
+            expr = std::make_shared<ArrowAccess>(expr, std::vector<std::string>{ member } );  // Pass full path
         }
 
         // Index access

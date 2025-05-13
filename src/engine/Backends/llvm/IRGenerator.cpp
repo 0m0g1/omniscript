@@ -2162,14 +2162,14 @@ llvm::Value* IRGenerator::handleArrowAccess(
         return nullptr;
     }
 
-    llvm::Type* currentType = resolveLLVMType(expr->getType());  // Get the type pointed to by the pointer
+    llvm::Type* currentType = resolveLLVMType(expr->expr->getType()->getBasePointeeType());  // Get the type pointed to by the pointer
     llvm::Value* currentPtr = baseValue;
 
     for (size_t i = 0; i < expr->memberIndexPath.size(); ++i) {
         int fieldIndex = expr->memberIndexPath[i];
 
         if (!currentType->isStructTy()) {
-            console.error("Arrow access requires pointer to struct");
+            console.error("Arrow access requires a pointer to a struct not '" + debugType(currentType) + "'.");
             return nullptr;
         }
 

@@ -94,8 +94,14 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
 std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<Statement> statement) {
     DEBUG_LOG("Reinterprating statement '" + statement->toString() + "'.");
-    if (auto assignment = std::dynamic_pointer_cast<Assignment>(statement)) {
+    if (auto assignment = std::dynamic_pointer_cast<AssignVariable>(statement)) {
         auto memberStatement = std::make_shared<ParameterStatement>(assignment->getName(), assignment->getValue()->clone());
+        if (!assignment->getType()) {
+            DEBUG_LOG("Assignment has no type");
+        } else {
+            DEBUG_LOG("Assignment has a type of '" + assignment->getType()->toString() + "'.");
+        }
+        memberStatement->setType(assignment->getType());
         return memberStatement;
     } else if (auto function = std::dynamic_pointer_cast<FunctionDeclaration>(statement)) {
         function->setName(getName() + "." + function->getName());

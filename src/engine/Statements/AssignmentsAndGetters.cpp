@@ -230,9 +230,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
 
     if (type) {     
         DEBUG_LOG(
-                    "The result is " + variable + " " + 
-                    (result->getType()->elementType ? result->getType()->elementType->description() + " " + result->getType()->description() : result->getType()->description())
-                    + " = " + result->toString()
+                    "The result is " + variable + " " + result->getType()->toString() + " = " + result->toString()
                 );
     } else {
         DEBUG_LOG("No type was deduced for variable '" + variable + "'. It had a value and no type or multiple types. Returning its result.");
