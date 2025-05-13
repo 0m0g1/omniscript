@@ -2197,8 +2197,16 @@ llvm::Value* IRGenerator::handleArrowAccess(
     }
 
     // Rest of arrow access handling...
-    llvm::Type* currentType = resolveLLVMType(expr->expr->getType()->getPointeeType());
+    llvm::Type* currentType = resolveLLVMType(expr->expr->getType()->isPointer() ? expr->expr->getType()->getPointeeType() : expr->expr->getType());
     llvm::Value* currentPtr = baseValue;
+    if (expr->expr->getType()->isPointer() && expr->expr->getType()->getPointeeType()->isStruct()) {
+        // currentPtr = Builder->CreateLoad(currentPtr->getType()->getPointerElementType(), currentPtr);
+        // currentPtr = Builder->CreateLoad(activeScope->getType(expr->expr->baseType), currentPtr);
+        llvm::Type* pointeeType = resolveLLVMType(expr->expr->getType());
+        currentPtr = Builder->CreateLoad(pointeeType, currentPtr);
+    }
+
+    DEBUG_LOG("Accessing member '" + std::to_string(expr->memberIndexPath[0]) + "' of " + debugType(currentType));
 
     for (size_t i = 0; i < expr->memberIndexPath.size(); ++i) {
         int fieldIndex = expr->memberIndexPath[i];

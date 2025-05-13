@@ -1,7 +1,10 @@
 module Math {
     // Constants
-    const pi: f32        = 3.141592653589793;     // π :contentReference[oaicite:3]{index=3}
+    const pi: f32          = 3.141592653589793;     // π :contentReference[oaicite:3]{index=3}
+    const e: float         = 2.718281828459045;     // e :contentReference[oaicite:4]{index=4}
+    
     // public const e: float         = 2.718281828459045;     // e :contentReference[oaicite:4]{index=4}
+    // public const pi: f32        = 3.141592653589793;     // π :contentReference[oaicite:3]{index=3}
 
     // // Basic Arithmetic
     // public pow(base: float = 1.0, exponent: float = 1.0) => float {
