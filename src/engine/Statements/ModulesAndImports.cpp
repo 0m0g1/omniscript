@@ -103,7 +103,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     expressions.push_back(structStmt->express(scope));
 
     // 3. Build arguments for constructor
-    for (const auto& stmt : statements) {
+    for (const auto& stmt : flattenedStatements) {
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
 
