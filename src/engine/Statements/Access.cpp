@@ -27,6 +27,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             baseTypeName = (var->getType()->isPointer()) ? 
                         var->getType()->getBasePointeeType()->getName() :
                         var->getType()->description();
+            object = nullptr;
         } else {
             baseExpr = object->express(scope);
             if (!baseExpr) {

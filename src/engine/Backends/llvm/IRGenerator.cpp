@@ -494,14 +494,46 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expressio
     return nullptr;
 }
 
-llvm::Value* IRGenerator::handleAccessExpression(std::shared_ptr<Omniscript::AccessExpression> expr, SymbolTableType scope) {
+llvm::Value* IRGenerator::handleAccessExpression(
+    std::shared_ptr<Omniscript::AccessExpression> expr, 
+    SymbolTableType scope
+) {
     // First evaluate the base expression recursively
-    llvm::Value* baseValue = codegen(expr->expr, scope);
+    llvm::Value* baseValue = nullptr;
+
+    // Handle variable access case
+    if (auto varAcc = std::dynamic_pointer_cast<Omniscript::VariableAccess>(expr->expr)) {
+        baseValue = activeScope->get(varAcc->variableName);
+    } 
+    // Handle nested member access in arrow access case (like std.Math->pi)
+    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::ArrowAccessExpression>(expr)) {
+        if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(arrowAccess->expr)) {
+            // First get the base value for the member access
+            llvm::Value* memberBaseValue = nullptr;
+            if (auto innerVarAcc = std::dynamic_pointer_cast<Omniscript::VariableAccess>(memberAccess->expr)) {
+                DEBUG_LOG("Getting " + innerVarAcc->variableName);
+                memberBaseValue = activeScope->get(innerVarAcc->variableName);
+            } else {
+                memberBaseValue = codegen(memberAccess->expr, scope);
+            }
+            
+            // Process member access with pointer preservation
+            baseValue = handleMemberAccess(memberAccess, memberBaseValue, scope, true);
+        } else {
+            // Regular arrow access case (ptr->member)
+            baseValue = codegen(arrowAccess->expr, scope);
+        }
+    }
+    // All other cases
+    else {
+        baseValue = codegen(expr->expr, scope);
+    }
+
     if (!baseValue) {
         return nullptr;
     }
 
-    // Handle specific access types
+    // Handle the current access expression
     if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(expr)) {
         return handleMemberAccess(memberAccess, baseValue, scope);
     }
@@ -2104,45 +2136,30 @@ llvm::Value* IRGenerator::createStructInstance(
 llvm::Value* IRGenerator::handleMemberAccess(
     std::shared_ptr<Omniscript::MemberAccessExpression> expr,
     llvm::Value* baseValue,
-    SymbolTableType scope
+    SymbolTableType scope,
+    bool preservePointer
 ) {
     llvm::Type* currentType = baseValue->getType();
     llvm::Value* currentPtr = baseValue;
 
-    // For each member in the path
     for (size_t i = 0; i < expr->memberIndexPath.size(); ++i) {
         int fieldIndex = expr->memberIndexPath[i];
 
         if (!currentType->isStructTy()) {
-            console.error("Member access requires struct type, got: " + debugType(currentType));
+            console.error("Member access requires struct type");
             return nullptr;
         }
 
         auto* structType = llvm::cast<llvm::StructType>(currentType);
-        if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
-            console.error("Invalid field index: " + std::to_string(fieldIndex));
-            return nullptr;
-        }
-
-        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex, 
-                                            "member." + expr->memberPath[i]);
+        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex);
         currentType = structType->getElementType(fieldIndex);
     }
 
-    // Handle assignment if present
-    if (expr->isSetter()) {
-        llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
-        if (!valueToStore) return nullptr;
-        
-        if (valueToStore->getType() != currentType) {
-            valueToStore = Builder->CreateBitCast(valueToStore, currentType, "bitcast.store");
-        }
-        Builder->CreateStore(valueToStore, currentPtr);
-        return valueToStore;
+    // Only load if we're not preserving pointers AND it's not a setter
+    if (!preservePointer && !expr->isSetter()) {
+        return Builder->CreateLoad(currentType, currentPtr);
     }
-
-    // Otherwise load the value
-    return Builder->CreateLoad(currentType, currentPtr, "load.member");
+    return currentPtr;  // Return the pointer if preserving
 }
 
 llvm::Value* IRGenerator::handleArrowAccess(
@@ -2150,54 +2167,36 @@ llvm::Value* IRGenerator::handleArrowAccess(
     llvm::Value* baseValue,
     SymbolTableType scope
 ) {
-    llvm::Type* ptrType = baseValue->getType();
-    if (!ptrType->isPointerTy()) {
+    if (!baseValue->getType()->isPointerTy()) {
         console.error("Arrow access requires pointer type");
         return nullptr;
     }
 
-    llvm::PointerType* pointerType = llvm::dyn_cast<llvm::PointerType>(ptrType);
-    if (!pointerType) {
-        console.error("Base value is not a pointer.");
-        return nullptr;
-    }
-
-    llvm::Type* currentType = resolveLLVMType(expr->expr->getType()->getBasePointeeType());  // Get the type pointed to by the pointer
+    // Rest of arrow access handling...
+    llvm::Type* currentType = resolveLLVMType(expr->expr->getType()->getPointeeType());
     llvm::Value* currentPtr = baseValue;
 
     for (size_t i = 0; i < expr->memberIndexPath.size(); ++i) {
         int fieldIndex = expr->memberIndexPath[i];
-
+        
         if (!currentType->isStructTy()) {
-            console.error("Arrow access requires a pointer to a struct not '" + debugType(currentType) + "'.");
+            console.error("Arrow access requires struct type");
             return nullptr;
         }
 
         auto* structType = llvm::cast<llvm::StructType>(currentType);
-        if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
-            console.error("Invalid field index: " + std::to_string(fieldIndex));
-            return nullptr;
-        }
-
-        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex,
-                                            "arrow." + expr->memberPath[i]);
+        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex);
         currentType = structType->getElementType(fieldIndex);
     }
 
     if (expr->isSetter()) {
         llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
-        if (!valueToStore) return nullptr;
-        
-        if (valueToStore->getType() != currentType) {
-            valueToStore = Builder->CreateBitCast(valueToStore, currentType, "bitcast.store");
-        }
         Builder->CreateStore(valueToStore, currentPtr);
         return valueToStore;
     }
 
-    return Builder->CreateLoad(currentType, currentPtr, "load.arrow");
+    return Builder->CreateLoad(currentType, currentPtr);
 }
-
 
 llvm::Value* IRGenerator::handleDereference(
     std::shared_ptr<Omniscript::DereferenceExpression> expr,

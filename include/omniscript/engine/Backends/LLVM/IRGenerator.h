@@ -320,7 +320,9 @@ public:
     // Specific access type handlers
     llvm::Value* handleMemberAccess(std::shared_ptr<Omniscript::MemberAccessExpression> expr,
                                   llvm::Value* baseValue,
-                                  SymbolTableType scope);
+                                  SymbolTableType scope,
+                                  bool preservePointer = false
+                                );
     
     llvm::Value* handleArrowAccess(std::shared_ptr<Omniscript::ArrowAccessExpression> expr,
                                  llvm::Value* baseValue,
