@@ -8,6 +8,23 @@
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 
+std::shared_ptr<Statement> Parser::parseInclude() {
+    eat(TokenTypes::Include);
+
+    std::string includePath;
+
+    if (currentToken.getType() != TokenTypes::StringLiteral) {
+        throw std::runtime_error("Syntax Error: Expected string literal after 'include'");
+    }
+
+    includePath = currentToken.getValue();
+    eat(TokenTypes::StringLiteral);
+
+    eat(TokenTypes::Semicolon);
+
+    return std::make_shared<IncludeStatement>(includePath);
+}
+
 
 std::shared_ptr<Statement> Parser::parseModuleImport() {
     eat(TokenTypes::Import);
@@ -110,6 +127,16 @@ std::shared_ptr<Statement> Parser::parseModule() {
     eat(TokenTypes::LeftBrace);
 
     while (currentToken.getType() != TokenTypes::RightBrace) {
+        if (currentToken.getType() == TokenTypes::Include) {
+            eat(TokenTypes::Include);
+            std::string filePath = currentToken.getValue();
+            eat(TokenTypes::StringLiteral);
+            auto includeStatement = std::make_shared<IncludeStatement>(filePath);
+            members.push_back(includeStatement);
+            expectSemicolonOrNewLine();
+            continue;
+        }
+
         MemberModifiers modifiers = parseMemberModifiers();
 
         // Handle nested module import assignment

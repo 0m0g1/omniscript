@@ -23,6 +23,9 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
     }
 
     switch (currentToken.getType()) {
+        case TokenTypes::Include:
+            statement = parseInclude();
+            break;
         case TokenTypes::Import:
             statement = parseModuleImport();
             break;

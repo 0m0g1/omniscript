@@ -185,6 +185,8 @@ Token Lexer::getNextToken() {
             return Token(TokenTypes::Null, "", line, column, sourceFilePath);
         } else if (identifier == "xor") {
             return Token(TokenTypes::LogicalXor, "", line, column, sourceFilePath);
+        }  else if (identifier == "include") {
+            return Token(TokenTypes::Include, "", line, column, sourceFilePath);
         } else if (identifier == "import") {
             return Token(TokenTypes::Import, "", line, column, sourceFilePath);
         } else if (identifier == "from") {

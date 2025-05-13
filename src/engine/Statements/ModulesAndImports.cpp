@@ -7,6 +7,41 @@
 #include <omniscript/engine/Parser.h>
 #include <omniscript/utils.h>
 
+std::shared_ptr<Omniscript::Expression> IncludeStatement::express(SymbolTableType scope) {
+    return nullptr;
+}
+
+std::vector<std::shared_ptr<Statement>> IncludeStatement::getStatements() {
+    if (path.empty()) {
+        console.error("IncludeStatement::express - Include path is empty.");
+        return {};
+    }
+
+    std::string sourceCode = readFile(path);
+    if (sourceCode.empty()) {
+        console.error("IncludeStatement::express - Failed to read file: " + path);
+        return {};
+    }
+
+    Lexer lexer(sourceCode, path);
+    Parser parser(lexer);
+    std::vector<std::shared_ptr<Statement>> parsedStatements = parser.Parse();
+
+    std::vector<std::shared_ptr<Statement>> finalStatements;
+
+    for (const auto& stmt : parsedStatements) {
+        if (auto mod = std::dynamic_pointer_cast<CreateModule>(stmt)) {
+            for (const auto& inner : mod->getStatements()) {
+                finalStatements.push_back(inner);
+            }
+        } else {
+            finalStatements.push_back(stmt);
+        }
+    }
+
+    return finalStatements;
+}
+
 std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType scope) {
     DEBUG_LOG();
     DEBUG_LOG("Creating module '" + modulePath + "'.");
@@ -15,9 +50,23 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     std::vector<std::shared_ptr<Statement>> parameterStatements;
     std::vector<std::shared_ptr<Statement>> constructorArgs;
 
-    // 1. Handle nested modules and prepare parameters
+    // First process all includes (flatten the hierarchy)
+    std::vector<std::shared_ptr<Statement>> flattenedStatements;
     for (const auto& stmt : statements) {
+        if (auto include = std::dynamic_pointer_cast<IncludeStatement>(stmt)) {
+            for (const auto& innerExpr : include->getStatements()) {
+                flattenedStatements.push_back(innerExpr);
+            }
+        } else {
+            flattenedStatements.push_back(stmt);
+        }
+    }
+
+
+    // 1. Handle nested modules and prepare parameters
+    for (const auto& stmt : flattenedStatements) {
         DEBUG_LOG(stmt->toString());
+
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
         

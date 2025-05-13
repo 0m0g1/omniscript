@@ -277,6 +277,32 @@ public:
 };
 
 
+class IncludeStatement : public Statement {
+public:
+    std::string path;  // The path to the file to be included
+
+    IncludeStatement(const std::string& includePath)
+        : path(includePath) {}
+
+    std::string getPath() const {
+        return path;
+    }
+
+    // Runtime behavior — usually returns nullptr because includes are handled at parse/preprocess time
+    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override {
+        return nullptr;
+    }
+
+    // Optional: Could represent this as a string literal in expression form
+    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::vector<std::shared_ptr<Statement>> getStatements();
+
+    std::string toString() const override {
+        return "Include \"" + path + "\";";
+    }
+};
+
+
 class ImportModule : public Statement {
 public:
     std::string moduleName;

@@ -49,6 +49,7 @@ class Parser {
         
         std::shared_ptr<Statement> parseStatement(bool checkForTerminalChar = true); // To parse a single statement
         
+        std::shared_ptr<Statement> parseInclude();
         std::shared_ptr<Statement> parseModuleImport();
         std::shared_ptr<Statement> parseModule();
 

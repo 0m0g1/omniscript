@@ -11,6 +11,26 @@ let n: f32 = std.Math->pi;
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // let a : i8 = 1;
 // let b : i16 = 2;
 // let c : i32 = 3;

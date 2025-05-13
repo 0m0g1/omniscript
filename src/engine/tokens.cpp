@@ -36,6 +36,7 @@ std::unordered_map<TokenTypes, std::string> tokenTypeNames = {
     {TokenTypes::Extends, "Extends"},
     {TokenTypes::Variant, "Variant"},
     {TokenTypes::Any, "Any"},
+    {TokenTypes::Include, "Include"},
     {TokenTypes::Import, "Import"},
     {TokenTypes::From, "From"},
     {TokenTypes::Module, "Module"},
