@@ -1,5 +1,4 @@
 module String {
-    let test: int32 = 0;
 //   public class String {
 //     private text: char*;
 

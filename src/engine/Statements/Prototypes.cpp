@@ -14,6 +14,13 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
     std::string targetName = named ? named->getName() : instanceName;
     DEBUG_LOG("The target name is: " + targetName);
+    DEBUG_LOG("The args are ");
+
+    for (const auto& arg: args) {
+        auto typed = std::dynamic_pointer_cast<TypedStatement>(arg);
+        DEBUG_LOG(arg->toString() + " of type " + typed->getRootType()->description());
+    }
+
     if (!targetName.empty()) {
         if (auto obj = scope->get(targetName)) {
             std::string typeName = obj->getType()->getName();
@@ -237,7 +244,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             }
 
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
-                if (Omniscript::isSameOrCastableTo(typed->getType(), param->getType()) || Omniscript::isSameOrCastableTo(typed->getType(), param->getType())) {
+                if (Omniscript::isSameOrCastableTo(typed->getRootType(), param->getType()) || Omniscript::isSameOrCastableTo(typed->getType(), param->getType())) {
                     if (!typed->getType()) {
                         typed->setType(param->getType());
                     }

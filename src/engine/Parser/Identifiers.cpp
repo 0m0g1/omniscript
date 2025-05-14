@@ -14,14 +14,18 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     // Start with base identifier
     std::shared_ptr<Statement> expr = std::make_shared<GetVariable>(rootIdentifier);
     std::vector<std::string> memberPath = {};
-    std::string member;
+    std::string member = rootIdentifier;
 
     // Loop for dot/arrow/call access
     while (true) {
         if (currentToken.getType() == TokenTypes::LeftParen) {
             // Normal function call
             std::vector<std::shared_ptr<Statement>> args = parseArguments();
-            expr = std::make_shared<Call>(expr, memberPath.back(), args);
+            if (memberPath.empty()) {
+                expr = std::make_shared<Call>(expr, member, args);
+            } else {
+                expr = std::make_shared<Call>(expr, memberPath.back(), args);
+            }
         }
 
         // Function call with generics

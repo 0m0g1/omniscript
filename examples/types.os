@@ -264,22 +264,22 @@
 //     }
 // }
 
-// class Particle {
-//     x: f32 = 0;
-//     y: f32 = 0;
-//     z: f32 = 0;
-//     constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) => void {
-//         this.x = x;
-//         this.y = y;
-//         this.z = z;
-//     }
-//     destructor() => void {
+class Particle {
+    x: f32 = 0;
+    y: f32 = 0;
+    z: f32 = 0;
+    constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) => void {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+    destructor() => void {
         
-//     }
-// }
+    }
+}
 
 // let v1 = new Vector3{ x: 0, y: 0, z: 0 };
-// let p1 = Particle();
+let p1 = Particle();
 
 // v1.scale();
 // v1.scale(2.0, 1.0, 1.0);
