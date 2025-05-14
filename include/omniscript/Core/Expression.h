@@ -22,6 +22,7 @@ struct MemberModifiers {
 
     // Function-specific modifiers
     bool isVirtual = false;
+    bool isOverride = false;
     bool shouldOverride = false;
     bool isFinal = false;
     bool isConst = false;
@@ -62,6 +63,7 @@ struct MemberModifiers {
 
         // Function modifiers
         if (isVirtual) result += "virtual ";
+        if (isOverride) result += "is_override ";
         if (shouldOverride) result += "should_override ";
         if (isFinal) result += "final ";
         if (isConst) result += "const ";
@@ -102,6 +104,7 @@ namespace std {
             result ^= modifiers.isMutable + 0x9e3779b9 + (result << 6) + (result >> 2);
             result ^= modifiers.isThreadLocal + 0x9e3779b9 + (result << 6) + (result >> 2);
             result ^= modifiers.isVirtual + 0x9e3779b9 + (result << 6) + (result >> 2);
+            result ^= modifiers.isOverride + 0x9e3779b9 + (result << 6) + (result >> 2);
             result ^= modifiers.shouldOverride + 0x9e3779b9 + (result << 6) + (result >> 2);
             result ^= modifiers.isFinal + 0x9e3779b9 + (result << 6) + (result >> 2);
             result ^= modifiers.isConst + 0x9e3779b9 + (result << 6) + (result >> 2);
@@ -571,48 +574,6 @@ struct FunctionInputExpression : public Expression {
     }
 };
 
-struct CallExpression : public Expression {
-    std::string calleeName;
-    std::string instanceName;
-    std::vector<std::shared_ptr<Expression>> args;
-    bool isGlobal;
-
-    CallExpression(const std::string& calleeName, const std::vector<std::shared_ptr<Expression>>& args = {}, std::shared_ptr<Type> returnType = nullptr)
-    : calleeName(calleeName), args(std::move(args)) {
-        type = std::move(returnType);
-    }
-
-    CallExpression(const std::string& objectName,
-        const std::string& instanceName,
-        const std::vector<std::shared_ptr<Expression>>& args = {},
-        std::shared_ptr<Type> returnType = nullptr,
-        bool isGlobal = true
-    )
-    : calleeName(objectName), instanceName(instanceName), args(std::move(args)), isGlobal(isGlobal) {
-        type = std::move(returnType);
-    }
-
-    // CallExpression
-    std::shared_ptr<Expression> clone() const override {
-        std::vector<std::shared_ptr<Expression>> clonedArgs;
-        for (const auto& arg : args) {
-            clonedArgs.push_back(arg ? arg->clone() : nullptr);
-        }
-        return std::make_shared<CallExpression>(
-            calleeName,
-            instanceName,
-            clonedArgs,
-            type ? type->clone() : nullptr
-        );
-    }
-    std::string toString() const override {
-        if (instanceName.empty()) {
-            return "Call: " + calleeName;
-        }
-        return "Call create instance '" + instanceName + "' of object '" + calleeName + "'.";
-    }
-};
-
 struct Callable : public Expression {
     std::string mangledName;
     std::vector<std::shared_ptr<Expression>> parameters;
@@ -822,33 +783,154 @@ struct StructExpression : public Callable {
     }
 };
 
+// MemberExpression.h
+struct MemberExpression : public Expression {
+public:
+    std::shared_ptr<Expression> value;
+    MemberModifiers modifiers;
+
+    MemberExpression(
+        const std::string& name,
+        std::shared_ptr<Type> type,
+        std::shared_ptr<Expression> value,
+        const MemberModifiers& mods = {}
+    ) {
+        this->name = name;
+        this->type = type;
+        this->value = value;
+        this->modifiers = mods;
+    }
+
+    // --- Modifier queries ---
+    bool isPublic() const        { return modifiers.access == MemberModifiers::AccessModifier::Public; }
+    bool isPrivate() const       { return modifiers.access == MemberModifiers::AccessModifier::Private; }
+    bool isProtected() const     { return modifiers.access == MemberModifiers::AccessModifier::Protected; }
+
+    bool isStatic() const        { return modifiers.isStatic; }
+    bool isConst() const         { return modifiers.isConst; }
+    bool isVirtual() const       { return modifiers.isVirtual; }
+    bool isOverride() const      { return modifiers.shouldOverride; }
+    bool isFinal() const         { return modifiers.isFinal; }
+    bool isConstexpr() const     { return modifiers.isConstexpr; }
+    bool isInline() const        { return modifiers.isInline; }
+    bool isNoexcept() const      { return modifiers.isNoexcept; }
+    bool isPureVirtual() const   { return modifiers.isPureVirtual; }
+    bool isExplicit() const      { return modifiers.isExplicit; }
+    bool isDeleted() const       { return modifiers.isDeleted; }
+    bool isDefault() const       { return modifiers.isDefault; }
+    bool isMutable() const       { return modifiers.isMutable; }
+    bool isThreadLocal() const   { return modifiers.isThreadLocal; }
+    bool isExtern() const        { return modifiers.isExtern; }
+
+    MemberModifiers::AccessModifier getAccess() const {
+        return modifiers.access;
+    }
+
+    std::string getAccessString() const {
+        switch (modifiers.access) {
+            case MemberModifiers::AccessModifier::Public: return "public";
+            case MemberModifiers::AccessModifier::Protected: return "protected";
+            case MemberModifiers::AccessModifier::Private: return "private";
+        }
+        return "unknown";
+    }
+
+    std::string toString() const override {
+        return modifiers.toString() + (type ? type->toString() : "unknown") + " " + name + ";";
+    }
+};
+
+// ClassMemberExpression.h
+struct ClassMemberExpression : public MemberExpression {
+    ClassMemberExpression(
+        const std::string& name,
+        std::shared_ptr<Expression> value,
+        const MemberModifiers& modifiers = {}
+    )
+        : MemberExpression(name, value ? value->getType() : Type::createInvalid(), value, modifiers) {
+        if (this->value) {
+            this->rootType = this->value->getRootType();
+        }
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<ClassMemberExpression>(
+            name,
+            value ? value->clone() : nullptr,
+            modifiers
+        );
+    }
+
+    std::string toString() const override {
+        return "ClassMember(" + name + "): " + modifiers.toString();
+    }
+};
+
+// ModuleMemberExpression.h
+struct ModuleMemberExpression : public MemberExpression {
+public:
+    std::shared_ptr<Expression> value;
+
+    ModuleMemberExpression(
+        const std::string& name,
+        std::shared_ptr<Expression> value,
+        const MemberModifiers& modifiers = {}
+    )
+        : MemberExpression(name, value ? value->getType() : Type::createInvalid(), value, modifiers) {
+        if (this->value) {
+            this->rootType = this->value->getRootType();
+        }
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<ModuleMemberExpression>(
+            name,
+            value ? value->clone() : nullptr,
+            modifiers
+        );
+    }
+
+    std::string toString() const override {
+        return "ModuleMember(" + name + "): " + modifiers.toString();
+    }
+};
+
+
 struct ClassExpression : public Callable {
     std::shared_ptr<StructExpression> structExpr;
     std::vector<std::shared_ptr<FunctionExpression>> constructors;
     std::shared_ptr<FunctionExpression> destructor;
+    std::vector<std::shared_ptr<ClassMemberExpression>> members;
 
     ClassExpression(
         const std::string& name,
         std::shared_ptr<StructExpression> structExpr,
         std::vector<std::shared_ptr<FunctionExpression>> constructors = {},
-        std::shared_ptr<FunctionExpression> destructor = nullptr
+        std::shared_ptr<FunctionExpression> destructor = nullptr,
+        std::vector<std::shared_ptr<ClassMemberExpression>> members = {}
     )
         : Callable(name, name, {}, false),  // Dummy mangled name for now
           structExpr(std::move(structExpr)),
           constructors(std::move(constructors)),
-          destructor(std::move(destructor))
+          destructor(std::move(destructor)),
+          members(std::move(members))
     {
         type = this->structExpr->getType(); // Inherit struct type
     }
 
     std::string toString() const override {
+        std::string memberStr;
+        for (const auto& member : members) {
+            memberStr += "\n  " + member->toString();
+        }
+
         return "Class: " + structExpr->structName +
                " [Constructors: " + std::to_string(constructors.size()) +
-               ", Destructor: " + (destructor ? "yes" : "none") + "]";
+               ", Destructor: " + (destructor ? "yes" : "none") + "]" +
+               (members.empty() ? "" : "\nMembers:" + memberStr);
     }
 
     std::shared_ptr<FunctionExpression> resolveConstructor(const std::vector<std::shared_ptr<Expression>>& args) const {
-        // Simple match: in real implementation, do overload resolution
         for (const auto& ctor : constructors) {
             if (ctor->getParameters().size() == args.size()) {
                 return ctor;
@@ -866,34 +948,37 @@ struct ClassExpression : public Callable {
 
         auto clonedDtor = destructor ? std::dynamic_pointer_cast<FunctionExpression>(destructor->clone()) : nullptr;
 
-        return std::make_shared<ClassExpression>(name, clonedStruct, clonedCtors, clonedDtor);
+        std::vector<std::shared_ptr<ClassMemberExpression>> clonedMembers;
+        for (const auto& member : members)
+            clonedMembers.push_back(std::dynamic_pointer_cast<ClassMemberExpression>(member->clone()));
+
+        return std::make_shared<ClassExpression>(
+            name, clonedStruct, clonedCtors, clonedDtor, clonedMembers
+        );
     }
-};
 
-struct ModuleMemberExpression : public Expression {
-    std::shared_ptr<Expression> value;  // Underlying expression (Function, Class, etc.)
-    MemberModifiers modifiers;
-
-    ModuleMemberExpression(
-        const std::string& name,
-        std::shared_ptr<Expression> value,
-        const MemberModifiers& modifiers = {}
-    ) : value(std::move(value)), modifiers(modifiers) {
-        this->name = name;
-        if (value) {
-            this->type = value->getType();
-            this->rootType = value->getRootType();
+    std::shared_ptr<ClassMemberExpression> getMember(const std::string& name) {
+        for (const auto& member : members) {
+            if (member->getName() == name) {
+                return member;
+            }
         }
+        console.error("Member '" + name + "' not found in class '" + this->getName() + "'.");
+        return nullptr;
     }
 
-    std::string toString() const override {
-        return "ModuleMember(" + name + "): " + modifiers.toString();
-    }
-
-    std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<ModuleMemberExpression>(name, value ? value->clone() : nullptr, modifiers);
+    std::string serializeMembers() const {
+        std::string result = "[\n";
+        for (const auto& member : members) {
+            result += "  { name: \"" + member->getName() + "\", ";
+            result += "type: \"" + member->getType()->toString() + "\", ";
+            result += "modifiers: \"" + member->getAccessString() + "\" },\n";
+        }
+        result += "]";
+        return result;
     }
 };
+
 
 // Represents a complete module
 struct ModuleExpression : public Expression {
@@ -923,27 +1008,21 @@ struct ModuleExpression : public Expression {
     }
 };
 
-class InstanceExpression : public Expression {
+struct InstanceExpression : public Expression {
 public:
     std::string baseName;
     std::string instanceName;
     std::shared_ptr<Type> instanceType;
 
-    std::vector<std::shared_ptr<Expression>> constructorArgs;
-    std::vector<std::shared_ptr<Expression>> publicMembers;
-    std::vector<std::shared_ptr<Expression>> privateMembers;
+    std::vector<std::shared_ptr<MemberExpression>> memberExpressions;  // Unified vector for all members
 
     InstanceExpression(
         const std::string& baseName,
         const std::string& instanceName,
-        const std::vector<std::shared_ptr<Expression>>& args = {},
-        const std::vector<std::shared_ptr<Expression>>& publicMembers = {},
-        const std::vector<std::shared_ptr<Expression>>& privateMembers = {}
+        const std::vector<std::shared_ptr<MemberExpression>>& memberExpressions = {}
     ) : baseName(baseName),
         instanceName(instanceName),
-        constructorArgs(args),
-        publicMembers(publicMembers),
-        privateMembers(privateMembers) {
+        memberExpressions(memberExpressions) {
 
         this->instanceType = std::make_shared<UserDefinedType>(baseName);
         this->type = instanceType; // inherited from Expression
@@ -953,19 +1032,9 @@ public:
         return "Instance<" + baseName + "> named " + instanceName;
     }
 
-    // Retrieves a member by name (searches public first, then private)
+    // Retrieves a member by name from the unified list of members
     std::shared_ptr<Expression> getField(const std::string& name) const {
-        for (const auto& member : constructorArgs) {
-            if (member->getName() == name) {
-                return member;
-            }
-        }
-        for (const auto& member : publicMembers) {
-            if (member->getType()->getParameterName() == name) {
-                return member;
-            }
-        }
-        for (const auto& member : privateMembers) {
+        for (const auto& member : memberExpressions) {
             if (member->getType()->getParameterName() == name) {
                 return member;
             }
@@ -973,62 +1042,87 @@ public:
         return nullptr; // Not found
     }
 
-    // Sets or replaces a member value (searches public first, then private)
+    // Sets or replaces a member value in the unified list of members
     bool setField(const std::string& name, const std::shared_ptr<Expression>& newValue) {
-        for (auto& member : constructorArgs) {
+        for (auto& member : memberExpressions) {
             if (member->getType()->getParameterName() == name) {
-                member = newValue;  // This line should work now
-                return true;
-            }
-        }
-        for (auto& member : publicMembers) {
-            if (member->getType()->getParameterName() == name) {
-                member = newValue;  // This line should work now
-                return true;
-            }
-        }
-        for (auto& member : privateMembers) {
-            if (member->getType()->getParameterName() == name) {
-                member = newValue;  // This line should work now
+                member->value = newValue;  // This line should work now
                 return true;
             }
         }
         return false; // Not found
-    }    
+    }
 
     std::shared_ptr<Expression> clone() const override {
-        std::vector<std::shared_ptr<Expression>> clonedArgs;
-        for (const auto& arg : constructorArgs) {
-            clonedArgs.push_back(arg->clone());
-        }
-
-        std::vector<std::shared_ptr<Expression>> clonedPublic;
-        for (const auto& pub : publicMembers) {
-            clonedPublic.push_back(pub->clone());
-        }
-
-        std::vector<std::shared_ptr<Expression>> clonedPrivate;
-        for (const auto& priv : privateMembers) {
-            clonedPrivate.push_back(priv->clone());
+        std::vector<std::shared_ptr<MemberExpression>> clonedMembers;
+        for (const auto& member : memberExpressions) {
+            clonedMembers.push_back(std::dynamic_pointer_cast<MemberExpression>(member->clone()));
         }
 
         return std::make_shared<InstanceExpression>(
             baseName,
             instanceName,
-            clonedArgs,
-            clonedPublic,
-            clonedPrivate
+            clonedMembers
         );
+    }
+};
+
+struct CallExpression : public Expression {
+    std::string calleeName;
+    std::string instanceName;
+    std::vector<std::shared_ptr<Expression>> args;
+    std::vector<std::shared_ptr<MemberExpression>> members;
+
+    bool isGlobal;
+
+    CallExpression(const std::string& calleeName, const std::vector<std::shared_ptr<Expression>>& args = {}, std::shared_ptr<Type> returnType = nullptr)
+    : calleeName(calleeName), args(std::move(args)) {
+        type = std::move(returnType);
+    }
+
+    CallExpression(const std::string& objectName,
+        const std::string& instanceName,
+        const std::vector<std::shared_ptr<Expression>>& args = {},
+        std::shared_ptr<Type> returnType = nullptr,
+        bool isGlobal = true
+    )
+    : calleeName(objectName), instanceName(instanceName), args(std::move(args)), isGlobal(isGlobal) {
+        type = std::move(returnType);
+    }
+
+    // CallExpression
+    std::shared_ptr<Expression> clone() const override {
+        std::vector<std::shared_ptr<Expression>> clonedArgs;
+        for (const auto& arg : args) {
+            clonedArgs.push_back(arg ? arg->clone() : nullptr);
+        }
+        return std::make_shared<CallExpression>(
+            calleeName,
+            instanceName,
+            clonedArgs,
+            type ? type->clone() : nullptr
+        );
+    }
+    std::string toString() const override {
+        if (instanceName.empty()) {
+            return "Call: " + calleeName;
+        }
+        return "Call create instance '" + instanceName + "' of object '" + calleeName + "'.";
     }
 };
 
 // Base class for all access expressions
 struct AccessExpression : public Expression {
+    bool isInternal = false;
     std::shared_ptr<Expression> expr;              // expression that represents the parent object
     std::vector<std::string> memberPath;           // Path of member names
     std::vector<int> memberIndexPath;              // Optional index path (e.g., for array fields)
     std::shared_ptr<Expression> assignmentValue;
 
+    bool isInternalAccess() const {
+        return isInternal;
+    }
+    
     bool isSetter() const {
         return assignmentValue != nullptr;
     }

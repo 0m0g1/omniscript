@@ -6,8 +6,8 @@
 // let text: std.string = "hello world";
 
 class Particle {
-   x: f32 = 1.0;
-   z: f32 = 3.0;
+   public x: f32 = 1.0;
+   private z: f32 = 3.0;
 
    constructor(x: f32 = 0, z: f32 = 0) => void {
       this.x = x;
@@ -23,13 +23,13 @@ class Particle {
 let p = Particle(10.0, 30.0);
 
 // ✅ Valid access to public member
-// let a = p.z;       // OK
+let a = p.z;       // OK
 
 // ✅ Valid access via method
 // let b = p.getX();  // OK
 
 // ❌ Invalid access to private member (should fail)
-// let c = p.x;       // ← This line should throw a compile-time error or crash at runtime
+let c = p.x;       // ← This line should throw a compile-time error or crash at runtime
 
 
 

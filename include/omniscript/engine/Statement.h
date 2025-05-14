@@ -205,6 +205,7 @@ public:
 
 class BlockStatement : public TypedStatement , public GenericHolder {
 public:
+    bool isInternalBlock = false;
     std::vector<std::shared_ptr<Statement>> statements;
 
     BlockStatement() = default;
@@ -251,6 +252,10 @@ public:
     bool hasSideEffects() override;
     bool isCompileTimeEvaluatable() override;
     void recursiveUpdate();
+    void markAsInternal();
+    bool isInternal() const {
+        return isInternalBlock;
+    }
 };
 
 template<typename T>
@@ -822,6 +827,7 @@ public Callable,
 public TypedStatement, 
 public GenericHolder {
 public:
+    bool isInternalFunction = false;
     std::shared_ptr<Omniscript::Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
     std::vector<std::shared_ptr<Statement>> parameters;
@@ -845,6 +851,16 @@ public:
     std::string toString() const override { return "FunctionDeclerationStatement"; }
     std::string generateMangledName() const;
     
+    void markAsInternal(bool state = false) {
+        // Todo: rename this to is method or something else
+        // is internal means its part of a class or module 
+        isInternalFunction = state;
+    }
+
+    bool isInternal() const {
+        return isInternalFunction;
+    }
+
     void setReturnTypes();
     void setReturnTypesInStatement(
         const std::shared_ptr<Statement>& stmt, 
@@ -1279,7 +1295,8 @@ protected:
     std::shared_ptr<Statement> assignmentValue = nullptr;
     std::vector<std::shared_ptr<Statement>> arguments;
     bool isCall = false;
-
+    bool isInternalAccess = false;
+    
 public:
     std::shared_ptr<Statement> expr;
     virtual ~Access() = default;
@@ -1301,6 +1318,14 @@ public:
         isCall = true;
     }
 
+    void markAsInternal(bool state = true) {
+        isInternalAccess = state;
+    }
+
+    bool isInternal() const {
+        return isInternalAccess;
+    }
+
     bool isMethodCall() const {
         return isCall;
     }
@@ -1316,6 +1341,8 @@ public:
     const std::vector<std::string>& getMemberPath() const {
         return memberPath;
     }
+
+    void verifyMemberAccessibility();
 
     std::string getFullMemberPath() const {
         std::string fullPath;

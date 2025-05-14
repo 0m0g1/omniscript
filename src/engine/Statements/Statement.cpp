@@ -36,6 +36,10 @@ std::shared_ptr<Omniscript::Expression> BlockStatement::express(SymbolTableType 
 
 std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::expressAsVector(SymbolTableType scope) {
     recursiveUpdate();
+
+    if (isInternalBlock) {
+        markAsInternal();
+    }
     
     std::vector<std::shared_ptr<Omniscript::Expression>> results = {};
     
@@ -93,8 +97,22 @@ void BlockStatement::recursiveUpdate() {
                 assign->isGlobal = false;
             }
         }
-        if (auto assign = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
-            recursiveUpdate();
+        // Todo: work on for loop bodies, while loop etc
+        if (auto innerBlock = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
+            innerBlock->recursiveUpdate();
+        }
+    }
+}
+
+void BlockStatement::markAsInternal() {
+    for (auto& stmt : statements) {
+        if (auto access = std::dynamic_pointer_cast<Access>(stmt)) {
+            access->markAsInternal();
+        }
+        // Todo: work on for loop bodies, while loop etc
+        // Todo: Also in internal assignments that are not in bodies?
+        if (auto innerBlock = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
+            innerBlock->markAsInternal();
         }
     }
 }

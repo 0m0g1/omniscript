@@ -7,6 +7,10 @@
 
 // ============================== Accesses  ============================== //
 
+void Access::verifyMemberAccessibility() {
+
+}
+
 std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType scope) {
     std::vector<int> memberIndexPath;
     
@@ -52,7 +56,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                       var->getType()->description();
     }
 
-    DEBUG_LOG("Base type name is '" + baseTypeName + "'.");
+    DEBUG_LOG("Base type name is '" + baseTypeName + "' of object '" + objectName + "' and the member is '" + memberPath[0] + "'.");
     std::shared_ptr<Omniscript::Type> currentType = scope->getType(baseTypeName);
     
     if (!currentType) {
@@ -64,6 +68,76 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     if (!userType) {
         console.error("Type '" + baseTypeName + "' is not a user-defined type.");
         return nullptr;
+    }
+
+     // Get the class expression for access checking
+    auto classExpr = std::dynamic_pointer_cast<Omniscript::ClassExpression>(scope->get(baseTypeName));
+    if (classExpr) {
+        // Traverse property path and build index path
+        for (size_t pathIndex = 0; pathIndex < memberPath.size(); ++pathIndex) {
+            const std::string& memberName = memberPath[pathIndex];
+            bool found = false;
+            
+            // Check accessibility for each member in the path
+            if (pathIndex == 0) {
+                // For first member, check against the base class
+                auto member = classExpr->getMember(memberName);
+                if (!member) {
+                    console.error("Member '" + memberName + "' not found in class '" + baseTypeName + "'");
+                    return nullptr;
+                }
+                
+                if (member->isPrivate() && !isInternal()) {
+                    console.error("Cannot access private member '" + memberName + "' of class '" + baseTypeName + "'");
+                    return nullptr;
+                }
+            } else {
+                // For nested members, we need to check the previous type
+                auto prevType = std::dynamic_pointer_cast<Omniscript::ClassExpression>(
+                    currentType->isPointer() ? currentType->getBasePointeeType() : currentType
+                );
+                
+                if (prevType) {
+                    auto member = prevType->getMember(memberName);
+                    if (!member) {
+                        console.error("Member '" + memberName + "' not found in class '" + prevType->getName() + "'");
+                        return nullptr;
+                    }
+                    
+                    if (member->isPrivate() && !isInternal()) {
+                        console.error("Cannot access private member '" + memberName + "' of class '" + prevType->getName() + "'");
+                        return nullptr;
+                    }
+                }
+            }
+    
+            // Find the member in the type's parameters
+            for (int i = 0; i < userType->paramTypes.size(); ++i) {
+                if (userType->paramTypes[i]->getParameterName() == memberName) {
+                    memberIndexPath.push_back(i);
+                    currentType = userType->paramTypes[i];
+                    found = true;
+                    break;
+                }
+            }
+    
+            if (!found) {
+                console.error("Member '" + memberName + "' not found in type '" + userType->description() + "'.");
+                return nullptr;
+            }
+    
+            // Descend into nested type
+            userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(
+                currentType->isPointer() ? currentType->getBasePointeeType() : currentType
+            );
+    
+            if (!userType && memberName != memberPath.back()) {
+                console.error("Cannot traverse non-user-defined member '" + memberName + "'.");
+                return nullptr;
+            }
+        }
+    } else {
+        DEBUG_LOG("Type '" + baseTypeName + "' is not a class or module type there is no need to check accessibility.");
     }
 
     // Traverse property path and build index path

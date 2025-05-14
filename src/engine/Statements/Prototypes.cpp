@@ -301,7 +301,18 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         return std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
     }
 
-    return std::make_shared<Omniscript::CallExpression>(callee, instanceName, finalArgs);
+    std::vector<std::shared_ptr<Omniscript::MemberExpression>> instanceMembers;
+    auto instanceConstructor = std::make_shared<Omniscript::CallExpression>(callee, instanceName, finalArgs);
+    for (const auto& param : parameters) {
+        auto instanceMember = std::make_shared<Omniscript::MemberExpression>(
+            param->getName(),
+            param->getType(),
+            param->value
+        );
+        instanceConstructor->members.push_back(instanceMember);
+    }
+
+    return instanceConstructor;
 }
 
 std::string Call::resolveFunctionOverload(
@@ -454,6 +465,10 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
     } else if (type->isGeneric()) {
         type = resolveGeneric(type->getName());
         returnType = type;
+    }
+
+    if (isInternal()) {
+        body->markAsInternal();
     }
 
     DEBUG_LOG("[Function] Setting the function's body's return type to " + type->description());
@@ -653,8 +668,10 @@ std::shared_ptr<Omniscript::Expression> ClassMember::express(SymbolTableType sco
 }
 
 std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolTableType scope) {
+    DEBUG_LOG();
     DEBUG_LOG("[ConstructClassPrototype] Constructing a class as a struct with methods");
 
+    std::vector<std::shared_ptr<Omniscript::ClassMemberExpression>> members;
     std::vector<std::shared_ptr<Omniscript::Expression>> fields;
     std::vector<std::shared_ptr<Omniscript::Type>> fieldTypes;
     std::vector<std::string> fieldNames;
@@ -683,15 +700,13 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
         fieldExpr->getType()->parameterName = fieldName;
         fieldTypes.push_back(fieldExpr->getType());
 
-        // if (auto param = std::dynamic_pointer_cast<ParameterStatement>(member)) {
-        //     std::string fieldName = param->getName();
-        //     fieldNames.push_back(fieldName);
+        auto classMemberExpr = std::make_shared<Omniscript::ClassMemberExpression>(
+            member->getName(),
+            fieldExpr,
+            member->getModifiers()
+        );
 
-        //     std::shared_ptr<Omniscript::Expression> fieldExpr = param->express(scope);
-        //     fields.push_back(fieldExpr);
-        //     fieldExpr->getType()->parameterName = fieldName;
-        //     fieldTypes.push_back(fieldExpr->getType());
-        // }
+        members.push_back(classMemberExpr);
     }
 
     // Step 2: Create class type
@@ -711,7 +726,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
             auto methodExpr = func->express(scope);
             fields.push_back(methodExpr);
 
-            console.info(funcName + " " + name + ".constructor");
+            DEBUG_LOG(funcName + " " + name + ".constructor");
             if (funcName == name + ".constructor") {
 
                 auto ctorExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(methodExpr);
@@ -722,6 +737,14 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
                 auto dtorExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(methodExpr);
                 destructor = dtorExpr;
             } 
+
+            auto classMemberExpr = std::make_shared<Omniscript::ClassMemberExpression>(
+                member->getName(),
+                methodExpr,
+                member->getModifiers()
+            );
+
+            members.push_back(classMemberExpr);
         }
     }
 
@@ -739,7 +762,8 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
         name,
         structExpr,
         constructors,
-        destructor
+        destructor,
+        members
     );
 
     classExpr->parameters = structExpr->parameters;
@@ -820,7 +844,7 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
         auto instance = std::make_shared<Omniscript::InstanceExpression>(
             objectType,
             instanceName,
-            call->args
+            call->members
         );
 
         instance->instanceType = scope->getType(objectType);

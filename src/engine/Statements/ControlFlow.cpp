@@ -47,15 +47,15 @@ bool ReturnStatement::isCompileTimeEvaluatable() {
 
 std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType scope) {
     auto localScope = scope->createChildScope("whileloop");
-     DEBUG_LOG("Creating a while loop expression");
- 
-     std::shared_ptr<Omniscript::Expression> conditionExpr = condition ? condition->express(localScope) : nullptr;
-     DEBUG_LOG("Created its condition expression");
- 
-     std::shared_ptr<Omniscript::Expression> bodyExpr = body ? body->express(localScope) : nullptr;
-     DEBUG_LOG("Created its body expression");
- 
-     return std::make_shared<Omniscript::WhileLoopExpression>(conditionExpr, bodyExpr);
+    DEBUG_LOG("Creating a while loop expression");
+
+    std::shared_ptr<Omniscript::Expression> conditionExpr = condition ? condition->express(localScope) : nullptr;
+    DEBUG_LOG("Created its condition expression");
+
+    std::shared_ptr<Omniscript::Expression> bodyExpr = body ? body->express(localScope) : nullptr;
+    DEBUG_LOG("Created its body expression");
+
+    return std::make_shared<Omniscript::WhileLoopExpression>(conditionExpr, bodyExpr);
  }
  
  std::shared_ptr<Statement> IfStatement::evaluate(SymbolTableType scope) {
@@ -78,7 +78,7 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
      return nullptr; // If no condition is met and no elseBody exists, return nullptr
  }
  
- std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType scope) {
      std::vector<std::shared_ptr<Omniscript::Expression>> exprConditions;
      std::vector<std::shared_ptr<Omniscript::Expression>> exprBranches;
  
@@ -99,7 +99,7 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
      );
  }
 
- std::shared_ptr<Omniscript::Expression> BreakStatement::express(SymbolTableType scope) {
+std::shared_ptr<Omniscript::Expression> BreakStatement::express(SymbolTableType scope) {
     return nullptr;
 }
 

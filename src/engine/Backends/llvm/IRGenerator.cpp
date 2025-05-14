@@ -2168,8 +2168,9 @@ llvm::Value* IRGenerator::handleMemberAccess(
     }
 
     if (expr->isSetter()) {
-        // For setters, we always want the pointer to store through
-        return currentPtr;
+        llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
+        Builder->CreateStore(valueToStore, currentPtr);
+        return valueToStore;
     }
 
     if (preservePointer) {
