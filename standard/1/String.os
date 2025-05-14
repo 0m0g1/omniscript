@@ -1,11 +1,11 @@
 module String {
-//   public class String {
-//     private text: char*;
+  public class String {
+    private text: char*;
 
-//     // Constructor
-//     // public constructor(value: any) {
-//     //   this.text = value.toString();
-//     // }
+    // Constructor
+    // public constructor(value: any) {
+    //   this.text = value.toString();
+    // }
 
 //     public toString() => string {
 //       return this.text;
@@ -72,4 +72,5 @@ module String {
 //   }
 
 //   private module IO.ConsoleBackend {}  // platform I/O hooks
+  }
 }

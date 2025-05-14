@@ -18,7 +18,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
 
     for (const auto& arg: args) {
         auto typed = std::dynamic_pointer_cast<TypedStatement>(arg);
-        DEBUG_LOG(arg->toString() + " of type " + typed->getRootType()->description());
+        DEBUG_LOG(arg->toString() + " of type " + (typed->getRootType() ? typed->getRootType()->description() : (typed->getType() ? typed->getType()->toString() : "'undefined'.")));
     }
 
     if (!targetName.empty()) {

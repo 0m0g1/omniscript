@@ -118,6 +118,8 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
             constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), ref));
             // constructorArgs.push_back(ref);
             continue;
+        } else if (auto classDeclr = std::dynamic_pointer_cast<ConstructClassPrototype>(member->getValue())) {
+            continue;
         } else {
             DEBUG_LOG("Arg '" + member->getValue()->toString() + "' ");
             auto paramStmt = std::dynamic_pointer_cast<ParameterStatement>(reinterprateStatement(member->getValue()));
@@ -155,6 +157,9 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
     } else if (auto function = std::dynamic_pointer_cast<FunctionDeclaration>(statement)) {
         function->setName(getName() + "." + function->getName());
         return function;
+    } else if (auto classDeclr = std::dynamic_pointer_cast<ConstructClassPrototype>(statement)) {
+        classDeclr->setName(getName() + "." + classDeclr->getName());
+        return classDeclr;
     }
 
     return nullptr;
