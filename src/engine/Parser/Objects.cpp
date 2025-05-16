@@ -144,10 +144,13 @@ std::shared_ptr<Statement> Parser::parseClass() {
         if (currentToken.getType() == TokenTypes::Assign) {
             eat(TokenTypes::Assign);
             valueExpr = parseExpression();
+            if (auto ctxAware = std::dynamic_pointer_cast<ContextAwareStatement>(valueExpr)) {
+                ctxAware->pushContext(className);
+            }
         } else if (currentToken.getType() == TokenTypes::LeftParen) {
             valueExpr = parseLambdaFunction(className + "." + memberName);
             auto methodExpr = std::dynamic_pointer_cast<FunctionDeclaration>(valueExpr);
-            methodExpr->pushContext(memberName);
+            methodExpr->pushContext(className);
         }
 
         auto member = std::make_shared<ClassMember>(memberName, typeExpr, valueExpr, modifiers);

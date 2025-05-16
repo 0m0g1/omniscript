@@ -68,6 +68,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
         return nullptr;
     }
 
+    DEBUG_LOG(getContextAsString());
     if (!member->isPublic() && member->isPrivate() && !containsContext(classExpr->getName())) {
         console.error("Cannot access private member '" + memberName + "' of class '" + classExpr->getName() + "'");
         return nullptr;

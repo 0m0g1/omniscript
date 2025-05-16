@@ -205,6 +205,23 @@ public:
     bool containsContext(Predicate pred) const {
         return std::any_of(accessContext.begin(), accessContext.end(), pred);
     }
+
+    // Debug version that returns a string instead of printing
+    std::string getContextAsString(const std::string& header = "Access Context") const {
+        std::ostringstream oss;
+        oss << "=== " << header << " ===\n";
+        
+        if (accessContext.empty()) {
+            oss << "  <empty>\n";
+        } else {
+            for (size_t i = 0; i < accessContext.size(); ++i) {
+                oss << "  " << i << ": " << accessContext[i] << "\n";
+            }
+        }
+        
+        oss << "===================\n";
+        return oss.str();
+    }
 };
 
 class GenericHolder {

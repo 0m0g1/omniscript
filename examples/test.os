@@ -15,8 +15,12 @@ class Particle {
       this.z = z;
    }
 
-    // Allowed internal access to private member
+   // Allowed internal access to private member
    getX() => f32 {
+      return this.x;
+   }
+   
+   getZ() => f32 {
       return this.x;
    }
 }

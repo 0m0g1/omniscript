@@ -708,6 +708,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
         fields.push_back(fieldExpr);
         fieldExpr->getType()->parameterName = fieldName;
         classType->paramTypes.push_back(fieldExpr->getType());
+        structExpr->parameters.push_back(fieldExpr);
 
         auto classMemberExpr = std::make_shared<Omniscript::ClassMemberExpression>(
             member->getName(),
@@ -753,26 +754,8 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
         }
     }
 
-    // Step 4: Create the StructExpression for the class body
-    
-    
-
-    // classExpr->structExpr = structExpr;
-    // Step 5: Construct ClassExpression
-    // auto classExpr = std::make_shared<Omniscript::ClassExpression>(
-    //     name,
-    //     structExpr,
-    //     constructors,
-    //     destructor,
-    //     members
-    // );
-    // classExpr->constructors = constructors;
-    // classExpr->destructor = destructor;
-    // classExpr->members = members;
-
     classExpr->parameters = structExpr->parameters;
 
-    
     return classExpr;
 }
 
