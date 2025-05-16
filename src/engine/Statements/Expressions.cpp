@@ -22,6 +22,10 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
         stmt->setType(Omniscript::resolveType(typeStr));
     }
 
+    extendContextOf(condition);
+    extendContextOf(truthy);
+    extendContextOf(falsey);
+
     // Evaluate condition, then branches
     std::shared_ptr<Omniscript::Expression> condValue = condition->express(scope);
     if (!condValue) return nullptr;
@@ -43,6 +47,9 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
 
     DEBUG_LOG("Left expression: " + (left ? left->toString() : "null"));
     DEBUG_LOG("Right expression: " + (right ? right->toString() : "null"));
+
+    extendContextOf(left);
+    extendContextOf(right);
 
     // Always evaluate expressions first
     std::shared_ptr<Omniscript::Expression> leftValue = left->express(scope);
@@ -110,6 +117,8 @@ bool BinaryExpression::isCompileTimeEvaluatable() {
 
 std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType scope) {
     DEBUG_LOG("Creating a unary expression");
+
+    extendContextOf(operand);
     // Set the expected type on the operand
     std::shared_ptr<Omniscript::Expression> operandValue;
 

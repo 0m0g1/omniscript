@@ -2139,13 +2139,13 @@ llvm::Value* IRGenerator::handleMemberAccess(
     SymbolTableType scope,
     bool preservePointer
 ) {
-    llvm::Type* currentType = baseValue->getType();
+    llvm::Type* currentType = activeScope->getType(expr->baseType);
     llvm::Value* currentPtr = baseValue;
 
     int fieldIndex = expr->index;
 
     if (!currentType->isStructTy()) {
-        console.error("Member access requires struct type");
+        console.error("Member access requires an aggregate type (struct or class), not a '" + debugType(currentType) + "'.");
         return nullptr;
     }
 

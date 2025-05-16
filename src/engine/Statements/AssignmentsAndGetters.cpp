@@ -82,6 +82,10 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
         }
     }
 
+    if (value) {
+        extendContextOf(value);
+    }
+
     if (type) {
         if (type->isGeneric()) {
             auto genericVal = scope->get(type->getName());

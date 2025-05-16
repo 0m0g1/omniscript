@@ -107,31 +107,6 @@ public:
     virtual std::string toString() const override { return "TerminatorStatement"; }
 };
 
-class Expression : public virtual Statement {
-public:
-    virtual ~Expression() = default;
-    virtual bool isTruthy(SymbolTableType scope) const {
-        return false;
-    }
-    std::string toString() const override {
-        return "Expression";
-    }
-};
-
-class Literal : public TypedStatement, public Expression {
-public:
-    virtual ~Literal() = default;
-
-    virtual std::string toString() const override { return "LiteralStatement"; }
-
-    // Override to indicate no side effects
-    virtual bool hasSideEffects() override { return false; }
-
-    // Override to indicate evaluatable at compile time
-    virtual bool isCompileTimeEvaluatable() override { return true; }
-    virtual std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const { return nullptr; }
-};
-
 class ContextAwareStatement : public virtual Statement {
 protected:
     std::vector<std::string> accessContext;
@@ -222,6 +197,33 @@ public:
         oss << "===================\n";
         return oss.str();
     }
+};
+
+class Expression : 
+public virtual Statement,
+public virtual ContextAwareStatement {
+public:
+    virtual ~Expression() = default;
+    virtual bool isTruthy(SymbolTableType scope) const {
+        return false;
+    }
+    std::string toString() const override {
+        return "Expression";
+    }
+};
+
+class Literal : public TypedStatement, public Expression {
+public:
+    virtual ~Literal() = default;
+
+    virtual std::string toString() const override { return "LiteralStatement"; }
+
+    // Override to indicate no side effects
+    virtual bool hasSideEffects() override { return false; }
+
+    // Override to indicate evaluatable at compile time
+    virtual bool isCompileTimeEvaluatable() override { return true; }
+    virtual std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const { return nullptr; }
 };
 
 class GenericHolder {
@@ -811,7 +813,9 @@ private:
     std::shared_ptr<Statement> tempValue;
 };
 
-class ReturnStatement : public Terminator {
+class ReturnStatement : 
+public Terminator,
+public ContextAwareStatement {
 public:
     ReturnStatement(std::shared_ptr<Statement> value = nullptr, std::shared_ptr<Omniscript::Type> returnType = nullptr)
         : returnValue(value) {
@@ -847,7 +851,10 @@ public:
     std::string toString() const override { return "LiteralStatement"; }
 };
 
-class ParameterStatement : public NamedStatement, public TypedStatement {
+class ParameterStatement : 
+public NamedStatement, 
+public TypedStatement,
+public ContextAwareStatement {
 public:
     bool isConstant;
     std::shared_ptr<Statement> defaultValue;
@@ -878,7 +885,10 @@ public:
     }
 };
 
-class ArgumentStatement : public NamedStatement, public TypedStatement {
+class ArgumentStatement :
+public NamedStatement, 
+public TypedStatement,
+public ContextAwareStatement {
 public:
     std::string name;
     std::shared_ptr<Statement> value;
@@ -1100,76 +1110,6 @@ public:
         std::shared_ptr<Statement> expr;
 };
 
-class IfStatement : public Statement {
-public:
-    // Branches for if, else if, and an optional else part
-    std::vector<std::shared_ptr<Statement>> conditions;  // conditions of if/else if
-    std::vector<std::shared_ptr<BlockStatement>> bodies;      // corresponding bodies (blocks)
-    std::shared_ptr<BlockStatement> elseBody;                 // optional else body
-
-    IfStatement(
-        std::vector<std::shared_ptr<Statement>> conditions, 
-        std::vector<std::shared_ptr<BlockStatement>> bodies,
-        std::shared_ptr<BlockStatement> elseBody = nullptr
-    ) : conditions(std::move(conditions)),
-        bodies(std::move(bodies)),
-        elseBody(std::move(elseBody)) {
-    }
-
-    // Evaluate the conditions and bodies
-    // Convert this IfStatement to an expression (for printing or debugging)
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override;
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    
-
-    // String representation for debugging
-    std::string toString() const override {
-        std::string result = "IfStatement with " + std::to_string(conditions.size()) + " branches";
-
-        for (size_t i = 0; i < conditions.size(); ++i) {
-            result += "\n  if (" + conditions[i]->toString() + ") " + bodies[i]->toString();
-        }
-
-        if (elseBody) {
-            result += "\n  else " + elseBody->toString();
-        }
-
-        return result;
-    }
-
-    // Clone the IfStatement (deep copy)
-    std::shared_ptr<Statement> clone() const override {
-        std::vector<std::shared_ptr<Statement>> clonedConditions;
-        std::vector<std::shared_ptr<BlockStatement>> clonedBodies;
-        std::shared_ptr<BlockStatement> clonedElseBody = nullptr;
-    
-        // Clone and cast conditions
-        for (const auto& cond : conditions) {
-            clonedConditions.push_back(cond->clone());    
-        }
-    
-        // Clone and cast bodies
-        for (const auto& body : bodies) {
-            auto clonedBody = std::dynamic_pointer_cast<BlockStatement>(body->clone());
-            if (clonedBody) {
-                clonedBodies.push_back(clonedBody);
-            } else {
-                console.error("Failed to cast cloned body to BlockStatement");
-            }
-        }
-    
-        // Clone and cast elseBody if present
-        if (elseBody) {
-            clonedElseBody = std::dynamic_pointer_cast<BlockStatement>(elseBody->clone());
-            if (!clonedElseBody) {
-                console.error("Failed to cast cloned elseBody to BlockStatement");
-            }
-        }
-    
-        return std::make_shared<IfStatement>(clonedConditions, clonedBodies, clonedElseBody);
-    }    
-};
-
 
 class UnaryExpression : public TypedStatement, public Expression {
 public:
@@ -1289,8 +1229,87 @@ class TernaryExpression : public TypedStatement {
         std::shared_ptr<Statement> falsey;
 };
 
+class ControlFlowStatement :
+public ContextAwareStatement,
+public GenericHolder  {
+public:
+    ~ControlFlowStatement() = default;
+    virtual std::string toString() const override { return "ControlFlowStatement"; }
+};
+
+class IfStatement : public ControlFlowStatement {
+public:
+    // Branches for if, else if, and an optional else part
+    std::vector<std::shared_ptr<Statement>> conditions;  // conditions of if/else if
+    std::vector<std::shared_ptr<BlockStatement>> bodies;      // corresponding bodies (blocks)
+    std::shared_ptr<BlockStatement> elseBody;                 // optional else body
+
+    IfStatement(
+        std::vector<std::shared_ptr<Statement>> conditions, 
+        std::vector<std::shared_ptr<BlockStatement>> bodies,
+        std::shared_ptr<BlockStatement> elseBody = nullptr
+    ) : conditions(std::move(conditions)),
+        bodies(std::move(bodies)),
+        elseBody(std::move(elseBody)) {
+    }
+
+    // Evaluate the conditions and bodies
+    // Convert this IfStatement to an expression (for printing or debugging)
+    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override;
+    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    
+
+    // String representation for debugging
+    std::string toString() const override {
+        std::string result = "IfStatement with " + std::to_string(conditions.size()) + " branches";
+
+        for (size_t i = 0; i < conditions.size(); ++i) {
+            result += "\n  if (" + conditions[i]->toString() + ") " + bodies[i]->toString();
+        }
+
+        if (elseBody) {
+            result += "\n  else " + elseBody->toString();
+        }
+
+        return result;
+    }
+
+    // Clone the IfStatement (deep copy)
+    std::shared_ptr<Statement> clone() const override {
+        std::vector<std::shared_ptr<Statement>> clonedConditions;
+        std::vector<std::shared_ptr<BlockStatement>> clonedBodies;
+        std::shared_ptr<BlockStatement> clonedElseBody = nullptr;
+    
+        // Clone and cast conditions
+        for (const auto& cond : conditions) {
+            clonedConditions.push_back(cond->clone());    
+        }
+    
+        // Clone and cast bodies
+        for (const auto& body : bodies) {
+            auto clonedBody = std::dynamic_pointer_cast<BlockStatement>(body->clone());
+            if (clonedBody) {
+                clonedBodies.push_back(clonedBody);
+            } else {
+                console.error("Failed to cast cloned body to BlockStatement");
+            }
+        }
+    
+        // Clone and cast elseBody if present
+        if (elseBody) {
+            clonedElseBody = std::dynamic_pointer_cast<BlockStatement>(elseBody->clone());
+            if (!clonedElseBody) {
+                console.error("Failed to cast cloned elseBody to BlockStatement");
+            }
+        }
+    
+        return std::make_shared<IfStatement>(clonedConditions, clonedBodies, clonedElseBody);
+    }    
+};
+
+
 // A while statement
-class WhileStatement : public Statement {
+class WhileStatement : public ControlFlowStatement {
 public:
     WhileStatement(std::shared_ptr<Statement> condition, std::shared_ptr<BlockStatement> body = {})
         : condition(condition), body(body) {}
@@ -1310,7 +1329,8 @@ private:
     }
 };
 
-class ForLoop : public Statement {
+class ForLoop : public ControlFlowStatement {
+private:
     std::shared_ptr<Statement> initialization;
     std::shared_ptr<Statement> condition;
     std::shared_ptr<Statement> increment;
@@ -1326,14 +1346,14 @@ public:
     std::string toString() const override { return "Forloop"; }  
 };
 
-class BreakStatement : public Statement {
-    public:
-        std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
+class BreakStatement : public ControlFlowStatement {
+public:
+    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-        std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "LiteralStatement"; }
 };
 
-class ContinueStatement : public Statement {
+class ContinueStatement : public ControlFlowStatement {
 public:
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
@@ -1377,8 +1397,7 @@ public:
 class Access : 
 public TypedStatement, 
 public Expression, 
-public NamedStatement,
-public ContextAwareStatement {
+public NamedStatement {
 protected:
     std::string memberName;
     std::shared_ptr<Statement> assignmentValue = nullptr;

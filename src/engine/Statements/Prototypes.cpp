@@ -598,6 +598,7 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
     std::shared_ptr<Omniscript::Expression> result;
 
     if (defaultValue) {
+        extendContextOf(defaultValue);
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
             if (!type) {
                 if (!typed->getType()) {
@@ -638,6 +639,7 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
 
 std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableType scope) {
     DEBUG_LOG("[Argument] Creating argument " + name);
+    extendContextOf(value);
     std::shared_ptr<Omniscript::Expression> result;
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
         if (type) {
@@ -730,9 +732,9 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
             func->parameters.insert(func->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
 
             auto methodExpr = func->express(scope);
-            fields.push_back(methodExpr);
+            // structExpr->parameters.push_back(methodExpr);
 
-            DEBUG_LOG(funcName + " " + name + ".constructor");
+            DEBUG_LOG("is " + funcName + "=" + name + ".constructor?");
             if (funcName == name + ".constructor") {
 
                 auto ctorExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(methodExpr);
@@ -750,6 +752,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
                 member->getModifiers()
             );
 
+            structExpr->parameters.push_back(methodExpr);
             classExpr->members.push_back(classMemberExpr);
         }
     }

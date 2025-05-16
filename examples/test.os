@@ -21,20 +21,23 @@ class Particle {
    }
    
    getZ() => f32 {
-      return this.x;
+      return this.z;
    }
 }
 
-let p = Particle(10.0, 30.0);
+let p = Particle();
 
 // // ✅ Valid access to public member
-// let a = p.z;       // OK
+// let a = p.x;       // OK
 
 // // ✅ Valid access via method
 // let b = p.getX();  // OK
 
 // // ❌ Invalid access to private member (should fail)
-// // let c = p.x;       // ← This line should throw a compile-time error or crash at runtime
+// let c = p.z;       // ← This line should throw a compile-time error or crash at runtime
+
+// // ✅ Valid access via method
+let d = p.getZ();       // Ok
 
 
 
