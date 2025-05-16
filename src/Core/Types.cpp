@@ -83,6 +83,10 @@ std::shared_ptr<Type> Type::createInvalid() {
     return std::make_shared<Type>();
 }
 
+std::shared_ptr<Type> Type::createUnresolved(const std::vector<std::string>& types) {
+    return std::make_shared<Type>(Kind::Unresolved);
+}
+
 std::shared_ptr<Type> Type::createUndefined() {
     return std::make_shared<Type>(Kind::Undefined);
 }
@@ -295,8 +299,8 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
             if (dataTypes.size() == 1) {
                 return Type::createGenericType(baseType);
             }
-            DEBUG_LOG("Type: '" + baseType + "' is not supported in omniscript");
-            return nullptr;
+            DEBUG_LOG("Type: '" + baseType + "' is not resolved yet");
+            type = Type::createUnresolved(dataTypes);
         }
     }
     

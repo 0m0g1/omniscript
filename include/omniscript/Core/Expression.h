@@ -748,13 +748,13 @@ struct StructExpression : public Callable {
     StructExpression(
         const std::string& structName,
         const std::string& mangledName,
-        std::vector<std::shared_ptr<Expression>> fields,
-        std::vector<std::string> fieldNames = {},
+        const std::vector<std::shared_ptr<Expression>>& fields = {},
+        const std::vector<std::string>& fieldNames = {},
         bool isVarArg = false
     )
         : Callable(structName, mangledName, fields, isVarArg),
           structName(structName),
-          elementNames(std::move(fieldNames))
+          elementNames(fieldNames)
     {
         // Define type as struct
         std::vector<std::shared_ptr<Type>> fieldTypes;
@@ -1114,21 +1114,21 @@ struct CallExpression : public Expression {
 // Base class for all access expressions
 struct AccessExpression : public Expression {
     bool isInternal = false;
-    std::shared_ptr<Expression> expr;              // expression that represents the parent object
-    std::vector<std::string> memberPath;           // Path of member names
-    std::vector<int> memberIndexPath;              // Optional index path (e.g., for array fields)
+    std::shared_ptr<Expression> expr;                // expression that represents the parent object
+    std::string member;                              // single member name
+    int index = -1;                                   // single index (e.g., for array fields)
     std::shared_ptr<Expression> assignmentValue;
 
     bool isInternalAccess() const {
         return isInternal;
     }
-    
+
     bool isSetter() const {
         return assignmentValue != nullptr;
     }
 
-    virtual std::string toString() const override = 0;       // String representation
-    virtual std::shared_ptr<Expression> clone() const = 0;   // Clone for deep copy
+    virtual std::string toString() const override = 0;
+    virtual std::shared_ptr<Expression> clone() const = 0;
 };
 
 struct MemberAccessExpression : public AccessExpression {
@@ -1140,35 +1140,25 @@ public:
         std::shared_ptr<Expression> parentExpr,
         const std::string& baseType,
         const std::string& instanceName,
-        const std::vector<std::string>& memberPath,
-        const std::vector<int>& memberIndexPath,
+        const std::string& member,
+        int index,
         std::shared_ptr<Type> memberType,
         std::shared_ptr<Expression> assignmentValue = nullptr
-    ) : baseType(baseType),
-        instanceName(instanceName) {
+    ) : baseType(baseType), instanceName(instanceName)
+    {
         expr = parentExpr;
-        this->assignmentValue = assignmentValue;
-        this->memberPath = memberPath;
-        this->memberIndexPath = memberIndexPath;
+        this->member = member;
+        this->index = index;
         this->type = memberType;
+        this->assignmentValue = assignmentValue;
     }
 
     std::string toString() const override {
-        std::string pathStr;
-        for (size_t i = 0; i < memberPath.size(); ++i) {
-            pathStr += memberPath[i];
-            if (i < memberIndexPath.size()) {
-                pathStr += "[" + std::to_string(memberIndexPath[i]) + "]";
-            }
-            if (i < memberPath.size() - 1) {
-                pathStr += ".";
-            }
-        }
-
+        std::string indexStr = (index >= 0) ? "[" + std::to_string(index) + "]" : "";
         if (isSetter()) {
-            return expr->toString() + "." + pathStr + " = " + assignmentValue->toString();
+            return expr->toString() + "." + member + indexStr + " = " + assignmentValue->toString();
         } else {
-            return expr->toString() + "." + pathStr;
+            return expr->toString() + "." + member + indexStr;
         }
     }
 
@@ -1177,8 +1167,8 @@ public:
             expr->clone(),
             baseType,
             instanceName,
-            memberPath,
-            memberIndexPath,
+            member,
+            index,
             type,
             assignmentValue ? assignmentValue->clone() : nullptr
         );
@@ -1189,33 +1179,67 @@ struct ArrowAccessExpression : public AccessExpression {
 public:
     ArrowAccessExpression(
         std::shared_ptr<Expression> parentExpr,
-        const std::vector<std::string>& memberPath,
-        const std::vector<int>& memberIndexPath = {}
+        const std::string& member,
+        int index = -1
     ) {
         expr = parentExpr;
-        this->memberPath = memberPath;
-        this->memberIndexPath = memberIndexPath;
+        this->member = member;
+        this->index = index;
     }
 
     std::string toString() const override {
-        std::string pathStr;
-        for (size_t i = 0; i < memberPath.size(); ++i) {
-            pathStr += memberPath[i];
-            if (i < memberIndexPath.size()) {
-                pathStr += "[" + std::to_string(memberIndexPath[i]) + "]";
-            }
-            if (i < memberPath.size() - 1) {
-                pathStr += "->";
-            }
-        }
-        return expr->toString() + "->" + pathStr;
+        std::string indexStr = (index >= 0) ? "[" + std::to_string(index) + "]" : "";
+        return expr->toString() + "->" + member + indexStr;
     }
 
     std::shared_ptr<Expression> clone() const override {
         return std::make_shared<ArrowAccessExpression>(
             expr->clone(),
-            memberPath,
-            memberIndexPath
+            member,
+            index
+        );
+    }
+};
+
+struct DereferenceExpression : public AccessExpression {
+public:
+    std::shared_ptr<Expression> valueExpr;
+    std::shared_ptr<Type> type;
+
+    DereferenceExpression(
+        std::shared_ptr<Expression> pointerExpr,
+        std::shared_ptr<Expression> val,
+        std::shared_ptr<Type> resultType,
+        const std::string& member = "",
+        int index = -1
+    ) : valueExpr(val), type(resultType)
+    {
+        expr = pointerExpr;
+        this->member = member;
+        this->index = index;
+    }
+
+    std::string toString() const override {
+        std::string suffix;
+        if (!member.empty()) {
+            suffix = "." + member;
+            if (index >= 0) suffix += "[" + std::to_string(index) + "]";
+        }
+
+        if (valueExpr) {
+            return "*(" + expr->toString() + ")" + suffix + " = " + valueExpr->toString();
+        } else {
+            return "*(" + expr->toString() + ")" + suffix;
+        }
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<DereferenceExpression>(
+            expr->clone(),
+            valueExpr ? valueExpr->clone() : nullptr,
+            type,
+            member,
+            index
         );
     }
 };
@@ -1242,38 +1266,6 @@ public:
         );
     }
 };
-
-struct DereferenceExpression : public AccessExpression {
-public:
-    std::shared_ptr<Expression> valueExpr;
-    std::shared_ptr<Type> type;
-
-    DereferenceExpression(
-        std::shared_ptr<Expression> pointerExpr,
-        std::shared_ptr<Expression> val,
-        std::shared_ptr<Type> resultType
-    ) : valueExpr(val), type(resultType)
-    {
-        expr = pointerExpr;
-    }
-
-    std::string toString() const override {
-        if (valueExpr) {
-            return "*(" + expr->toString() + ") = " + valueExpr->toString();
-        } else {
-            return "*(" + expr->toString() + ")";
-        }
-    }
-
-    std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<DereferenceExpression>(
-            expr->clone(),
-            valueExpr ? valueExpr->clone() : nullptr,
-            type
-        );
-    }
-};
-
 
 struct EnumExpression : public Expression {
     EnumExpression(const std::string& enumName, bool hasLookup = false, bool isEnumClass = false)

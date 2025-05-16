@@ -2139,52 +2139,26 @@ llvm::Value* IRGenerator::handleMemberAccess(
     SymbolTableType scope,
     bool preservePointer
 ) {
-    // Verify we have a pointer to a struct
-    if (!baseValue->getType()->isPointerTy()) {
-        console.error("Member access requires pointer to struct, got: " + debugType(baseValue->getType()));
+    llvm::Type* currentType = baseValue->getType();
+    llvm::Value* currentPtr = baseValue;
+
+    int fieldIndex = expr->index;
+
+    if (!currentType->isStructTy()) {
+        console.error("Member access requires struct type");
         return nullptr;
     }
 
-    // llvm::Type* currentType = resolveLLVMType(expr->getType()->isPointer() ? expr->getType()->getBasePointeeType() : expr->getType());
-    llvm::Type* currentType = activeScope->getType(expr->baseType);
-    llvm::Value* currentPtr = baseValue;
+    auto* structType = llvm::cast<llvm::StructType>(currentType);
+    currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex);
+    currentType = structType->getElementType(fieldIndex);
+    
 
-    for (size_t i = 0; i < expr->memberIndexPath.size(); ++i) {
-        int fieldIndex = expr->memberIndexPath[i];
-
-        if (!currentType->isStructTy()) {
-            console.error("Member access requires struct type, got: " + debugType(currentType));
-            return nullptr;
-        }
-
-        auto* structType = llvm::cast<llvm::StructType>(currentType);
-        
-        // Get pointer to member
-        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex,
-                                           "member." + expr->memberPath[i]);
-        
-        // Update type to the member's type
-        currentType = structType->getElementType(fieldIndex);
+    // Only load if we're not preserving pointers AND it's not a setter
+    if (!preservePointer && !expr->isSetter()) {
+        return Builder->CreateLoad(currentType, currentPtr);
     }
-
-    if (expr->isSetter()) {
-        llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
-        Builder->CreateStore(valueToStore, currentPtr);
-        return valueToStore;
-    }
-
-    if (preservePointer) {
-        // Return pointer to member if requested
-        return currentPtr;
-    }
-
-    // Otherwise load the value
-    if (!currentType->isAggregateType()) {
-        // Load simple types (int, float, etc.)
-        return Builder->CreateLoad(currentType, currentPtr, "load.member");
-    }
-    // For structs/arrays, return the pointer (LLVM prefers to keep aggregates in memory)
-    return currentPtr;
+    return currentPtr;  // Return the pointer if preserving
 }
 
 llvm::Value* IRGenerator::handleArrowAccess(
@@ -2198,29 +2172,19 @@ llvm::Value* IRGenerator::handleArrowAccess(
     }
 
     // Rest of arrow access handling...
-    llvm::Type* currentType = resolveLLVMType(expr->expr->getType()->isPointer() ? expr->expr->getType()->getPointeeType() : expr->expr->getType());
+    llvm::Type* currentType = resolveLLVMType(expr->expr->getType()->getPointeeType());
     llvm::Value* currentPtr = baseValue;
-    if (expr->expr->getType()->isPointer() && expr->expr->getType()->getPointeeType()->isStruct()) {
-        // currentPtr = Builder->CreateLoad(currentPtr->getType()->getPointerElementType(), currentPtr);
-        // currentPtr = Builder->CreateLoad(activeScope->getType(expr->expr->baseType), currentPtr);
-        llvm::Type* pointeeType = resolveLLVMType(expr->expr->getType());
-        currentPtr = Builder->CreateLoad(pointeeType, currentPtr);
+
+    int fieldIndex = expr->index;
+    
+    if (!currentType->isStructTy()) {
+        console.error("Arrow access requires struct type");
+        return nullptr;
     }
 
-    DEBUG_LOG("Accessing member '" + std::to_string(expr->memberIndexPath[0]) + "' of " + debugType(currentType));
-
-    for (size_t i = 0; i < expr->memberIndexPath.size(); ++i) {
-        int fieldIndex = expr->memberIndexPath[i];
-        
-        if (!currentType->isStructTy()) {
-            console.error("Arrow access requires struct type");
-            return nullptr;
-        }
-
-        auto* structType = llvm::cast<llvm::StructType>(currentType);
-        currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex);
-        currentType = structType->getElementType(fieldIndex);
-    }
+    auto* structType = llvm::cast<llvm::StructType>(currentType);
+    currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex);
+    currentType = structType->getElementType(fieldIndex);
 
     if (expr->isSetter()) {
         llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);

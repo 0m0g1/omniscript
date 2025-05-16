@@ -78,6 +78,7 @@ public:
     // ----- Instance methods -----
     bool isUserDefined() const { return kind == Kind::UserDefined; }
     bool isInvalid() const { return kind == Kind::Invalid; }
+    bool isUnresolved() const { return kind == Kind::Unresolved; }
     bool isUndefined() const { return kind == Kind::Undefined; }
     bool isChar() const { return kind == Kind::Char; }
     bool isPointer() const { return kind == Kind::Pointer || kind == Kind::Nullptr; }
@@ -91,8 +92,7 @@ public:
     bool isFixedArray() const { return kind == Kind::FixedArray; }
     bool isDynamicArray() const { return kind == Kind::DynamicArray; }
     bool isHeterogeneousArray() const { return kind == Kind::HeterogeneousArray; }
-    bool isUnresolved() const { return kind == Kind::Unresolved || kind == Kind::Generic; }
-    bool isGeneric() const { return kind == Kind::Generic || kind == Kind::Unresolved; }
+    bool isGeneric() const { return kind == Kind::Generic; }
     bool isBlock() const { return kind == Kind::Block; }
     bool isBool() const { return kind == Kind::Bool; }
     bool isStruct() const { return kind == Kind::Struct; }
@@ -314,6 +314,7 @@ public:
 
     // ----- Static factory methods -----
     static std::shared_ptr<Type> createInvalid();
+    static std::shared_ptr<Type> createUnresolved(const std::vector<std::string>& types);
     static std::shared_ptr<Type> createUndefined();
     static std::shared_ptr<Type> createPrimitiveType(Kind kind);
     static std::shared_ptr<Type> createNullType();
@@ -405,6 +406,24 @@ public:
     }    
 };
 
+
+class UnresolvedType : public Type {
+public:
+    std::vector<std::string> dataTypes;
+
+    UnresolvedType(const std::vector<std::string>& dataTypes)
+    : Type(Kind::Unresolved), dataTypes(dataTypes) {}
+
+    // Inheritance check (for multiple inheritance)
+    // bool derivesFrom(const std::string& baseName) const {
+    //     for (const auto& base : baseTypes) {
+    //         if (base->name == baseName || base->derivesFrom(baseName)) {
+    //             return true;
+    //         }
+    //     }
+    //     return false;
+    // }
+};
 
 class UserDefinedType : public Type {
 public:

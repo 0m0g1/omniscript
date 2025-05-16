@@ -35,11 +35,7 @@ std::shared_ptr<Omniscript::Expression> BlockStatement::express(SymbolTableType 
 }
 
 std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::expressAsVector(SymbolTableType scope) {
-    recursiveUpdate();
-
-    if (isInternalBlock) {
-        markAsInternal();
-    }
+    recursiveInternalUpdate();
     
     std::vector<std::shared_ptr<Omniscript::Expression>> results = {};
     
@@ -87,8 +83,11 @@ bool BlockStatement::isCompileTimeEvaluatable() {
     return true;
 }
 
-void BlockStatement::recursiveUpdate() {
+void BlockStatement::recursiveInternalUpdate() {
     resolveGenerics();
+    
+    updateInternalContext();
+
     for (auto& stmt : statements) {
         if (auto assign = std::dynamic_pointer_cast<Assignment>(stmt)) {
             if (assign->isStatic) {
@@ -99,20 +98,20 @@ void BlockStatement::recursiveUpdate() {
         }
         // Todo: work on for loop bodies, while loop etc
         if (auto innerBlock = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
-            innerBlock->recursiveUpdate();
+            innerBlock->recursiveInternalUpdate();
         }
     }
 }
 
-void BlockStatement::markAsInternal() {
+void BlockStatement::updateInternalContext() {
     for (auto& stmt : statements) {
-        if (auto access = std::dynamic_pointer_cast<Access>(stmt)) {
-            access->markAsInternal();
+        if (auto ctxAware = std::dynamic_pointer_cast<ContextAwareStatement>(stmt)) {
+            extendContextOf(ctxAware);
         }
         // Todo: work on for loop bodies, while loop etc
         // Todo: Also in internal assignments that are not in bodies?
-        if (auto innerBlock = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
-            innerBlock->markAsInternal();
-        }
+        // if (auto innerBlock = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
+        //     innerBlock->markAsInternal();
+        // }
     }
 }

@@ -147,7 +147,7 @@ std::shared_ptr<Statement> Parser::parseClass() {
         } else if (currentToken.getType() == TokenTypes::LeftParen) {
             valueExpr = parseLambdaFunction(className + "." + memberName);
             auto methodExpr = std::dynamic_pointer_cast<FunctionDeclaration>(valueExpr);
-            methodExpr->markAsInternal(true);
+            methodExpr->pushContext(memberName);
         }
 
         auto member = std::make_shared<ClassMember>(memberName, typeExpr, valueExpr, modifiers);

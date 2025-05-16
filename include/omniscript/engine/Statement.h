@@ -132,7 +132,80 @@ public:
     virtual std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const { return nullptr; }
 };
 
+class ContextAwareStatement : public virtual Statement {
+protected:
+    std::vector<std::string> accessContext;
+    
+public:
+    void setAccessContext(const std::vector<std::string>& context) {
+        accessContext = context;
+    }
+    
+    const std::vector<std::string>& getAccessContext() const {
+        return accessContext;
+    }
+    
+    void pushContext(const std::string& newContext) {
+        accessContext.push_back(newContext);
+    }
+    
+    void popContext() {
+        if (!accessContext.empty()) {
+            accessContext.pop_back();
+        }
+    }
 
+    // Create a deep copy of the context
+    std::vector<std::string> copyContext() const {
+        return std::vector<std::string>(accessContext); // Explicit copy
+    }
+
+    // Create a new nested context
+    std::vector<std::string> createChildContext() const {
+        return copyContext(); // Returns a copy that can be modified independently
+    }
+
+    // For statements that need to extend context
+    void extendContextOf(std::shared_ptr<Statement> statement) const {
+        auto ctxStmt = std::dynamic_pointer_cast<ContextAwareStatement>(statement);
+        
+        if (!ctxStmt) {
+            // Not all statements need context - this isn't necessarily an error
+            // console.error("'" + statement->toString() + "' is not context aware.");
+            return;
+        }
+
+        // Create a new independent copy of our context
+        auto newContext = this->copyContext();
+        
+        // Merge with any existing context in the target statement
+        const auto& existingContext = ctxStmt->getAccessContext();
+        newContext.insert(newContext.end(), existingContext.begin(), existingContext.end());
+        
+        // Set the combined context
+        ctxStmt->setAccessContext(newContext);
+    }
+
+    // Basic exact match check (case-sensitive)
+    bool containsContext(const std::string& contextName) const {
+        return std::find(accessContext.begin(), accessContext.end(), contextName) 
+               != accessContext.end();
+    }
+
+    // Check with custom comparator (e.g., case-insensitive)
+    template<typename Comparator>
+    bool containsContext(const std::string& contextName, Comparator comp) const {
+        return std::find_if(accessContext.begin(), accessContext.end(),
+            [&](const std::string& ctx){ return comp(ctx, contextName); }) 
+            != accessContext.end();
+    }
+
+    // Check if any context matches a predicate
+    template<typename Predicate>
+    bool containsContext(Predicate pred) const {
+        return std::any_of(accessContext.begin(), accessContext.end(), pred);
+    }
+};
 
 class GenericHolder {
 public:
@@ -203,9 +276,11 @@ public:
     virtual ~GenericHolder() = default;
 };
 
-class BlockStatement : public TypedStatement , public GenericHolder {
+class BlockStatement : 
+public TypedStatement , 
+public GenericHolder,
+public ContextAwareStatement {
 public:
-    bool isInternalBlock = false;
     std::vector<std::shared_ptr<Statement>> statements;
 
     BlockStatement() = default;
@@ -251,11 +326,8 @@ public:
 
     bool hasSideEffects() override;
     bool isCompileTimeEvaluatable() override;
-    void recursiveUpdate();
-    void markAsInternal();
-    bool isInternal() const {
-        return isInternalBlock;
-    }
+    void recursiveInternalUpdate();
+    void updateInternalContext();
 };
 
 template<typename T>
@@ -390,7 +462,7 @@ public:
     }
 };
 
-class Cast : public virtual TypedStatement, public virtual Expression {
+class Cast : public TypedStatement, public Expression {
     std::shared_ptr<Statement> value;
     std::shared_ptr<Omniscript::Type> targetType;
 public:
@@ -614,7 +686,10 @@ public:
         
 // ============================== Assignments ============================== //
 // Assignments
-class Assignment : public virtual NamedStatement, public virtual TypedStatement {
+class Assignment : 
+public NamedStatement, 
+public TypedStatement,
+public ContextAwareStatement {
 public:
     bool isStatic = false;
     bool isConstant = false;
@@ -801,7 +876,7 @@ public:
     std::string toString() const override { return "ArgumentStatement"; }
 };
 
-class Callable: public virtual NamedStatement {
+class Callable: public NamedStatement {
 public:
     std::vector<std::shared_ptr<Statement>> defaultParams;
 
@@ -825,9 +900,9 @@ public:
 class FunctionDeclaration : 
 public Callable, 
 public TypedStatement, 
-public GenericHolder {
+public GenericHolder,
+public ContextAwareStatement {
 public:
-    bool isInternalFunction = false;
     std::shared_ptr<Omniscript::Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
     std::vector<std::shared_ptr<Statement>> parameters;
@@ -850,16 +925,6 @@ public:
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
     std::string toString() const override { return "FunctionDeclerationStatement"; }
     std::string generateMangledName() const;
-    
-    void markAsInternal(bool state = false) {
-        // Todo: rename this to is method or something else
-        // is internal means its part of a class or module 
-        isInternalFunction = state;
-    }
-
-    bool isInternal() const {
-        return isInternalFunction;
-    }
 
     void setReturnTypes();
     void setReturnTypesInStatement(
@@ -970,7 +1035,10 @@ private:
     std::vector<std::shared_ptr<ClassMember>> body;
 };
 
-class Call : public TypedStatement, public NamedStatement {
+class Call : 
+public TypedStatement, 
+public NamedStatement,
+public ContextAwareStatement {
 public:
     Call(const std::string& calleeName, std::vector<std::shared_ptr<Statement>>& arguments) :
     callee(calleeName), args(arguments) {
@@ -1289,14 +1357,17 @@ public:
     void setInstanceName(const std::string& name) { instanceName = name; }
 };
 
-class Access : public virtual TypedStatement, public virtual Expression, public virtual NamedStatement {
+class Access : 
+public TypedStatement, 
+public Expression, 
+public NamedStatement,
+public ContextAwareStatement {
 protected:
-    std::vector<std::string> memberPath;
+    std::string memberName;
     std::shared_ptr<Statement> assignmentValue = nullptr;
     std::vector<std::shared_ptr<Statement>> arguments;
     bool isCall = false;
-    bool isInternalAccess = false;
-    
+
 public:
     std::shared_ptr<Statement> expr;
     virtual ~Access() = default;
@@ -1318,14 +1389,6 @@ public:
         isCall = true;
     }
 
-    void markAsInternal(bool state = true) {
-        isInternalAccess = state;
-    }
-
-    bool isInternal() const {
-        return isInternalAccess;
-    }
-
     bool isMethodCall() const {
         return isCall;
     }
@@ -1334,24 +1397,18 @@ public:
         return arguments;
     }
 
-    void setMemberPath(const std::vector<std::string>& path) {
-        memberPath = path;
+    void setMemberName(const std::string& name) {
+        memberName = name;
     }
 
-    const std::vector<std::string>& getMemberPath() const {
-        return memberPath;
+    std::string getMemberName() const {
+        return memberName;
     }
 
     void verifyMemberAccessibility();
 
     std::string getFullMemberPath() const {
-        std::string fullPath;
-        for (size_t i = 0; i < memberPath.size(); ++i) {
-            fullPath += memberPath[i];
-            if (i != memberPath.size() - 1)
-                fullPath += ".";
-        }
-        return fullPath;
+        return memberName;
     }
 
     std::string toString() const override {
@@ -1365,17 +1422,17 @@ private:
     std::shared_ptr<Statement> object;
 
 public:
-    MemberAccess(const std::string& obj, const std::vector<std::string>& memberPath, std::shared_ptr<Statement> assignVal = nullptr) {
+    MemberAccess(const std::string& obj, const std::string& member, std::shared_ptr<Statement> assignVal = nullptr) {
         this->objectName = obj;
-        this->memberPath = memberPath;
+        this->memberName = member;
         this->name = obj;
         setAssignmentValueTo(assignVal);
     }
 
-    MemberAccess(std::shared_ptr<Statement> obj, const std::vector<std::string>& memberPath, std::shared_ptr<Statement> assignVal = nullptr) {
+    MemberAccess(std::shared_ptr<Statement> obj, const std::string& member, std::shared_ptr<Statement> assignVal = nullptr) {
         this->expr = obj;
         this->object = obj;
-        this->memberPath = memberPath;
+        this->memberName = member;
         auto named = std::dynamic_pointer_cast<NamedStatement>(obj);
         if (!named) {
             console.error("The object having members should be named");
@@ -1388,10 +1445,9 @@ public:
     const std::shared_ptr<Statement>& getObject() const { return object; }
 
     std::shared_ptr<Statement> clone() const override {
-        std::vector<std::string> clonedPath = memberPath;
         auto cloned = object
-            ? std::make_shared<MemberAccess>(expr->clone(), clonedPath, assignmentValue ? assignmentValue->clone() : nullptr)
-            : std::make_shared<MemberAccess>(objectName, clonedPath, assignmentValue ? assignmentValue->clone() : nullptr);
+            ? std::make_shared<MemberAccess>(expr->clone(), memberName, assignmentValue ? assignmentValue->clone() : nullptr)
+            : std::make_shared<MemberAccess>(objectName, memberName, assignmentValue ? assignmentValue->clone() : nullptr);
 
         cloned->arguments.reserve(arguments.size());
         for (const auto& arg : arguments) {
@@ -1409,10 +1465,7 @@ public:
 
     std::string toString() const override {
         std::string base = object ? "ObjectMember(" + object->toString() + ")" : objectName;
-
-        for (const auto& prop : memberPath) {
-            base += "." + prop;
-        }
+        base += "." + memberName;
 
         if (isCall) {
             std::string argsStr = "(";
@@ -1436,17 +1489,12 @@ private:
 
 public:
     Dereference(std::shared_ptr<Statement> ptr, const std::string& member) : pointer(ptr) {
-        memberPath = { member };
-        expr = ptr;
-    }
-
-    Dereference(std::shared_ptr<Statement> ptr, const std::vector<std::string>& path) : pointer(ptr) {
-        memberPath = path;
+        memberName = member;
         expr = ptr;
     }
 
     std::shared_ptr<Statement> clone() const override {
-        auto cloned = std::make_shared<Dereference>(pointer->clone(), memberPath);
+        auto cloned = std::make_shared<Dereference>(pointer->clone(), memberName);
         cloned->assignmentValue = assignmentValue ? assignmentValue->clone() : nullptr;
         for (const auto& arg : arguments) {
             cloned->arguments.push_back(arg->clone());
@@ -1454,12 +1502,11 @@ public:
         cloned->isCall = isCall;
         return cloned;
     }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override {
-        std::string pathStr;
-        for (const auto& m : memberPath) pathStr += "." + m;
 
-        std::string base = "(*" + (pointer ? pointer->toString() : "null") + pathStr + ")";
+    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+
+    std::string toString() const override {
+        std::string base = "(*" + (pointer ? pointer->toString() : "null") + "." + memberName + ")";
 
         if (isSetter()) {
             return base + " = " + (assignmentValue ? assignmentValue->toString() : "null");
@@ -1483,17 +1530,12 @@ private:
 
 public:
     ArrowAccess(std::shared_ptr<Statement> ptr, const std::string& member) : pointer(ptr) {
-        memberPath = { member };
-        expr = ptr;
-    }
-
-    ArrowAccess(std::shared_ptr<Statement> ptr, const std::vector<std::string>& path) : pointer(ptr) {
-        memberPath = path;
+        memberName = member;
         expr = ptr;
     }
 
     std::shared_ptr<Statement> clone() const override {
-        auto cloned = std::make_shared<ArrowAccess>(pointer->clone(), memberPath);
+        auto cloned = std::make_shared<ArrowAccess>(pointer->clone(), memberName);
         cloned->assignmentValue = assignmentValue ? assignmentValue->clone() : nullptr;
         for (const auto& arg : arguments) {
             cloned->arguments.push_back(arg->clone());
@@ -1501,12 +1543,11 @@ public:
         cloned->isCall = isCall;
         return cloned;
     }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override {
-        std::string pathStr;
-        for (const auto& m : memberPath) pathStr += "." + m;
 
-        std::string base = "(" + (pointer ? pointer->toString() : "null") + "->" + getFullMemberPath() + ")";
+    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+
+    std::string toString() const override {
+        std::string base = "(" + (pointer ? pointer->toString() : "null") + "->" + memberName + ")";
 
         if (isSetter()) {
             return base + " = " + (assignmentValue ? assignmentValue->toString() : "null");
@@ -1523,6 +1564,7 @@ public:
         }
     }
 };
+
 
 class IndexAccess : public Access {
 public:

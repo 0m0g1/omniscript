@@ -466,29 +466,25 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
         type = resolveGeneric(type->getName());
         returnType = type;
     }
-
-    if (isInternal()) {
-        body->markAsInternal();
-    }
-
+    
     DEBUG_LOG("[Function] Setting the function's body's return type to " + type->description());
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(body)) {
         typed->setType(returnType);
     }
-
+    
     setReturnTypes();
-
+    
     DEBUG_LOG("[Function] Extracting argument values for function type construction");
     std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
     bool isVarArg = false;
-
+    
     int paramIndex = 0;
     for (const auto& param : parameters) {
         DEBUG_LOG("[Function] The parameter is '" + param->toString() + "'.");
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
             auto paramType = typed->getType();
             DEBUG_LOG("[Function] Parameter has type '" + paramType->description() + "'.");
-
+            
             if (paramType->isGeneric()) {
                 typed->setType(std::move(resolveGeneric(paramType->getName())));
             }
@@ -505,14 +501,15 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
         DEBUG_LOG("[Function] Parameter '" + result->name + "' has type " + result->getType()->description());
         paramIndex++;
     }
-
+    
     DEBUG_LOG("[Function] Passing generic type bindings from function to body block");
     if (auto holder = std::dynamic_pointer_cast<GenericHolder>(body)) {
         holder->inheritGenericsFrom(*this);
     }
-
+    
     // auto bod = body->resolveExpressions(localScope);
-
+    extendContextOf(body);
+    
     std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
     // for (auto& stmt : body->statements) {
     //     functionBody.push_back(stmt->express(localScope));
@@ -669,7 +666,7 @@ std::shared_ptr<Omniscript::Expression> ClassMember::express(SymbolTableType sco
 
 std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolTableType scope) {
     DEBUG_LOG();
-    DEBUG_LOG("[ConstructClassPrototype] Constructing a class as a struct with methods");
+    DEBUG_LOG("[ConstructClassPrototype] Constructing a class '" + getName() + "'.");
 
     std::vector<std::shared_ptr<Omniscript::ClassMemberExpression>> members;
     std::vector<std::shared_ptr<Omniscript::Expression>> fields;
@@ -678,6 +675,18 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
 
     std::vector<std::shared_ptr<Omniscript::FunctionExpression>> constructors;
     std::shared_ptr<Omniscript::FunctionExpression> destructor = nullptr;
+
+    // Step 2: Create class type
+    auto classType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(Omniscript::Type::createUserDefinedType(name, Omniscript::Kind::Class));
+    scope->addType(name, classType);
+
+    auto structExpr = std::make_shared<Omniscript::StructExpression>(
+        name,
+        name
+    );
+
+    auto classExpr = std::make_shared<Omniscript::ClassExpression>(name, structExpr);
+    scope->set(name, classExpr);
 
     // Step 1: Process parameters (fields)
     for (const auto& member : body) {
@@ -693,12 +702,12 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
             param->setType(member->getType());
         }
         std::string fieldName = param->getName();
-        fieldNames.push_back(fieldName);
+        structExpr->elementNames.push_back(fieldName);
 
         std::shared_ptr<Omniscript::Expression> fieldExpr = param->express(scope);
         fields.push_back(fieldExpr);
         fieldExpr->getType()->parameterName = fieldName;
-        fieldTypes.push_back(fieldExpr->getType());
+        classType->paramTypes.push_back(fieldExpr->getType());
 
         auto classMemberExpr = std::make_shared<Omniscript::ClassMemberExpression>(
             member->getName(),
@@ -706,12 +715,8 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
             member->getModifiers()
         );
 
-        members.push_back(classMemberExpr);
+        classExpr->members.push_back(classMemberExpr);
     }
-
-    // Step 2: Create class type
-    auto classType = Omniscript::Type::createUserDefinedType(name, Omniscript::Kind::Class, fieldTypes);
-    scope->addType(name, classType);
 
     // Step 3: Process methods (functions, constructor, destructor)
     for (const auto& member : body) {
@@ -730,12 +735,12 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
             if (funcName == name + ".constructor") {
 
                 auto ctorExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(methodExpr);
-                constructors.push_back(ctorExpr);
+                classExpr->constructors.push_back(ctorExpr);
 
             } else if (funcName == name + ".destructor") {
                 // Destructor
                 auto dtorExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(methodExpr);
-                destructor = dtorExpr;
+                classExpr->destructor = dtorExpr;
             } 
 
             auto classMemberExpr = std::make_shared<Omniscript::ClassMemberExpression>(
@@ -744,31 +749,30 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
                 member->getModifiers()
             );
 
-            members.push_back(classMemberExpr);
+            classExpr->members.push_back(classMemberExpr);
         }
     }
 
     // Step 4: Create the StructExpression for the class body
-    auto structExpr = std::make_shared<Omniscript::StructExpression>(
-        name,
-        name, // mangledName (can change if needed)
-        fields,
-        fieldNames,
-        false
-    );
+    
+    
 
+    // classExpr->structExpr = structExpr;
     // Step 5: Construct ClassExpression
-    auto classExpr = std::make_shared<Omniscript::ClassExpression>(
-        name,
-        structExpr,
-        constructors,
-        destructor,
-        members
-    );
+    // auto classExpr = std::make_shared<Omniscript::ClassExpression>(
+    //     name,
+    //     structExpr,
+    //     constructors,
+    //     destructor,
+    //     members
+    // );
+    // classExpr->constructors = constructors;
+    // classExpr->destructor = destructor;
+    // classExpr->members = members;
 
     classExpr->parameters = structExpr->parameters;
 
-    scope->set(name, classExpr);
+    
     return classExpr;
 }
 

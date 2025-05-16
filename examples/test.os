@@ -1,33 +1,33 @@
 import { Math } from std;
 
-let n: f32 = std.Math->pi;
-let test: std.string = "";
+// let n: f32 = std.Math->pi;
+// let test: std.string = "";
 
 // let textChar: char* = "hello world";
 // let text: std.string = "hello world";
 
-// class Particle {
-//    public x: f32 = 1.0;
-//    private z: f32 = 3.0;
+class Particle {
+   public x: f32 = 1.0;
+   private z: f32 = 3.0;
 
-//    constructor(x: f32 = 0, z: f32 = 0) => void {
-//       this.x = x;
-//       this.z = z;
-//    }
+   constructor(x: f32 = 0, z: f32 = 0) => void {
+      this.x = x;
+      this.z = z;
+   }
 
-//     // Allowed internal access to private member
-//    getX() => f32 {
-//       return this.x;
-//    }
-// }
+    // Allowed internal access to private member
+   getX() => f32 {
+      return this.x;
+   }
+}
 
-// let p = Particle(10.0, 30.0);
+let p = Particle(10.0, 30.0);
 
 // // ✅ Valid access to public member
 // let a = p.z;       // OK
 
 // // ✅ Valid access via method
-// // let b = p.getX();  // OK
+// let b = p.getX();  // OK
 
 // // ❌ Invalid access to private member (should fail)
 // // let c = p.x;       // ← This line should throw a compile-time error or crash at runtime

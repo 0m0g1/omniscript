@@ -50,7 +50,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             member = nextMember;
             eat(TokenTypes::Identifier);
             memberPath.push_back(nextMember);
-            expr = std::make_shared<MemberAccess>(expr, std::vector<std::string>{ member });  // Pass full path
+            expr = std::make_shared<MemberAccess>(expr, member);  // Pass full path
         }
 
         // Pointer member access (->)
@@ -60,7 +60,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             member = nextMember;
             eat(TokenTypes::Identifier);
             memberPath.push_back(nextMember);
-            expr = std::make_shared<ArrowAccess>(expr, std::vector<std::string>{ member } );  // Pass full path
+            expr = std::make_shared<ArrowAccess>(expr, member);  // Pass full path
         }
 
         // Index access
