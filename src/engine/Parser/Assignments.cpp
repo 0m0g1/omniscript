@@ -113,6 +113,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 return result;
             } else if (auto call = std::dynamic_pointer_cast<Call>(result)) {
                 call->setInstanceName(variableName);
+                call->isFromAssignment = true;
                 if (variableType == TokenTypes::Const) {
                     call->markAsConstant();
                 }

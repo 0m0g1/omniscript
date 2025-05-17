@@ -13,7 +13,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     DEBUG_LOG();
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
     std::string targetName = named ? named->getName() : instanceName;
-    DEBUG_LOG("The target name is '" + targetName + "' and instance name is '" + instanceName + "'.");
+    DEBUG_LOG("The callee is '" + callee + "' target name is '" + targetName + "' and instance name is '" + instanceName + "'.");
    
     DEBUG_LOG("The args are ");
     DEBUG_LOG("===============");
@@ -38,14 +38,14 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
                 return constructionBlock;
             }
-            callee = typeName + "." + callee;
-            if (scope->get(instanceName) || scope->get(targetName)) {
-                auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? instanceName : targetName));
+            if (scope->get((instanceName.empty() ? targetName : instanceName))) {
+                callee = typeName + "." + callee;
+                auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? targetName : instanceName));
                 thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
                 thisArg->setRootType(thisArg->getType());
                 args.insert(args.begin(), thisArg);
                 DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
-            } else {
+            } else if (isFromAssignment) {
                 // auto thisArg = std::make_shared<AddressOf>(targetName);
                 // thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
                 // thisArg->setRootType(thisArg->getType());
@@ -59,6 +59,8 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     stmt->markAsConstant();
                 }
                 return stmt->express(scope);
+            } else {
+                callee = typeName + "." + callee;
             }
         }
     }

@@ -2153,11 +2153,17 @@ llvm::Value* IRGenerator::handleMemberAccess(
     currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex);
     currentType = structType->getElementType(fieldIndex);
     
+    if (expr->isSetter()) {
+        llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
+        Builder->CreateStore(valueToStore, currentPtr);
+        return valueToStore;
+    }
 
     // Only load if we're not preserving pointers AND it's not a setter
-    if (!preservePointer && !expr->isSetter()) {
+    if (!preservePointer) {
         return Builder->CreateLoad(currentType, currentPtr);
     }
+    
     return currentPtr;  // Return the pointer if preserving
 }
 

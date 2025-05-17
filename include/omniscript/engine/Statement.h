@@ -1106,7 +1106,7 @@ public:
         const SymbolTableType& scope
     );
     
-        std::string potientialInstanceName;
+        bool isFromAssignment = false;
     private:
         bool isFromConstantAssignment = false;
         std::string callee;
