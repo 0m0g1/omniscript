@@ -1097,13 +1097,18 @@ public:
     std::string formatError(const std::string& msg) const override {
         return (instanceName.empty() ? "" : instanceName + ".") + callee + ": " + msg;
     };
+    void markAsConstant() {
+        isFromConstantAssignment = true;
+    }
     static std::string resolveFunctionOverload(
         const std::string& calleeName,
         const std::vector<std::shared_ptr<Statement>>& args,
         const SymbolTableType& scope
     );
     
+        std::string potientialInstanceName;
     private:
+        bool isFromConstantAssignment = false;
         std::string callee;
         std::string instanceName;
         std::vector<std::shared_ptr<Statement>> args;

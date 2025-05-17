@@ -14,12 +14,14 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
     std::string targetName = named ? named->getName() : instanceName;
     DEBUG_LOG("The target name is: " + targetName);
+   
     DEBUG_LOG("The args are ");
-
+    DEBUG_LOG("===============");
     for (const auto& arg: args) {
         auto typed = std::dynamic_pointer_cast<TypedStatement>(arg);
         DEBUG_LOG(arg->toString() + " of type " + (typed->getRootType() ? typed->getRootType()->description() : (typed->getType() ? typed->getType()->toString() : "'undefined'.")));
     }
+    DEBUG_LOG("===============");
 
     if (!targetName.empty()) {
         if (auto obj = scope->get(targetName)) {
@@ -37,11 +39,27 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 return constructionBlock;
             }
             callee = typeName + "." + callee;
-            auto thisArg = std::make_shared<AddressOf>(instanceName);
-            thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
-            thisArg->setRootType(thisArg->getType());
-            args.insert(args.begin(), thisArg);
-            DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
+            if (scope->get(instanceName)) {
+                auto thisArg = std::make_shared<AddressOf>(instanceName);
+                thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
+                thisArg->setRootType(thisArg->getType());
+                args.insert(args.begin(), thisArg);
+                DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
+            } else {
+                auto thisArg = std::make_shared<AddressOf>(instanceName);
+                thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
+                thisArg->setRootType(thisArg->getType());
+                args.insert(args.begin(), thisArg);
+                DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
+
+                std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(instanceName);
+                auto methodCall = std::make_shared<Call>(assignmentExpr, callee, args);
+                auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
+                if (isFromConstantAssignment) {
+                    stmt->markAsConstant();
+                }
+                return stmt->express(scope);
+            }
         }
     }
     
@@ -173,6 +191,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         parameters = callable->cloneParameters();
         type = callable->getType();
         if (type->isFunction()) {
+            DEBUG_LOG("The function's return type is '" + type->getReturnType()->toString() + "'.");
             type = type->getReturnType();
         }
         DEBUG_LOG("[Call] Cloned " + std::to_string(parameters.size()) + " parameters");
@@ -465,6 +484,8 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
     } else if (type->isGeneric()) {
         type = resolveGeneric(type->getName());
         returnType = type;
+    } else {
+        returnType = type;
     }
     
     DEBUG_LOG("[Function] Setting the function's body's return type to " + type->description());
@@ -527,9 +548,6 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
     
     DEBUG_LOG("[Function] Creating FunctionValue");
     auto functionVal = std::make_shared<Omniscript::FunctionExpression>(name, mangledName, returnType, functionBody, argValues, paramTypes, isVarArg);
-    
-    // auto funcType = Omniscript::Type::createFunctionType(name, paramTypes, returnType, isVarArg);
-    // functionVal->type = funcType; // Ensure FunctionExpression has this setter
 
     DEBUG_LOG("[Function] Storing overloaded function in scope '" + scope->getName() + "' under base name: " + name + " (mangled as: " + mangledName + ")");
     scope->addOverloadable(name, functionVal);

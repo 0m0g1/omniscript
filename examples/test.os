@@ -1,4 +1,4 @@
-import { Math } from std;
+// import { Math } from std;
 
 // let n: f32 = std.Math->pi;
 // let test: std.string = "";
@@ -31,13 +31,13 @@ let p = Particle();
 // let a = p.x;       // OK
 
 // // ✅ Valid access via method
-// let b = p.getX();  // OK
+let b = p.getX();  // OK
 
 // // ❌ Invalid access to private member (should fail)
 // let c = p.z;       // ← This line should throw a compile-time error or crash at runtime
 
 // // ✅ Valid access via method
-let d = p.getZ();       // Ok
+// let d = p.getZ();       // Ok
 
 
 

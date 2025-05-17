@@ -647,6 +647,10 @@ public:
         return nullptr;
     }
 
+    std::shared_ptr<Type> getReturnType() const override {
+        return returnType;
+    }
+
     std::string toString() const {
         std::string result = functionName + "(";
         for (size_t i = 0; i < parameterTypes.size(); ++i) {
