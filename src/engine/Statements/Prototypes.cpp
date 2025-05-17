@@ -13,7 +13,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     DEBUG_LOG();
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
     std::string targetName = named ? named->getName() : instanceName;
-    DEBUG_LOG("The target name is: " + targetName);
+    DEBUG_LOG("The target name is '" + targetName + "' and instance name is '" + instanceName + "'.");
    
     DEBUG_LOG("The args are ");
     DEBUG_LOG("===============");
@@ -39,20 +39,20 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 return constructionBlock;
             }
             callee = typeName + "." + callee;
-            if (scope->get(instanceName)) {
-                auto thisArg = std::make_shared<AddressOf>(instanceName);
+            if (scope->get(instanceName) || scope->get(targetName)) {
+                auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? instanceName : targetName));
                 thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
                 thisArg->setRootType(thisArg->getType());
                 args.insert(args.begin(), thisArg);
                 DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
             } else {
-                auto thisArg = std::make_shared<AddressOf>(instanceName);
-                thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
-                thisArg->setRootType(thisArg->getType());
-                args.insert(args.begin(), thisArg);
-                DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
+                // auto thisArg = std::make_shared<AddressOf>(targetName);
+                // thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
+                // thisArg->setRootType(thisArg->getType());
+                // args.insert(args.begin(), thisArg);
+                // DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
 
-                std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(instanceName);
+                std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
                 auto methodCall = std::make_shared<Call>(assignmentExpr, callee, args);
                 auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
                 if (isFromConstantAssignment) {
