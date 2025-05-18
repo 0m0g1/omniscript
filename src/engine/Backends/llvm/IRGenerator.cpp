@@ -2159,12 +2159,12 @@ llvm::Value* IRGenerator::handleMemberAccess(
         return valueToStore;
     }
 
-    // Only load if we're not preserving pointers AND it's not a setter
-    if (!preservePointer) {
-        return Builder->CreateLoad(currentType, currentPtr);
-    }
+    // // Only load if we're not preserving pointers AND it's not a setter
+    // if (!preservePointer) {
+    //     return currentPtr;  // Return the pointer if preserving
+    // }
     
-    return currentPtr;  // Return the pointer if preserving
+    return Builder->CreateLoad(currentType, currentPtr);
 }
 
 llvm::Value* IRGenerator::handleArrowAccess(
@@ -2172,33 +2172,53 @@ llvm::Value* IRGenerator::handleArrowAccess(
     llvm::Value* baseValue,
     SymbolTableType scope
 ) {
+    // Validate base value is a pointer
     if (!baseValue->getType()->isPointerTy()) {
         console.error("Arrow access requires pointer type");
         return nullptr;
     }
 
-    // Rest of arrow access handling...
-    llvm::Type* currentType = resolveLLVMType(expr->expr->getType()->getPointeeType());
-    llvm::Value* currentPtr = baseValue;
-
-    int fieldIndex = expr->index;
+    // Get the actual pointee type (what the pointer points to)
+    llvm::Type* pointeeType = resolveLLVMType(expr->expr->getType()->getPointeeType());
     
-    if (!currentType->isStructTy()) {
-        console.error("Arrow access requires struct type");
+    // Handle case where we have a pointer-to-pointer
+    if (pointeeType->isPointerTy()) {
+        baseValue = Builder->CreateLoad(pointeeType, baseValue);
+        pointeeType = resolveLLVMType(expr->expr->getType()->getPointeeType());
+    }
+
+    // Validate we're accessing a struct
+    if (!pointeeType->isStructTy()) {
+        console.error("Arrow access requires pointer to struct type");
         return nullptr;
     }
 
-    auto* structType = llvm::cast<llvm::StructType>(currentType);
-    currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex);
-    currentType = structType->getElementType(fieldIndex);
+    auto* structType = llvm::cast<llvm::StructType>(pointeeType);
+    int fieldIndex = expr->index;
 
+    // Validate field index
+    if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
+        console.error("Invalid struct field index");
+        return nullptr;
+    }
+
+    // Get pointer to the field
+    llvm::Value* fieldPtr = Builder->CreateStructGEP(structType, baseValue, fieldIndex);
+    llvm::Type* fieldType = structType->getElementType(fieldIndex);
+
+    // Handle setter case
     if (expr->isSetter()) {
         llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
-        Builder->CreateStore(valueToStore, currentPtr);
+        // Verify type compatibility
+        if (valueToStore->getType() != fieldType) {
+            valueToStore = Builder->CreateBitOrPointerCast(valueToStore, fieldType);
+        }
+        Builder->CreateStore(valueToStore, fieldPtr);
         return valueToStore;
     }
 
-    return Builder->CreateLoad(currentType, currentPtr);
+    // Handle getter case
+    return Builder->CreateLoad(fieldType, fieldPtr);
 }
 
 llvm::Value* IRGenerator::handleDereference(

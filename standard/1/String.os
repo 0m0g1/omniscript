@@ -3,6 +3,9 @@ module String {
     private text: char*;
 
     // Constructor
+    constructor(text: char* = "") => void {
+      this.text = text;
+    }
     // public constructor(value: any) {
     //   this.text = value.toString();
     // }

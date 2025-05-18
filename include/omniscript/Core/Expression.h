@@ -574,7 +574,7 @@ struct FunctionInputExpression : public Expression {
     }
 };
 
-struct Callable : public Expression {
+struct Callable : public virtual Expression {
     std::string mangledName;
     std::vector<std::shared_ptr<Expression>> parameters;
     bool isVarArg;
@@ -712,36 +712,14 @@ struct BlockExpression : public Expression {
 };
 
 // Aggregate Types (e.g., Struct, Enum, Array)
-struct AggregateExpression : public Expression {
-    std::vector<std::shared_ptr<Expression>> elements;
-    std::vector<std::string> elementNames;
-    uint64_t count;
-
-    AggregateExpression(std::vector<std::shared_ptr<Expression>> elements, std::vector<std::string> elementNames)
-        : elements(std::move(elements)), elementNames(std::move(elementNames)), count(elements.size()) {
-        std::vector<std::shared_ptr<Type>> elementTypes;
-        for (auto& e : this->elements)
-            elementTypes.push_back(e->type);
-
-        // type = Type::createStructType(elementTypes, this->elementNames);
-    }
-
+struct AggregateExpression : public virtual Expression {
+    ~AggregateExpression() = default;
     std::string toString() const override { return "Aggregate"; }
-
-    // AggregateExpression
-    std::shared_ptr<Expression> clone() const override {
-        std::vector<std::shared_ptr<Expression>> clonedElements;
-        for (const auto& elem : elements) {
-            clonedElements.push_back(elem ? elem->clone() : nullptr);
-        }
-        return std::make_shared<AggregateExpression>(
-            clonedElements,
-            elementNames
-        );
-    }
 };
 
-struct StructExpression : public Callable {
+struct StructExpression : 
+public Callable,
+public AggregateExpression {
     std::string structName;
     std::vector<std::string> elementNames;
 
@@ -896,7 +874,9 @@ public:
 };
 
 
-struct ClassExpression : public Callable {
+struct ClassExpression : 
+public Callable,
+public AggregateExpression {
     std::shared_ptr<StructExpression> structExpr;
     std::vector<std::shared_ptr<FunctionExpression>> constructors;
     std::shared_ptr<FunctionExpression> destructor;
@@ -981,7 +961,8 @@ struct ClassExpression : public Callable {
 
 
 // Represents a complete module
-struct ModuleExpression : public Expression {
+struct ModuleExpression : 
+public AggregateExpression {
     std::vector<std::shared_ptr<ModuleMemberExpression>> members;
 
     ModuleExpression(const std::string& moduleName, const std::vector<std::shared_ptr<ModuleMemberExpression>>& members = {})
@@ -1006,6 +987,17 @@ struct ModuleExpression : public Expression {
         }
         return std::make_shared<ModuleExpression>(name, clonedMembers);
     }
+
+    std::shared_ptr<ModuleMemberExpression> getMember(const std::string& name) {
+        for (const auto& member : members) {
+            if (member->getName() == name) {
+                return member;
+            }
+        }
+        console.error("Member '" + name + "' not found in class '" + this->getName() + "'.");
+        return nullptr;
+    }
+
 };
 
 struct InstanceExpression : public Expression {

@@ -51,27 +51,46 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     }
 
     // Ensure base type is a class
-    auto classExpr = std::dynamic_pointer_cast<Omniscript::ClassExpression>(scope->get(baseTypeName));
-    if (!classExpr) {
+    auto aggregateExpr = std::dynamic_pointer_cast<Omniscript::AggregateExpression>(scope->get(baseTypeName));
+    if (!aggregateExpr) {
+        auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(scope->get(baseTypeName));
+        auto classExpr = std::dynamic_pointer_cast<Omniscript::ClassExpression>(scope->get(baseTypeName));
+        auto moduleExpr = std::dynamic_pointer_cast<Omniscript::ModuleExpression>(scope->get(baseTypeName));
+        
         if (auto type = scope->get(baseTypeName)) {
-            DEBUG_LOG(type->toString());
+            DEBUG_LOG("Accessing a member of type '" + type->toString() + "'.");
         } else {
             DEBUG_LOG("No type defined");
         }
-        console.error("Type '" + baseTypeName + "' is not a class type.");
-        return nullptr;
-    }
 
-    auto member = classExpr->getMember(memberName);
-    if (!member) {
-        console.error("Member '" + memberName + "' not found in type '" + baseTypeName + "'.");
-        return nullptr;
-    }
+        std::shared_ptr<Omniscript::MemberExpression> member;
 
-    DEBUG_LOG(getContextAsString());
-    if (!member->isPublic() && member->isPrivate() && !containsContext(classExpr->getName())) {
-        console.error("Cannot access private member '" + memberName + "' of class '" + classExpr->getName() + "'");
-        return nullptr;
+        DEBUG_LOG(getContextAsString());
+        if (structExpr) {
+            // member = structExpr->getMember(memberName);
+        } else if (classExpr) {
+            member = classExpr->getMember(memberName);
+        } else if (moduleExpr) {
+            member = moduleExpr->getMember(memberName);
+        } else {
+            console.error("Type '" + baseTypeName + "' is not an aggregate Type (class, struct, module).");
+            return nullptr;
+        }
+
+        if (!member) {
+            console.error("Member '" + memberName + "' not found in type '" + baseTypeName + "'.");
+            return nullptr;
+        }
+    
+        
+        if (!structExpr && !member->isPublic() && member->isPrivate() && !containsContext(classExpr->getName())) {
+            if (classExpr) {
+                console.error("Cannot access private member '" + memberName + "' of class '" + classExpr->getName() + "'.");
+            } else if (moduleExpr) {
+                console.error("Cannot access private member '" + memberName + "' of module '" + moduleExpr->getName() + "'.");
+            } 
+            return nullptr;
+        }
     }
 
     auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(scope->getType(baseTypeName));
@@ -173,12 +192,10 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType sco
     }
 
     // Descend into nested type if needed
-    userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(
-        currentType->isPointer() ? currentType->getBasePointeeType() : currentType
-    );
+    userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(pointerType->getBasePointeeType());
 
     if (!userType) {
-        console.error("Cannot traverse non-user-defined member '" + memberName + "'");
+        console.error("Cannot traverse non-user-defined member '" + pointerType->getBasePointeeType()->toString() + "'");
         return nullptr;
     }
 

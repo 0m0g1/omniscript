@@ -30,6 +30,7 @@ enum class Kind {
     Metadata,
 
     // Aggregate Types
+    Module,
     Class,
     Struct,
     Enum,
@@ -97,6 +98,7 @@ public:
     bool isBool() const { return kind == Kind::Bool; }
     bool isStruct() const { return kind == Kind::Struct; }
     bool isClass() const { return kind == Kind::Class; }
+    bool isModule() const { return kind == Kind::Module; }
 
     bool isNumericLiteral() const {
         return isInteger() || isFloat();
