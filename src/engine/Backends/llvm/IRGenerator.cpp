@@ -136,7 +136,6 @@ void IRGenerator::optimizeModule(int level) {
     console.log("No optimization taking place");
     // console.log("Running module verification before optimization...");
 
-    // // Use VerifierAnalysis for LLVM 15+
     // if (llvm::verifyModule(*Module, &llvm::errs())) {
     //     throw std::runtime_error("Module verification failed before optimization");
     // }
@@ -145,24 +144,47 @@ void IRGenerator::optimizeModule(int level) {
     // llvm::FunctionAnalysisManager fam;
     // llvm::CGSCCAnalysisManager cam;
     // llvm::ModuleAnalysisManager mam;
-    
+
     // llvm::PassBuilder pb;
+
+    // // Register analyses with PassBuilder
     // pb.registerModuleAnalyses(mam);
     // pb.registerFunctionAnalyses(fam);
     // pb.registerLoopAnalyses(lam);
     // pb.registerCGSCCAnalyses(cam);
-    
-    // llvm::ModulePassManager mpm = pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O2);
 
-    
-    // mpm.run(*Module, mam);
-    
+    // // Link all the analysis managers together
+    // pb.crossRegisterProxies(lam, fam, cam, mam);
+
+    // // Choose optimization level
+    // llvm::OptimizationLevel optLevel = llvm::OptimizationLevel::O2;
+    // if (level == 0) optLevel = llvm::OptimizationLevel::O0;
+    // else if (level == 1) optLevel = llvm::OptimizationLevel::O1;
+    // else if (level == 2) optLevel = llvm::OptimizationLevel::O2;
+    // else if (level >= 3) optLevel = llvm::OptimizationLevel::O3;
+
+    // // Build pipeline
+    // llvm::ModulePassManager mpm = pb.buildPerModuleDefaultPipeline(optLevel);
+
+    // if (!Module) {
+    //     console.error("Module is null before optimization");
+    // }
+
+    // // Run pipeline
+    //  try {
+    //     mpm.run(*Module, mam);
+    // } catch (const std::exception& ex) {
+    //     console.error("Exception during optimization: " + std::string(ex.what()));
+    //     throw;
+    // }
+
     // console.log("Optimized Code:\n");
     // printIR();
 
     // console.log("Errors in Optimized Code:\n");
     // printErrors();
 }
+
 
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope) {
     llvm::Value* result = codegenPrimitive(value, scope);
