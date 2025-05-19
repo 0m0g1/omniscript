@@ -32,6 +32,7 @@
 #include <stack>
 #include <atomic>
 #include <numeric>
+#include <string>
 
 // System-Specific Headers
 #ifdef _WIN32

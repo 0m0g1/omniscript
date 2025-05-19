@@ -17,6 +17,8 @@ std::string Type::kindName() const {
         case Kind::Null:        return "Null";
         case Kind::Bool:        return "Bool";
         case Kind::Char:        return "Char";
+        case Kind::Char16:      return "Char16";
+        case Kind::Char32:      return "Char32";
         case Kind::Int8:        return "Int8";
         case Kind::Int16:       return "Int16";
         case Kind::Int32:       return "Int32";
@@ -271,6 +273,8 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
         // Other primitives
         else if (baseType == "bool") type = Type::createPrimitiveType(Kind::Bool);
         else if (baseType == "char") type = Type::createPrimitiveType(Kind::Char);
+        else if (baseType == "char16") type = Type::createPrimitiveType(Kind::Char16);
+        else if (baseType == "char32") type = Type::createPrimitiveType(Kind::Char32);
         else if (baseType == "void") type = Type::createPrimitiveType(Kind::Void);
     
         // Floating point
@@ -350,6 +354,19 @@ bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr
     if (from->isFloat() && to->isInteger()) {
         return false;
     }
+
+    if ((from->isChar() && to->isString()) || (from->isString() && to->isChar())) {
+        return true;
+    }
+
+    if (from->isChar() && to->isChar()) {
+        return from->getBitWidth() <= to->getBitWidth();
+    }
+
+    if (from->isString() && to->isString()) {
+        return from->getBitWidth() <= to->getBitWidth();
+    }
+
 
     if (from->isPointer() && to->isPointer()) {
         return isSameOrCastableTo(from->getBasePointeeType(), to->getBasePointeeType());

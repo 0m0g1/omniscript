@@ -248,7 +248,7 @@ std::shared_ptr<Statement> Parser::factor() {
     // Handle string literals
     else if (currentToken.getType() == TokenTypes::StringLiteral) {
         eat(TokenTypes::StringLiteral);
-        left = std::make_shared<StringLiteral>(previousToken.getValue());
+        left = std::make_shared<StringLiteral>(previousToken.getU32Value());
     } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
         eat(TokenTypes::BitwiseAnd);
         if (currentToken.getType() == TokenTypes::Identifier) {
@@ -309,7 +309,7 @@ std::shared_ptr<Statement> Parser::factor() {
             eat(TokenTypes::RightParen);
         }
     } else if (currentToken.getType() == TokenTypes::Character) {
-        char value = currentToken.getValue()[0]; 
+        char32_t value = currentToken.getU32Value()[0]; 
         eat(TokenTypes::Character);
         left = std::make_shared<CharacterLiteral>(value);
     } else if (currentToken.getType() == TokenTypes::False) {

@@ -35,4 +35,11 @@ std::string joinSet(const std::unordered_set<std::string>& members);
 std::string joinMapKeys(const std::unordered_map<std::string, std::string>& map);
 std::string join(const std::vector<std::string>& vec, const std::string& delimiter);
 
+std::u32string utf8_to_utf32(const std::string& utf8str);
+std::string utf32_to_utf8(const std::u32string& utf32str);
+std::u16string utf8_to_utf16(const std::string& utf8str);
+std::string utf16_to_utf8(const std::u16string& utf16str);
+std::u16string utf32_to_utf16(const std::u32string& input);
+std::u32string utf16_to_utf32(const std::u16string& input);
+
 #endif

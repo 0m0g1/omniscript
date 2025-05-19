@@ -256,15 +256,23 @@ Token Lexer::getNextToken() {
         currentPosition++; // Skip closing quote
         column++;
         
+        // Convert literalValue (UTF-8) to UTF-32
+        std::u32string u32chars = utf8_to_utf32(literalValue);
         if (!isString) {
             // Character literal - must be exactly one character (after escape processing)
-            if (literalValue.length() != 1) {
+
+            if (u32chars.size() != 1) {
                 throw std::runtime_error("Invalid character literal at line " + std::to_string(line));
             }
-            return Token(TokenTypes::Character, literalValue, line, column, sourceFilePath);
+
+            auto tok = Token(TokenTypes::Character, literalValue, line, column, sourceFilePath);
+            tok.setU32Value(u32chars);
+            return tok;
         } else {
             // String literal
-            return Token(TokenTypes::StringLiteral, literalValue, line, column, sourceFilePath);
+            auto tok = Token(TokenTypes::StringLiteral, literalValue, line, column, sourceFilePath);
+            tok.setU32Value(u32chars);
+            return tok;
         }
     }
 

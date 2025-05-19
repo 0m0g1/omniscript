@@ -150,6 +150,10 @@ class Token {
 
         TokenTypes getType() const {return type;}
         std::string getValue() const {return value;}
+        void setU32Value(std::u32string newValue) {
+            u32Value = newValue;
+        }
+        std::u32string getU32Value() const {return u32Value;}
         TokenTypes type;
         int getLine() {return line;}
         int getColumn() {return column;}
@@ -159,6 +163,7 @@ class Token {
     private:
         // TokenTypes type;
         std::string value;
+        std::u32string u32Value;
         int line;
         int column;
         int position;

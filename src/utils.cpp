@@ -417,3 +417,155 @@ std::string join(const std::vector<std::string>& vec, const std::string& delimit
             return a + delimiter + b;
         });
 }
+
+std::u32string utf8_to_utf32(const std::string& input) {
+    std::u32string result;
+    size_t i = 0;
+    while (i < input.size()) {
+        uint32_t codepoint = 0;
+        unsigned char c = input[i];
+        if ((c & 0x80) == 0) { // 1-byte sequence
+            codepoint = c;
+            i += 1;
+        } else if ((c & 0xE0) == 0xC0) { // 2-byte sequence
+            if (i + 1 >= input.size()) {
+                throw std::runtime_error("Invalid UTF-8: truncated 2-byte sequence");
+            }
+            if ((input[i+1] & 0xC0) != 0x80) {
+                throw std::runtime_error("Invalid UTF-8: invalid continuation byte in 2-byte sequence");
+            }
+            codepoint = ((input[i] & 0x1F) << 6) | (input[i+1] & 0x3F);
+            if (codepoint < 0x80) {
+                throw std::runtime_error("Invalid UTF-8: overlong encoding in 2-byte sequence");
+            }
+            i += 2;
+        } else if ((c & 0xF0) == 0xE0) { // 3-byte sequence
+            if (i + 2 >= input.size()) {
+                throw std::runtime_error("Invalid UTF-8: truncated 3-byte sequence");
+            }
+            if ((input[i+1] & 0xC0) != 0x80 || (input[i+2] & 0xC0) != 0x80) {
+                throw std::runtime_error("Invalid UTF-8: invalid continuation bytes in 3-byte sequence");
+            }
+            codepoint = ((input[i] & 0x0F) << 12) | ((input[i+1] & 0x3F) << 6) | (input[i+2] & 0x3F);
+            if (codepoint < 0x800) {
+                throw std::runtime_error("Invalid UTF-8: overlong encoding in 3-byte sequence");
+            }
+            i += 3;
+        } else if ((c & 0xF8) == 0xF0) { // 4-byte sequence
+            if (i + 3 >= input.size()) {
+                throw std::runtime_error("Invalid UTF-8: truncated 4-byte sequence");
+            }
+            if ((input[i+1] & 0xC0) != 0x80 || (input[i+2] & 0xC0) != 0x80 || (input[i+3] & 0xC0) != 0x80) {
+                throw std::runtime_error("Invalid UTF-8: invalid continuation bytes in 4-byte sequence");
+            }
+            codepoint = ((input[i] & 0x07) << 18) | ((input[i+1] & 0x3F) << 12) | ((input[i+2] & 0x3F) << 6) | (input[i+3] & 0x3F);
+            if (codepoint < 0x10000 || codepoint > 0x10FFFF) {
+                throw std::runtime_error("Invalid UTF-8: codepoint out of range in 4-byte sequence");
+            }
+            i += 4;
+        } else {
+            throw std::runtime_error("Invalid UTF-8: invalid leading byte");
+        }
+        // Check for surrogate codepoints
+        if (codepoint >= 0xD800 && codepoint <= 0xDFFF) {
+            throw std::runtime_error("Invalid UTF-8: surrogate codepoint encountered");
+        }
+        result.push_back(codepoint);
+    }
+    return result;
+}
+
+std::string utf32_to_utf8(const std::u32string& input) {
+    std::string result;
+    for (uint32_t cp : input) {
+        if (cp > 0x10FFFF) {
+            throw std::runtime_error("Invalid UTF-32 codepoint: exceeds maximum value 0x10FFFF");
+        }
+        if (cp >= 0xD800 && cp <= 0xDFFF) {
+            throw std::runtime_error("Invalid UTF-32 codepoint: surrogate value");
+        }
+        if (cp <= 0x7F) {
+            result += static_cast<char>(cp);
+        } else if (cp <= 0x7FF) {
+            result += static_cast<char>(0xC0 | (cp >> 6));
+            result += static_cast<char>(0x80 | (cp & 0x3F));
+        } else if (cp <= 0xFFFF) {
+            result += static_cast<char>(0xE0 | (cp >> 12));
+            result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            result += static_cast<char>(0x80 | (cp & 0x3F));
+        } else {
+            result += static_cast<char>(0xF0 | (cp >> 18));
+            result += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+            result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            result += static_cast<char>(0x80 | (cp & 0x3F));
+        }
+    }
+    return result;
+}
+
+// Convert a UTF-32 string to UTF-16.
+// Throws on code points outside BMP (> 0x10FFFF) or surrogate range.
+std::u16string utf32_to_utf16(const std::u32string& input) {
+    std::u16string result;
+    result.reserve(input.size());
+    for (char32_t cp : input) {
+        if (cp > 0x10FFFF) {
+            throw std::runtime_error("Invalid UTF-32 codepoint: exceeds 0x10FFFF");
+        }
+        if (cp >= 0xD800 && cp <= 0xDFFF) {
+            throw std::runtime_error("Invalid UTF-32 codepoint: surrogate half");
+        }
+        if (cp <= 0xFFFF) {
+            // Direct BMP code point
+            result.push_back(static_cast<char16_t>(cp));
+        } else {
+            // Encode as surrogate pair
+            cp -= 0x10000;
+            char16_t high = static_cast<char16_t>((cp >> 10) + 0xD800);
+            char16_t low  = static_cast<char16_t>((cp & 0x3FF) + 0xDC00);
+            result.push_back(high);
+            result.push_back(low);
+        }
+    }
+    return result;
+}
+
+// Convert a UTF-16 string to UTF-32.
+// Throws on unmatched surrogates.
+std::u32string utf16_to_utf32(const std::u16string& input) {
+    std::u32string result;
+    result.reserve(input.size());
+    size_t i = 0;
+    while (i < input.size()) {
+        char16_t w1 = input[i++];
+        if (w1 >= 0xD800 && w1 <= 0xDBFF) {
+            // High surrogate; must be followed by low surrogate
+            if (i >= input.size()) {
+                throw std::runtime_error("Invalid UTF-16: dangling high surrogate");
+            }
+            char16_t w2 = input[i++];
+            if (!(w2 >= 0xDC00 && w2 <= 0xDFFF)) {
+                throw std::runtime_error("Invalid UTF-16: invalid low surrogate");
+            }
+            char32_t cp = ((static_cast<char32_t>(w1 - 0xD800) << 10)
+                         |  (static_cast<char32_t>(w2 - 0xDC00)))
+                         + 0x10000;
+            result.push_back(cp);
+        } else if (w1 >= 0xDC00 && w1 <= 0xDFFF) {
+            // Unmatched low surrogate
+            throw std::runtime_error("Invalid UTF-16: dangling low surrogate");
+        } else {
+            // BMP code point
+            result.push_back(static_cast<char32_t>(w1));
+        }
+    }
+    return result;
+}
+
+std::u16string utf8_to_utf16(const std::string& utf8str) {
+    return utf32_to_utf16(utf8_to_utf32(utf8str));
+}
+
+std::string utf16_to_utf8(const std::u16string& utf16str) {
+    return utf32_to_utf8(utf16_to_utf32(utf16str));
+}

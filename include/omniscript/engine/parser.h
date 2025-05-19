@@ -80,7 +80,7 @@ class Parser {
         bool isAssignmentExpression(TokenTypes tokenType);
         std::shared_ptr<Statement> parseAssignment(std::shared_ptr<Statement> assignee = nullptr);          // To parse variable assignments
         std::shared_ptr<Statement> parseAssignment(parameterType paramType);          // To parse variable assignments
-        std::string parseStringLiteral();                      // To parse string literals
+        std::u32string parseStringLiteral();                      // To parse string literals
         std::shared_ptr<Statement> parseBlock();
         std::shared_ptr<Statement> parseLambdaFunction(
             const std::string& name = "",

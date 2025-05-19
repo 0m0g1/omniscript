@@ -632,9 +632,9 @@ private:
 // ============================== Other Literals ============================== //
 class CharacterLiteral : public Literal {
 public:
-    char value;
+    char32_t value;
 
-    explicit CharacterLiteral(char val) : value(std::move(val)) {
+    explicit CharacterLiteral(char32_t val) : value(std::move(val)) {
         setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char));
     }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
@@ -649,9 +649,9 @@ public:
 
 class StringLiteral : public Literal {
 public:
-    std::string value;
+    std::u32string value;
 
-    explicit StringLiteral(std::string val) : value(std::move(val)) {
+    explicit StringLiteral(std::u32string val) : value(std::move(val)) {
         setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Utf32));
     }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }

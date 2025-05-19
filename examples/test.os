@@ -1,11 +1,24 @@
-import { Math, IO } from std;
+// import { Math, IO } from std;
 
-let n: f32 = std.Math->pi;
+// let n: f32 = std.Math->pi;
+// let charp : char* = "hi";
+// let text = std.string(charp);
 // let test: std.string = "";
 
-// let textChar: char* = "hello world";
+// add support for js like formatted strings
+// let textChar: char* = "hello world ${}";
+
+let textChar: char* = "hello world";
 // let text: std.string = "hello world";
 
+// class String {
+//    private text: char*;
+
+//    // Constructor
+//    constructor(text: char* = "") => void {
+//       this.text = text;
+//    }
+// }
 
 
 

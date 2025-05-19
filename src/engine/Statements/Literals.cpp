@@ -103,7 +103,9 @@ std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type
         case Kind::Bool:
             return std::make_shared<BoolLiteral>(value != 0);
         case Kind::Char:
-            return std::make_shared<CharacterLiteral>(static_cast<char>(value));
+        case Kind::Char16:
+        case Kind::Char32:
+            return std::make_shared<CharacterLiteral>(static_cast<char32_t>(value));
         default:
             return nullptr;
     }
@@ -262,23 +264,39 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
     if (!type) {
         DEBUG_LOG("Creating a char literal");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
-        return std::make_shared<Omniscript::Primitive<char>>(value);  // Default to double (64-bit)
+        auto utf8 = utf32_to_utf8(std::u32string(1, value));
+        return std::make_shared<Omniscript::Primitive<char>>(utf8[0]);
     }
 
     if (!type->isChar()) {
-        console.error("The specified type is " + type->description() + " but '" + std::to_string(value) + "' is a char.");
+        console.error("The specified type is " + type->description() + " but '" + std::to_string(static_cast<uint32_t>(value)) + "' is a char.");
     } else {
-        DEBUG_LOG("Creating a '" + type->description() + value + "'.");
+        DEBUG_LOG("Creating a '" + type->description() + "' value.");
     }
 
-    return std::make_shared<Omniscript::Primitive<char>>(value);
+    if (type->isChar(8)) {
+        DEBUG_LOG("Creating UTF-8 char");
+        std::string utf8_value = utf32_to_utf8(std::u32string(1, value));
+        return std::make_shared<Omniscript::Primitive<char>>(utf8_value[0]);  // assumes single-char utf8
+    } else if (type->isChar(16)) {
+        DEBUG_LOG("Creating UTF-16 char");
+        std::u16string utf16_value = utf32_to_utf16(std::u32string(1, value));
+        return std::make_shared<Omniscript::Primitive<char16_t>>(utf16_value[0]);
+    } else if (type->isChar(32)) {
+        DEBUG_LOG("Creating UTF-32 char");
+        return std::make_shared<Omniscript::Primitive<char32_t>>(value);
+    }
+
+    return nullptr;
 }
 
 std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
     using Kind = Omniscript::Kind;
     switch (targetType->getKind()) {
         case Kind::Char:
-            return std::make_shared<CharacterLiteral>(value);  // Already a character
+        case Kind::Char16:
+        case Kind::Char32:
+            return std::make_shared<CharacterLiteral>(value);
         case Kind::Int8:
         case Kind::Int16:
         case Kind::Int32:
@@ -287,8 +305,12 @@ std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Ty
             val->setType(targetType);
             return val;
         }
-        case Kind::String: {
-            auto val = std::make_shared<StringLiteral>(std::string(1, value));
+        case Kind::String:
+        case Kind::Utf8:
+        case Kind::Utf16:
+        case Kind::Utf32: {
+            auto utf32 = std::u32string(1, value);
+            auto val = std::make_shared<StringLiteral>(utf32);
             val->setType(targetType);
             return val;
         }
@@ -300,32 +322,33 @@ std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Ty
 
 std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType scope) {
     if (!type) {
-        DEBUG_LOG("Creating a string value");
+        DEBUG_LOG("Creating a UTF-32 string value");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Utf8);
-        return std::make_shared<Omniscript::StringExpression<std::string>>(value); 
+        std::string utf8_value = utf32_to_utf8(value);
+        return std::make_shared<Omniscript::StringExpression<std::string>>(utf8_value);
     }
 
-    auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Utf8);
+    auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Utf32);
 
-    if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type))  {
-        console.error("The specified type is " + type->description() + " but '" + value + "' is a string.");
+    if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type)) {
+        console.error("The specified type is " + type->description() + " but a UTF-32 string was given.");
     } else {
-        DEBUG_LOG("Creating a '" + type->description() + value + "'.");
+        DEBUG_LOG("Creating a '" + type->description() + "' string literal.");
     }
 
     if (type->isString(8)) {
         DEBUG_LOG("Creating UTF-8 string");
-        return std::make_shared<Omniscript::StringExpression<std::string>>(value);
+        std::string utf8_value = utf32_to_utf8(value);
+        return std::make_shared<Omniscript::StringExpression<std::string>>(utf8_value);
     } else if (type->isString(16)) {
         DEBUG_LOG("Creating UTF-16 string");
-        std::u16string utf16_value(value.begin(), value.end());
+        std::u16string utf16_value = utf32_to_utf16(value);
         return std::make_shared<Omniscript::StringExpression<std::u16string>>(utf16_value);
     } else if (type->isString(32)) {
         DEBUG_LOG("Creating UTF-32 string");
-        std::u32string utFloat_value(value.begin(), value.end());
-        return std::make_shared<Omniscript::StringExpression<std::u32string>>(utFloat_value);
+        return std::make_shared<Omniscript::StringExpression<std::u32string>>(value);
     }
-    
+
     return nullptr;
 }
 
@@ -333,10 +356,15 @@ std::shared_ptr<Literal> StringLiteral::castTo(std::shared_ptr<Omniscript::Type>
     using Kind = Omniscript::Kind;
     switch (targetType->getKind()) {
         case Kind::String:
-            return std::make_shared<StringLiteral>(value);  // Already a string
-        case Kind::Char: {
+        case Kind::Utf8:
+        case Kind::Utf16:
+        case Kind::Utf32:
+            return std::make_shared<StringLiteral>(value);  // Already a UTF-32 string
+        case Kind::Char:
+        case Kind::Char16:
+        case Kind::Char32: {
             if (!value.empty()) {
-                auto val = std::make_shared<CharacterLiteral>(value[0]);  // First character
+                auto val = std::make_shared<CharacterLiteral>(value[0]);  // char32_t
                 val->setType(targetType);
                 return val;
             }
@@ -348,6 +376,7 @@ std::shared_ptr<Literal> StringLiteral::castTo(std::shared_ptr<Omniscript::Type>
             return nullptr;
     }
 }
+
 
 
 std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {

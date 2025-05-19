@@ -8,8 +8,9 @@
 
 
 
-std::string Parser::parseStringLiteral() {
-    std::string value = currentToken.getValue();
+std::u32string Parser::parseStringLiteral() {
+    std::u32string value = currentToken.getU32Value();
+    // std::string value = currentToken.getValue();
     eat(TokenTypes::StringLiteral);
 
     while (currentToken.getType() == TokenTypes::Plus) {
@@ -17,12 +18,12 @@ std::string Parser::parseStringLiteral() {
         
         if (currentToken.getType() == TokenTypes::StringLiteral) {
             eat(TokenTypes::StringLiteral);
-            value += previousToken.getValue();
+            value += utf8_to_utf32(previousToken.getValue());
         } else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
-            value += currentToken.getValue();  // Convert number to string
+            value += utf8_to_utf32(currentToken.getValue());  // Convert number to string
             eat(TokenTypes::IntegerLiteral);
         } else if (currentToken.getType() == TokenTypes::FloatLiteral) {
-            value += currentToken.getValue();  // Convert number to string
+            value += utf8_to_utf32(currentToken.getValue());  // Convert number to string
             eat(TokenTypes::FloatLiteral);
         }
     }

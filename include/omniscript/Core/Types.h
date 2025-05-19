@@ -19,7 +19,7 @@ enum class Kind {
     Void,
     Nullptr, Null,
     Bool,
-    Char,
+    Char, Char16, Char32,
     Int8, Int16, Int32, Int64, Int128, Int256, Int512, Int1024, BigInt,
     UInt8, UInt16, UInt32, UInt64, UInt128, UInt256, UInt512, UInt1024,
     Half, Float, Double, FP128, X86_FP80, PPC_FP128,
@@ -81,7 +81,6 @@ public:
     bool isInvalid() const { return kind == Kind::Invalid; }
     bool isUnresolved() const { return kind == Kind::Unresolved; }
     bool isUndefined() const { return kind == Kind::Undefined; }
-    bool isChar() const { return kind == Kind::Char; }
     bool isPointer() const { return kind == Kind::Pointer || kind == Kind::Nullptr; }
     bool isNullType() const { return kind == Kind::Null || kind == Kind::Nullptr; }
     bool isNull() const { return kind == Kind::Null; }
@@ -99,6 +98,28 @@ public:
     bool isStruct() const { return kind == Kind::Struct; }
     bool isClass() const { return kind == Kind::Class; }
     bool isModule() const { return kind == Kind::Module; }
+
+    bool isChar(int bitwidth = -1) const { 
+        if (bitwidth == -1) {
+            return kind == Kind::Char || 
+            kind == Kind::Char16 || 
+            kind == Kind::Char32;
+        }
+
+        switch (bitwidth) {
+            case 8:
+                return kind == Kind::Char;
+                break;
+            case 16:
+                return kind == Kind::Char16;
+                break;
+            case 32:
+                return kind == Kind::Char32;
+                break;
+            default:
+                return false;
+        }
+    }
 
     bool isNumericLiteral() const {
         return isInteger() || isFloat();
@@ -152,6 +173,10 @@ public:
         }
     }
 
+    int getBitWidth() const {
+        return getSize();
+    }
+    
     int getSize() const {
         using enum Kind;
     
@@ -159,6 +184,8 @@ public:
             // Fixed-size primitives
             case Bool:         return 1;
             case Char:         return 8;
+            case Char16:       return 16;
+            case Char32:       return 32;
     
             case Int8:         case UInt8:         return 8;
             case Int16:        case UInt16:        return 16;
@@ -359,6 +386,9 @@ public:
     static Kind get() {
         if constexpr (std::is_same_v<T, bool>) return Kind::Bool;
         if constexpr (std::is_same_v<T, char>) return Kind::Char;
+        if constexpr (std::is_same_v<T, char8_t>) return Kind::Char;
+        if constexpr (std::is_same_v<T, char16_t>) return Kind::Char16;
+        if constexpr (std::is_same_v<T, char32_t>) return Kind::Char32;
         
         if constexpr (std::is_same_v<T, int8_t>) return Kind::Int8;
         if constexpr (std::is_same_v<T, int16_t>) return Kind::Int16;

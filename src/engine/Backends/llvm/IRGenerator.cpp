@@ -860,6 +860,14 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             DEBUG_LOG("Generating LLVM type: Char (as Int8)");
             llvmType = llvm::Type::getInt8Ty(context);
             break;
+        case Omniscript::Kind::Char16:
+            DEBUG_LOG("Generating LLVM type: Char16 (as Int16)");
+            llvmType = llvm::Type::getInt16Ty(context);
+            break;
+        case Omniscript::Kind::Char32:
+            DEBUG_LOG("Generating LLVM type: Char32 (as Int32)");
+            llvmType = llvm::Type::getInt32Ty(context);
+            break;
         case Omniscript::Kind::Bool:
             DEBUG_LOG("Generating LLVM type: Bool (as Int1)");
             llvmType = llvm::Type::getInt1Ty(context);
@@ -892,79 +900,6 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
 
     return llvmType;
 }
-
-
-// llvm::Type* IRGenerator::resolveLLVMType(std::vector<std::string>& dataTypes) {
-//     if (dataTypes.empty()) {
-//         return llvm::Type::getInt32Ty(*Context);
-//     }
-
-//     llvm::LLVMContext& context = *Context;
-//     int totalPointerDepth = 0;
-//     int totalReferenceDepth = 0;
-//     std::string baseType;
-//     size_t index = 0;
-
-//     // Parse references (C++-style, treated as non-null pointers)
-//     while (index < dataTypes.size() && dataTypes[index] == "&") {
-//         totalReferenceDepth++;
-//         index++;
-//     }
-
-//     // Parse base type
-//     if (index >= dataTypes.size()) {
-//         std::cerr << "[ERROR] Missing base type!" << std::endl;
-//         return nullptr;
-//     }
-    
-//     baseType = dataTypes[index++];
-
-//     // Map base type to LLVM type
-//     llvm::Type* type = nullptr;
-//     if (baseType == "i8" || baseType == "char") type = llvm::Type::getInt8Ty(context);
-//     else if (baseType == "i16") type = llvm::Type::getInt16Ty(context);
-//     else if (baseType == "i32" || baseType == "int") type = llvm::Type::getInt32Ty(context);
-//     else if (baseType == "i64") type = llvm::Type::getInt64Ty(context);
-//     else if (baseType == "f32") type = llvm::Type::getFloatTy(context);
-//     else if (baseType == "f64") type = llvm::Type::getDoubleTy(context);
-//     else if (baseType == "bool") type = llvm::Type::getInt1Ty(context);
-//     else if (baseType == "void") type = llvm::Type::getVoidTy(context);
-//     else {
-//         std::cerr << "[ERROR] Unknown base type: " << baseType << std::endl;
-//         return nullptr;
-//     }
-
-//     // Parse trailing pointers ("*" tokens after base type)
-//     while (index < dataTypes.size() && dataTypes[index] == "*") {
-//         totalPointerDepth++;
-//         index++;
-//     }
-
-//     // Parse array dimensions (e.g., "[5][10]")
-//     while (index < dataTypes.size() && dataTypes[index] == "[") {
-//         index++;
-//         if (index < dataTypes.size() && std::all_of(dataTypes[index].begin(), dataTypes[index].end(), ::isdigit)) {
-//             uint64_t dimSize = std::stoull(dataTypes[index++]);
-//             type = llvm::ArrayType::get(type, dimSize);
-//         } else {
-//             // Dynamic array: treat as pointer
-//             type = llvm::PointerType::get(type, 0);
-//         }
-//         if (index < dataTypes.size() && dataTypes[index] == "]") index++;
-//     }
-
-//     // Apply pointers
-//     while (totalPointerDepth-- > 0) {
-//         type = llvm::PointerType::get(type, 0);
-//     }
-
-//     // Apply references (as non-null pointers)
-//     while (totalReferenceDepth-- > 0) {
-//         type = llvm::PointerType::get(type, 0);
-//     }
-
-//     return type;
-// }
 
 llvm::Value* IRGenerator::createNullPointer() {
     return llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(*Context)));
@@ -1550,9 +1485,9 @@ llvm::Function* IRGenerator::createFunction(
         arg.setName(param->name);
         
         if (auto inpt = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(param)) {
-            if (inpt->isConstant) {
-                arg.addAttr(llvm::Attribute::ReadOnly); // <--- Mark as readonly if constant
-            }
+            // if (inpt->isConstant) {
+            //     arg.addAttr(llvm::Attribute::ReadOnly); // <--- Mark as readonly if constant
+            // }
             DEBUG_LOG("Setting function argument: " + param->name + 
                     " of kind: " + param->getType()->description() + 
                     (inpt->isConstant ? " [const]" : ""));
