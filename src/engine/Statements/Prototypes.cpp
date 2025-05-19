@@ -19,51 +19,52 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     DEBUG_LOG("===============");
     for (const auto& arg: args) {
         auto typed = std::dynamic_pointer_cast<TypedStatement>(arg);
-        DEBUG_LOG(arg->toString() + " of type " + (typed->getRootType() ? typed->getRootType()->description() : (typed->getType() ? typed->getType()->toString() : "'undefined'.")));
+        DEBUG_LOG(arg->toString() + " of type " + (typed->getRootType() ? typed->getRootType()->toString() : (typed->getType() ? typed->getType()->toString() : "'undefined'.")));
     }
     DEBUG_LOG("===============");
 
-    if (!targetName.empty()) {
-        if (auto obj = scope->get(targetName)) {
-            std::string typeName = obj->getType()->getName();
-            if (typeName == callee) {
-                std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
-                auto realExpr = std::make_shared<ObjectConstructorStatement>(nullptr, typeName, instanceName, args);
-                auto objConstructor = realExpr->express(scope);
-                ctorExpressions.push_back(objConstructor);
-                auto ctorCall = std::make_shared<Call>("constructor", instanceName, args)->express(scope);
-                auto callExpr = std::dynamic_pointer_cast<Omniscript::CallExpression>(ctorCall);
-                callExpr->instanceName = "";
-                ctorExpressions.push_back(ctorCall);
-                auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
-                return constructionBlock;
-            }
-            if (scope->get((instanceName.empty() ? targetName : instanceName))) {
-                callee = typeName + "." + callee;
-                auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? targetName : instanceName));
-                thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
-                thisArg->setRootType(thisArg->getType());
-                args.insert(args.begin(), thisArg);
-                DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
-            } else if (isFromAssignment) {
-                // auto thisArg = std::make_shared<AddressOf>(targetName);
-                // thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
-                // thisArg->setRootType(thisArg->getType());
-                // args.insert(args.begin(), thisArg);
-                // DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
+    if (auto obj = scope->get(targetName)) {
+        std::string typeName = obj->getType()->getName();
+        DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");
+        if (typeName == callee) {
+            std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
+            auto realExpr = std::make_shared<ObjectConstructorStatement>(nullptr, typeName, instanceName, args);
+            auto objConstructor = realExpr->express(scope);
+            ctorExpressions.push_back(objConstructor);
+            auto ctorCall = std::make_shared<Call>("constructor", instanceName, args)->express(scope);
+            auto callExpr = std::dynamic_pointer_cast<Omniscript::CallExpression>(ctorCall);
+            callExpr->instanceName = "";
+            ctorExpressions.push_back(ctorCall);
+            auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
+            return constructionBlock;
+        } 
+        
+        if (isFromAssignment) {
+            // auto thisArg = std::make_shared<AddressOf>(targetName);
+            // thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
+            // thisArg->setRootType(thisArg->getType());
+            // args.insert(args.begin(), thisArg);
+            // DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
 
-                std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
-                auto methodCall = std::make_shared<Call>(assignmentExpr, callee, args);
-                auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
-                if (isFromConstantAssignment) {
-                    stmt->markAsConstant();
-                }
-                return stmt->express(scope);
-            } else {
-                callee = typeName + "." + callee;
+            std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
+            auto methodCall = std::make_shared<Call>(assignmentExpr, callee, args);
+            auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
+            if (isFromConstantAssignment) {
+                stmt->markAsConstant();
             }
+            return stmt->express(scope);
+        } else {
+            callee = typeName + "." + callee;
         }
-    }
+    } else if (scope->get(instanceName)) {
+        callee = typeName + "." + callee;
+        auto thisArg = std::make_shared<AddressOf>(instanceName);
+        thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
+        thisArg->setRootType(thisArg->getType());
+        args.insert(args.begin(), thisArg);
+        DEBUG_LOG("The 'this' arg is " + thisArg->getType()->toString());
+    } 
+    
     
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
     if (!instanceName.empty()) {
@@ -101,7 +102,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     continue;
                 }
                 inputParams.push_back(casted);
-                DEBUG_LOG("[Call] Parameter '" + casted->name + "' of type '" + casted->getType()->description() + "'");
+                DEBUG_LOG("[Call] Parameter '" + casted->name + "' of type '" + casted->getType()->toString() + "'");
             }
 
             // Then, set argument types based on parameters before evaluation
@@ -137,7 +138,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                             typedArg->setType(param->getType());
                             typedArg->setRootType(param->getType());
                             DEBUG_LOG("[Call] Set type for argument to match parameter '" + paramName + 
-                                     "': " + param->getType()->description());
+                                     "': " + param->getType()->toString());
                         }
                     }
                 }
@@ -159,7 +160,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     evaluatedArgs.push_back(inputExpr);
                 }
                 if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
-                    DEBUG_LOG("[Call] Evaluated argument has type: " + typed->getType()->description() + "'.");
+                    DEBUG_LOG("[Call] Evaluated argument has type: " + typed->getType()->toString() + "'.");
                 }
             }
         
@@ -184,7 +185,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     }
 
     DEBUG_LOG("[Call] Found callee '" + callee + "' of type '" + 
-              (called->getType() ? called->getType()->description() : "null") + "'");
+              (called->getType() ? called->getType()->toString() : "null") + "'");
 
     // Extract parameter list and return type
     std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>> parameters;
@@ -200,7 +201,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     } else {
         DEBUG_LOG("[Call] ERROR: Callee is not callable");
         console.error(formatError("'" + callee + "' is not callable; it is of kind '" + 
-                      (called->getType() ? called->getType()->description() : "null") + "'."));
+                      (called->getType() ? called->getType()->toString() : "null") + "'."));
         return nullptr;
     }
 
@@ -265,13 +266,19 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             }
 
             if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
-                if (Omniscript::isSameOrCastableTo(typed->getRootType(), param->getType()) || Omniscript::isSameOrCastableTo(typed->getType(), param->getType())) {
+                auto argType = typed->getRootType() ? typed->getRootType() : typed->getType();
+                
+                if (!argType) {
+                    console.error(formatError("The argument '" + arg->toString() + "' has no type"));
+                }
+
+                if (Omniscript::isSameOrCastableTo(argType, param->getType())) {
                     if (!typed->getType()) {
                         typed->setType(param->getType());
                     }
                 } else {
-                    console.error(formatError("Cannot bind argument of type '" + typed->getType()->description() +
-                                  "' to parameter '" + paramName + "'; expected '" + param->getType()->description() + "'"));
+                    console.error(formatError("Cannot bind argument of type '" + argType->toString() +
+                                  "' to parameter '" + paramName + "'; expected '" + param->getType()->toString() + "'"));
                 }
             }
 
@@ -408,7 +415,7 @@ bool Call::matchArgumentsToParameters(
             DEBUG_LOG("[Call] Found named arg: " + arg->name);
             namedArgs[arg->name] = arg;
         } else {
-            DEBUG_LOG("[Call] Found positional arg at index: " + std::to_string(positionalArgs.size()) + " of kind '" + arg->value->getRootType()->description() + "'.");
+            DEBUG_LOG("[Call] Found positional arg at index: " + std::to_string(positionalArgs.size()) + " of kind '" + arg->value->getRootType()->toString() + "'.");
             positionalArgs.push_back(arg);
         }
     }
@@ -436,11 +443,11 @@ bool Call::matchArgumentsToParameters(
             return false;
         }
 
-        if (!Omniscript::isSameOrCastableTo(matchingArg->value->getRootType(), param->getType()) &&
-            !Omniscript::isSameOrCastableTo(matchingArg->value->getType(), param->getType())) {
+        auto matchingArgType = (matchingArg->value->getRootType() ? matchingArg->value->getRootType() : matchingArg->value->getType());
+        if (!Omniscript::isSameOrCastableTo(matchingArgType, param->getType())) {
             DEBUG_LOG("[Call] Type mismatch for parameter: " + paramName);
-            DEBUG_LOG("[Call] Expected type: " + param->getType()->description());
-            DEBUG_LOG("[Call] Provided argument type: " + matchingArg->value->getRootType()->description());
+            DEBUG_LOG("[Call] Expected type: '" + param->getType()->toString() + "' type got '" );
+            DEBUG_LOG("[Call] Provided argument type: " + matchingArgType->toString());
             return false;
         }
     }
@@ -464,7 +471,7 @@ bool Call::matchArgumentsToParameters(
 
 std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTableType scope) {
     DEBUG_LOG();
-    DEBUG_LOG("[Function] Constructing a function " + name + " prototype the return Type is '" + type->description() + "'.");
+    DEBUG_LOG("[Function] Constructing a function " + name + " prototype the return Type is '" + type->toString() + "'.");
 
     DEBUG_LOG("[Function] Creating a local scope for the function");
     localScope = scope->createChildScope(name);
@@ -490,7 +497,7 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
         returnType = type;
     }
     
-    DEBUG_LOG("[Function] Setting the function's body's return type to " + type->description());
+    DEBUG_LOG("[Function] Setting the function's body's return type to " + type->toString());
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(body)) {
         typed->setType(returnType);
     }
@@ -506,7 +513,7 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
         DEBUG_LOG("[Function] The parameter is '" + param->toString() + "'.");
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
             auto paramType = typed->getType();
-            DEBUG_LOG("[Function] Parameter has type '" + paramType->description() + "'.");
+            DEBUG_LOG("[Function] Parameter has type '" + paramType->toString() + "'.");
             
             if (paramType->isGeneric()) {
                 typed->setType(std::move(resolveGeneric(paramType->getName())));
@@ -521,7 +528,7 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
             }
         }
         argValues.push_back(result);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
-        DEBUG_LOG("[Function] Parameter '" + result->name + "' has type " + result->getType()->description());
+        DEBUG_LOG("[Function] Parameter '" + result->name + "' has type " + result->getType()->toString());
         paramIndex++;
     }
     
@@ -562,8 +569,8 @@ std::string FunctionDeclaration::generateMangledName() const {
     for (size_t i = 0; i < parameters.size(); ++i) {
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(parameters[i])) {
             auto paramType = typed->getType();
-            mangled += paramType ? (paramType->isPointer() ? paramType->getBasePointeeType()->description() + "*" : paramType->description()) : "unknown";
-            // mangled += paramType ? paramType->description() : "unknown";
+            mangled += paramType ? (paramType->isPointer() ? paramType->getBasePointeeType()->toString() + "*" : paramType->toString()) : "unknown";
+            // mangled += paramType ? paramType->toString() : "unknown";
         } else {
             mangled += "any";
         }
@@ -574,7 +581,7 @@ std::string FunctionDeclaration::generateMangledName() const {
 }
 
 void FunctionDeclaration::setReturnTypes() {
-    DEBUG_LOG("[Function] Setting the function's return type to " + returnType->description());
+    DEBUG_LOG("[Function] Setting the function's return type to " + returnType->toString());
     std::shared_ptr<Omniscript::Type> funcReturnType = getType();
 
     for (const auto& stmt : body->statements) {
@@ -613,7 +620,7 @@ void FunctionDeclaration::setReturnTypesInStatement(
 }
 
 std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
-    DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + (type ? type->description() : "undefined"));
+    DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + (type ? type->toString() : "undefined"));
 
     std::shared_ptr<Omniscript::Expression> result;
 
@@ -628,7 +635,7 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
                     type = typed->getType();
                     result = defaultValue->express(scope);
                 }
-                DEBUG_LOG("The inferred type is " + type->description());
+                DEBUG_LOG("The inferred type is " + type->toString());
             } else {
                 typed->setType(type);
                 result = defaultValue->express(scope);
@@ -646,7 +653,7 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
         }
     }
 
-    DEBUG_LOG("[Parameter] Created value for parameter " + name + " of kind " + result->getType()->description());
+    DEBUG_LOG("[Parameter] Created value for parameter " + name + " of kind " + result->getType()->toString());
 
     if (isConstant) {
         scope->setConstant(name, result);
@@ -701,6 +708,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
     // Step 2: Create class type
     auto classType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(Omniscript::Type::createUserDefinedType(name, Omniscript::Kind::Class));
     scope->addType(name, classType);
+    DEBUG_LOG("Added class type '" + name + "' to the scope");
 
     auto structExpr = std::make_shared<Omniscript::StructExpression>(
         name,
@@ -709,6 +717,11 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
 
     auto classExpr = std::make_shared<Omniscript::ClassExpression>(name, structExpr);
     scope->set(name, classExpr);
+
+    classExpr->type = classType;
+    structExpr->type = classType;
+
+    SymbolTableType localScope = scope->createChildScope(name);
 
     // Step 1: Process parameters (fields)
     for (const auto& member : body) {
@@ -726,7 +739,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
         std::string fieldName = param->getName();
         structExpr->elementNames.push_back(fieldName);
 
-        std::shared_ptr<Omniscript::Expression> fieldExpr = param->express(scope);
+        std::shared_ptr<Omniscript::Expression> fieldExpr = param->express(localScope);
         fields.push_back(fieldExpr);
         fieldExpr->getType()->parameterName = fieldName;
         classType->paramTypes.push_back(fieldExpr->getType());
@@ -754,7 +767,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
             auto methodExpr = func->express(scope);
             // structExpr->parameters.push_back(methodExpr);
 
-            DEBUG_LOG("is " + funcName + "=" + name + ".constructor?");
+            DEBUG_LOG("Is " + funcName + "=" + name + ".constructor?");
             if (funcName == name + ".constructor") {
 
                 auto ctorExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(methodExpr);
@@ -789,17 +802,19 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     std::vector<std::shared_ptr<Omniscript::Type>> fieldTypes;
     std::vector<std::string> fieldNames;
 
+    SymbolTableType localScope = scope->createChildScope(name);
+
     for (const auto& field : body) {
         if (auto paramDecl = std::dynamic_pointer_cast<ParameterStatement>(field)) {
             std::string fieldName = paramDecl->getName();
             fieldNames.push_back(fieldName);
 
-            std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(scope);
+            std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(localScope);
 
             fields.push_back(fieldExpr);
             fieldExpr->getType()->parameterName = fieldName;
             fieldTypes.push_back(fieldExpr->getType());
-            DEBUG_LOG("Parameter '" + fieldName + "' has type " + fieldExpr->getType()->description());
+            DEBUG_LOG("Parameter '" + fieldName + "' has type " + fieldExpr->getType()->toString());
         } else {
             DEBUG_LOG("Skipping non-variable declaration in struct body");
         }
@@ -813,7 +828,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     for (const auto& field : body) {
         if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
             auto thisParam = std::make_shared<ParameterStatement>("this");
-            thisParam->setType(Omniscript::Type::createPointerType(scope->getType(name)));
+            thisParam->setType(Omniscript::Type::createPointerType(localScope->getType(name)));
             methodStmt->parameters.insert(methodStmt->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
             std::shared_ptr<Omniscript::Expression> method = methodStmt->express(scope);
             fields.push_back(method);

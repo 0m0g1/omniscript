@@ -322,8 +322,8 @@ std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Ty
 
 std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType scope) {
     if (!type) {
-        DEBUG_LOG("Creating a UTF-32 string value");
-        type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Utf8);
+        DEBUG_LOG("Creating UTF-8 string");
+        type = rootType;
         std::string utf8_value = utf32_to_utf8(value);
         return std::make_shared<Omniscript::StringExpression<std::string>>(utf8_value);
     } else if (!type->isPointer()) {
@@ -332,11 +332,10 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
 
     std::shared_ptr<Omniscript::Type> pointeeType = type->getPointeeType();
 
-    auto charType = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
-    auto typeToCastFrom = Omniscript::Type::createPointerType(charType);
+    
     // auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Utf32);
 
-    if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type)) {
+    if (!Omniscript::isSameOrCastableTo(rootType, type)) {
         console.error("The specified type is " + type->description() + " but a UTF-8 string was given.");
     } else {
         DEBUG_LOG("Creating a '" + type->description() + "' string literal.");
@@ -344,14 +343,21 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
 
     if (pointeeType->isString(8) || pointeeType->isChar(8)) {
         DEBUG_LOG("Creating UTF-8 string");
+        type = rootType;
         std::string utf8_value = utf32_to_utf8(value);
         return std::make_shared<Omniscript::StringExpression<std::string>>(utf8_value);
     } else if (pointeeType->isString(16) || pointeeType->isChar(16)) {
         DEBUG_LOG("Creating UTF-16 string");
+        auto char16Type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char16);
+        auto string16Type = Omniscript::Type::createPointerType(char16Type);
+        type = string16Type;
         std::u16string utf16_value = utf32_to_utf16(value);
         return std::make_shared<Omniscript::StringExpression<std::u16string>>(utf16_value);
     } else if (pointeeType->isString(32) || pointeeType->isChar(32)) {
         DEBUG_LOG("Creating UTF-32 string");
+        auto char32Type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char32);
+        auto string32Type = Omniscript::Type::createPointerType(char32Type);
+        type = string32Type;
         return std::make_shared<Omniscript::StringExpression<std::u32string>>(value);
     }
 

@@ -1326,7 +1326,9 @@ class StringExpression : public Primitive<T> {
 public:
     StringExpression(T value)
         : Primitive<T>(value) {
-            this->rootType = std::make_shared<Type>(Kind::String);
+            auto charType = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
+            auto stringType = Omniscript::Type::createPointerType(charType);
+            this->rootType = stringType;
         }
 
     virtual ~StringExpression() = default;

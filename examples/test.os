@@ -20,8 +20,7 @@ class String {
    }
 }
 
-
-
+let textp = String("hello");
 
 
 // let a : i8 = 1;

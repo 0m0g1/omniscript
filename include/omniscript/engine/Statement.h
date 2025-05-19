@@ -652,7 +652,9 @@ public:
     std::u32string value;
 
     explicit StringLiteral(std::u32string val) : value(std::move(val)) {
-        setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Utf32));
+        auto charType = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
+        auto stringType = Omniscript::Type::createPointerType(charType);
+        setRootType(stringType);
     }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;

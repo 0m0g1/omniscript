@@ -287,18 +287,18 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
 
     
         // Strings / UTF
-        else if (baseType == "string" || baseType == "str" || baseType == "utf8") {
-            type = Type::createPrimitiveType(Kind::Char);
-            totalPointerDepth++;
-        }
-        else if (baseType == "utf16") {
-            type = Type::createPrimitiveType(Kind::Utf16);
-            totalPointerDepth++;
-        }
-        else if (baseType == "utf32") {
-            type = Type::createPrimitiveType(Kind::Utf32);
-            totalPointerDepth++;
-        }
+        // else if (baseType == "string" || baseType == "str" || baseType == "utf8") {
+        //     type = Type::createPrimitiveType(Kind::Char);
+        //     totalPointerDepth++;
+        // }
+        // else if (baseType == "utf16") {
+        //     type = Type::createPrimitiveType(Kind::Utf16);
+        //     totalPointerDepth++;
+        // }
+        // else if (baseType == "utf32") {
+        //     type = Type::createPrimitiveType(Kind::Utf32);
+        //     totalPointerDepth++;
+        // }
 
         else {
             if (dataTypes.size() == 1) {
