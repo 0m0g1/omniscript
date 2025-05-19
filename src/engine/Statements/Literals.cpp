@@ -326,25 +326,31 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Utf8);
         std::string utf8_value = utf32_to_utf8(value);
         return std::make_shared<Omniscript::StringExpression<std::string>>(utf8_value);
+    } else if (!type->isPointer()) {
+        console.error("error message");   
     }
 
-    auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Utf32);
+    std::shared_ptr<Omniscript::Type> pointeeType = type->getPointeeType();
+
+    auto charType = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
+    auto typeToCastFrom = Omniscript::Type::createPointerType(charType);
+    // auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Utf32);
 
     if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type)) {
-        console.error("The specified type is " + type->description() + " but a UTF-32 string was given.");
+        console.error("The specified type is " + type->description() + " but a UTF-8 string was given.");
     } else {
         DEBUG_LOG("Creating a '" + type->description() + "' string literal.");
     }
 
-    if (type->isString(8)) {
+    if (pointeeType->isString(8) || pointeeType->isChar(8)) {
         DEBUG_LOG("Creating UTF-8 string");
         std::string utf8_value = utf32_to_utf8(value);
         return std::make_shared<Omniscript::StringExpression<std::string>>(utf8_value);
-    } else if (type->isString(16)) {
+    } else if (pointeeType->isString(16) || pointeeType->isChar(16)) {
         DEBUG_LOG("Creating UTF-16 string");
         std::u16string utf16_value = utf32_to_utf16(value);
         return std::make_shared<Omniscript::StringExpression<std::u16string>>(utf16_value);
-    } else if (type->isString(32)) {
+    } else if (pointeeType->isString(32) || pointeeType->isChar(32)) {
         DEBUG_LOG("Creating UTF-32 string");
         return std::make_shared<Omniscript::StringExpression<std::u32string>>(value);
     }

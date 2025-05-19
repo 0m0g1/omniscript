@@ -367,7 +367,6 @@ bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr
         return from->getBitWidth() <= to->getBitWidth();
     }
 
-
     if (from->isPointer() && to->isPointer()) {
         return isSameOrCastableTo(from->getBasePointeeType(), to->getBasePointeeType());
     }

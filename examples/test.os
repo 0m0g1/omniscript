@@ -8,17 +8,17 @@
 // add support for js like formatted strings
 // let textChar: char* = "hello world ${}";
 
-let textChar: char* = "hello world";
+// let textChar: char* = "hello world";
 // let text: std.string = "hello world";
 
-// class String {
-//    private text: char*;
+class String {
+   private text: char*;
 
-//    // Constructor
-//    constructor(text: char* = "") => void {
-//       this.text = text;
-//    }
-// }
+   // Constructor
+   constructor(text: char* = "") => void {
+      this.text = text;
+   }
+}
 
 
 
