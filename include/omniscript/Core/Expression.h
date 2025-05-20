@@ -381,6 +381,7 @@ struct AddressOfExpression : public Expression {
         : variableName(variableName), referent(referent) {
         // We assume AddressOf value is of type Pointer to the referent's type
         type = Type::createPointerType(this->referent->type); 
+        rootType = type;
     }
 
     // Return a string representation of the AddressOf value

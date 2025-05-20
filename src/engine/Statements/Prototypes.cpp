@@ -55,17 +55,21 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     stmt->markAsConstant();
                 }
                 return stmt->express(scope);
-            } else {
+            } else if (scope->get(instanceName)) {
+                callee = typeName + "." + callee;
+                auto thisArg = std::make_shared<AddressOf>(instanceName);
+                if (auto thisArgType = scope->getType(typeName)) {
+                    thisArg->setType(Omniscript::Type::createPointerType(thisArgType));
+                    thisArg->setRootType(thisArg->getType());
+                    args.insert(args.begin(), thisArg);
+                    DEBUG_LOG("The 'this' arg is of instance '" + instanceName + "' and of type '" + thisArg->getType()->toString() + "'.");
+                } else {
+                    console.error("The type '" + typeName + "' does not exist in the scope.");
+                }
+            }  else {
                 callee = typeName + "." + callee;
             }
-        } else if (scope->get(instanceName)) {
-            callee = typeName + "." + callee;
-            auto thisArg = std::make_shared<AddressOf>(instanceName);
-            thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
-            thisArg->setRootType(thisArg->getType());
-            args.insert(args.begin(), thisArg);
-            DEBUG_LOG("The 'this' arg is of instance '" + instanceName + "' and of tpye '" + thisArg->getType()->toString() + "'.");
-        }
+        } 
     }
     
     

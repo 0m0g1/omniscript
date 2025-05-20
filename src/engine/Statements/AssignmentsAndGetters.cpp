@@ -22,11 +22,21 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
         referent = overloads[0];
         auto mangledName = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(referent)->mangledName;
         DEBUG_LOG("Mangled name '" + mangledName + "'.");
-        setType(Omniscript::Type::createPointerType(referent->getType()));
+
+        // if (!Omniscript::isSameOrCastableTo(type))
+        if (!type) {
+            setType(Omniscript::Type::createPointerType(referent->getType()));
+            setRootType(Omniscript::Type::createPointerType(referent->getType()));
+        }
+
         return std::make_shared<Omniscript::AddressOfExpression>(mangledName, referent);
     }
 
-    setType(Omniscript::Type::createPointerType(referent->getType()));
+    if (!type) {
+        setType(Omniscript::Type::createPointerType(referent->getType()));
+        setRootType(Omniscript::Type::createPointerType(referent->getType()));
+    }
+
     return std::make_shared<Omniscript::AddressOfExpression>(name, referent);
 }
 
