@@ -22,48 +22,51 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         DEBUG_LOG(arg->toString() + " of type " + (typed->getRootType() ? typed->getRootType()->toString() : (typed->getType() ? typed->getType()->toString() : "'undefined'.")));
     }
     DEBUG_LOG("===============");
-
-    if (auto obj = scope->get(targetName)) {
-        std::string typeName = obj->getType()->getName();
-        DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");
-        if (typeName == callee) {
-            std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
-            auto realExpr = std::make_shared<ObjectConstructorStatement>(nullptr, typeName, instanceName, args);
-            auto objConstructor = realExpr->express(scope);
-            ctorExpressions.push_back(objConstructor);
-            auto ctorCall = std::make_shared<Call>("constructor", instanceName, args)->express(scope);
-            auto callExpr = std::dynamic_pointer_cast<Omniscript::CallExpression>(ctorCall);
-            callExpr->instanceName = "";
-            ctorExpressions.push_back(ctorCall);
-            auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
-            return constructionBlock;
-        } 
-        
-        if (isFromAssignment) {
-            // auto thisArg = std::make_shared<AddressOf>(targetName);
-            // thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
-            // thisArg->setRootType(thisArg->getType());
-            // args.insert(args.begin(), thisArg);
-            // DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
-
-            std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
-            auto methodCall = std::make_shared<Call>(assignmentExpr, callee, args);
-            auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
-            if (isFromConstantAssignment) {
-                stmt->markAsConstant();
+    
+    // If there is no target we are just calling a function
+    if (!targetName.empty()) {
+        if (auto obj = scope->get(targetName)) {
+            std::string typeName = obj->getType()->getName();
+            DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");
+            if (typeName == callee) {
+                std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
+                auto realExpr = std::make_shared<ObjectConstructorStatement>(nullptr, typeName, instanceName, args);
+                auto objConstructor = realExpr->express(scope);
+                ctorExpressions.push_back(objConstructor);
+                auto ctorCall = std::make_shared<Call>("constructor", instanceName, args)->express(scope);
+                auto callExpr = std::dynamic_pointer_cast<Omniscript::CallExpression>(ctorCall);
+                callExpr->instanceName = "";
+                ctorExpressions.push_back(ctorCall);
+                auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
+                return constructionBlock;
+            } 
+            
+            if (isFromAssignment) {
+                // auto thisArg = std::make_shared<AddressOf>(targetName);
+                // thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
+                // thisArg->setRootType(thisArg->getType());
+                // args.insert(args.begin(), thisArg);
+                // DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
+    
+                std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
+                auto methodCall = std::make_shared<Call>(assignmentExpr, callee, args);
+                auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
+                if (isFromConstantAssignment) {
+                    stmt->markAsConstant();
+                }
+                return stmt->express(scope);
+            } else {
+                callee = typeName + "." + callee;
             }
-            return stmt->express(scope);
-        } else {
+        } else if (scope->get(instanceName)) {
             callee = typeName + "." + callee;
+            auto thisArg = std::make_shared<AddressOf>(instanceName);
+            thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
+            thisArg->setRootType(thisArg->getType());
+            args.insert(args.begin(), thisArg);
+            DEBUG_LOG("The 'this' arg is of instance '" + instanceName + "' and of tpye '" + thisArg->getType()->toString() + "'.");
         }
-    } else if (scope->get(instanceName)) {
-        callee = typeName + "." + callee;
-        auto thisArg = std::make_shared<AddressOf>(instanceName);
-        thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
-        thisArg->setRootType(thisArg->getType());
-        args.insert(args.begin(), thisArg);
-        DEBUG_LOG("The 'this' arg is " + thisArg->getType()->toString());
-    } 
+    }
     
     
     DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
