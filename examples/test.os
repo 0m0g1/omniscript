@@ -13,15 +13,33 @@
 
 class String {
    private text: char*;
+   private size: int = 0;
 
    // Constructor
    constructor(text: char* = "") => void {
       this.text = text;
    }
+
+   private calculateLength() => int {
+      let len: int32 = 0;
+      // while (this.text[len] != '\0') {
+      //    len++;
+      // }
+      return len;
+   }
+
+   public length() => int {
+      return this.size;
+   }
+
+   public size() => int {
+      return this.size;
+   }
+
 }
 
 let textp = String("hello");
-
+let textLength = textp.size();
 
 // let a : i8 = 1;
 // let b : i16 = 2;

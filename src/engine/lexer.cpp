@@ -224,22 +224,102 @@ Token Lexer::getNextToken() {
             // Handle escape sequences
             if (source[currentPosition] == '\\') {
                 if (currentPosition + 1 >= source.length()) {
-                    throw std::runtime_error("Unterminated escape sequence at line " + std::to_string(line));
+                    throw std::runtime_error(
+                        "Unterminated escape sequence at line " + std::to_string(line));
                 }
-                
-                // Translate escape sequence
-                switch (source[currentPosition+1]) {
-                    case 'n': literalValue += '\n'; break;
-                    case 't': literalValue += '\t'; break;
-                    case 'r': literalValue += '\r'; break;
-                    case '\\': literalValue += '\\'; break;
-                    case '\"': literalValue += '\"'; break;
-                    case '\'': literalValue += '\''; break;
-                    default: 
-                        throw std::runtime_error("Invalid escape sequence at line " + std::to_string(line));
-                }
+
+                char next = source[currentPosition+1];
                 currentPosition += 2;
                 column += 2;
+
+                switch (next) {
+                // Simple single‐character escapes
+                case 'n':  literalValue += '\n'; break;
+                case 't':  literalValue += '\t'; break;
+                case 'r':  literalValue += '\r'; break;
+                case 'b':  literalValue += '\b'; break;
+                case 'f':  literalValue += '\f'; break;
+                case 'v':  literalValue += '\v'; break;
+                case 'a':  literalValue += '\a'; break;
+                case '\\': literalValue += '\\'; break;
+                case '\'': literalValue += '\''; break;
+                case '\"': literalValue += '\"'; break;
+                case '?':  literalValue += '\?'; break;
+
+                // Null / octal: up to three octal digits [0–7]
+                case '0': case '1': case '2': case '3':
+                case '4': case '5': case '6': case '7': {
+                    int val = next - '0';
+                    // Read up to two more octal digits
+                    for (int i = 0; i < 2 && currentPosition < source.length(); ++i) {
+                    char c = source[currentPosition];
+                    if (c >= '0' && c <= '7') {
+                        val = val * 8 + (c - '0');
+                        ++currentPosition; ++column;
+                    } else break;
+                    }
+                    literalValue += static_cast<char>(val);
+                    break;
+                }
+
+                // Hex: \xhh… (any number of hex digits, but typically up to 2)
+                case 'x': {
+                    int val = 0;
+                    int digits = 0;
+                    while (currentPosition < source.length()) {
+                    char c = source[currentPosition];
+                    if (isdigit(c) || (tolower(c) >= 'a' && tolower(c) <= 'f')) {
+                        val = val * 16 + (isdigit(c) ? (c - '0') : (tolower(c) - 'a' + 10));
+                        ++currentPosition; ++column; ++digits;
+                    } else break;
+                    }
+                    if (digits == 0)
+                    throw std::runtime_error(
+                        "Invalid hex escape (\\x) at line " + std::to_string(line));
+                    literalValue += static_cast<char>(val);
+                    break;
+                }
+
+                // Unicode: \uNNNN (4 hex digits), \UNNNNNNNN (8 hex digits)
+                case 'u': case 'U': {
+                    int needed = (next == 'u' ? 4 : 8);
+                    if (currentPosition + needed > source.length())
+                        throw std::runtime_error("Invalid Unicode escape at line " + std::to_string(line));
+                    unsigned int codepoint = 0;
+                    for (int i = 0; i < needed; ++i) {
+                        char c = source[currentPosition++];
+                        ++column;
+                        if (isdigit(c) || (tolower(c) >= 'a' && tolower(c) <= 'f')) {
+                            codepoint = codepoint * 16 +
+                            (isdigit(c) ? (c - '0') : (tolower(c) - 'a' + 10));
+                        } else {
+                            throw std::runtime_error("Invalid Unicode digit in \\u/\\U at line " + std::to_string(line));
+                        }
+                    }
+                    // Now encode codepoint as UTF‑8:
+                    if (codepoint <= 0x7F) {
+                        literalValue += static_cast<char>(codepoint);
+                    } else if (codepoint <= 0x7FF) {
+                        literalValue += static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F));
+                        literalValue += static_cast<char>(0x80 | (codepoint & 0x3F));
+                    } else if (codepoint <= 0xFFFF) {
+                        literalValue += static_cast<char>(0xE0 | ((codepoint >> 12) & 0x0F));
+                        literalValue += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+                        literalValue += static_cast<char>(0x80 | (codepoint & 0x3F));
+                    } else {
+                        literalValue += static_cast<char>(0xF0 | ((codepoint >> 18) & 0x07));
+                        literalValue += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+                        literalValue += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+                        literalValue += static_cast<char>(0x80 | (codepoint & 0x3F));
+                    }
+                    break;
+                }
+
+                default:
+                    throw std::runtime_error(
+                    "Unknown escape sequence \\" + std::string(1,next)
+                    + " at line " + std::to_string(line));
+                }
             } else {
                 literalValue += source[currentPosition];
                 currentPosition++;
