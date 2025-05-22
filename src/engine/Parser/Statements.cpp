@@ -126,7 +126,15 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
     // Check for an optional semicolon
     if (checkForTerminalChar &&
         (currentToken.getType() == TokenTypes::Semicolon || currentToken.getType() == TokenTypes::Newline)) {
-        eat(currentToken.getType()); 
+        
+        if (currentToken.getType() == TokenTypes::Semicolon) {
+            eat(currentToken.getType()); 
+            if (currentToken.getType() == TokenTypes::Newline) {
+                eat(TokenTypes::Newline);
+            }
+        } else {
+            eat(currentToken.getType()); 
+        }
     }
 
     statement->setPosition(Omniscript::getPosition());

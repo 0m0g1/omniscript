@@ -22,9 +22,9 @@ class String {
 
    private calculateLength() => int {
       let len: int32 = 0;
-      // while (this.text[len] != '\0') {
-      //    len++;
-      // }
+      while (this.text[len] != '\0') {
+         len++;
+      }
       return len;
    }
 

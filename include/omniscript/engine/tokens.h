@@ -61,6 +61,10 @@ enum class TokenTypes {
     BigInt,
     BinaryLiteral,
     FloatLiteral,          // Numeric literals (e.g., 123, 4.56)
+    TemplateHead,          // string templates (e.g., `hello ${name}!`)
+    TemplateMiddle,
+    TemplateTail,
+    TemplateLiteral,          // String literals (e.g., "hello")
     StringLiteral,          // String literals (e.g., "hello")
     HexLiteral,
     OctalLiteral,

@@ -17,6 +17,7 @@ class Lexer {
         Token peekToken(int n = 0);
         Token getOperator(char &currentChar);
         Token getCurrentToken() const {return previousToken;}
+        Token getStringToken(char &currentChar);
         Token getNumberLiterals(char &currentChar);
         std::string getFilePath() const { return sourceFilePath; }
 
@@ -28,7 +29,7 @@ class Lexer {
         Token previousToken;
         int line = 1;
         int column = 0;
-
+                
         //Helper functions
         char peek(int n = 1) const; //Look at next character without moving there
 };

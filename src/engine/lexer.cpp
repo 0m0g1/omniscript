@@ -32,18 +32,23 @@ Token Lexer::peekToken(int n) {
 }
 
 Token Lexer::getNextToken() {
-    // Skip white spaces and track lines/columns
+    bool hadNonWhitespace = false;
     while (currentPosition < source.length() && std::isspace(source[currentPosition])) {
         if (source[currentPosition] == '\n') {
-            line++;
-            column = 1; // Reset column for new line
-            // Check if there were any non-space characters before the newline
-            if (column > 1) {
+            if (hadNonWhitespace) {
                 currentPosition++;
+                line++;
+                column = 1;
                 return Token(TokenTypes::Newline, "", line, column, sourceFilePath);
+            } else {
+                currentPosition++;
+                line++;
+                column = 1;
+                continue;
             }
         } else {
-            column++; // Increment column for every space
+            column++;
+            hadNonWhitespace = true;
         }
         currentPosition++;
     }
@@ -197,30 +202,122 @@ Token Lexer::getNextToken() {
             return Token(TokenTypes::As, "", line, column, sourceFilePath);
         }
 
-        // Check for function calls
-        // if (currentPosition < source.length() && source[currentPosition] == '(') {
-        //     currentPosition++;
-        //     column++;
-        //     return Token(TokenTypes::FunctionCall, identifier, line, column, sourceFilePath);
-        // }
-
         // Otherwise treat it as an identifier token
         return Token(TokenTypes::Identifier, raw_identifier, line, column, sourceFilePath);
     }
 
     // Check for string and char literals
-    if (currentChar == '\"' || currentChar == '\'') { // Both single and double quotes
+    Token stringToken = getStringToken(currentChar);
+    if (stringToken.getType() != TokenTypes::Invalid) {
+        return stringToken;
+    }
+
+    Token numberLiteral = getNumberLiterals(currentChar);
+    if (numberLiteral.getType() != TokenTypes::Invalid) {
+        return numberLiteral;
+    }
+
+    return getOperator(currentChar);
+}
+
+Token Lexer::getStringToken(char &currentChar) {
+    bool isRawString = false;
+    if (currentChar == 'r') {
+        char next = peek();
+        if (next == '"' || next == '\'' || next == '`') {
+            isRawString = true;
+            currentPosition++;
+            column++;
+            currentChar = next;
+        }
+    }
+
+    if (currentChar == '\"' || currentChar == '\'' || currentChar == '`') { // Both single and double quotes
         char quoteType = currentChar;
         std::string literalValue;
+        size_t startLine = line;
+        size_t startColumn = column;
+        
         currentPosition++; // Move past the opening quote
         column++;
-        
+    
+        bool isTemplate = (quoteType == '`');
         bool isString = (quoteType == '\"');
-        
-        while (currentPosition < source.length() && 
-            (source[currentPosition] != quoteType || 
-            (source[currentPosition] == quoteType && source[currentPosition-1] == '\\'))) {
-            
+
+        bool hasContent = false;
+
+        auto finalizeToken = [&](TokenTypes type) {
+            std::u32string u32chars = utf8_to_utf32(literalValue);
+            auto tok = Token(type, literalValue, startLine, startColumn, sourceFilePath);
+            tok.setU32Value(u32chars);
+            return tok;
+        };
+
+        while (currentPosition < source.length()) {
+            char currentChar = source[currentPosition];
+
+            // Check for closing quote (only if not template with ${)
+            if (currentChar == quoteType) {
+                // Count preceding backslashes to determine if escaped
+                int backslashCount = 0;
+                int i = currentPosition - 1;
+                while (i >= 0 && source[i] == '\\') {
+                    backslashCount++;
+                    i--;
+                }
+
+                // If even number of backslashes, quote is not escaped
+                if (backslashCount % 2 == 0) {
+                    currentPosition++; // Skip closing quote
+                    column++;
+                    
+                    if (quoteType == '\'') {
+                        // Character literal validation
+                        std::u32string u32chars = utf8_to_utf32(literalValue);
+                        if (u32chars.size() != 1) {
+                            throw std::runtime_error("Invalid character literal at line " + std::to_string(line));
+                        }
+                        return finalizeToken(TokenTypes::Character);
+                    }
+                    else if (quoteType == '`') {
+                        return finalizeToken(TokenTypes::TemplateTail);
+                    }
+                    else {
+                        return finalizeToken(TokenTypes::StringLiteral);
+                    }
+                }
+            }
+
+            // Special handling for raw strings
+            if (isRawString) {
+                // Raw strings ignore escape sequences
+                if (currentChar == quoteType) {
+                    currentPosition++;
+                    column++;
+                    return finalizeToken(isTemplate ? TokenTypes::TemplateTail : 
+                                    (quoteType == '\'' ? TokenTypes::Character : TokenTypes::StringLiteral));
+                }
+                
+                // Still need to handle template expressions in raw templates
+                if (isTemplate && currentChar == '$' && peek() == '{') {
+                    currentPosition += 2;
+                    column += 2;
+                    return finalizeToken(hasContent ? TokenTypes::TemplateMiddle : TokenTypes::TemplateHead);
+                }
+                
+                // Process character normally (no escape handling)
+                literalValue += currentChar;
+                hasContent = true;
+                continue;
+            }
+
+            // Check for embedded expressions in templates
+            if (isTemplate && source[currentPosition] == '$' && (currentPosition + 1) < source.length() && source[currentPosition + 1] == '{') {
+                currentPosition += 2;
+                column += 2;
+                return finalizeToken(hasContent ? TokenTypes::TemplateMiddle : TokenTypes::TemplateHead);
+            }
+
             // Handle escape sequences
             if (source[currentPosition] == '\\') {
                 if (currentPosition + 1 >= source.length()) {
@@ -231,6 +328,13 @@ Token Lexer::getNextToken() {
                 char next = source[currentPosition+1];
                 currentPosition += 2;
                 column += 2;
+
+                // Add template-specific escapes
+                if (isTemplate && (next == '`' || next == '$' || next == '{')) {
+                    literalValue += next;
+                    hasContent = true;
+                    continue;
+                }
 
                 switch (next) {
                 // Simple single‐character escapes
@@ -250,7 +354,8 @@ Token Lexer::getNextToken() {
                 case '0': case '1': case '2': case '3':
                 case '4': case '5': case '6': case '7': {
                     int val = next - '0';
-                    // Read up to two more octal digits
+                    // Read up to 3 octal digits total (first one is already read)
+                    // two more octal digits
                     for (int i = 0; i < 2 && currentPosition < source.length(); ++i) {
                     char c = source[currentPosition];
                     if (c >= '0' && c <= '7') {
@@ -321,48 +426,37 @@ Token Lexer::getNextToken() {
                     + " at line " + std::to_string(line));
                 }
             } else {
-                literalValue += source[currentPosition];
+                char c = source[currentPosition];
+                literalValue += c;
+                hasContent = true;
                 currentPosition++;
-                column++;
+
+                // Update line/column for newlines
+                if (c == '\n' || c == '\r') {
+                    line++;
+                    column = 1;
+                    // Handle CRLF as single newline
+                    if (c == '\r' && currentPosition < source.length() && source[currentPosition] == '\n') {
+                        currentPosition++;
+                    }
+                } else {
+                    column++;
+                }
             }
         }
         
-        // Check for closing quote
+        // Check for unterminated literal
         if (currentPosition >= source.length()) {
-            throw std::runtime_error("Unterminated " + std::string(isString ? "string" : "character") + 
-                                " literal at line " + std::to_string(line));
-        }
-        
-        currentPosition++; // Skip closing quote
-        column++;
-        
-        // Convert literalValue (UTF-8) to UTF-32
-        std::u32string u32chars = utf8_to_utf32(literalValue);
-        if (!isString) {
-            // Character literal - must be exactly one character (after escape processing)
-
-            if (u32chars.size() != 1) {
-                throw std::runtime_error("Invalid character literal at line " + std::to_string(line));
-            }
-
-            auto tok = Token(TokenTypes::Character, literalValue, line, column, sourceFilePath);
-            tok.setU32Value(u32chars);
-            return tok;
-        } else {
-            // String literal
-            auto tok = Token(TokenTypes::StringLiteral, literalValue, line, column, sourceFilePath);
-            tok.setU32Value(u32chars);
-            return tok;
+            std::string typeName;
+            if (quoteType == '\'') typeName = "character";
+            else if (quoteType == '\"') typeName = "string";
+            else typeName = "template";
+            throw std::runtime_error("Unterminated " + typeName + " literal at line " + std::to_string(startLine));
         }
     }
 
-    Token numberLiteral = getNumberLiterals(currentChar);
-    if (numberLiteral.getType() != TokenTypes::Invalid) {
-        return numberLiteral;
-    }
-
-    return getOperator(currentChar);
-}
+    return Token(TokenTypes::Invalid);
+} 
 
 Token Lexer::getNumberLiterals(char &currentChar) {
     if (std::isdigit(currentChar) || (currentChar == '.' && std::isdigit(peek())) ||
@@ -493,7 +587,6 @@ Token Lexer::getNumberLiterals(char &currentChar) {
     }
     return Token(TokenTypes::Invalid);
 }
-
 
 Token Lexer::getOperator(char &currentChar) {
     // Operator Tokens
