@@ -32,23 +32,18 @@ Token Lexer::peekToken(int n) {
 }
 
 Token Lexer::getNextToken() {
-    bool hadNonWhitespace = false;
+    // Skip white spaces and track lines/columns
     while (currentPosition < source.length() && std::isspace(source[currentPosition])) {
         if (source[currentPosition] == '\n') {
-            if (hadNonWhitespace) {
+            line++;
+            column = 1; // Reset column for new line
+            // Check if there were any non-space characters before the newline
+            if (column > 1) {
                 currentPosition++;
-                line++;
-                column = 1;
                 return Token(TokenTypes::Newline, "", line, column, sourceFilePath);
-            } else {
-                currentPosition++;
-                line++;
-                column = 1;
-                continue;
             }
         } else {
-            column++;
-            hadNonWhitespace = true;
+            column++; // Increment column for every space
         }
         currentPosition++;
     }

@@ -113,6 +113,9 @@ void Parser::eat(TokenTypes expectedType, const std::string& err) {
 void Parser::expectSemicolonOrNewLine() {
     if (currentToken.getType() == TokenTypes::Semicolon) {
         eat(TokenTypes::Semicolon);
+        if (currentToken.getType() == TokenTypes::Newline) {
+            eat(TokenTypes::Newline);
+        }
     } else {
         eat(TokenTypes::Newline);
     }
