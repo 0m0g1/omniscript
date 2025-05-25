@@ -50,48 +50,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             var->getType()->description();
     }
 
-    // Ensure base type is a class
-    auto aggregateExpr = std::dynamic_pointer_cast<Omniscript::AggregateExpression>(scope->get(baseTypeName));
-    if (!aggregateExpr) {
-        auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(scope->get(baseTypeName));
-        auto classExpr = std::dynamic_pointer_cast<Omniscript::ClassExpression>(scope->get(baseTypeName));
-        auto moduleExpr = std::dynamic_pointer_cast<Omniscript::ModuleExpression>(scope->get(baseTypeName));
-        
-        if (auto type = scope->get(baseTypeName)) {
-            DEBUG_LOG("Accessing a member of type '" + type->toString() + "'.");
-        } else {
-            DEBUG_LOG("No type defined");
-        }
-
-        std::shared_ptr<Omniscript::MemberExpression> member;
-
-        DEBUG_LOG(getContextAsString());
-        if (structExpr) {
-            // member = structExpr->getMember(memberName);
-        } else if (classExpr) {
-            member = classExpr->getMember(memberName);
-        } else if (moduleExpr) {
-            member = moduleExpr->getMember(memberName);
-        } else {
-            console.error("Type '" + baseTypeName + "' is not an aggregate Type (class, struct, module).");
-            return nullptr;
-        }
-
-        if (!member) {
-            console.error("Member '" + memberName + "' not found in type '" + baseTypeName + "'.");
-            return nullptr;
-        }
-    
-        
-        if (!structExpr && !member->isPublic() && member->isPrivate() && !containsContext(classExpr->getName())) {
-            if (classExpr) {
-                console.error("Cannot access private member '" + memberName + "' of class '" + classExpr->getName() + "'.");
-            } else if (moduleExpr) {
-                console.error("Cannot access private member '" + memberName + "' of module '" + moduleExpr->getName() + "'.");
-            } 
-            return nullptr;
-        }
-    }
+    validateAccessiblity(baseTypeName, memberName, scope);
 
     auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(scope->getType(baseTypeName));
     if (!userType) {

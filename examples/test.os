@@ -39,7 +39,7 @@ class String {
 }
 
 let textp = String("hello");
-let textLength = textp.size();
+let textLength = textp.calculateLength();
 
 // let a : i8 = 1;
 // let b : i16 = 2;

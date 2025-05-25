@@ -40,6 +40,9 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         if (auto obj = scope->get(impliedTargetName.empty() ? targetName : impliedTargetName)) {
             std::string typeName = obj->getType()->getName();
             DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");
+
+            validateAccessiblity(typeName, callee, scope);
+
             if (typeName == callee) {
                 std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
                 auto realExpr = std::make_shared<ObjectConstructorStatement>(nullptr, typeName, instanceName, args);
