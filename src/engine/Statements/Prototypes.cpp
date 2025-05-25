@@ -23,10 +23,10 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     }
     DEBUG_LOG("===============");
     
+    std::string impliedTargetName;
     if (targetName == "this" && instanceName.empty()) {
         if (!accessContext.empty()) {
-            targetName = accessContext.back();
-            instanceName = accessContext.back(); // safer and clearer
+            impliedTargetName = accessContext.back();
         } else {
             // Optional: handle error or set default
             console.error("Accessing 'this' outside of any valid context");
@@ -37,7 +37,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     // If there is no target we are just calling a function
     // If there is a target we are calling a method
     if (!targetName.empty()) {
-        if (auto obj = scope->get(targetName)) {
+        if (auto obj = scope->get(impliedTargetName.empty() ? targetName : impliedTargetName)) {
             std::string typeName = obj->getType()->getName();
             DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");
             if (typeName == callee) {

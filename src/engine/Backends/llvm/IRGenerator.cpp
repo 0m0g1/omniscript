@@ -306,7 +306,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     if (auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(value)) {
         std::vector<llvm::Type*> fieldTypes;
         fieldTypes.reserve(structExpr->parameters.size());
-    
+        
+        int methodsCount = structExpr->parameters.size();
+
         for (const auto& field : structExpr->parameters) {
             if (auto input = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(field)) {
                 llvm::Type* llvmFieldType = resolveLLVMType(input->getType());
@@ -316,16 +318,39 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
                 }
         
                 fieldTypes.push_back(llvmFieldType);
+                methodsCount--;
             }
         }
         
         // Create the LLVM struct type (opaque or packed depending on your system)
         createStructType(structExpr->name, fieldTypes);
-        
-        for (const auto& field : structExpr->parameters) {
-            if (auto method = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(field)) {
-                auto result = codegen(method, scope);
+
+        if (methodsCount > 0) {
+            std::vector<llvm::Function*> methods;
+    
+            methods.reserve(methodsCount);
+    
+            for (const auto& field : structExpr->parameters) {
+                if (auto method = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(field)) {
+                    llvm::Type* returnType = resolveLLVMType(method->returnType);
+                    llvm::Function* methd = registerFunction(method->mangledName, returnType, method->parameters, scope);
+                    methods.emplace_back(methd);
+                }
             }
+            
+            int methodIndex = 0;
+            for (const auto& field : structExpr->parameters) {
+                if (auto method = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(field)) {
+                    generateFunctionBody(
+                        method->mangledName,
+                        methods[methodIndex],
+                        method->parameters,
+                        method->body,
+                        scope
+                    );
+                    methodIndex++;
+                }
+        }
         }
 
         return nullptr;
@@ -1450,6 +1475,20 @@ llvm::Function* IRGenerator::createFunction(
     std::vector<std::shared_ptr<Omniscript::Expression>>& params,
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
 ) {
+    llvm::Function* function = registerFunction(name, returnType, params, scope);
+    
+    // Generate function body
+    generateFunctionBody(name, function, params, body, scope);
+
+    return function;
+}
+
+llvm::Function* IRGenerator::registerFunction(
+    const std::string& name,
+    llvm::Type* returnType,
+    std::vector<std::shared_ptr<Omniscript::Expression>>& params,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
+) {
     DEBUG_LOG("Creating function: " + name + " with parameter size " + std::to_string(params.size()));
     
     // Create function type
@@ -1500,73 +1539,7 @@ llvm::Function* IRGenerator::createFunction(
     activeScope->set(name, function);
     DEBUG_LOG("Stored function: " + name + " in scope");
 
-    // Generate function body
-    generateFunctionBody(name, function, params, body, scope);
-
     return function;
-}
-
-// When processing a function call:
-llvm::Value* IRGenerator::createCall(
-    const std::string& callee, 
-    std::vector<llvm::Value*>& args, 
-    llvm::BasicBlock* activeBlock
-) {
-    // 1. Look up function
-    llvm::Function* func = Module->getFunction(callee);
-    if (!func) {
-        console.error("Function '" + callee + "' not found");
-        return nullptr;
-    }
-
-    // 2. Verify argument count
-    if (func->arg_size() != args.size()) {
-        console.error("Argument count mismatch for '" + callee + "'");
-        return nullptr;
-    }
-
-    // 3. Type checking and casting
-    for (size_t i = 0; i < args.size(); ++i) {
-        llvm::Type* expected = func->getFunctionType()->getParamType(i);
-        if (args[i]->getType() != expected) {
-            llvm::Value* castedArg = castValue(args[i], expected);
-            if (!castedArg) {
-                console.error("Type mismatch for argument " + std::to_string(i) + 
-                            " in call to '" + callee + "'");
-                return nullptr;
-            }
-            args[i] = castedArg;
-        }
-    }
-
-    // 4. Determine insertion point safely
-    llvm::BasicBlock* insertBlock = activeBlock ? activeBlock : Builder->GetInsertBlock();
-    if (!insertBlock) {
-        console.error("No valid insert block found for function call");
-        return nullptr;
-    }
-
-    // 5. Find safe insertion point (BEFORE any terminator)
-    if (insertBlock->getTerminator()) {
-        // If block already has a terminator, insert right before it
-        Builder->SetInsertPoint(insertBlock->getTerminator());
-    } else {
-        // Otherwise insert at end of block
-        Builder->SetInsertPoint(insertBlock);
-    }
-
-    // 6. Generate call
-    llvm::Value* callInst = Builder->CreateCall(func, args);
-
-    // 7. Ensure we didn't accidentally insert after terminator
-    // #ifdef LLVM_DEBUG
-    // if (insertBlock->getTerminator() && 
-    //     callInst->getNextNode() != insertBlock->getTerminator()) {
-    //     llvm::errs() << "WARNING: Call instruction inserted after terminator!\n";
-    // }
-    // #endif
-
-    return callInst;
 }
 
 void IRGenerator::generateFunctionBody( 
@@ -1689,6 +1662,68 @@ void IRGenerator::generateFunctionBody(
     }
 }
 
+// When processing a function call:
+llvm::Value* IRGenerator::createCall(
+    const std::string& callee, 
+    std::vector<llvm::Value*>& args, 
+    llvm::BasicBlock* activeBlock
+) {
+    // 1. Look up function
+    llvm::Function* func = Module->getFunction(callee);
+    if (!func) {
+        console.error("Function '" + callee + "' not found");
+        return nullptr;
+    }
+
+    // 2. Verify argument count
+    if (func->arg_size() != args.size()) {
+        console.error("Argument count mismatch for '" + callee + "'");
+        return nullptr;
+    }
+
+    // 3. Type checking and casting
+    for (size_t i = 0; i < args.size(); ++i) {
+        llvm::Type* expected = func->getFunctionType()->getParamType(i);
+        if (args[i]->getType() != expected) {
+            llvm::Value* castedArg = castValue(args[i], expected);
+            if (!castedArg) {
+                console.error("Type mismatch for argument " + std::to_string(i) + 
+                            " in call to '" + callee + "'");
+                return nullptr;
+            }
+            args[i] = castedArg;
+        }
+    }
+
+    // 4. Determine insertion point safely
+    llvm::BasicBlock* insertBlock = activeBlock ? activeBlock : Builder->GetInsertBlock();
+    if (!insertBlock) {
+        console.error("No valid insert block found for function call");
+        return nullptr;
+    }
+
+    // 5. Find safe insertion point (BEFORE any terminator)
+    if (insertBlock->getTerminator()) {
+        // If block already has a terminator, insert right before it
+        Builder->SetInsertPoint(insertBlock->getTerminator());
+    } else {
+        // Otherwise insert at end of block
+        Builder->SetInsertPoint(insertBlock);
+    }
+
+    // 6. Generate call
+    llvm::Value* callInst = Builder->CreateCall(func, args);
+
+    // 7. Ensure we didn't accidentally insert after terminator
+    // #ifdef LLVM_DEBUG
+    // if (insertBlock->getTerminator() && 
+    //     callInst->getNextNode() != insertBlock->getTerminator()) {
+    //     llvm::errs() << "WARNING: Call instruction inserted after terminator!\n";
+    // }
+    // #endif
+
+    return callInst;
+}
 
 llvm::AllocaInst* IRGenerator::createEntryBlockAlloca(llvm::Function* function,llvm::Type* type, const std::string& name) {
     llvm::IRBuilder<> tmpBuilder(&function->getEntryBlock(),
