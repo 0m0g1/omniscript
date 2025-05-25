@@ -23,7 +23,19 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     }
     DEBUG_LOG("===============");
     
+    if (targetName == "this" && instanceName.empty()) {
+        if (!accessContext.empty()) {
+            targetName = accessContext.back();
+            instanceName = accessContext.back(); // safer and clearer
+        } else {
+            // Optional: handle error or set default
+            console.error("Accessing 'this' outside of any valid context");
+            // instanceName = "<invalid-this>";
+        }
+    }
+    
     // If there is no target we are just calling a function
+    // If there is a target we are calling a method
     if (!targetName.empty()) {
         if (auto obj = scope->get(targetName)) {
             std::string typeName = obj->getType()->getName();
@@ -42,12 +54,6 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             } 
             
             if (isFromAssignment) {
-                // auto thisArg = std::make_shared<AddressOf>(targetName);
-                // thisArg->setType(Omniscript::Type::createPointerType(obj->getType()));
-                // thisArg->setRootType(thisArg->getType());
-                // args.insert(args.begin(), thisArg);
-                // DEBUG_LOG("The 'this' arg is " + thisArg->getType()->pointerDescription());
-    
                 std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
                 auto methodCall = std::make_shared<Call>(assignmentExpr, callee, args);
                 auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
@@ -474,7 +480,7 @@ bool Call::matchArgumentsToParameters(
     return true;
 }
 
-std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTableType scope) {
+void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     DEBUG_LOG();
     DEBUG_LOG("[Function] Constructing a function " + name + " prototype the return Type is '" + type->toString() + "'.");
 
@@ -545,14 +551,13 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
     // auto bod = body->resolveExpressions(localScope);
     extendContextOf(body);
     
-    std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
+    std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = {};
     // for (auto& stmt : body->statements) {
     //     functionBody.push_back(stmt->express(localScope));
     // }
 
     std::string mangledName = (name == "__main" ? "__main" : generateMangledName());
 
-    
     // Build the FunctionType object from param types and return type
     DEBUG_LOG("[Function] Building the function type");
     std::vector<std::shared_ptr<Omniscript::Type>> paramTypes;
@@ -565,8 +570,33 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
 
     DEBUG_LOG("[Function] Storing overloaded function in scope '" + scope->getName() + "' under base name: " + name + " (mangled as: " + mangledName + ")");
     scope->addOverloadable(name, functionVal);
+    this->mangledName = mangledName;
+}
 
-    return functionVal;
+void FunctionDeclaration::compileBody(SymbolTableType scope) {
+    auto overloads = scope->getOverloads(name);
+    for (const auto& overload : overloads) {
+        if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
+            if (mangledName == funcExpr->mangledName) {
+                std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
+                funcExpr->body = functionBody;
+            }
+        }
+    }
+}
+
+std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTableType scope) {
+    auto overloads = scope->getOverloads(name);
+    for (const auto& overload : overloads) {
+        if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
+            if (mangledName == funcExpr->mangledName) {
+                return funcExpr;
+            }
+        }
+    }
+
+    console.error("Failed compiling an overload '" + mangledName + "' for function / method '" + name + "'.");
+    return nullptr;
 }
 
 std::string FunctionDeclaration::generateMangledName() const {
@@ -698,14 +728,88 @@ std::shared_ptr<Omniscript::Expression> ClassMember::express(SymbolTableType sco
     return nullptr;
 }
 
+std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(SymbolTableType scope) {
+    DEBUG_LOG("[ConstructStructPrototype] Constructing a struct expression");
+
+    std::vector<std::shared_ptr<Omniscript::Expression>> fields;
+    std::vector<std::shared_ptr<Omniscript::Type>> fieldTypes;
+    std::vector<std::string> fieldNames;
+
+    SymbolTableType localScope = scope->createChildScope(name);
+
+    for (const auto& field : body) {
+        if (auto paramDecl = std::dynamic_pointer_cast<ParameterStatement>(field)) {
+            std::string fieldName = paramDecl->getName();
+            fieldNames.push_back(fieldName);
+
+            std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(localScope);
+
+            fields.push_back(fieldExpr);
+            fieldExpr->getType()->parameterName = fieldName;
+            fieldTypes.push_back(fieldExpr->getType());
+            DEBUG_LOG("Parameter '" + fieldName + "' has type " + fieldExpr->getType()->toString());
+        } else {
+            DEBUG_LOG("Skipping non-variable declaration in struct body");
+        }
+    }
+
+    auto structType = Omniscript::Type::createUserDefinedType(name, Omniscript::Kind::Struct, fieldTypes);
+    scope->addType(name, structType);
+    
+    setType(structType);
+
+    // Phase 1: Register all methods (e.g., for mutual recursion or early references)
+    for (const auto& field : body) {
+        if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
+            auto thisParam = std::make_shared<ParameterStatement>("this");
+            thisParam->setType(Omniscript::Type::createPointerType(localScope->getType(name)));
+            methodStmt->parameters.insert(methodStmt->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
+            methodStmt->registerInScope(scope);
+        } else {
+            if (!std::dynamic_pointer_cast<ParameterStatement>(field)) {
+                DEBUG_LOG("Skipping non-method declaration in struct body");
+            }
+        }
+    }
+
+    // Phase 2: Compile methods and build method expressions
+    for (const auto& field : body) {
+        if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
+            auto thisParam = std::make_shared<ParameterStatement>("this");
+            thisParam->setType(Omniscript::Type::createPointerType(localScope->getType(name)));
+
+            // Insert 'this' as the first parameter
+            methodStmt->parameters.insert(methodStmt->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
+
+            // Compile the method to an expression (LLVM function pointer, etc.)
+            std::shared_ptr<Omniscript::Expression> method = methodStmt->express(scope);
+            fields.push_back(method);
+        } else {
+            if (!std::dynamic_pointer_cast<ParameterStatement>(field)) {
+                DEBUG_LOG("Skipping non-method declaration in struct body");
+            }
+        }
+    }
+    
+    // 🧱 Construct the StructExpression as a Callable
+    auto structExpr = std::make_shared<Omniscript::StructExpression>(
+        getName(),
+        getName(),
+        fields,
+        fieldNames,
+        /* isVarArg */ false
+    );
+
+    scope->set(getName(), structExpr);
+
+    return structExpr;
+}
+
 std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolTableType scope) {
     DEBUG_LOG();
     DEBUG_LOG("[ConstructClassPrototype] Constructing a class '" + getName() + "'.");
 
-    std::vector<std::shared_ptr<Omniscript::ClassMemberExpression>> members;
     std::vector<std::shared_ptr<Omniscript::Expression>> fields;
-    std::vector<std::shared_ptr<Omniscript::Type>> fieldTypes;
-    std::vector<std::string> fieldNames;
 
     std::vector<std::shared_ptr<Omniscript::FunctionExpression>> constructors;
     std::shared_ptr<Omniscript::FunctionExpression> destructor = nullptr;
@@ -760,102 +864,55 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
     }
 
     // Step 3: Process methods (functions, constructor, destructor)
+    // Step 3.1: Register all methods (including constructor and destructor) in the current scope
     for (const auto& member : body) {
         if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getDefaultValue())) {
-            auto funcName = func->getName();
-
-            // add `this` parameter
+            // Add implicit 'this' parameter before registration
             auto thisParam = std::make_shared<ParameterStatement>("this");
             thisParam->setType(Omniscript::Type::createPointerType(classType));
             func->parameters.insert(func->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
 
-            auto methodExpr = func->express(scope);
-            // structExpr->parameters.push_back(methodExpr);
+            func->registerInScope(scope); // Register prototype in the current scope
+        }
+    }
 
-            DEBUG_LOG("Is " + funcName + "=" + name + ".constructor?");
+    // Step 3.2: Compile method bodies and build expressions
+    for (const auto& member : body) {
+        if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getDefaultValue())) {
+            auto funcName = func->getName();
+
+            func->compileBody(scope); // Compile function body into expressions
+
+            auto methodExpr = func->express(scope); // Retrieve compiled function expression
+            if (!methodExpr) {
+                console.error("Failed to generate function expression for: " + funcName);
+                continue;
+            }
+
+            DEBUG_LOG("Is " + funcName + " = " + name + ".constructor?");
             if (funcName == name + ".constructor") {
-
                 auto ctorExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(methodExpr);
                 classExpr->constructors.push_back(ctorExpr);
-
             } else if (funcName == name + ".destructor") {
-                // Destructor
                 auto dtorExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(methodExpr);
                 classExpr->destructor = dtorExpr;
-            } 
+            }
 
+            // Wrap method expression into a class member
             auto classMemberExpr = std::make_shared<Omniscript::ClassMemberExpression>(
                 member->getName(),
                 methodExpr,
                 member->getModifiers()
             );
 
-            structExpr->parameters.push_back(methodExpr);
-            classExpr->members.push_back(classMemberExpr);
+            structExpr->parameters.push_back(methodExpr);       // Add to internal structure
+            classExpr->members.push_back(classMemberExpr);      // Add to class definition
         }
     }
 
     classExpr->parameters = structExpr->parameters;
 
     return classExpr;
-}
-
-std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(SymbolTableType scope) {
-    DEBUG_LOG("[ConstructStructPrototype] Constructing a struct expression");
-
-    std::vector<std::shared_ptr<Omniscript::Expression>> fields;
-    std::vector<std::shared_ptr<Omniscript::Type>> fieldTypes;
-    std::vector<std::string> fieldNames;
-
-    SymbolTableType localScope = scope->createChildScope(name);
-
-    for (const auto& field : body) {
-        if (auto paramDecl = std::dynamic_pointer_cast<ParameterStatement>(field)) {
-            std::string fieldName = paramDecl->getName();
-            fieldNames.push_back(fieldName);
-
-            std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(localScope);
-
-            fields.push_back(fieldExpr);
-            fieldExpr->getType()->parameterName = fieldName;
-            fieldTypes.push_back(fieldExpr->getType());
-            DEBUG_LOG("Parameter '" + fieldName + "' has type " + fieldExpr->getType()->toString());
-        } else {
-            DEBUG_LOG("Skipping non-variable declaration in struct body");
-        }
-    }
-
-    auto structType = Omniscript::Type::createUserDefinedType(name, Omniscript::Kind::Struct, fieldTypes);
-    scope->addType(name, structType);
-    
-    setType(structType);
-
-    for (const auto& field : body) {
-        if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
-            auto thisParam = std::make_shared<ParameterStatement>("this");
-            thisParam->setType(Omniscript::Type::createPointerType(localScope->getType(name)));
-            methodStmt->parameters.insert(methodStmt->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
-            std::shared_ptr<Omniscript::Expression> method = methodStmt->express(scope);
-            fields.push_back(method);
-        } else {
-            if (!std::dynamic_pointer_cast<ParameterStatement>(field)) {
-                DEBUG_LOG("Skipping non-method declaration in struct body");
-            }
-        }
-    }
-    
-    // 🧱 Construct the StructExpression as a Callable
-    auto structExpr = std::make_shared<Omniscript::StructExpression>(
-        getName(),
-        getName(),
-        fields,
-        fieldNames,
-        /* isVarArg */ false
-    );
-
-    scope->set(getName(), structExpr);
-
-    return structExpr;
 }
  
 std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {

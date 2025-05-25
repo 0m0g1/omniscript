@@ -145,10 +145,10 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
             DEBUG_LOG("Assigning a unary statement");
             switch (currentToken.getType()) {
                 case TokenTypes::Increment:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Increment);
+                    value = std::make_shared<UnaryExpression>(TokenTypes::Increment, assignee, UnaryExpression::Position::Postfix);
                     break;
                 case TokenTypes::Decrement:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Decrement);
+                    value = std::make_shared<UnaryExpression>(TokenTypes::Decrement, assignee, UnaryExpression::Position::Postfix);
                     break;
                 default:
                     eat(TokenTypes::Semicolon);

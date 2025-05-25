@@ -18,6 +18,7 @@ class String {
    // Constructor
    constructor(text: char* = "") => void {
       this.text = text;
+      this.size = this.calculateLength();
    }
 
    private calculateLength() => int {
@@ -35,7 +36,6 @@ class String {
    public size() => int {
       return this.size;
    }
-
 }
 
 let textp = String("hello");

@@ -30,6 +30,7 @@ std::shared_ptr<Statement> Parser::parseBinaryExpression() {
 
     while (currentToken.getType() == TokenTypes::Plus || currentToken.getType() == TokenTypes::Minus ||
            currentToken.getType() == TokenTypes::LogicalAnd || currentToken.getType() == TokenTypes::LogicalOr) {
+        Token opToken = currentToken;
         TokenTypes op = currentToken.getType();
         
         if (op == TokenTypes::Plus) {
@@ -42,7 +43,7 @@ std::shared_ptr<Statement> Parser::parseBinaryExpression() {
             eat(TokenTypes::LogicalOr);
         }
 
-        left = std::make_shared<BinaryExpression>(left, op, logicalOrExpression()); // Chain with logical OR expression
+        left = std::make_shared<BinaryExpression>(left, opToken, logicalOrExpression()); // Chain with logical OR expression
     }
 
     return left;
@@ -53,9 +54,10 @@ std::shared_ptr<Statement> Parser::logicalOrExpression() {
     std::shared_ptr<Statement> left = logicalAndExpression();
 
     while (currentToken.getType() == TokenTypes::LogicalOr) {
+        Token opToken = currentToken;
         TokenTypes op = TokenTypes::LogicalOr;
         eat(TokenTypes::LogicalOr);
-        left = std::make_shared<BinaryExpression>(left, op, logicalAndExpression());
+        left = std::make_shared<BinaryExpression>(left, currentToken, logicalAndExpression());
     }
 
     return left;
@@ -66,9 +68,10 @@ std::shared_ptr<Statement> Parser::logicalAndExpression() {
     std::shared_ptr<Statement> left = comparisonExpression();
 
     while (currentToken.getType() == TokenTypes::LogicalAnd) {
+        Token opToken = currentToken;
         TokenTypes op = TokenTypes::LogicalAnd;
         eat(TokenTypes::LogicalAnd);
-        left = std::make_shared<BinaryExpression>(left, op, comparisonExpression());
+        left = std::make_shared<BinaryExpression>(left, opToken, comparisonExpression());
     }
 
     return left;
@@ -81,6 +84,7 @@ std::shared_ptr<Statement> Parser::comparisonExpression() {
     while (currentToken.getType() == TokenTypes::Equals || currentToken.getType() == TokenTypes::NotEquals ||
            currentToken.getType() == TokenTypes::LessThan || currentToken.getType() == TokenTypes::LessEqual ||
            currentToken.getType() == TokenTypes::GreaterThan || currentToken.getType() == TokenTypes::GreaterEqual) {
+        Token operationTok = currentToken;
         TokenTypes op = currentToken.getType();
         
         if (op == TokenTypes::Equals) {
@@ -97,7 +101,7 @@ std::shared_ptr<Statement> Parser::comparisonExpression() {
             eat(TokenTypes::GreaterEqual);
         }
 
-        left = std::make_shared<BinaryExpression>(left, op, term());
+        left = std::make_shared<BinaryExpression>(left, operationTok, term());
     }
 
     return left;
@@ -111,7 +115,8 @@ std::shared_ptr<Statement> Parser::term() {
            currentToken.getType() == TokenTypes::Modulo || currentToken.getType() == TokenTypes::BitwiseAnd ||
            currentToken.getType() == TokenTypes::BitwiseOr || currentToken.getType() == TokenTypes::BitwiseXor ||
            currentToken.getType() == TokenTypes::ShiftLeft || currentToken.getType() == TokenTypes::ShiftRight) {
-
+        
+        Token opToken = currentToken;
         TokenTypes op = currentToken.getType();
 
         if (op == TokenTypes::Multiply) {
@@ -132,7 +137,7 @@ std::shared_ptr<Statement> Parser::term() {
             eat(TokenTypes::ShiftRight);
         } 
 
-        left = std::make_shared<BinaryExpression>(left, op, parseUnaryExpression());
+        left = std::make_shared<BinaryExpression>(left, opToken, parseUnaryExpression());
     }
 
     return left;

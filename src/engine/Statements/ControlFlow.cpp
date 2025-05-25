@@ -54,10 +54,10 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
     extendContextOf(body);
 
     std::shared_ptr<Omniscript::Expression> conditionExpr = condition ? condition->express(localScope) : nullptr;
-    DEBUG_LOG("Created its condition expression");
+    DEBUG_LOG("Created its condition expression: " + conditionExpr->toString() + "'.");
 
     std::shared_ptr<Omniscript::Expression> bodyExpr = body ? body->express(localScope) : nullptr;
-    DEBUG_LOG("Created its body expression");
+    DEBUG_LOG("Created its body expression: " + bodyExpr->toString() + "'.");
 
     return std::make_shared<Omniscript::WhileLoopExpression>(conditionExpr, bodyExpr);
  }

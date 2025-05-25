@@ -83,14 +83,27 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
 
     // Infer a common type if type hasn't been set
     if (!type) {
-        if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
-            type = rightType;
-        } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
-            type = leftType;
+        if (op.isComparisonOperator()) {
+            type = Omniscript::resolveType({ "bool" });
+        } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
+            // Infer based on compatible numeric types
+            if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
+                type = rightType;
+            } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
+                type = leftType;
+            } else {
+                DEBUG_LOG("Incompatible arithmetic/bitwise types: " + leftType->description() + " vs " + rightType->description());
+                return nullptr;
+            }
+        } else if (op.isLogicalOperator()) {
+            type = Omniscript::resolveType({ "bool" });
+        } else if (op.isAssignmentOperator()) {
+            type = leftType; // Typically the type of the left-hand side
         } else {
-            DEBUG_LOG("Incompatible types: " + leftType->description() + " vs " + rightType->description());
+            DEBUG_LOG("Unhandled binary operator type: " + getTokenTypeName(op.getType( )));
             return nullptr;
         }
+
         DEBUG_LOG("Inferred binary expression type as: " + type->description());
     }
 
@@ -101,7 +114,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     DEBUG_LOG("The left value is: " + leftValue->toString());
     DEBUG_LOG("The right value is: " + rightValue->toString());
 
-    return std::make_shared<Omniscript::BinaryExpression>(leftValue, op, rightValue, type);
+    return std::make_shared<Omniscript::BinaryExpression>(leftValue, op.getType(), rightValue, type);
 }
 
 bool BinaryExpression::hasSideEffects() {

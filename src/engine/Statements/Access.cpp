@@ -124,6 +124,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     // Evaluate assignment expression if present
     std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
     if (assignmentValue) {
+        extendContextOf(assignmentValue);
         assignmentExpr = assignmentValue->express(scope);
         if (!assignmentExpr) {
             console.error("Failed to evaluate assignment expression");
@@ -212,6 +213,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType sco
     // Handle assignment if present
     std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
     if (assignmentValue) {
+        extendContextOf(assignmentValue);
         assignmentExpr = assignmentValue->express(scope);
         if (!assignmentExpr) {
             console.error("Failed to evaluate assignment expression");
@@ -287,6 +289,7 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
     // Handle assignment if present
     std::shared_ptr<Omniscript::Expression> valueExpr = nullptr;
     if (assignmentValue) {
+        extendContextOf(assignmentValue);
         valueExpr = assignmentValue->express(scope);
         if (!valueExpr) {
             console.error("Failed to evaluate assignment expression");
@@ -334,6 +337,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::express(SymbolTableType sco
     // Handle assignment if present
     std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
     if (assignmentValue) {
+        extendContextOf(assignmentValue);
         assignmentExpr = assignmentValue->express(scope);
         if (!assignmentExpr) {
             console.error("Failed to evaluate assignment expression");

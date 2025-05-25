@@ -932,6 +932,7 @@ public TypedStatement,
 public GenericHolder,
 public ContextAwareStatement {
 public:
+    std::string mangledName;
     std::shared_ptr<Omniscript::Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
     std::vector<std::shared_ptr<Statement>> parameters;
@@ -960,6 +961,9 @@ public:
         const std::shared_ptr<Statement>& stmt, 
         std::shared_ptr<Omniscript::Type> returnType
     );
+
+    void registerInScope(SymbolTableType scope);
+    void compileBody(SymbolTableType scope);
 
     // Clone method for FunctionDeclaration
     std::shared_ptr<Statement> clone() const override {
@@ -1169,26 +1173,8 @@ private:
 // Binary expression statement
 class BinaryExpression : public TypedStatement, public Expression {
 public:
-    BinaryExpression(std::shared_ptr<Statement> left = std::shared_ptr<Statement>{}, TokenTypes op = TokenTypes::Null, std::shared_ptr<Statement> right = std::shared_ptr<Statement>{})
+    BinaryExpression(std::shared_ptr<Statement> left = std::shared_ptr<Statement>{}, Token op = Token(), std::shared_ptr<Statement> right = std::shared_ptr<Statement>{})
         : left(left), op(op), right(right) {}
-
-     // Helper function to get operator as a string
-    static std::string getOperatorString(TokenTypes op) {
-        switch (op) {
-            case TokenTypes::Plus: return "+";
-            case TokenTypes::Minus: return "-";
-            case TokenTypes::Multiply: return "*";
-            case TokenTypes::Divide: return "/";
-            case TokenTypes::Modulo: return "%";
-            case TokenTypes::Equals: return "==";
-            case TokenTypes::NotEquals: return "!=";
-            case TokenTypes::LessThan: return "<";
-            case TokenTypes::GreaterThan: return ">";
-            case TokenTypes::LessEqual: return "<=";
-            case TokenTypes::GreaterEqual: return ">=";
-            default: return "?";
-        }
-    }
 
     
     // Method to evaluate the binary expression
@@ -1209,7 +1195,7 @@ public:
 
 private:
     std::shared_ptr<Statement> left;
-    TokenTypes op;
+    Token op;
     std::shared_ptr<Statement> right;
 };
 

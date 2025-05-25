@@ -164,6 +164,105 @@ class Token {
         int getPosition() {return position;}
         std::string getFilePath() const { return filePath; }
 
+        // Comparison operators
+        inline bool isComparisonOperator() {
+            return type == TokenTypes::Equals ||
+                type == TokenTypes::NotEquals ||
+                type == TokenTypes::LessThan ||
+                type == TokenTypes::GreaterThan ||
+                type == TokenTypes::LessEqual ||
+                type == TokenTypes::GreaterEqual;
+        }
+
+        // Assignment operators
+        inline bool isAssignmentOperator() {
+            return type == TokenTypes::Assign ||
+                type == TokenTypes::PlusAssign ||
+                type == TokenTypes::MinusAssign ||
+                type == TokenTypes::MultiplyAssign ||
+                type == TokenTypes::DivideAssign ||
+                type == TokenTypes::BitwiseAndAssign ||
+                type == TokenTypes::BitwiseOrAssign ||
+                type == TokenTypes::BitwiseXorAssign ||
+                type == TokenTypes::ShiftLeftAssign ||
+                type == TokenTypes::ShiftRightAssign;
+        }
+
+        // Arithmetic operators
+        inline bool isArithmeticOperator() {
+            return type == TokenTypes::Plus ||
+                type == TokenTypes::Minus ||
+                type == TokenTypes::Multiply ||
+                type == TokenTypes::Divide ||
+                type == TokenTypes::Modulo ||
+                type == TokenTypes::Increment ||
+                type == TokenTypes::Decrement ||
+                type == TokenTypes::FloorDivide;
+        }
+
+        // Logical operators
+        inline bool isLogicalOperator() {
+            return type == TokenTypes::LogicalAnd ||
+                type == TokenTypes::LogicalOr ||
+                type == TokenTypes::LogicalXor ||
+                type == TokenTypes::LogicalNot;
+        }
+
+        // Bitwise operators
+        inline bool isBitwiseOperator() {
+            return type == TokenTypes::BitwiseAnd ||
+                type == TokenTypes::BitwiseOr ||
+                type == TokenTypes::BitwiseXor ||
+                type == TokenTypes::Tilde ||
+                type == TokenTypes::ShiftLeft ||
+                type == TokenTypes::ShiftRight;
+        }
+
+        // Bracket types
+        inline bool isOpenBracket() {
+            return type == TokenTypes::LeftParen ||
+                type == TokenTypes::LeftBrace ||
+                type == TokenTypes::LeftBracket;
+        }
+
+        inline bool isCloseBracket() {
+            return type == TokenTypes::RightParen ||
+                type == TokenTypes::RightBrace ||
+                type == TokenTypes::RightBracket;
+        }
+
+        // Literal types
+        inline bool isLiteral() {
+            return type == TokenTypes::IntegerLiteral ||
+                type == TokenTypes::FloatLiteral ||
+                type == TokenTypes::BinaryLiteral ||
+                type == TokenTypes::OctalLiteral ||
+                type == TokenTypes::HexLiteral ||
+                type == TokenTypes::StringLiteral ||
+                type == TokenTypes::Character ||
+                type == TokenTypes::True ||
+                type == TokenTypes::False ||
+                type == TokenTypes::Null ||
+                type == TokenTypes::Nullptr;
+        }
+
+        // Identifier or keyword
+        inline bool isIdentifierOrKeyword() {
+            return type == TokenTypes::Identifier ||
+                type == TokenTypes::If ||
+                type == TokenTypes::Else_if ||
+                type == TokenTypes::Else ||
+                type == TokenTypes::While ||
+                type == TokenTypes::For ||
+                type == TokenTypes::Return ||
+                type == TokenTypes::Break ||
+                type == TokenTypes::Continue ||
+                type == TokenTypes::Function ||
+                type == TokenTypes::Let ||
+                type == TokenTypes::Var ||
+                type == TokenTypes::Const;
+        }
+
     private:
         // TokenTypes type;
         std::string value;
