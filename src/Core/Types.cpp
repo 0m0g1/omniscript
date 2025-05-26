@@ -29,6 +29,7 @@ std::string Type::kindName() const {
         case Kind::Int1024:     return "Int1024";
         case Kind::BigInt:      return "BigInt";
 
+        case Kind::Size_t:      return "Size_type";
         case Kind::UInt8:       return "UInt8";
         case Kind::UInt16:      return "UInt16";
         case Kind::UInt32:      return "UInt32";
