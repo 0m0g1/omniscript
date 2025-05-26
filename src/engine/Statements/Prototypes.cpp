@@ -53,7 +53,8 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     // If there is no target we are just calling a function
     // If there is a target we are calling a method
     if (!targetName.empty()) {
-        if (auto obj = scope->get(impliedTargetName.empty() ? targetName : impliedTargetName)) {
+        auto obj = scope->get(impliedTargetName.empty() ? targetName : impliedTargetName);
+        if (!std::dynamic_pointer_cast<Omniscript::FunctionExpression>(obj)) {
             std::string typeName = obj->getType()->getName();
             DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");
 
@@ -590,44 +591,74 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     functionVal->isExtern = isExtern;
     functionVal->isIntrinsic = isIntrinsic;
 
-    DEBUG_LOG("[Function] Storing overloaded function in scope '" + scope->getName() + "' under base name: " + name + " (mangled as: " + mangledName + ")");
-    scope->addOverloadable(name, functionVal);
-    this->mangledName = mangledName;
+    if (isExtern) {
+        DEBUG_LOG("[Function] Storing function in scope '" + scope->getName() + "' under name: " + name + ".");
+        scope->set(name, functionVal);
+        this->mangledName = name;
+    } else {
+        DEBUG_LOG("[Function] Storing overloaded function in scope '" + scope->getName() + "' under base name: " + name + " (mangled as: " + mangledName + ")");
+        scope->addOverloadable(name, functionVal);
+        this->mangledName = mangledName;
+    }
 }
 
 void FunctionDeclaration::compileBody(SymbolTableType scope) {
     auto overloads = scope->getOverloads(name);
-    for (const auto& overload : overloads) {
-        if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
-            if (mangledName == funcExpr->mangledName) {
-                std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
-                funcExpr->body = functionBody;
+    if (!overloads.empty()) {
+        for (const auto& overload : overloads) {
+            if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
+                if (mangledName == funcExpr->mangledName) {
+                    std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
+                    funcExpr->body = functionBody;
+                }
             }
         }
+    } else {
+        auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(scope->get(name));
+        std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
+        funcExpr->body = functionBody;
     }
 }
 
 std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTableType scope) {
     auto overloads = scope->getOverloads(name);
-    for (const auto& overload : overloads) {
-        if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
-            if (mangledName == funcExpr->mangledName) {
-                return funcExpr;
+    if (!overloads.empty()) {
+        for (const auto& overload : overloads) {
+            if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
+                if (mangledName == funcExpr->mangledName) {
+                    return funcExpr;
+                }
             }
         }
-    }
+
+        registerInScope(scope);
+        compileBody(scope);
     
-    registerInScope(scope);
-    compileBody(scope);
-
-    auto func = this->express(scope);
-
-    if (!func) {
-        console.error("Failed compiling an overload '" + mangledName + "' for function / method '" + name + "'.");
-        return nullptr;
+        auto func = this->express(scope);
+    
+        if (!func) {
+            console.error("Failed compiling an overload '" + mangledName + "' for function / method '" + name + "'.");
+            return nullptr;
+        }
+    
+        return func;
+    } 
+    
+    auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(scope->get(name));
+    if (!funcExpr) {
+        registerInScope(scope);
+        compileBody(scope);
+    
+        auto func = this->express(scope);
+    
+        if (!func) {
+            console.error("Failed compiling an overload '" + mangledName + "' for function / method '" + name + "'.");
+            return nullptr;
+        }
+    
+        return func;
     }
-
-    return func;
+    return funcExpr;
 }
 
 std::string FunctionDeclaration::generateMangledName() const {

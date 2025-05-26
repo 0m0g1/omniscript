@@ -133,7 +133,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 }  else if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
                     result = typed->express(scope);
                     auto resultType = typed->getType();
-                    if (!Omniscript::isSameOrCastableTo(resultType, typed->getRootType())) {
+                    if (!Omniscript::isSameOrCastableTo(resultType, type)) {
                         console.error("The rvalue of '" + variable + "' is not a '" + type->toString() + "', it is a '" + resultType->toString() + "'.");
                     }
                 } else {
