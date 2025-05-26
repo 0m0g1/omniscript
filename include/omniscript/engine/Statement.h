@@ -1227,7 +1227,12 @@ public:
     // Method to evaluate the binary expression
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "BinaryStatement"; }
+    std::string toString() const override {
+        std::string leftStr = left ? left->toString() : "null";
+        std::string rightStr = right ? right->toString() : "null";
+        std::string opStr = getTokenTypeName(op.getType());
+        return "(" + leftStr + " " + opStr + " " + rightStr + ")";
+    }
     std::shared_ptr<Statement> clone() const override {
         // Clone left and right operands
         std::shared_ptr<Statement> clonedLeft = left ? left->clone() : nullptr;

@@ -337,12 +337,21 @@ bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr
     if (from == to || from->kind == to->kind)
         return true;
 
+    if (from->isVoidLike()) {
+        if (to->isPointer()) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
     if (from->isNull() && (to->isPointer() || to->isReference()))
         return true;
 
     if (from->isInteger() && to->isInteger()) {
-        return (from->isSigned() == to->isSigned()) &&
-               (from->getSize() <= to->getSize());
+        // return (from->isSigned() == to->isSigned()) &&
+        //        (from->getSize() <= to->getSize());
+        return (from->getSize() <= to->getSize());
     }
 
     if (from->isInteger() && to->isFloat()) {

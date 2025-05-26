@@ -1,3 +1,5 @@
+- text for private members [[private("Use that instead")]]
+- no mangle macro
 - templates for lambdas
 - work on overloading functions
 - work on multiple generics

@@ -130,47 +130,12 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
             if (type->isPointer()) {
                 if (!value) {
                     result = std::make_shared<Omniscript::NullPointerExpression>(type);
-                } else if (auto nullpointer = std::dynamic_pointer_cast<Nullptr>(value)) {
-                    result = nullpointer->express(scope);
-                } else if (auto addressOf = std::dynamic_pointer_cast<AddressOf>(value)) {
-                    result = addressOf->express(scope);
-                    if (auto ptr = std::dynamic_pointer_cast<Omniscript::PointerExpression>(result)) {
-                        console.info("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->description() + "' and is pointing to a '" +
-                        ptr->getType()->getPointeeType()->description() + "'.");
-                        if (ptr->getType()->getPointeeType()->getKind() != type->getPointeeType()->getKind()) {
-                            console.error("Pointer '" + variable + "' should point to a '" + type->getPointeeType()->description() + "' but is pointing to a '" +
-                            ptr->getType()->getPointeeType()->description() + "' instead.");
-                        }
-                    } else if (auto addr = std::dynamic_pointer_cast<Omniscript::AddressOfExpression>(result)) {
-                        if (addr->getType()->getBasePointeeType()->getKind() != type->getBasePointeeType()->getKind()) {
-                            console.error("Pointer '" + variable + "' should point to a '" + type->pointerDescription() + "' but is pointing to a '" +
-                            addr->getType()->pointerDescription() + "' instead.");
-                        }
-                    } else {
-                        console.error("Pointer '" + variable + "' is pointing to an invalid pointer type '" + result->toString() + "'.");
+                }  else if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
+                    result = typed->express(scope);
+                    auto resultType = typed->getType();
+                    if (!Omniscript::isSameOrCastableTo(resultType, typed->getRootType())) {
+                        console.error("The rvalue of '" + variable + "' is not a '" + type->toString() + "', it is a '" + resultType->toString() + "'.");
                     }
-                } else if (auto referenceTo = std::dynamic_pointer_cast<ReferenceTo>(value)) {
-                    result = referenceTo->express(scope);
-                    
-                    if (result->getType()->getKind() != type->getPointeeType()->getKind()) {
-                        console.error("Pointer '" + variable + "' should point to a '" + type->description() + "' but is pointing to a '" +
-                        type->getPointeeType()->description() + "' instead.");
-                    }
-                } else if (auto string = std::dynamic_pointer_cast<StringLiteral>(value)) {
-                    if (!type->getPointeeType()->isChar() && !type->getPointeeType()->isString()) {
-                        console.error("A string's can be character pointer (let " + variable + " : char* = \"foo bar\";) or 'utf8', 'utf16; or 'utFloat' not a '" + type->pointerDescription() + "'.");
-                    }
-                    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
-                        if (!type->getPointeeType()->isChar()) {
-                            typed->setType(type->getPointeeType());
-                        }
-                    }
-                    result = string->express(scope);
-                    
-                    // if (result->getType()->getKind() != type->getPointeeType()->getKind()) {
-                    //     console.error("Pointer '" + variable + "' should point to a '" + type->description() + "' but is pointing to a '" +
-                    //     type->getPointeeType()->description() + "' instead.");
-                    // }
                 } else {
                     console.error("Pointer '" + variable + "' can only be created from an integer, a reference to an already existing variable, nullptr or a string from a (char*).");
                 }

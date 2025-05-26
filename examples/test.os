@@ -8,7 +8,7 @@
 // add support for js like formatted strings
 // let textChar: char* = "hello world ${}";
 
-// let textChar: char* = "hello world";
+// let textCar: char* = "hello world";
 // let text: std.string = "hello world";
 
 extern "C" fn malloc(size: size_t) => void*;
@@ -16,35 +16,41 @@ extern "C" fn free(ptr: void*) => void;
 extern "C" fn realloc(ptr: void*, size: usize) => void*;
 extern "C" fn calloc(count: usize, size: usize) => void*;
 
-class String {
-   private text: char*;
-   private size: int = 0;
+let textCar: void* = malloc(5);
 
-   // Constructor
-   constructor(text: char* = "") => void {
-      this.text = text;
-      this.size = this.calculateLength();
-   }
+// class String {
+//    private text: char*;
+//    private size: int = 0;
 
-   private calculateLength() => int {
-      let len: int32 = 0;
-      while (this.text[len] != '\0') {
-         len++;
-      }
-      return len;
-   }
+//    // Constructor
+//    constructor(text: char* = "") => void {
+//       this.text = text;
+//       this.size = this.calculateLength();
 
-   public length() => int {
-      return this.size;
-   }
+//       if (this.size > 15) {
+//          // this.text = malloc(this.size + 1);
+//       }
+//    }
 
-   public size() => int {
-      return this.size;
-   }
-}
+//    private calculateLength() => int {
+//       let len: int32 = 0;
+//       while (this.text[len] != '\0') {
+//          len++;
+//       }
+//       return len;
+//    }
 
-let textp = String("hello");
-let textLength = textp.calculateLength();
+//    public length() => int {
+//       return this.size;
+//    }
+
+//    public size() => int {
+//       return this.size;
+//    }
+// }
+
+// let textp = String("hello");
+// let textLength = textp.calculateLength();
 
 // let a : i8 = 1;
 // let b : i16 = 2;

@@ -109,6 +109,9 @@ GENERATED += $(OBJDIR)/Function.o
 GENERATED += $(OBJDIR)/Functions.o
 GENERATED += $(OBJDIR)/Helpers.o
 GENERATED += $(OBJDIR)/Http.o
+GENERATED += $(OBJDIR)/IRGenAssignmentsAndGetters.o
+GENERATED += $(OBJDIR)/IRGenControlFlow.o
+GENERATED += $(OBJDIR)/IRGenFunctions.o
 GENERATED += $(OBJDIR)/IRGenerator.o
 GENERATED += $(OBJDIR)/Identifiers.o
 GENERATED += $(OBJDIR)/JITBackend.o
@@ -175,6 +178,9 @@ OBJECTS += $(OBJDIR)/Function.o
 OBJECTS += $(OBJDIR)/Functions.o
 OBJECTS += $(OBJDIR)/Helpers.o
 OBJECTS += $(OBJDIR)/Http.o
+OBJECTS += $(OBJDIR)/IRGenAssignmentsAndGetters.o
+OBJECTS += $(OBJDIR)/IRGenControlFlow.o
+OBJECTS += $(OBJDIR)/IRGenFunctions.o
 OBJECTS += $(OBJDIR)/IRGenerator.o
 OBJECTS += $(OBJDIR)/Identifiers.o
 OBJECTS += $(OBJDIR)/JITBackend.o
@@ -288,6 +294,15 @@ $(OBJDIR)/Allocator.o: src/engine/Allocator.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/JITBackend.o: src/engine/Backends/JITBackend.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenAssignmentsAndGetters.o: src/engine/Backends/llvm/IRGenAssignmentsAndGetters.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenControlFlow.o: src/engine/Backends/llvm/IRGenControlFlow.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenFunctions.o: src/engine/Backends/llvm/IRGenFunctions.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/IRGenerator.o: src/engine/Backends/llvm/IRGenerator.cpp

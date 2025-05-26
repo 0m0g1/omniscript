@@ -17,9 +17,25 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
    
     DEBUG_LOG("The args are ");
     DEBUG_LOG("===============");
-    for (const auto& arg: args) {
+
+    for (const auto& arg : args) {
+        DEBUG_LOG("Arg: " + arg->toString());
+
         auto typed = std::dynamic_pointer_cast<TypedStatement>(arg);
-        DEBUG_LOG(arg->toString() + " of type " + (typed->getRootType() ? typed->getRootType()->toString() : (typed->getType() ? typed->getType()->toString() : "'undefined'.")));
+        if (typed) {
+            auto rootType = typed->getRootType();
+            auto fallbackType = typed->getType();
+
+            if (rootType) {
+                DEBUG_LOG("Type: " + rootType->toString());
+            } else if (fallbackType) {
+                DEBUG_LOG("Type: " + fallbackType->toString());
+            } else {
+                DEBUG_LOG("Type: undefined");
+            }
+        } else {
+            DEBUG_LOG("Not a TypedStatement");
+        }
     }
     DEBUG_LOG("===============");
     

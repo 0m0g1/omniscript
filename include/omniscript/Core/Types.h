@@ -91,6 +91,7 @@ public:
     // ----- Instance methods -----
     bool isUserDefined() const { return kind == Kind::UserDefined; }
     bool isInvalid() const { return kind == Kind::Invalid; }
+    bool isVoidLike() const { return kind == Kind::Void || kind == Kind::Undefined;}
     bool isUnresolved() const { return kind == Kind::Unresolved; }
     bool isUndefined() const { return kind == Kind::Undefined; }
     bool isPointer() const { return kind == Kind::Pointer || kind == Kind::Nullptr; }
