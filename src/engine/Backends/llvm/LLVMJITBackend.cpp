@@ -71,7 +71,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     irGen->printErrors();
     DEBUG_LOG();
     
-    irGen->optimizeModule();
+    irGen->optimizeModule(config.optimizationLevel);
     
     llvm::orc::ThreadSafeContext tsContext(irGen->getContext());
     auto module = std::move(irGen->getModule());
