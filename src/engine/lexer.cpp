@@ -193,6 +193,10 @@ Token Lexer::getNextToken() {
             return Token(TokenTypes::From, "", line, column, sourceFilePath);
         } else if (identifier == "module" || identifier == "mod") {
             return Token(TokenTypes::Module, "", line, column, sourceFilePath);
+        } else if (identifier == "extern") {
+            return Token(TokenTypes::Extern, "", line, column, sourceFilePath);
+        } else if (identifier == "intrinsic") {
+            return Token(TokenTypes::Intrinsic, "", line, column, sourceFilePath);
         } else if (identifier == "as") {
             return Token(TokenTypes::As, "", line, column, sourceFilePath);
         }

@@ -261,6 +261,7 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
         else if (baseType == "BigInt") type = Type::createPrimitiveType(Kind::BigInt);
     
         // Unsigned integers
+        else if (baseType == "usize" || baseType == "size_t") type = Type::createPrimitiveType(Kind::Size_t);
         else if (baseType == "uint" || baseType == "u32" || baseType == "uint32") type = Type::createPrimitiveType(Kind::UInt32);
         else if (baseType == "uint8" || baseType == "u8") type = Type::createPrimitiveType(Kind::UInt8);
         else if (baseType == "uint16" || baseType == "u16") type = Type::createPrimitiveType(Kind::UInt16);

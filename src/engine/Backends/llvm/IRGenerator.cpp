@@ -825,6 +825,12 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             DEBUG_LOG("Generating LLVM type: BigInt (treated as Int1024)");
             llvmType = llvm::IntegerType::get(context, 1024);
             break;
+        case Omniscript::Kind::Size_t: {
+            int pointerWidth = Omniscript::getPointerBitWidth();
+            DEBUG_LOG("Generating LLVM type: Size_t (treated as Int " + std::to_string(pointerWidth) + ")");
+            llvmType = llvm::IntegerType::get(context, pointerWidth);
+            break;
+        }
         case Omniscript::Kind::UInt8:
             DEBUG_LOG("Generating LLVM type: UInt8");
             llvmType = llvm::Type::getInt8Ty(context);
@@ -1466,6 +1472,30 @@ llvm::Value* IRGenerator::createFixedArray(
 
     DEBUG_LOG("Finished creating fixed array");
     return arrayAlloc;
+}
+
+llvm::Function* IRGenerator::createExternFunction(
+    const std::string& name,
+    llvm::Type* returnType,
+    const std::vector<llvm::Type*>& paramTypes,
+    bool isVarArg = false
+) {
+    DEBUG_LOG("Creating extern \"C\" function: " + name);
+
+    llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, paramTypes, isVarArg);
+
+    llvm::Function* function = llvm::Function::Create(
+        funcType,
+        llvm::Function::ExternalLinkage,
+        name,
+        CurrentModule
+    );
+
+    // Optionally store it in the active scope
+    activeScope->set(name, function);
+    DEBUG_LOG("Registered extern function in scope: " + name);
+
+    return function;
 }
 
 llvm::Function* IRGenerator::createFunction(

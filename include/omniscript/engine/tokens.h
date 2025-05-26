@@ -52,6 +52,8 @@ enum class TokenTypes {
     Include,
     From,
     Module,
+    Extern,
+    Intrinsic,
     As,
 
     // Literals

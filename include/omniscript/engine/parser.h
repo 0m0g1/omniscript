@@ -52,6 +52,8 @@ class Parser {
         std::shared_ptr<Statement> parseInclude();
         std::shared_ptr<Statement> parseModuleImport();
         std::shared_ptr<Statement> parseModule();
+        std::shared_ptr<Statement> parseExternFunction();
+        // std::shared_ptr<Statement> parseIntrinsicFunction();
 
         std::vector<std::shared_ptr<Statement>> parseParameters();
         std::vector<std::shared_ptr<Statement>> parseArguments(

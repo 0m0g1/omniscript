@@ -6,8 +6,19 @@
 #include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/debuggingtools/console.h>
+#include <omniscript/Core/Target_config.h>
 
 namespace Omniscript {
+
+inline constexpr int getPointerBitWidth() {
+    #if defined(TARGET_32BIT)
+        return 32;
+    #elif defined(TARGET_64BIT)
+        return 64;
+    #else
+        return sizeof(void*) * 8;  // Works in hosted environments
+    #endif
+}
 
 // Kind enum
 enum class Kind {
@@ -20,6 +31,7 @@ enum class Kind {
     Nullptr, Null,
     Bool,
     Char, Char16, Char32,
+    Size_t,
     Int8, Int16, Int32, Int64, Int128, Int256, Int512, Int1024, BigInt,
     UInt8, UInt16, UInt32, UInt64, UInt128, UInt256, UInt512, UInt1024,
     Half, Float, Double, FP128, X86_FP80, PPC_FP128,
@@ -159,6 +171,7 @@ public:
             case Kind::Int512:
             case Kind::Int1024:
                 return true;  // These are signed types
+            case Kind::Size_t:
             case Kind::UInt8:
             case Kind::UInt16:
             case Kind::UInt32:
@@ -195,6 +208,9 @@ public:
             case Int256:       case UInt256:       return 256;
             case Int512:       case UInt512:       return 512;
             case Int1024:      case UInt1024:      return 1024;
+
+            // Size_type
+            case Size_t:       return getPointerBitWidth();
     
             // Arbitrary precision
             case BigInt:       return -1; // Size not fixed — may depend on value
@@ -257,6 +273,9 @@ public:
         }
     }
     
+    bool isSizeType() const {
+        return kind == Kind::Size_t;
+    }
 
     bool isInteger(int bitwidth = -1) const {
         // If no bitwidth is specified, just check if the kind is an integer
@@ -399,6 +418,7 @@ public:
         // if constexpr (std::is_same_v<T, __int512>) return Kind::Int512;
         // if constexpr (std::is_same_v<T, __int1024>) return Kind::Int1024;
 
+        if constexpr (std::is_same_v<T, size_t>) return Kind::Size_t;
         if constexpr (std::is_same_v<T, uint8_t>) return Kind::UInt8;
         if constexpr (std::is_same_v<T, uint16_t>) return Kind::UInt16;
         if constexpr (std::is_same_v<T, uint32_t>) return Kind::UInt32;

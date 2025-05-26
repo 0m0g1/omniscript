@@ -40,6 +40,8 @@ std::unordered_map<TokenTypes, std::string> tokenTypeNames = {
     {TokenTypes::Import, "Import"},
     {TokenTypes::From, "From"},
     {TokenTypes::Module, "Module"},
+    {TokenTypes::Extern, "Extern"},
+    {TokenTypes::Intrinsic, "Intrinsic"},
     {TokenTypes::As, "As"},
     {TokenTypes::Nullptr, "Nullptr"},
     {TokenTypes::Null, "Null"},
