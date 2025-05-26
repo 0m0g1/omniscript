@@ -244,6 +244,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(value)) {
         DEBUG_LOG("Creating an overload for function " + func->name + " with mangled name '" + func->mangledName + "'");
         llvm::Type* returnType = resolveLLVMType(func->returnType);
+        if (func->isExtern) {
+            return createExternFunction(func->name, func->externLanguage, returnType, func->parameters, func->isVarArg);
+        } else if (func->isIntrinsic) {
+            return createIntrinsicFunction("llvm." + func->name, func->parameters);
+        }
         return createFunction(func->mangledName, func->body, returnType, func->parameters, scope);
     }
 
@@ -1476,11 +1481,21 @@ llvm::Value* IRGenerator::createFixedArray(
 
 llvm::Function* IRGenerator::createExternFunction(
     const std::string& name,
+    const std::string& language,
     llvm::Type* returnType,
-    const std::vector<llvm::Type*>& paramTypes,
-    bool isVarArg = false
+    const std::vector<std::shared_ptr<Omniscript::Expression>>& params,
+    bool isVarArg
 ) {
-    DEBUG_LOG("Creating extern \"C\" function: " + name);
+    DEBUG_LOG("Creating extern \"" + language + "\" function: " + name);
+
+    std::vector<llvm::Type*> paramTypes;
+    for (auto& param : params) {
+        auto type = param->getType();
+        auto llvmType = resolveLLVMType(type);
+        paramTypes.push_back(llvmType);
+        
+        DEBUG_LOG("Resolved parameter type: " + type->description() + " to LLVM type: " + debugType(llvmType));
+    }
 
     llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, paramTypes, isVarArg);
 
@@ -1497,6 +1512,49 @@ llvm::Function* IRGenerator::createExternFunction(
 
     return function;
 }
+
+llvm::Function* IRGenerator::createIntrinsicFunction(
+    const std::string& name,
+    const std::vector<std::shared_ptr<Omniscript::Expression>>& params
+) {
+    DEBUG_LOG("Creating intrinsic function by name: " + name);
+
+    // Look up the intrinsic ID by name
+    llvm::Intrinsic::ID intrinsicID = llvm::Intrinsic::lookupIntrinsicID(name);
+    if (intrinsicID == llvm::Intrinsic::not_intrinsic) {
+        console.error("Unknown intrinsic function: " + name);
+        return nullptr;
+    }
+
+    // Create function type
+    std::vector<llvm::Type*> paramTypes;
+    for (auto& param : params) {
+        auto type = param->getType();
+        auto llvmType = resolveLLVMType(type);
+        paramTypes.push_back(llvmType);
+        
+        DEBUG_LOG("Resolved parameter type: " + type->description() + " to LLVM type: " + debugType(llvmType));
+    }
+
+    // Get the intrinsic function declaration
+    llvm::Function* intrinsicFunc = llvm::Intrinsic::getDeclaration(
+        CurrentModule,
+        intrinsicID,
+        paramTypes
+    );
+
+    if (!intrinsicFunc) {
+        console.error("Failed to declare intrinsic: " + name);
+        return nullptr;
+    }
+
+    // Register it in the current scope (optional)
+    activeScope->set(intrinsicFunc->getName().str(), intrinsicFunc);
+    DEBUG_LOG("Registered intrinsic in scope: " + intrinsicFunc->getName().str());
+
+    return intrinsicFunc;
+}
+
 
 llvm::Function* IRGenerator::createFunction(
     const std::string& name,

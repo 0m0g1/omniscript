@@ -135,7 +135,7 @@ Token Lexer::getNextToken() {
             return Token(TokenTypes::Break, "", line, column, sourceFilePath);
         } else if (identifier == "return") {
             return Token(TokenTypes::Return, "", line, column, sourceFilePath);
-        } else if (identifier == "function") {
+        } else if (identifier == "function" || identifier == "fn") {
             return Token(TokenTypes::Function, "", line, column, sourceFilePath);
         } else if (identifier == "let" || identifier == "var") {
             return Token(TokenTypes::Let, "", line, column, sourceFilePath);

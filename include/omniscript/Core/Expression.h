@@ -633,8 +633,9 @@ struct Callable : public virtual Expression {
 
 // FunctionExpression inherits from Callable
 struct FunctionExpression : public Callable {
-    bool isExternC = false;
+    bool isExtern = false;
     bool isIntrinsic = false;
+    std::string externLanguage;
     std::vector<std::shared_ptr<Expression>> body;
     std::shared_ptr<Type> returnType;
     std::vector<std::shared_ptr<Type>> paramTypes;
@@ -643,7 +644,7 @@ struct FunctionExpression : public Callable {
                         const std::string& name, 
                         const std::string& mangledName, 
                         std::shared_ptr<Type> returnType,
-                        std::vector<std::shared_ptr<Expression>> body,
+                        std::vector<std::shared_ptr<Expression>> body = {},
                         std::vector<std::shared_ptr<Expression>> params = {},
                         std::vector<std::shared_ptr<Type>> paramTypes = {},
                         bool isVarArg = false)

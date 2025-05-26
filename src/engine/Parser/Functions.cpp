@@ -59,7 +59,13 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
         returnType = Omniscript::resolveType({"void"});
     }
 
-    auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
+    std::shared_ptr<BlockStatement> body;
+
+    if (currentToken.getType() == TokenTypes::LeftBrace) {
+        body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
+    } else {
+        body = BlockStatement::create();
+    }
 
     if (!types.empty()) {
         std::vector<std::shared_ptr<Statement>> monomorphizedFunctions;

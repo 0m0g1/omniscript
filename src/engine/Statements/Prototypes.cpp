@@ -570,6 +570,9 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     
     DEBUG_LOG("[Function] Creating FunctionValue");
     auto functionVal = std::make_shared<Omniscript::FunctionExpression>(name, mangledName, returnType, functionBody, argValues, paramTypes, isVarArg);
+    functionVal->externLanguage = externalLanguage;
+    functionVal->isExtern = isExtern;
+    functionVal->isIntrinsic = isIntrinsic;
 
     DEBUG_LOG("[Function] Storing overloaded function in scope '" + scope->getName() + "' under base name: " + name + " (mangled as: " + mangledName + ")");
     scope->addOverloadable(name, functionVal);
@@ -597,9 +600,18 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
             }
         }
     }
+    
+    registerInScope(scope);
+    compileBody(scope);
 
-    console.error("Failed compiling an overload '" + mangledName + "' for function / method '" + name + "'.");
-    return nullptr;
+    auto func = this->express(scope);
+
+    if (!func) {
+        console.error("Failed compiling an overload '" + mangledName + "' for function / method '" + name + "'.");
+        return nullptr;
+    }
+
+    return func;
 }
 
 std::string FunctionDeclaration::generateMangledName() const {

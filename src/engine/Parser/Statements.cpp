@@ -32,6 +32,12 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
         case TokenTypes::Module:
             statement = parseModule();
             break;
+        case TokenTypes::Extern:
+            statement = parseExternFunction();
+            break;
+        case TokenTypes::Intrinsic:
+            statement = parseIntrinsicFunction();
+            break;
         case TokenTypes::Function:
             statement = parseFunctionDeclaration("", {});
             break;

@@ -53,7 +53,7 @@ class Parser {
         std::shared_ptr<Statement> parseModuleImport();
         std::shared_ptr<Statement> parseModule();
         std::shared_ptr<Statement> parseExternFunction();
-        // std::shared_ptr<Statement> parseIntrinsicFunction();
+        std::shared_ptr<Statement> parseIntrinsicFunction();
 
         std::vector<std::shared_ptr<Statement>> parseParameters();
         std::vector<std::shared_ptr<Statement>> parseArguments(
@@ -70,7 +70,6 @@ class Parser {
             parameterType paramTypes = {},
             std::shared_ptr<Omniscript::Type> type = nullptr
         ); 
-        // std::shared_ptr<Statement> parseFunctionCall();      // To parse function calls
         std::shared_ptr<Statement> parseIdentifier();          // To parse an identifier / function call
 
         std::shared_ptr<ForLoop> parseForLoop();               // To parse for loops

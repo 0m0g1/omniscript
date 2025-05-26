@@ -205,9 +205,14 @@ public:
     llvm::Value* createFixedArray(llvm::Type* elementType, size_t arraySize, const std::vector<llvm::Value*>& elements);
     llvm::Function* createExternFunction(
         const std::string& name,
+        const std::string& language,
         llvm::Type* returnType,
-        const std::vector<llvm::Type*>& paramTypes,
+        const std::vector<std::shared_ptr<Omniscript::Expression>>& params,
         bool isVarArg = false
+    );
+    llvm::Function* createIntrinsicFunction(
+        const std::string& name,
+        const std::vector<std::shared_ptr<Omniscript::Expression>>& params
     );
     llvm::Function* createFunction(
         const std::string& name,

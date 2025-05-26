@@ -11,7 +11,7 @@
 // let textChar: char* = "hello world";
 // let text: std.string = "hello world";
 
-// extern "C" fn malloc(size: uin) => pointer<void>;
+extern "C" fn malloc(size: size_t) => void*;
 // extern "C" fn free(ptr: pointer<void>) => void;
 // extern "C" fn realloc(ptr: pointer<void>, size: usize) => pointer<void>;
 // extern "C" fn calloc(count: usize, size: usize) => pointer<void>;

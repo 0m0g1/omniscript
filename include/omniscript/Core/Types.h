@@ -283,10 +283,15 @@ public:
             return kind == Kind::Int8 || kind == Kind::Int16 || kind == Kind::Int32 ||
                    kind == Kind::Int64 || kind == Kind::Int128 || kind == Kind::Int256 ||
                    kind == Kind::Int512 || kind == Kind::Int1024 ||
+                   kind == Kind::Size_t ||
                    kind == Kind::UInt8 || kind == Kind::UInt16 ||
                    kind == Kind::UInt32 || kind == Kind::UInt64 || kind == Kind::UInt128 ||
                    kind == Kind::UInt256 || kind == Kind::UInt512 || kind == Kind::UInt1024 ||
                    kind == Kind::BigInt;
+        }
+
+        if (kind == Kind::Size_t) {
+            return getPointerBitWidth() == bitwidth;
         }
 
         // Otherwise, check the bitwidth against the kind of integer

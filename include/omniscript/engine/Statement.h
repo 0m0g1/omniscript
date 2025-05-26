@@ -347,10 +347,8 @@ public GenericHolder,
 public ContextAwareStatement {
 public:
     std::vector<std::shared_ptr<Statement>> statements;
-
-    BlockStatement() = default;
     
-    explicit BlockStatement(std::vector<std::shared_ptr<Statement>> statements)
+    BlockStatement(std::vector<std::shared_ptr<Statement>> statements = {})
         : GenericHolder(statements), statements(std::move(statements)) {}
 
     // For creating empty blocks
@@ -978,6 +976,9 @@ public TypedStatement,
 public GenericHolder,
 public ContextAwareStatement {
 public:
+    bool isIntrinsic = false;
+    bool isExtern = false;
+    std::string externalLanguage;
     std::string mangledName;
     std::shared_ptr<Omniscript::Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
