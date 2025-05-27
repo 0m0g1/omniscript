@@ -135,7 +135,7 @@ enum class TokenTypes {
     // Other
     Colon,                  // ":"
     QuestionMark,            // "?" (for ternary operator)
-    Ellispis               // "..."
+    Ellipsis               // "..."
 };
 
 // Create a map from TokenTypes to string names so that you can get the name of an enum via its index
