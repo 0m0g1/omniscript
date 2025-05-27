@@ -105,7 +105,8 @@ std::unordered_map<TokenTypes, std::string> tokenTypeNames = {
     {TokenTypes::Comma, "Comma"},
     {TokenTypes::Dot, "Dot"},
     {TokenTypes::Colon, "Colon"},
-    {TokenTypes::QuestionMark, "QuestionMark"}
+    {TokenTypes::QuestionMark, "QuestionMark"},
+    {TokenTypes::Ellipsis, "Ellipsis"}
 };
 
 // Function to get the name of a TokenType
