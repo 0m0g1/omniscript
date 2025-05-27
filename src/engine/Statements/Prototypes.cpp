@@ -54,7 +54,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     // If there is a target we are calling a method
     if (!targetName.empty()) {
         auto obj = scope->get(impliedTargetName.empty() ? targetName : impliedTargetName);
-        if (!std::dynamic_pointer_cast<Omniscript::FunctionExpression>(obj)) {
+        if (!std::dynamic_pointer_cast<Omniscript::FunctionExpression>(obj) && obj) {
             std::string typeName = obj->getType()->getName();
             DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");
 
@@ -71,16 +71,6 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 ctorExpressions.push_back(ctorCall);
                 auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
                 return constructionBlock;
-            } 
-            
-            if (isFromAssignment) {
-                std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
-                auto methodCall = std::make_shared<Call>(assignmentExpr, callee, args);
-                auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
-                if (isFromConstantAssignment) {
-                    stmt->markAsConstant();
-                }
-                return stmt->express(scope);
             } else {
                 callee = typeName + "." + callee;
                 auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? targetName : instanceName));
@@ -93,7 +83,15 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     console.error("The type '" + typeName + "' does not exist in the scope.");
                 }
             }
-        } 
+        } else if (isFromAssignment) {
+            std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
+            auto methodCall = std::make_shared<Call>(assignmentExpr, callee, args);
+            auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
+            if (isFromConstantAssignment) {
+                stmt->markAsConstant();
+            }
+            return stmt->express(scope);
+        }
     }
     
     
@@ -404,7 +402,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         finalArgs.push_back(val);
     }
 
-    if (instanceName.empty()) {
+    if (std::dynamic_pointer_cast<Omniscript::FunctionExpression>(called)) {
         DEBUG_LOG("[Call] Returning CallExpression for '" + callee + "' with " + std::to_string(finalArgs.size()) + " args");
         return std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
     }

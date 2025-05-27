@@ -252,7 +252,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         } else if (func->isIntrinsic) {
             return createIntrinsicFunction("llvm." + func->name, func->parameters);
         }
-        return createFunction(func->mangledName, func->body, returnType, func->parameters, scope);
+        return createFunction(func->mangledName, func->body, returnType, func->parameters, scope, func->isVarArg);
     }
 
     if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(value)) {

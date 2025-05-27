@@ -221,13 +221,15 @@ public:
         std::vector<std::shared_ptr<Omniscript::Expression>>& body,
         llvm::Type* returnType,
         std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope,
+        bool isVarArg = false
     );
     llvm::Function* registerFunction(
         const std::string& name,
         llvm::Type* returnType,
         std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
+        std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope,
+        bool isVarArg = false
     );
     void generateFunctionBody(
         const std::string& name,

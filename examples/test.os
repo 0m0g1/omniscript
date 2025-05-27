@@ -11,15 +11,25 @@
 // let textCar: char* = "hello world";
 // let text: std.string = "hello world";
 
-extern "C" fn malloc(size: size_t) => void*;
-extern "C" fn free(ptr: void*) => void;
-extern "C" fn realloc(ptr: void*, size: usize) => void*;
-extern "C" fn calloc(count: usize, size: usize) => void*;
-extern "C" fn printf(...fmt: char*) => int;
+// extern "C" fn malloc(size: size_t) => void*;
+// extern "C" fn free(ptr: void*) => void;
+// extern "C" fn realloc(ptr: void*, size: usize) => void*;
+// extern "C" fn calloc(count: usize, size: usize) => void*;
+// extern "C" fn printf(...fmt: char*) => int;
 
 
 // let textCar: char* = malloc(5);
-printf("%s%s%s", "Hello world!!!\n", "hi\n", "hello\n");
+// printf("%s%s%s", "Hello world!!!\n", "hi\n", "hello\n");
+
+function add(...nums : int) => i32 {
+   return 0;
+}
+
+let n : int32 = add(0, 0);
+
+// function main(argc : int) => i32 {
+//    return 0;
+// }
 
 // class String {
 //    private text: char*;

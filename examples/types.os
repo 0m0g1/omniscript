@@ -218,9 +218,11 @@
 // //     return a + b + c;
 // // }
 
-// // function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
-// //     return a + b;
-// // }
+// function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
+//     return a + b;
+// }
+
+// let n = add();
 
 // // let isRaining: bool = true;
 // // if (isRaining) {
@@ -264,25 +266,25 @@
 //     }
 // }
 
-class Particle {
-    private x: f32 = 0;
-    private y: f32 = 0;
-    private z: f32 = 0;
-    constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) => void {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-    }
-    destructor() => void {
+// class Particle {
+//     private x: f32 = 0;
+//     private y: f32 = 0;
+//     private z: f32 = 0;
+//     constructor(x: f32 = 0, y: f32 = 0, z: f32 = 0) => void {
+//         this.x = x;
+//         this.y = y;
+//         this.z = z;
+//     }
+//     destructor() => void {
         
-    }
-    public getZ() => float {
-        return this.z;
-    }
-}
+//     }
+//     public getZ() => float {
+//         return this.z;
+//     }
+// }
 
 // let v1 = new Vector3{ x: 0, y: 0, z: 0 };
-let p1 = Particle();
+// let p1 = Particle();
 // let no = p1.getZ();
 // v1.scale();
 // v1.scale(2.0, 1.0, 1.0);

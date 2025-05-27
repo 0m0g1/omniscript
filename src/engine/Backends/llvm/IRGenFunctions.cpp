@@ -87,9 +87,10 @@ llvm::Function* IRGenerator::createFunction(
     std::vector<std::shared_ptr<Omniscript::Expression>>& body,
     llvm::Type* returnType,
     std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope,
+    bool isVarArg
 ) {
-    llvm::Function* function = registerFunction(name, returnType, params, scope);
+    llvm::Function* function = registerFunction(name, returnType, params, scope, isVarArg);
     
     // Generate function body
     generateFunctionBody(name, function, params, body, scope);
@@ -101,7 +102,8 @@ llvm::Function* IRGenerator::registerFunction(
     const std::string& name,
     llvm::Type* returnType,
     std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
+    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope,
+    bool isVarArg
 ) {
     DEBUG_LOG("Creating function: " + name + " with parameter size " + std::to_string(params.size()));
     
@@ -120,7 +122,7 @@ llvm::Function* IRGenerator::registerFunction(
     llvm::FunctionType* funcType = llvm::FunctionType::get(
         returnType,
         paramTypes,
-        false
+        isVarArg
     );
 
     // Create function
@@ -237,10 +239,6 @@ void IRGenerator::generateFunctionBody(
                 llvm::Value* castedRet = castValue(retVal, function->getReturnType());
                 if (!castedRet) {
                     console.error("Failed to cast return value in function: " + function->getName().str());
-                    Builder->CreateUnreachable();
-                    popScope();
-                    popActiveBlock();
-                    function->eraseFromParent();
                     return;
                 }
                 retVal = castedRet;
@@ -251,10 +249,6 @@ void IRGenerator::generateFunctionBody(
         } else {
             // Error: Non-void function missing return
             console.error("Non-void function missing return: " + function->getName().str());
-            Builder->CreateUnreachable();
-            popScope();
-            popActiveBlock();
-            function->eraseFromParent();
             return;
         }
     }
