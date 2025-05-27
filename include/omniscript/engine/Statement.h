@@ -902,6 +902,7 @@ public NamedStatement,
 public TypedStatement,
 public ContextAwareStatement {
 public:
+    bool isVariadic = false;
     bool isConstant;
     std::shared_ptr<Statement> defaultValue;
 

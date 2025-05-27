@@ -554,6 +554,7 @@ struct UnaryExpression : public Expression {
 
 //params & args
 struct FunctionInputExpression : public Expression {
+    bool isVariadic = false;
     bool isConstant = false;
     std::shared_ptr<Expression> value;
 

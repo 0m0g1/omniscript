@@ -106,15 +106,21 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
 
     while (currentToken.getType() != TokenTypes::RightParen && currentToken.getType() != TokenTypes::EOI) {
         std::string paramName;
+        bool isVariadic = false;
         std::shared_ptr<Omniscript::Type> paramType;
         std::shared_ptr<Statement> defaultValue = nullptr;
+
+        if (currentToken.getType() == TokenTypes::Ellipsis) {
+            isVariadic = true;
+            eat(TokenTypes::Ellipsis);
+        }
 
         // Parse parameter name
         if (currentToken.getType() == TokenTypes::Identifier) {
             paramName = currentToken.getValue();
             eat(TokenTypes::Identifier);
         } else {
-            throw std::runtime_error("Expected parameter name.");
+            eat(TokenTypes::Identifier, "Expected a parameter name.");
         }
 
         // Expect colon for type annotation
@@ -135,6 +141,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
 
         // Store as a ParameterStatement
         auto parameter = std::make_shared<ParameterStatement>(paramName, defaultValue);
+        parameter->isVariadic = isVariadic;
         parameter->setType(paramType);
         parameters.push_back(parameter);
 

@@ -552,6 +552,9 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
         }
         auto result = param->express(localScope);
         if (auto paramStmt = std::dynamic_pointer_cast<ParameterStatement>(param)) {
+            if (paramStmt->isVariadic) {
+                isVarArg = true;
+            }
             if (paramIndex == 0 && paramStmt->getName() == "this") {
                 std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(result)->isConstant = true;
             } else {
@@ -590,6 +593,7 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     functionVal->externLanguage = externalLanguage;
     functionVal->isExtern = isExtern;
     functionVal->isIntrinsic = isIntrinsic;
+    functionVal->isVarArg = isVarArg;
 
     if (isExtern) {
         DEBUG_LOG("[Function] Storing function in scope '" + scope->getName() + "' under name: " + name + ".");
@@ -758,7 +762,10 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
         scope->set(name, result);
     }
 
-    return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result, isConstant);
+    auto param = std::make_shared<Omniscript::FunctionInputExpression>(name, type, result, isConstant);
+    param->isVariadic = isVariadic;
+
+    return param;
 }
 
 std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableType scope) {

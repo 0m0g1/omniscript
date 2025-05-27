@@ -736,9 +736,10 @@ Token Lexer::getOperator(char &currentChar) {
             column++;
             return Token(TokenTypes::Comma, "", line, column, sourceFilePath);
         case '.':
-            if (peek() == '.' and peek(2) == '.') {
-                currentPosition += 2;
-                column += 2;
+            if (peek() == '.' && peek(2) == '.') {
+                currentPosition += 3;
+                column += 3;
+                return Token(TokenTypes::Ellipsis, "", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
