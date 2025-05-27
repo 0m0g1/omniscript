@@ -296,12 +296,31 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         DEBUG_LOG("Calling " + call->calleeName);
         
         std::vector<llvm::Value*> args;
-        args.reserve(call->args.size());
+        args.reserve(call->args.size()); // Pre-reserve to avoid reallocations
 
         for (const auto& arg : call->args) {
             DEBUG_LOG(arg->toString());
-            args.emplace_back(codegen(arg, scope));
+
+            if (auto arr = std::dynamic_pointer_cast<Omniscript::ArrayExpression>(arg); arr && arr->isVariadicArray) {
+                // If variadic, reserve space ahead (optional perf tweak)
+                args.reserve(args.size() + arr->elements.size());
+
+                for (const auto& element : arr->elements) {
+                    if (auto value = codegen(element, scope)) {
+                        args.push_back(value);
+                    } else {
+                        console.error(formatError("Failed to generate code for variadic argument element."));
+                    }
+                }
+            } else {
+                if (auto value = codegen(arg, scope)) {
+                    args.push_back(value);
+                } else {
+                    console.error(formatError("Failed to generate code for argument: " + arg->toString()));
+                }
+            }
         }
+
 
         if (call->instanceName.empty()) {
             DEBUG_LOG("Creating a normal call");
@@ -1301,24 +1320,40 @@ llvm::Value* IRGenerator::createCall(
 ) {
     // 1. Look up function
     llvm::Function* func = Module->getFunction(callee);
-    if (!func) {
-        console.error("Function '" + callee + "' not found");
-        return nullptr;
+    
+    // 2. Verify argument count (allow extra args if the function is variadic)
+    auto *funcType = func->getFunctionType();
+    bool isVarArg = funcType->isVarArg();
+
+    size_t fixedParams = funcType->getNumParams();
+    size_t givenArgs  = args.size();
+
+    if (!isVarArg) {
+        // non-variadic: must match exactly
+        if (fixedParams != givenArgs) {
+            console.error("Argument count mismatch for '" + callee + "', expected " +
+                        std::to_string(fixedParams) + " but got " +
+                        std::to_string(givenArgs));
+            return nullptr;
+        }
+    } else {
+        // variadic: must have *at least* the fixed params
+        if (givenArgs < fixedParams) {
+            console.error("Argument count mismatch for variadic '" + callee +
+                        "', expected at least " + std::to_string(fixedParams) +
+                        " but got " + std::to_string(givenArgs));
+            return nullptr;
+        }
     }
 
-    // 2. Verify argument count
-    if (func->arg_size() != args.size()) {
-        console.error("Argument count mismatch for '" + callee + "'");
-        return nullptr;
-    }
 
     // 3. Type checking and casting
-    for (size_t i = 0; i < args.size(); ++i) {
-        llvm::Type* expected = func->getFunctionType()->getParamType(i);
+    for (size_t i = 0; i < fixedParams; ++i) {
+        llvm::Type* expected = funcType->getParamType(i);
         if (args[i]->getType() != expected) {
             llvm::Value* castedArg = castValue(args[i], expected);
             if (!castedArg) {
-                console.error("Type mismatch for argument " + std::to_string(i) + 
+                console.error("Type mismatch for argument " + std::to_string(i) +
                             " in call to '" + callee + "'");
                 return nullptr;
             }

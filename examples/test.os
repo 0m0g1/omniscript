@@ -18,8 +18,8 @@ extern "C" fn calloc(count: usize, size: usize) => void*;
 extern "C" fn printf(...fmt: char*) => int;
 
 
-let textCar: char* = malloc(5);
-printf("Hello world!!!\n");
+// let textCar: char* = malloc(5);
+printf("%s%s%s", "Hello world!!!\n", "hi\n", "hello\n");
 
 // class String {
 //    private text: char*;

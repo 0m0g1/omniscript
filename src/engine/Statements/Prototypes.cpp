@@ -287,6 +287,55 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             continue;
         }
 
+        if (param->isVariadic) {
+            DEBUG_LOG("[Call] Handling variadic parameter '" + paramName + "'");
+
+            std::vector<std::shared_ptr<Omniscript::Expression>> collectedArgs;
+
+            while (positionalArgIndex < args.size()) {
+                auto arg = args[positionalArgIndex++];
+
+                if (std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
+                    DEBUG_LOG("[Call] ERROR: Positional argument after named argument in variadic");
+                    console.error(formatError("Positional argument after named argument is not allowed."));
+                    continue;
+                }
+
+                auto typed = std::dynamic_pointer_cast<TypedStatement>(arg);
+                if (!typed) {
+                    console.error(formatError("Expected typed argument for variadic param '" + paramName + "'"));
+                    continue;
+                }
+
+                auto argType = typed->getRootType() ? typed->getRootType() : typed->getType();
+
+                if (!argType) {
+                    console.error(formatError("The variadic argument '" + arg->toString() + "' has no type"));
+                    continue;
+                }
+
+                if (!Omniscript::isSameOrCastableTo(argType, param->getType())) {
+                    console.error(formatError("Type mismatch in variadic arg for parameter '" + paramName + "'"));
+                    continue;
+                }
+
+                auto value = arg->express(scope);
+                if (!value || value->getType()->isInvalid()) {
+                    console.error(formatError("Invalid value in variadic argument for '" + paramName + "'"));
+                    continue;
+                }
+
+                collectedArgs.push_back(value);
+            }
+
+            // Wrap the collected values into an array-like container
+            auto arrayValue = std::make_shared<Omniscript::ArrayExpression>(param->getType(), collectedArgs, /* isVariadic */ true);
+
+            localScope->set(paramName, arrayValue);
+            DEBUG_LOG("[Call] Bound variadic parameter '" + paramName + "' with " + std::to_string(collectedArgs.size()) + " arguments");
+            continue; // Do not try to assign anything else to this param
+        }
+
         if (positionalArgIndex < args.size()) {
             auto arg = args[positionalArgIndex++];
 
@@ -459,6 +508,23 @@ bool Call::matchArgumentsToParameters(
 
         DEBUG_LOG("[Call] Matching parameter: " + paramName);
 
+        if (param->isVariadic) {
+            DEBUG_LOG("[Call] Parameter is variadic: " + paramName);
+
+            while (positionalIndex < positionalArgs.size()) {
+                auto arg = positionalArgs[positionalIndex++];
+                auto argType = (arg->value->getRootType() ? arg->value->getRootType() : arg->value->getType());
+
+                if (!Omniscript::isSameOrCastableTo(argType, param->getType())) {
+                    DEBUG_LOG("[Call] Type mismatch in variadic arguments for parameter: " + paramName);
+                    return false;
+                }
+            }
+
+            // After this variadic param, we ignore any further param definitions
+            break;
+        }
+
         if (namedArgs.count(paramName)) {
             matchingArg = namedArgs[paramName];
             matchedNames.insert(paramName);
@@ -491,8 +557,7 @@ bool Call::matchArgumentsToParameters(
     }
 
     if (positionalIndex < positionalArgs.size()) {
-        DEBUG_LOG("[Call] Too many positional arguments: expected " + std::to_string(positionalIndex) +
-                  ", but got " + std::to_string(positionalArgs.size()));
+        DEBUG_LOG("[Call] Too many positional arguments left unmatched (and no variadic parameter found)");
         return false;
     }
 
@@ -554,6 +619,7 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
         if (auto paramStmt = std::dynamic_pointer_cast<ParameterStatement>(param)) {
             if (paramStmt->isVariadic) {
                 isVarArg = true;
+                DEBUG_LOG("The function is variadic");
             }
             if (paramIndex == 0 && paramStmt->getName() == "this") {
                 std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(result)->isConstant = true;

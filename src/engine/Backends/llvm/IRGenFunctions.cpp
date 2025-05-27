@@ -19,6 +19,10 @@ llvm::Function* IRGenerator::createExternFunction(
         DEBUG_LOG("Resolved parameter type: " + type->description() + " to LLVM type: " + debugType(llvmType));
     }
 
+    if (isVarArg) {
+        DEBUG_LOG("The external function is variadic.");
+    }
+
     llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, paramTypes, isVarArg);
 
     llvm::Function* function = llvm::Function::Create(

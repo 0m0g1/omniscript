@@ -567,12 +567,14 @@ struct FunctionInputExpression : public Expression {
     std::string toString() const override { return "(FunctionInput: " + name + ", value: " + value->toString() + ")"; } 
 
     std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<FunctionInputExpression>(
+        auto input = std::make_shared<FunctionInputExpression>(
             name,
             type ? type->clone() : nullptr,
             value ? value->clone() : nullptr,
             isConstant
         );
+        input->isVariadic = isVariadic;
+        return input;
     }
 };
 
@@ -597,14 +599,7 @@ struct Callable : public virtual Expression {
     std::vector<std::shared_ptr<FunctionInputExpression>> cloneParameters() const {
         std::vector<std::shared_ptr<FunctionInputExpression>> clonedParams;
         for (const auto& parameter : parameters) {
-            if (auto param = std::dynamic_pointer_cast<FunctionInputExpression>(parameter)) {
-                clonedParams.push_back(std::make_shared<FunctionInputExpression>(
-                    param->name,
-                    param->type,
-                    param->value ? param->value->clone() : nullptr,
-                    param->isConstant
-                ));
-            }
+            clonedParams.push_back(std::dynamic_pointer_cast<FunctionInputExpression>(parameter->clone()));
         }
         return clonedParams;
     }
@@ -1385,10 +1380,11 @@ struct VariableAccess : public Expression {
 };
 
 struct ArrayExpression : public Expression {
+    bool isVariadicArray = false;
     std::vector<std::shared_ptr<Expression>> elements;
 
-    explicit ArrayExpression(std::shared_ptr<Type> type, std::vector<std::shared_ptr<Expression>> elements)
-        : elements(std::move(elements)) {
+    explicit ArrayExpression(std::shared_ptr<Type> type, std::vector<std::shared_ptr<Expression>> elements = {}, bool isVariadic = false)
+        : elements(std::move(elements)), isVariadicArray(isVariadic) {
         this->type = std::move(type);
         rootType = std::make_shared<Type>(Kind::Array);
     }

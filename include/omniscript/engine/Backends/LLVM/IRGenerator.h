@@ -64,7 +64,9 @@ private:
     llvm::Value* loadMemberFromStruct(llvm::Value* structPtr, llvm::StructType* structType, const std::string& memberName);
     llvm::Value* loadMemberFromClass(llvm::Value* classPtr, llvm::StructType* classType, const std::string& memberName);
     int getStructMemberIndex(llvm::StructType* structType, const std::string& memberName);
-      
+    inline std::string formatError(const std::string& msg) const {
+        return "[IRGenerator] " + msg;
+    }
 
 public:
     // Constructor initializes context, builder, and module
