@@ -132,7 +132,11 @@ std::string IRGenerator::debugType(llvm::Type* type) {
 }
 
 void IRGenerator::optimizeModule(int level) {
-    console.log("No optimization taking place");
+    if (level == -1) {
+        console.log("No optimization taking place");
+        return;
+    }
+    
     console.log("Running module verification before optimization...");
 
     if (llvm::verifyModule(*Module, &llvm::errs())) {

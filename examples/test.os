@@ -16,7 +16,7 @@ extern "C" fn free(ptr: void*) => void;
 extern "C" fn realloc(ptr: void*, size: usize) => void*;
 extern "C" fn calloc(count: usize, size: usize) => void*;
 
-let textCar: void* = malloc(5);
+let textCar: char* = malloc(5);
 
 // class String {
 //    private text: char*;
