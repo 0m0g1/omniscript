@@ -235,7 +235,6 @@ struct Primitive : public Expression {
         return std::make_shared<Primitive<T>>(value);
     }
 
-protected:
     T value;
 };
 

@@ -22,10 +22,11 @@
 // printf("%s%s%s", "Hello world!!!\n", "hi\n", "hello\n");
 
 function add(...nums : int) => i32 {
+   let n = nums_count;
    return 0;
 }
 
-let n : int32 = add(0, 0);
+let n : int32 = add(1, 2, 3);
 
 // function main(argc : int) => i32 {
 //    return 0;

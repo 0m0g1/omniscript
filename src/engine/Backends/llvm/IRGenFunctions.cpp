@@ -109,12 +109,25 @@ llvm::Function* IRGenerator::registerFunction(
     
     // Create function type
     std::vector<llvm::Type*> paramTypes;
-    for (auto& param : params) {
+    for (int i = 0; i < params.size(); i++) {
+        auto& param = params[i];
         auto type = param->getType();
         auto llvmType = resolveLLVMType(type);
+        auto parameter = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(param);
+        if (parameter->isVariadic) {
+            llvm::Type* countType = llvm::Type::getInt32Ty(*Context);
+            paramTypes.push_back(countType);
+            
+            std::shared_ptr<Omniscript::Type> intType = Omniscript::resolveType({"int32"});
+            auto countParam = std::make_shared<Omniscript::FunctionInputExpression>(parameter->name + "_count", intType);
+            params.insert(params.begin() + i, countParam);
+            DEBUG_LOG("Resolved parameter type: " + intType->toString() + " to LLVM type: " + debugType(llvmType));
+            i++;
+        }
         paramTypes.push_back(llvmType);
         
-        DEBUG_LOG("Resolved parameter type: " + type->description() + " to LLVM type: " + debugType(llvmType));
+        DEBUG_LOG("Resolved parameter type: " + type->toString() + " to LLVM type: " + debugType(llvmType));
+        i++;
     }
 
     DEBUG_LOG("Resolved return type LLVM: " + debugType(returnType));
@@ -135,8 +148,14 @@ llvm::Function* IRGenerator::registerFunction(
 
     // Set parameter names
     unsigned idx = 0;
+    bool foundArgsCount = false;
     for (auto& arg : function->args()) {
         auto& param = params[idx];
+        
+        if (idx >= params.size()) {
+            console.error("Parameter index out of bounds: " + std::to_string(idx));
+        }
+
         arg.setName(param->name);
         
         if (auto inpt = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(param)) {
@@ -147,7 +166,6 @@ llvm::Function* IRGenerator::registerFunction(
                     " of kind: " + param->getType()->description() + 
                     (inpt->isConstant ? " [const]" : ""));
         }
-        DEBUG_LOG("Setting function argument: " + param->name + " of kind: " + param->getType()->description());
         idx++;
     }
 
@@ -167,6 +185,8 @@ void IRGenerator::generateFunctionBody(
 ) {
     DEBUG_LOG("Generating body for function: " + function->getName().str());
     DEBUG_LOG("Function return type: " + debugType(function->getReturnType()));
+
+    auto savedIP = Builder->saveIP();  // Save current insertion point
 
     // Create entry block
     llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", function);
@@ -192,15 +212,38 @@ void IRGenerator::generateFunctionBody(
     }    
     
     // Create a new scope for function parameters + body
-    pushScope();
+    pushScope(name);
     DEBUG_LOG("Pushed new scope for function");
+    auto localScope = scope->createChildScope(name);
+
+    // Find the count index as before
+    int countIndex = -1;
+    for (int i = 0; i < (int)params.size(); ++i) {
+        auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(params[i]);
+        if (!param) {
+            console.error("Expected a parameter for parameter " + std::to_string(i));
+            return; // or return error
+        }
+        if (param->isVariadic) {
+            countIndex = i - 1;
+            break;
+        }
+    }
 
     // Create allocas for parameters in the entry block
     int index = 0;
+    bool foundArgsCount = false;
     for (auto& arg : function->args()) {
         std::string argName = arg.getName().str();
         DEBUG_LOG("Allocating parameter: " + argName + " with type: " + debugType(arg.getType()));
+
         auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(params[index]);
+
+        // if there is a variadic parameter there is one extra parameter
+        if ((countIndex >= 0 ? index >= params.size() + 1 : index >= params.size())) {
+            console.error("Parameter index out of bounds: " + std::to_string(index));
+            break;
+        }
 
         if (param->getName() == "this" && index == 0) {
             activeScope->set(argName, &arg); // Use directly
@@ -210,16 +253,66 @@ void IRGenerator::generateFunctionBody(
             activeScope->set(argName, alloca);
         }        
 
-        DEBUG_LOG("Stored parameter in scope: " + argName);
+        DEBUG_LOG("Stored parameter '" + argName + "' in scope.");
+
         index++;
+    }
+
+    if (countIndex >= 0) {
+        // Get the variadic count from alloca
+        auto countParamName = params[countIndex]->getName();
+
+        llvm::Value* countAlloca = activeScope->get(countParamName);
+        if (!countAlloca) {
+            console.error("Could not find alloca for count param: " + countParamName);
+            return;
+        }
+
+        llvm::Type* countType = llvm::Type::getInt32Ty(*Context);
+        llvm::Value* varArgCountValue = Builder->CreateLoad(countType, countAlloca, countParamName + "_load");
+
+        // Collect variadic args as llvm::Value*
+        std::vector<llvm::Value*> varArgValues;
+        llvm::Type* varArgType = nullptr;
+
+        for (int i = countIndex + 1; i < (int)params.size(); ++i) {
+            auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(params[i]);
+            if (!param) {
+                console.error("Expected a parameter for parameter " + std::to_string(i));
+                return; // or return error
+            }
+            if (!param->isVariadic) continue;
+
+            llvm::Argument* arg = function->getArg(i);
+            if (!varArgType) varArgType = arg->getType();
+
+            varArgValues.push_back(arg);
+        }
+
+        // Use your existing createFixedArray function
+        if (varArgType && !varArgValues.empty()) {
+            llvm::Value* fixedArray = createFixedArray(varArgType, varArgValues.size(), varArgValues);
+
+            // override the variadic parameter with the array
+            std::string varArgArrayName = params[countIndex]->getName();
+            std::string varArgCountName = params[countIndex]->getName() + "_count";
+
+            // Store fixedArray in the scope so your function body can access it
+            activeScope->set(varArgArrayName, fixedArray);
+
+            // Also store the count llvm::Value for convenience
+            activeScope->set(varArgCountName, varArgCountValue);
+        }
     }
 
     // Generate function body
     llvm::Value* retVal = nullptr;
     for (const auto& expr : body) {
         DEBUG_LOG("Generating code for body expression of kind: " + expr->getType()->description());
-        retVal = codegen(expr, scope);
-        if (retVal) {
+        retVal = codegen(expr, localScope);
+        if (!retVal && !function->getReturnType()->isVoidTy()) {
+            console.error("Expression returned null value in non-void function: " + function->getName().str());
+        } else if (retVal) {
             DEBUG_LOG("Body expression result type: " + debugType(retVal->getType()));
         }
     }
@@ -263,4 +356,6 @@ void IRGenerator::generateFunctionBody(
     } else {
         DEBUG_LOG("Function verified successfully: " + function->getName().str());
     }
+
+    Builder->restoreIP(savedIP); 
 }

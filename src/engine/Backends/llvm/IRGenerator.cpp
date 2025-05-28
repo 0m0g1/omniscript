@@ -190,6 +190,8 @@ void IRGenerator::optimizeModule(int level) {
 
 
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope) {
+    DEBUG_LOG();
+    DEBUG_LOG("Calling codegen on scope '" + scope->getName() + "' for '" + value->toString() + "'.");
     llvm::Value* result = codegenPrimitive(value, scope);
 
     if (result) {
