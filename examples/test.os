@@ -17,13 +17,18 @@
 // extern "C" fn calloc(count: usize, size: usize) => void*;
 // extern "C" fn printf(...fmt: char*) => int;
 
+// intrinsic fn intrinsic_random() => float;
 
 // let textCar: char* = malloc(5);
 // printf("%s%s%s", "Hello world!!!\n", "hi\n", "hello\n");
 
 function add(...nums : int) => i32 {
-   let n : int32 = nums_count;
-   return 0;
+   let sum : int32 = 0;
+   for (let index : int32 = 0; index < nums_count; index++) {
+      let elem = nums[index];
+      sum += elem;
+   }
+   return sum;
 }
 
 let n : int32 = add(1, 2, 3);

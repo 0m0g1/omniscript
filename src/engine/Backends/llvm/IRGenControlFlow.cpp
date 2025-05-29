@@ -8,7 +8,7 @@ llvm::Value* IRGenerator::createForLoop(
     llvm::LLVMContext& context = Builder->getContext();
 
     // Create a local scope for loop
-    // pushScope();
+    pushScope();
     auto localScope = scope->createChildScope("forloop");
 
     // Emit initializer if present
@@ -80,7 +80,7 @@ llvm::Value* IRGenerator::createForLoop(
 
     // Final block
     Builder->SetInsertPoint(afterBlock);
-    // popScope();
+    popScope();
 
     return nullptr;
 }

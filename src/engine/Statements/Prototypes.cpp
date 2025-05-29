@@ -691,16 +691,19 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
     if (!overloads.empty()) {
         for (const auto& overload : overloads) {
             if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
-                for (const auto& parameter : funcExpr->parameters) {
-                    auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(parameter);
-                    if (param->isVariadic) {
-                        // overide the variadics name with a static array
-                        auto argsCount = std::make_shared<Omniscript::Integer<int>>(0);
-                        auto argsArray = std::make_shared<Omniscript::ArrayExpression>(param->getType());
-                        DEBUG_LOG("The variadic paramter's name is '" + param->getName() + "'.");
-                        localScope->set(param->getName() + "_count", argsCount);
-                        localScope->set(param->getName(), argsArray);
-                        break;
+                // if is external function don't add an args count parameter and change the variadic to an array
+                if (!isExtern) {
+                    for (const auto& parameter : funcExpr->parameters) {
+                        auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(parameter);
+                        if (param->isVariadic) {
+                            // overide the variadics name with a static array
+                            auto argsCount = std::make_shared<Omniscript::Integer<int>>(0);
+                            auto argsArray = std::make_shared<Omniscript::ArrayExpression>(param->getType());
+                            DEBUG_LOG("The variadic paramter's name is '" + param->getName() + "' of type '" + param->getType()->toString() + "'.");
+                            localScope->set(param->getName() + "_count", argsCount);
+                            localScope->set(param->getName(), argsArray);
+                            break;
+                        }
                     }
                 }
                 if (mangledName == funcExpr->mangledName) {

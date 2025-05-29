@@ -276,6 +276,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         DEBUG_LOG("Creating a binary expression");
         llvm::Value* lhs = codegen(binary->left, scope);
         llvm::Value* rhs = codegen(binary->right, scope);
+        DEBUG_LOG("lhs type: '" + debugType(lhs->getType()) + "' rhs type: '" + debugType(rhs->getType()) + "'.");
         if (!lhs || !rhs) return nullptr;
         return createBinaryExpression(lhs, binary->op, rhs);
     }
@@ -1406,6 +1407,14 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
         throw std::runtime_error("Return statement outside function");
     }
 
+    llvm::Function* vaEndFunc = llvm::Intrinsic::getOrInsertDeclaration(Module.get(), llvm::Intrinsic::vaend);
+
+    // Insert va_end call before return, only if va_list was created
+    if (activeScope->get("va_list")) {
+        llvm::Value* vaListAlloca = activeScope->get("va_list");
+        Builder->CreateCall(vaEndFunc, { vaListAlloca });
+    }
+
     // Handle void returns
     if (currentFunction->getReturnType()->isVoidTy()) {
         if (returnValue) {
@@ -1518,24 +1527,46 @@ llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes
 llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes op, llvm::Value* right) {
     if (!left || !right) return nullptr;
 
-    // Type promotion helper
-    auto promoteTypes = [&]() {
-        if (left->getType() == right->getType()) return;
+    // // Type promotion helper
+    // auto promoteTypes = [&]() {
+    //     if (left->getType() == right->getType()) return;
 
-        // Integer promotion
-        if (left->getType()->isIntegerTy() && right->getType()->isIntegerTy()) {
-            unsigned maxBits = std::max(
-                left->getType()->getIntegerBitWidth(),
-                right->getType()->getIntegerBitWidth()
-            );
-            llvm::Type* targetType = llvm::Type::getIntNTy(*Context, maxBits);
-            left = Builder->CreateIntCast(left, targetType, true, "casttmp");
-            right = Builder->CreateIntCast(right, targetType, true, "casttmp");
-        }
-        // TODO: Add floating point promotion if needed
-    };
+    //     if (left->getType()->isIntegerTy() && right->getType()->isIntegerTy()) {
+    //         unsigned leftBits = left->getType()->getIntegerBitWidth();
+    //         unsigned rightBits = right->getType()->getIntegerBitWidth();
+    //         unsigned maxBits = std::max(leftBits, rightBits);
 
-    promoteTypes();
+    //         llvm::Type* targetType = llvm::Type::getIntNTy(*Context, maxBits);
+    //         if (leftBits != maxBits) {
+    //             left = Builder->CreateIntCast(left, targetType, /*isSigned*/ true, "castleft");
+    //         }
+    //         if (rightBits != maxBits) {
+    //             right = Builder->CreateIntCast(right, targetType, /*isSigned*/ true, "castright");
+    //         }
+    //     }
+    //     else if (left->getType()->isFloatingPointTy() && right->getType()->isFloatingPointTy()) {
+    //         unsigned leftBits = left->getType()->getPrimitiveSizeInBits();
+    //         unsigned rightBits = right->getType()->getPrimitiveSizeInBits();
+    //         unsigned maxBits = std::max(leftBits, rightBits);
+
+    //         llvm::Type* targetType = (maxBits == 64)
+    //             ? llvm::Type::getDoubleTy(*Context)
+    //             : llvm::Type::getFloatTy(*Context);
+
+    //         if (left->getType() != targetType)
+    //             left = Builder->CreateFPExt(left, targetType, "fpextleft");
+    //         if (right->getType() != targetType)
+    //             right = Builder->CreateFPExt(right, targetType, "fpextright");
+    //     }
+    //     else {
+    //         // Mismatch of incompatible types (int vs float, pointer vs int, etc.)
+    //         throw std::runtime_error("Unsupported operand types for binary expression: " +
+    //             std::string(left->getType()->getStructName()) + " and " +
+    //             std::string(right->getType()->getStructName()));
+    //     }
+    // };
+
+    // promoteTypes();
 
     switch (op) {
         // Arithmetic

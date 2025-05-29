@@ -1385,8 +1385,8 @@ struct ArrayExpression : public Expression {
 
     explicit ArrayExpression(std::shared_ptr<Type> type, std::vector<std::shared_ptr<Expression>> elements = {}, bool isVariadic = false)
         : elements(std::move(elements)), isVariadicArray(isVariadic) {
-        this->type = std::move(type);
-        rootType = std::make_shared<Type>(Kind::Array);
+        this->type = Type::createFixedArrayType(type, elements.size());
+        this->rootType = this->type;
     }
 
     std::string toString() const override {

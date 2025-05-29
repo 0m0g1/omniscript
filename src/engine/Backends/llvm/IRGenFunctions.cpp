@@ -258,63 +258,44 @@ void IRGenerator::generateFunctionBody(
         index++;
     }
 
-    if (countIndex >= 0) {
-        // Get the variadic count from alloca
-        auto countParamName = params[countIndex]->getName();
+    if (function->getFunctionType()->isVarArg()) {
+        // 1. Allocate va_list variable (usually a pointer-sized alloca)
+        llvm::Type* i8Ty = llvm::Type::getInt8Ty(*Context);
+        llvm::Type* i8PtrTy = llvm::PointerType::getUnqual(i8Ty);
+        llvm::AllocaInst* vaListAlloca = createEntryBlockAlloca(function, i8PtrTy, "va_list");
+        
+        // 2. Insert call to llvm.va_start intrinsic with the va_list
+        // llvm::FunctionCallee vaStartCallee = llvm::Intrinsic::getOrInsertDeclaration(Module.get(), llvm::Intrinsic::vastart);
+        // llvm::Function* vaStartFunc = llvm::dyn_cast<llvm::Function>(vaStartCallee.getCallee());
 
-        llvm::Value* countAlloca = activeScope->get(countParamName);
-        if (!countAlloca) {
-            console.error("Could not find alloca for count param: " + countParamName);
-            return;
-        }
+        // Builder->CreateCall(vaStartFunc, { vaListAlloca });
 
-        llvm::Type* countType = llvm::Type::getInt32Ty(*Context);
-        llvm::Value* varArgCountValue = Builder->CreateLoad(countType, countAlloca, countParamName + "_load");
+        // Now, you can expose vaListAlloca in the scope so the function's body codegen
+        // can generate llvm.va_arg calls as needed to fetch variadic arguments dynamically.
 
-        // Collect variadic args as llvm::Value*
-        std::vector<llvm::Value*> varArgValues;
-        llvm::Type* varArgType = nullptr;
+        activeScope->set("va_list", vaListAlloca);
 
-        for (int i = countIndex + 1; i < (int)params.size(); ++i) {
-            auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(params[i]);
-            if (!param) {
-                console.error("Expected a parameter for parameter " + std::to_string(i));
-                return; // or return error
-            }
-            if (!param->isVariadic) continue;
-
-            llvm::Argument* arg = function->getArg(i);
-            if (!varArgType) varArgType = arg->getType();
-
-            varArgValues.push_back(arg);
-        }
-
-        // Use your existing createFixedArray function
-        if (varArgType && !varArgValues.empty()) {
-            llvm::Value* fixedArray = createFixedArray(varArgType, varArgValues.size(), varArgValues);
-
-            // override the variadic parameter with the array
-            std::string varArgArrayName = params[countIndex]->getName();
-            std::string varArgCountName = params[countIndex]->getName() + "_count";
-
-            // Store fixedArray in the scope so your function body can access it
-            activeScope->set(varArgArrayName, fixedArray);
-
-            // Also store the count llvm::Value for convenience
-            activeScope->set(varArgCountName, varArgCountValue);
-        }
+        // Note: You should also insert llvm.va_end before the function returns,
+        // ideally right before every return instruction. You can either:
+        // - Track all return points and insert va_end calls there, or
+        // - Insert one before the function epilogue if you have a single return.
     }
+
 
     // Generate function body
     llvm::Value* retVal = nullptr;
+
     for (const auto& expr : body) {
-        DEBUG_LOG("Generating code for body expression of kind: " + expr->getType()->description());
-        retVal = codegen(expr, localScope);
-        if (!retVal && !function->getReturnType()->isVoidTy()) {
-            console.error("Expression returned null value in non-void function: " + function->getName().str());
-        } else if (retVal) {
-            DEBUG_LOG("Body expression result type: " + debugType(retVal->getType()));
+        if (Builder->GetInsertBlock()->getTerminator()) {
+            break; // Don't emit instructions after return
         }
+
+        DEBUG_LOG("Generating code for body expression of kind: " + expr->getType()->toString());
+        retVal = codegen(expr, localScope);
+
+        if (retVal) {
+            DEBUG_LOG("Body expression result type: " + debugType(retVal->getType()));
+        } 
     }
 
     // Handle implicit return if needed

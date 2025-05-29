@@ -283,14 +283,14 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::express(SymbolTableType sco
 
     auto containerType = containerExpr->getType();
     if (!containerType->isArray() && !containerType->isPointer()) {
-        console.error("Index access requires an array or pointer type");
+        console.error("Index access requires an array or pointer type not '" + containerType->toString() + "'.");
         return nullptr;
     }
 
     // Set the result type (for pointer it's the pointee type, for array it's the element type)
     auto resultType = containerType->isPointer() 
         ? containerType->getBasePointeeType() 
-        : containerType->getElementType();
+        : containerType->elementType;
     setType(resultType);
 
     // Handle assignment if present
