@@ -1364,10 +1364,11 @@ struct VariableAssignment : public Expression {
 
 struct VariableAccess : public Expression {
     std::string variableName;
-    std::shared_ptr<Type> type;
 
     explicit VariableAccess(std::string name, std::shared_ptr<Type> type = nullptr) 
-        : variableName(std::move(name)), type(type) {}
+        : variableName(std::move(name)) {
+            this->type = type ? type : this->type;
+        }
 
     std::string toString() const override {
         return "Variable: " + variableName;

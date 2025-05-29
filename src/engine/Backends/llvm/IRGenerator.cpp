@@ -200,7 +200,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
 
     // Handle VariableAssignment
     if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(value)) {
-        DEBUG_LOG("Assigning variable " + varAssign->variableName + " of type " + varAssign->getType()->description());
+        DEBUG_LOG("Assigning variable " + varAssign->variableName + " of type " + varAssign->getType()->toString());
         llvm::Type* type = resolveLLVMType(varAssign->getType());
         DEBUG_LOG("Variable '" + varAssign->variableName + "' has type '" + debugType(type) + "'.");
         llvm::Value* value = codegen(varAssign->getValue(), scope);

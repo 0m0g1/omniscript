@@ -67,9 +67,24 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
 
 // Get Variable
 std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType scope) {
-    if (!type) {
-        setType(scope->get(name)->getType());
+    DEBUG_LOG();
+    DEBUG_LOG("Getting symbol '" + name + "'.");
+    if (!scope->exists(name)) {
+        console.error("Symbol '" + name + "' does not exist in scope '" + scope->getName() + "'.");
     }
+
+    std::shared_ptr<Omniscript::Type> symbolType = scope->get(name)->getType();
+
+    if (type) {
+        if (!Omniscript::isSameOrCastableTo(symbolType, type)) {
+            console.error("Symbol '" + name + "' is of type '" + symbolType->toString() + "' it cannot be casted to a '" + type->toString() + "'.");
+        }
+        DEBUG_LOG("The casted type is '" + type->toString() + "'.");
+    } else {
+        DEBUG_LOG("The infered type is '" + symbolType->toString() + "'.");
+        setType(symbolType);
+    }
+
     return std::make_shared<Omniscript::VariableAccess>(name, type);
 }
 
@@ -82,7 +97,7 @@ std::shared_ptr<Omniscript::Expression> GetDynamicVariable::express(SymbolTableT
 }
 
 std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType scope) {
-    DEBUG_LOG("Assigning variable " + variable);
+    DEBUG_LOG("Assigning variable " + variable + (type? " of type " + type->toString() : ""));
 
     std::shared_ptr<Omniscript::Expression> result;
 
@@ -115,9 +130,10 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
             if (!value) {
                 result = std::make_shared<Omniscript::NullExpression>(type);
             } else if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
-                if (!typed->getType()) {
+                if (!typed->getType() && !type->isInvalid()) {
                     typed->setType(type);
                     result = value->express(scope);
+                    DEBUG_LOG("The variables set type is '" + type->toString() + "'.");
                 } else {
                     result = value->express(scope);
                     if (type->getKind() != result->getType()->getKind() && !result->getType()->isNull()) {
@@ -212,7 +228,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                     "The result is " + variable + " " + result->getType()->toString() + " = " + result->toString()
                 );
     } else {
-        DEBUG_LOG("No type was deduced for variable '" + variable + "'. It had a value and no type or multiple types. Returning its result.");
+        DEBUG_LOG("No type was deduced for variable '" + variable + "'.\n It had a value and no type or multiple types. Returning its result.");
         return result;
     }
 

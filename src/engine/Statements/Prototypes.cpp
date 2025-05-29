@@ -286,12 +286,11 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             continue;
         }
         
-        if (i < parameters.size() - 1) {       
+        if (i < parameters.size() - 1) {   
+            // Check if the next parameter is variadic and automatically insert the args count    
             if (parameters[i + 1]->isVariadic) {
                 paramName = parameters[i + 1]->name;
                 int varArgsCountIndex = i;
-                positionalArgIndex++;
-                i++;
     
                 DEBUG_LOG("[Call] Handling variadic parameter '" + paramName + "'");
                 
@@ -334,7 +333,11 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     varArgsCount++;
                     collectedArgs.push_back(value);
                 }
-    
+                
+                // skip the args count
+                positionalArgIndex++;
+                i++;
+
                 auto argsCountExpr = std::make_shared<Omniscript::Integer<int>>(varArgsCount);
                 localScope->set(paramName + "_count", argsCountExpr);
                 
@@ -694,6 +697,7 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
                         // overide the variadics name with a static array
                         auto argsCount = std::make_shared<Omniscript::Integer<int>>(0);
                         auto argsArray = std::make_shared<Omniscript::ArrayExpression>(param->getType());
+                        DEBUG_LOG("The variadic paramter's name is '" + param->getName() + "'.");
                         localScope->set(param->getName() + "_count", argsCount);
                         localScope->set(param->getName(), argsArray);
                         break;

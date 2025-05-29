@@ -22,7 +22,7 @@
 // printf("%s%s%s", "Hello world!!!\n", "hi\n", "hello\n");
 
 function add(...nums : int) => i32 {
-   let n = nums_count;
+   let n : int32 = nums_count;
    return 0;
 }
 
