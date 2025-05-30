@@ -135,10 +135,11 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
 
 std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
     eat(TokenTypes::Intrinsic);
-    std::string functionName = currentToken.getValue();
     if (currentToken.getType() == TokenTypes::Function) {
         eat(TokenTypes::Function);
     }
+    std::string functionName = currentToken.getValue();
+    eat(TokenTypes::Identifier);
     std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
     function->isIntrinsic = true;
 
