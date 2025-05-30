@@ -289,10 +289,16 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         }
         
         if (calledFunc) {
-            if (!calledFunc->isExtern && i < parameters.size() - 1) {   
+            int variadicIndex = i;
+            // if the function is extern don't add an implied count
+            // The variadic parameter should be the current parameter not the parameter after the countd 
+            if (!calledFunc->isExtern) {
+                variadicIndex++;
+            }
+            if (variadicIndex < parameters.size()) {   
                 // Check if the next parameter is variadic and automatically insert the args count    
-                if (parameters[i + 1]->isVariadic) {
-                    paramName = parameters[i + 1]->name;
+                if (parameters[variadicIndex]->isVariadic) {
+                    paramName = parameters[variadicIndex]->name;
                     int varArgsCountIndex = i;
         
                     DEBUG_LOG("[Call] Handling variadic parameter '" + paramName + "'");
@@ -340,9 +346,12 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     // skip the args count
                     positionalArgIndex++;
                     i++;
-    
-                    auto argsCountExpr = std::make_shared<Omniscript::Integer<int>>(varArgsCount);
-                    localScope->set(paramName + "_count", argsCountExpr);
+                    
+                    // external functions don't have an implied count, only an explicit count
+                    if (!calledFunc->isExtern) {
+                        auto argsCountExpr = std::make_shared<Omniscript::Integer<int>>(varArgsCount);
+                        localScope->set(paramName + "_count", argsCountExpr);
+                    }
                     
                     // Wrap the collected values into an array-like container
                     auto arrayValue = std::make_shared<Omniscript::ArrayExpression>(param->getType(), collectedArgs, /* isVariadic */ true);

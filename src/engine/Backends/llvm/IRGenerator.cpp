@@ -1527,47 +1527,6 @@ llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes
 llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes op, llvm::Value* right) {
     if (!left || !right) return nullptr;
 
-    // // Type promotion helper
-    // auto promoteTypes = [&]() {
-    //     if (left->getType() == right->getType()) return;
-
-    //     if (left->getType()->isIntegerTy() && right->getType()->isIntegerTy()) {
-    //         unsigned leftBits = left->getType()->getIntegerBitWidth();
-    //         unsigned rightBits = right->getType()->getIntegerBitWidth();
-    //         unsigned maxBits = std::max(leftBits, rightBits);
-
-    //         llvm::Type* targetType = llvm::Type::getIntNTy(*Context, maxBits);
-    //         if (leftBits != maxBits) {
-    //             left = Builder->CreateIntCast(left, targetType, /*isSigned*/ true, "castleft");
-    //         }
-    //         if (rightBits != maxBits) {
-    //             right = Builder->CreateIntCast(right, targetType, /*isSigned*/ true, "castright");
-    //         }
-    //     }
-    //     else if (left->getType()->isFloatingPointTy() && right->getType()->isFloatingPointTy()) {
-    //         unsigned leftBits = left->getType()->getPrimitiveSizeInBits();
-    //         unsigned rightBits = right->getType()->getPrimitiveSizeInBits();
-    //         unsigned maxBits = std::max(leftBits, rightBits);
-
-    //         llvm::Type* targetType = (maxBits == 64)
-    //             ? llvm::Type::getDoubleTy(*Context)
-    //             : llvm::Type::getFloatTy(*Context);
-
-    //         if (left->getType() != targetType)
-    //             left = Builder->CreateFPExt(left, targetType, "fpextleft");
-    //         if (right->getType() != targetType)
-    //             right = Builder->CreateFPExt(right, targetType, "fpextright");
-    //     }
-    //     else {
-    //         // Mismatch of incompatible types (int vs float, pointer vs int, etc.)
-    //         throw std::runtime_error("Unsupported operand types for binary expression: " +
-    //             std::string(left->getType()->getStructName()) + " and " +
-    //             std::string(right->getType()->getStructName()));
-    //     }
-    // };
-
-    // promoteTypes();
-
     switch (op) {
         // Arithmetic
         case TokenTypes::Plus:
@@ -1988,66 +1947,6 @@ llvm::Value* IRGenerator::handleIndexAccess(
     // Load the value
     return Builder->CreateLoad(resolveLLVMType(expr->getType()), elementPtr, "load.index");
 }
-
-// llvm::Value* IRGenerator::getMember(llvm::Value* object, const std::string& memberName) {
-//     if (!object) {
-//         console.error("Object cannot be null");
-//     }
-
-//     llvm::Type* objType = object->getType();
-    
-//     // Handle pointer types (structs and class instances are usually pointers)
-//     if (objType->isPointerTy()) {
-//         objType = objType->getPointerElementType();
-//     }
-
-//     if (auto* structType = llvm::dyn_cast<llvm::StructType>(objType)) {
-//         // 🔹 Lookup field index from struct metadata
-//         auto it = structDefinitions.find(structType->getName().str());
-//         if (it == structDefinitions.end()) {
-//             console.error("Unknown struct: " + structType->getName().str());
-//             return nullptr;
-//         }
-
-//         const auto& fieldMap = it->second; // Map of field names to indices
-//         auto fieldIt = fieldMap.find(memberName);
-//         if (fieldIt == fieldMap.end()) {
-//             console.error("Struct '" + structType->getName().str() + "' has no member '" + memberName + "'");
-//             return nullptr;
-//         }
-
-//         unsigned fieldIndex = fieldIt->second;
-
-//         // 🔹 Get pointer to field
-//         llvm::Value* fieldPtr = Builder->CreateStructGEP(structType, object, fieldIndex, memberName + "_ptr");
-
-//         // 🔹 Load field value
-//         return Builder->CreateLoad(structType->getElementType(fieldIndex), fieldPtr, memberName);
-//     }
-    
-//     // 🔹 Handle class types (assuming they are mapped similarly to structs)
-//     if (auto* classType = llvm::dyn_cast<llvm::StructType>(objType)) {
-//         auto it = classDefinitions.find(classType->getName().str());
-//         if (it == classDefinitions.end()) {
-//             console.error("Unknown class: " + classType->getName().str());
-//             return nullptr;
-//         }
-
-//         const auto& methodMap = it->second;
-//         auto fieldIt = methodMap.find(memberName);
-//         if (fieldIt == methodMap.end()) {
-//             console.error("Class '" + classType->getName().str() + "' has no member '" + memberName + "'");
-//             return nullptr;
-//         }
-
-//         unsigned fieldIndex = fieldIt->second;
-//         llvm::Value* fieldPtr = Builder->CreateStructGEP(classType, object, fieldIndex, memberName + "_ptr");
-//         return Builder->CreateLoad(classType->getElementType(fieldIndex), fieldPtr, memberName);
-//     }
-
-//     console.error("Cannot access member '" + memberName + "' of non-struct/class type.");
-//     return nullptr;
-// }
 
 // Getter: Load a member variable from an object
 llvm::Value* IRGenerator::loadMemberValue(const std::string& objectName, const std::string& memberName) { 
