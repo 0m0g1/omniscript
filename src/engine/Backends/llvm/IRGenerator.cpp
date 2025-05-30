@@ -81,7 +81,9 @@ void IRGenerator::initialize() {
     Builder->SetInsertPoint(entry);
     // Builder->CreateRetVoid(); // placeholder
 
-    CurrentModule = Module.get();
+    currentModule = Module.get();
+    addExternalResolver("C", std::make_unique<CStdLibResolver>());
+    addExternalResolver("glfw", std::make_unique<DynamicLibraryResolver>("dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll"));
 }
 
 void IRGenerator::finalize() {
@@ -110,18 +112,61 @@ void IRGenerator::printIR() {
 void IRGenerator::printErrors() {
     if (llvm::verifyModule(*Module, &llvm::errs())) {
         llvm::errs() << "Module verification for '" << Module->getModuleIdentifier() << "' failed!\n";
-    } else {
-        llvm::errs() << "No errors found in '" << Module->getModuleIdentifier() << "'.\n";
-    }
+    } 
+    // else {
+    //     llvm::errs() << "No errors found in '" << Module->getModuleIdentifier() << "'.\n";
+    // }
 }
 
 void IRGenerator::printErrors(llvm::Module& module) {
     if (llvm::verifyModule(module, &llvm::errs())) {
         llvm::errs() << "Module verification for '" << module.getModuleIdentifier() << " failed! '\n";
         module.print(llvm::outs(), nullptr);
-    } else {
-        llvm::errs() << "No errors found in: '" << module.getModuleIdentifier() << "'.\n";
+    } 
+    // else {
+    //     llvm::errs() << "No errors found in: '" << module.getModuleIdentifier() << "'.\n";
+    // }
+}
+
+void IRGenerator::printAssembly() {
+    // Initialize targets
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmPrinters();
+
+    auto targetTriple = llvm::sys::getDefaultTargetTriple();
+    std::string error;
+    const llvm::Target* target = llvm::TargetRegistry::lookupTarget(targetTriple, error);
+
+    if (!target) {
+        llvm::errs() << "Error: " << error << "\n";
+        return;
     }
+
+    auto cpu = "generic";
+    auto features = "";
+
+    llvm::TargetOptions opt;
+    auto RM = std::optional<llvm::Reloc::Model>();
+    llvm::TargetMachine* targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, RM);
+
+    Module->setDataLayout(targetMachine->createDataLayout());
+    Module->setTargetTriple(targetTriple);
+
+    llvm::legacy::PassManager pass;
+    llvm::SmallString<0> asmOutput;
+    llvm::raw_svector_ostream outStream(asmOutput);
+
+    if (targetMachine->addPassesToEmitFile(pass, outStream, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
+        llvm::errs() << "TargetMachine can't emit a file of this type\n";
+        return;
+    }
+
+    pass.run(*Module);
+
+    // Now print the generated assembly
+    llvm::outs() << asmOutput.str();
 }
 
 std::string IRGenerator::debugType(llvm::Type* type) {
@@ -133,14 +178,14 @@ std::string IRGenerator::debugType(llvm::Type* type) {
 
 void IRGenerator::optimizeModule(int level) {
     if (level == -1) {
-        console.log("No optimization taking place");
+        DEBUG_LOG("No optimization taking place");
         return;
     }
     
-    console.log("Running module verification before optimization...");
+    DEBUG_LOG("Running module verification before optimization...");
 
     if (llvm::verifyModule(*Module, &llvm::errs())) {
-        throw std::runtime_error("Module verification failed before optimization");
+        console.error("Module verification failed before optimization");
     }
 
     llvm::LoopAnalysisManager lam;
@@ -180,12 +225,6 @@ void IRGenerator::optimizeModule(int level) {
         console.error("Exception during optimization: " + std::string(ex.what()));
         throw;
     }
-
-    console.log("Optimized Code:\n");
-    printIR();
-
-    console.log("Errors in Optimized Code:\n");
-    printErrors();
 }
 
 
@@ -647,8 +686,8 @@ void IRGenerator::generateModule(
     // pushScope();
 
     // auto newModule = std::make_unique<llvm::Module>(modulePath, *Context);
-    // llvm::Module* previousModule = CurrentModule;
-    // CurrentModule = newModule.get();
+    // llvm::Module* previousModule = currentModule;
+    // currentModule = newModule.get();
 
     // std::unordered_map<std::string, llvm::Value*> publicMembers;
 
@@ -704,8 +743,8 @@ void IRGenerator::generateModule(
     //     }
     // }
 
-    // printErrors(*CurrentModule);
-    // CurrentModule = previousModule;
+    // printErrors(*currentModule);
+    // currentModule = previousModule;
 
     // popScope();
     
@@ -1271,8 +1310,8 @@ llvm::Value* IRGenerator::createFixedArray(
         Builder->SetInsertPoint(currentBlock, termIt);
     }
 
-    const llvm::DataLayout& dataLayout = CurrentModule != nullptr 
-        ? CurrentModule->getDataLayout() 
+    const llvm::DataLayout& dataLayout = currentModule != nullptr 
+        ? currentModule->getDataLayout() 
         : Module->getDataLayout();
 
     unsigned elementAlign = dataLayout.getABITypeAlign(elementType).value();
@@ -1323,6 +1362,10 @@ llvm::Value* IRGenerator::createCall(
 ) {
     // 1. Look up function
     llvm::Function* func = Module->getFunction(callee);
+
+    if (!func) {
+        console.error("Function '" + callee + "' was not found in scope '" + activeScope->getName() + "'");
+    }
     
     // 2. Verify argument count (allow extra args if the function is variadic)
     auto *funcType = func->getFunctionType();
@@ -1404,7 +1447,7 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
     // Get current function and verify we're in a function context
     llvm::Function* currentFunction = Builder->GetInsertBlock()->getParent();
     if (!currentFunction) {
-        throw std::runtime_error("Return statement outside function");
+        console.error("Return statement outside function");
     }
 
     llvm::Function* vaEndFunc = llvm::Intrinsic::getOrInsertDeclaration(Module.get(), llvm::Intrinsic::vaend);
@@ -1418,19 +1461,19 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
     // Handle void returns
     if (currentFunction->getReturnType()->isVoidTy()) {
         if (returnValue) {
-            throw std::runtime_error("Void function cannot return a value");
+            console.error("Void function cannot return a value");
         }
         return Builder->CreateRetVoid();
     }
 
     // Handle value returns
     if (!returnValue) {
-        throw std::runtime_error("Non-void function must return a value");
+        console.error("Non-void function must return a value");
     }
 
     // Ensure type compatibility
     if (returnValue->getType() != expectedReturnType) {
-        throw std::runtime_error(
+        console.error(
                                 "Return type mismatch: expected " + 
                                  debugType(expectedReturnType) + 
                                  ", got " + 
@@ -1472,7 +1515,10 @@ std::string IRGenerator::typeToString(llvm::Type* type) {
 }
 
 llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes op, bool isPostfix) {
-    if (!operand) return nullptr;
+    if (!operand) {
+        console.error("Unknown unary operation");
+        return nullptr;
+    };
 
     // Handle numeric operations (both integer and floating point)
     auto handleNumericUnary = [&](auto createOp) -> llvm::Value* {
@@ -1520,12 +1566,17 @@ llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes
         }
 
         default:
-            throw std::runtime_error("Unknown unary operator");
+            console.error("Unknown unary operator");
+            return nullptr;
     }
+    return nullptr;
 }
 
 llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes op, llvm::Value* right) {
-    if (!left || !right) return nullptr;
+    if (!left || !right) {
+        console.error("Unknown binary operation");
+        return nullptr;
+    };
 
     switch (op) {
         // Arithmetic
@@ -1619,12 +1670,17 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
                 ? Builder->CreateAShr(left, right, "shrtmp")
                 : nullptr;
         default:
-            throw std::runtime_error("Unknown binary operator");
-    }
+            console.error("Unknown binary operator");
+            return nullptr;
+        }
+    return nullptr;
 }
 
 llvm::Value* IRGenerator::createTernaryExpression(llvm::Value* cond, llvm::Value* truthy, llvm::Value* falsey) {
-    if (!cond || !truthy || !falsey) return nullptr;
+    if (!cond || !truthy || !falsey) {
+        console.error("Unknown ternary operation");
+        return nullptr;
+    };
 
     // Convert condition to bool if needed
     if (!cond->getType()->isIntegerTy(1)) {
@@ -2223,7 +2279,7 @@ llvm::Value* IRGenerator::createModuleObject(
     const std::unordered_map<std::string, llvm::Value*>& members
 ) {
     llvm::LLVMContext& ctx = Builder->getContext();
-    llvm::Module* mod = CurrentModule;
+    llvm::Module* mod = currentModule;
 
     DEBUG_LOG("Creating module object: " + moduleName);
 

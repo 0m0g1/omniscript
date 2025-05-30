@@ -65,13 +65,21 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     irGen->finalizeGlobalInitializers();
     irGen->finalize();
 
-    DEBUG_LOG();
-    irGen->printIR();
-    DEBUG_LOG();
-    irGen->printErrors();
-    DEBUG_LOG();
-    
     irGen->optimizeModule(config.optimizationLevel);
+    
+    if (config.logFinalCode) {
+        DEBUG_LOG();
+        irGen->printIR();
+        DEBUG_LOG();
+        irGen->printErrors();
+        DEBUG_LOG();
+    }
+
+    if (config.logAsm) {
+        DEBUG_LOG();
+        irGen->printAssembly();
+        DEBUG_LOG();
+    }
     
     llvm::orc::ThreadSafeContext tsContext(irGen->getContext());
     auto module = std::move(irGen->getModule());
@@ -100,20 +108,20 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     }
     
     if (!func) {
-        throw std::runtime_error("No valid entry function found (expected '__main' or '__top_level__').");
+        console.error("No valid entry function found (expected '__main' or '__top_level__').");
     }
     
     // Add the module to the JIT
     llvm::orc::ThreadSafeModule tsm(std::move(module), tsContext);
     if (auto err = jit->addIRModule(std::move(tsm))) {
-        throw std::runtime_error("Failed to add IR module to JIT");
+        console.error("Failed to add IR module to JIT");
     }
     
     // Look up the entry point function
     auto entrySymbol = jit->lookup(entryPoint);
     if (!entrySymbol) {
         llvm::logAllUnhandledErrors(entrySymbol.takeError(), llvm::errs(), "JIT Lookup Error: ");
-        throw std::runtime_error("Failed to find entry symbol: " + entryPoint);
+        console.error("Failed to find entry symbol: " + entryPoint);
     }
     
     llvm::Type* returnType = func->getReturnType();
@@ -121,41 +129,41 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     // Execute the entry function based on its return type
     if (entryPoint == "__top_level__") {
         if (!returnType->isVoidTy()) {
-            throw std::runtime_error("__top_level__ must return void.");
+            console.error("__top_level__ must return void.");
         }
-        console.log("Executing top-level code (__top_level__)...");
+        DEBUG_LOG("Executing top-level code (__top_level__)...");
         auto entryFunc = entrySymbol->toPtr<void(*)()>();
         entryFunc();
-        console.log("Execution Completed (void function).");
+        DEBUG_LOG("Execution Completed (void function).");
         
     } else if (entryPoint == "__main") {
         if (!returnType->isIntegerTy(32)) {
-            throw std::runtime_error("__main must return and int 32.");
+            console.error("__main must return and int 32.");
         }
-        console.log("Executing __main function...");
+        DEBUG_LOG("Executing __main function...");
         auto entryFunc = entrySymbol->toPtr<int(*)()>();
         int result = entryFunc();
-        console.log("Execution Result: " + std::to_string(result));
+        DEBUG_LOG("Execution Result: " + std::to_string(result));
         
     } else { // Custom entry function
-        console.log("Executing custom entry function: " + entryPoint + "...");
+        DEBUG_LOG("Executing custom entry function: " + entryPoint + "...");
         
         if (returnType->isIntegerTy(32)) {
             auto entryFunc = entrySymbol->toPtr<int(*)()>();
             int result = entryFunc();
-            console.log("Execution Result: " + std::to_string(result));
+            DEBUG_LOG("Execution Result: " + std::to_string(result));
         } else if (returnType->isVoidTy()) {
             auto entryFunc = entrySymbol->toPtr<void(*)()>();
             entryFunc();
-            console.log("Execution Completed (void function).");
+            DEBUG_LOG("Execution Completed (void function).");
         } else {
-            throw std::runtime_error("Unsupported return type for custom entry function.");
+            console.error("Unsupported return type for custom entry function.");
         }
     }
     
     // Execute any pending calls if needed
     if (config.entry.empty() && !jit->lookup("__main")) {
-        console.log("Executing pending calls...");
+        DEBUG_LOG("Executing pending calls...");
         for (auto& call : pendingCalls) {
             call();
         }

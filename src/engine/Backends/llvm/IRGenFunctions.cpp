@@ -8,34 +8,26 @@ llvm::Function* IRGenerator::createExternFunction(
     const std::vector<std::shared_ptr<Omniscript::Expression>>& params,
     bool isVarArg
 ) {
-    DEBUG_LOG("Creating extern \"" + language + "\" function: " + name);
-
     std::vector<llvm::Type*> paramTypes;
-    for (auto& param : params) {
-        auto type = param->getType();
-        auto llvmType = resolveLLVMType(type);
-        paramTypes.push_back(llvmType);
-        
-        DEBUG_LOG("Resolved parameter type: " + type->description() + " to LLVM type: " + debugType(llvmType));
-    }
-
-    if (isVarArg) {
-        DEBUG_LOG("The external function is variadic.");
+    for (const auto& param : params) {
+        paramTypes.push_back(resolveLLVMType(param->getType()));
     }
 
     llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, paramTypes, isVarArg);
 
-    llvm::Function* function = llvm::Function::Create(
-        funcType,
-        llvm::Function::ExternalLinkage,
-        name,
-        CurrentModule
-    );
+    auto it = resolvers.find(language);
+    if (it == resolvers.end()) {
+        console.error("No resolver found for language: " + language);
+        return nullptr;
+    }
 
-    // Optionally store it in the active scope
+    llvm::Function* function = it->second->resolve(*this, name, funcType);
+    if (!function) {
+        console.error("Failed to resolve external function: " + name);
+        return nullptr;
+    }
+
     activeScope->set(name, function);
-    DEBUG_LOG("Registered extern function in scope: " + name);
-
     return function;
 }
 
@@ -64,7 +56,7 @@ llvm::Function* IRGenerator::createIntrinsicFunction(
 
     // Get the intrinsic function declaration
     llvm::Function* intrinsicFunc = llvm::Intrinsic::getOrInsertDeclaration(
-        CurrentModule,
+        currentModule,
         intrinsicID,
         paramTypes
     );
@@ -143,7 +135,7 @@ llvm::Function* IRGenerator::registerFunction(
         funcType,
         llvm::Function::ExternalLinkage,
         name,
-        CurrentModule
+        currentModule
     );
 
     // Set parameter names

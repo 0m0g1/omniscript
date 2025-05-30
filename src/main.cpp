@@ -35,6 +35,8 @@ public:
         console.log("  --debug                  Enable debug mode");
         console.log("  --entry                  The function to call when starting the program");
         console.log("  --execute                Execute statements (JIT compilation)");
+        console.log("  --log-asm                Log The final generated asembly code");
+        console.log("  --log-final-code         Log The final generated code");
         console.log("  --make                   Compile the source code (AOT compilation)");
         console.log("  --optimization-level     Compile the source code (AOT compilation)");
         console.log("  --version                Display version information");
@@ -67,6 +69,10 @@ public:
                 } else {
                     console.error("Error: Missing function name after '--entry'.");
                 }
+            } else if (arg == "--log-asm") {
+                config.logAsm = true;
+            } else if (arg == "--log-final-code") {
+                config.logFinalCode = true;
             } else if (arg == "--optimization-level") {
                 if (i + 1 < argc) {
                     config.optimizationLevel = std::stoi(argv[i + 1]);
@@ -74,6 +80,8 @@ public:
                 } else {
                     console.error("Error: Missing int for optimization level after '--optimization-level'.");
                 }
+            } else if (arg == "--show-metadata") {
+                config.showMetadata = true;
             } else {
                 if (!fileSpecified) {
                     config.filePath = arg;
@@ -85,11 +93,11 @@ public:
         }
 
         if (!fileSpecified) {
-            throw std::runtime_error("Error: File path is required.");
+            console.error("Error: File path is required.");
         }
 
         if (config.executeStatements && config.useCompiler) {
-            throw std::runtime_error("Error: Conflicting options: cannot use both '--execute' and '--make' simultaneously.");
+            console.error("Error: Conflicting options: cannot use both '--execute' and '--make' simultaneously.");
         }
 
         if (!config.executeStatements && !config.useCompiler) {
@@ -102,7 +110,7 @@ public:
     static std::string readSourceCode(const Config& config) {
         std::ifstream file(config.filePath);
         if (!file) {
-            throw std::runtime_error("Error opening file: " + config.filePath);
+            console.error("Error opening file: " + config.filePath);
         }
 
         std::stringstream buffer;

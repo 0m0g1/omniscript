@@ -9,7 +9,7 @@ llvm::Value* IRGenerator::assignVariable(
     llvm::BasicBlock* activeBlock,
     llvm::GlobalValue::LinkageTypes linkage
 ) {
-    llvm::Module* activeModule = CurrentModule;
+    llvm::Module* activeModule = currentModule;
     DEBUG_LOG("Creating variable: " + name + (isGlobal ? " (global)" : " (local)") + (isConstant ? " [const]" : ""));
 
     if (activeScope->exists(name)) {

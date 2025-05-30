@@ -33,6 +33,7 @@
 #include <atomic>
 #include <numeric>
 #include <string>
+#include <optional>
 
 // System-Specific Headers
 #ifdef _WIN32

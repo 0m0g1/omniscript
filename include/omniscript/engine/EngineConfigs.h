@@ -7,5 +7,10 @@ struct Config {
     bool useCompiler = false;        // AOT compilation flag
     std::string filePath;
     std::string entry;               // Function to call when starting
+    
     int optimizationLevel = 2;
+    
+    bool logFinalCode = false;
+    bool logAsm = false;
+    bool showMetadata = false;
 };

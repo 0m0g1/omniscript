@@ -6,16 +6,26 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/IPO.h>
+#include <llvm/Support/DynamicLibrary.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/MC/TargetRegistry.h>
+#include <llvm/Target/TargetOptions.h>
+#include <llvm/TargetParser/Host.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/FileSystem.h>
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Support/TargetSelect.h>
+
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/utils.h>
-#include <llvm/IR/GlobalVariable.h>
-#include <llvm/IR/Constants.h>
 #include <omniscript/Core/Types.h>
 #include <omniscript/Core/Expression.h>
 
 class Statement;
+class ExternalFunctionResolver;
 
 struct GlobalInit {
     llvm::GlobalVariable* variable;
@@ -38,6 +48,7 @@ struct DynamicValue {
 };
 
 
+
 using IRGenSymbolTableType = std::shared_ptr<SymbolTable<llvm::Value*, llvm::Type*>>;
 
 class IRGenerator {
@@ -54,9 +65,11 @@ private:
     std::unordered_map<std::string, std::unique_ptr<llvm::Module>> loadedModules;
     std::unordered_map<std::string, std::unique_ptr<llvm::Module>> generatedModules;
 
-    llvm::Module* CurrentModule = nullptr;
+    llvm::Module* currentModule = nullptr;
     std::unordered_map<std::string, std::unordered_map<std::string, llvm::Value*>> modulePublicSymbols;
     std::vector<std::pair<llvm::GlobalVariable*, llvm::Value*>> globalInitList;
+
+    std::unordered_map<std::string, std::unique_ptr<ExternalFunctionResolver>> resolvers;
 
     llvm::Value* createBigIntAVX512(const std::string& str, unsigned bitSize);
     llvm::Value* createBigIntAVX2(const std::string& str, unsigned bitSize);
@@ -73,6 +86,7 @@ public:
     IRGenerator(const std::string& mainModulePath);
 
     std::unique_ptr<llvm::Module> getModule() { return std::move(Module); }
+    llvm::Module* getCurrentModule() { return currentModule; }
     std::unique_ptr<llvm::LLVMContext> getContext() { return std::move(Context); }
     llvm::IRBuilder<>* getBuilder() { return Builder.get(); }
     
@@ -86,6 +100,8 @@ public:
     void printIR();
     void printErrors();
     void printErrors(llvm::Module& module);
+    void printAssembly();
+
     std::string debugType(llvm::Type* type);
     void optimizeModule(int level = 2); // Define optimization logic
 
@@ -122,6 +138,10 @@ public:
         }
     }
 
+    inline void addExternalResolver(const std::string& language, std::unique_ptr<ExternalFunctionResolver> resolver) {
+        resolvers[language] = std::move(resolver);
+    }
+
     void generateModule (
         const std::string& modulePath,
         const std::string& alias,
@@ -129,6 +149,7 @@ public:
         const std::unordered_map<std::string, std::string>& importedAliases,
         bool importAll
     );
+
     void importModule(const std::string& moduleName, const std::vector<std::string>& members);
     // bool isModuleUpdated(const std::string& moduleName);
     // void unloadModule(const std::string& moduleName);
@@ -210,7 +231,7 @@ public:
         const std::string& language,
         llvm::Type* returnType,
         const std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-        bool isVarArg = false
+        bool isVarArg
     );
     llvm::Function* createIntrinsicFunction(
         const std::string& name,
@@ -359,6 +380,64 @@ public:
         const std::string& moduleName,
         const std::unordered_map<std::string, llvm::Value*>& members
     );
+};
+
+class ExternalFunctionResolver {
+public:
+    virtual llvm::Function* resolve(
+        IRGenerator& generator,
+        const std::string& name,
+        llvm::FunctionType* funcType
+    ) = 0;
+
+    virtual ~ExternalFunctionResolver() = default;
+};
+
+class CStdLibResolver : public ExternalFunctionResolver {
+public:
+    llvm::Function* resolve(
+        IRGenerator& generator,
+        const std::string& name,
+        llvm::FunctionType* funcType
+    ) override {
+        return llvm::Function::Create(
+            funcType,
+            llvm::Function::ExternalLinkage,
+            name,
+            generator.getCurrentModule()
+        );
+    }
+};
+
+class DynamicLibraryResolver : public ExternalFunctionResolver {
+public:
+    llvm::sys::DynamicLibrary dynLib;
+
+    DynamicLibraryResolver(const std::string& libPath) {
+        std::string errMsg;
+        dynLib = llvm::sys::DynamicLibrary::getPermanentLibrary(libPath.c_str(), &errMsg);
+        if (!dynLib.isValid()) {
+            throw std::runtime_error("Failed to load library: " + errMsg);
+        }
+    }
+
+    llvm::Function* resolve(
+        IRGenerator& generator,
+        const std::string& name,
+        llvm::FunctionType* funcType
+    ) override {
+        void* symbol = dynLib.getAddressOfSymbol(name.c_str());
+        if (!symbol) {
+            return nullptr;
+        }
+
+        return llvm::Function::Create(
+            funcType,
+            llvm::Function::ExternalLinkage,
+            name,
+            generator.getCurrentModule()
+        );
+    }
 };
 
 #endif

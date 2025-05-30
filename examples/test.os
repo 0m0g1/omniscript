@@ -13,9 +13,7 @@
 
 
 
-
-
-
+// intrinsic fn pow(x: int, y:int) => int;
 
 extern "C" fn malloc(size: size_t) => void*;
 extern "C" fn free(ptr: void*) => void;
@@ -23,8 +21,13 @@ extern "C" fn realloc(ptr: void*, size: usize) => void*;
 extern "C" fn calloc(count: usize, size: usize) => void*;
 extern "C" fn printf(...fmt: char*) => int;
 
-// let textCar: char* = malloc(5);
-// free(textChar);
+// // let textCar: char* = malloc(5);
+// // free(textChar);
+
+for (let index = 0; index < 100; index++) {
+   
+}
+
 printf("%s%s%s", "Hello world!!!\n", "hi\n", "hello\n");
 
 
@@ -32,16 +35,16 @@ printf("%s%s%s", "Hello world!!!\n", "hi\n", "hello\n");
 
 
 
-function add(...nums : int) => i32 {
-   let sum : int32 = 0;
-   for (let index : int32 = 0; index < nums_count; index++) {
-      let elem = nums[index];
-      sum += elem;
-   }
-   return sum;
-}
+// function add(...nums : int) => i32 {
+//    let sum : int32 = 0;
+//    for (let index : int32 = 0; index < nums_count; index++) {
+//       let elem = nums[index];
+//       sum += elem;
+//    }
+//    return sum;
+// }
 
-let n : int32 = add(1, 2, 3);
+// let n : int32 = add(1, 2, 3);
 
 // function main(argc : int) => i32 {
 //    return 0;
