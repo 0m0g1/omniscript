@@ -1,6 +1,6 @@
 extern "C" fn printf(...fmt: char*) => int;
 
-let name = "foo";
+let name : char* = "foo";
 
 printf("%s%s%s%s", "Hello world!!!\n", "and hello ", name, "\n");
 
