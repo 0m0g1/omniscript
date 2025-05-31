@@ -705,6 +705,7 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     DEBUG_LOG("[Function] Storing overloaded function in scope '" + scope->getName() + "' under base name: " + name + " (mangled as: " + mangledName + ")");
     
     scope->addOverloadable(name, functionVal);
+    this->mangledName = mangledName;
 }
 
 void FunctionDeclaration::compileBody(SymbolTableType scope) {
@@ -741,44 +742,23 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
 }
 
 std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTableType scope) {
+    registerInScope(scope);
+    
+    if (!isExtern and !isIntrinsic) {
+        compileBody(scope);
+    }
+    
     auto overloads = scope->getOverloads(name);
-    if (!overloads.empty()) {
-        for (const auto& overload : overloads) {
-            if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
-                if (mangledName == funcExpr->mangledName) {
-                    return funcExpr;
-                }
+    for (const auto& overload : overloads) {
+        if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
+            if (mangledName == funcExpr->mangledName) {
+                return funcExpr;
             }
         }
-
-        registerInScope(scope);
-        compileBody(scope);
-    
-        auto func = this->express(scope);
-    
-        if (!func) {
-            console.error("Failed compiling an overload '" + mangledName + "' for function / method '" + name + "'.");
-            return nullptr;
-        }
-    
-        return func;
-    } 
-    
-    auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(scope->get(name));
-    if (!funcExpr) {
-        registerInScope(scope);
-        compileBody(scope);
-    
-        auto func = this->express(scope);
-    
-        if (!func) {
-            console.error("Failed compiling an overload '" + mangledName + "' for function / method '" + name + "'.");
-            return nullptr;
-        }
-    
-        return func;
     }
-    return funcExpr;
+    
+    console.error("Failed compiling an overload '" + mangledName + "' for function / method '" + name + "'.");
+    return nullptr;
 }
 
 std::string FunctionDeclaration::generateMangledName() const {
