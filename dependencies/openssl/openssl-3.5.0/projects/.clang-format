@@ -1,0 +1,36 @@
+# see https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+---
+BasedOnStyle: llvm
+Language: Cpp
+Standard: Cpp11
+
+ColumnLimit: 135
+
+AccessModifierOffset: -4
+IndentWidth: 4
+UseTab: Never
+LineEnding: LF
+
+BreakBeforeBraces: Stroustrup
+# note: ignored due to Stroustrup brace breaking
+BraceWrapping:
+  AfterControlStatement: MultiLine
+
+AlignEscapedNewlines: Left
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortLambdasOnASingleLine: Empty
+AlwaysBreakTemplateDeclarations: true
+BreakConstructorInitializers: BeforeComma
+IndentPPDirectives: AfterHash
+PointerAlignment: Left
+BreakBeforeTernaryOperators: false
+IndentRequires: true
+SpaceAfterTemplateKeyword: false
+StatementMacros: ['TEST_CLASS', 'TEST_METHOD']
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '<openssl/'
+    Priority:        3
+  # C++ headers
+  - Regex:           '<[[:alpha:]_]+>'
+    Priority:        1

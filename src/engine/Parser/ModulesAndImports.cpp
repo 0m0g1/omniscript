@@ -116,37 +116,6 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
     return std::make_shared<ImportModule>(moduleName, alias, importedAliases, path, importAll);
 }
 
-std::shared_ptr<Statement> Parser::parseExternFunction() {
-    eat(TokenTypes::Extern);
-    std::string language = currentToken.getValue();
-    eat(TokenTypes::StringLiteral);
-    if (currentToken.getType() == TokenTypes::Function) {
-        eat(TokenTypes::Function);
-    }
-    std::string functionName = currentToken.getValue();
-    eat(TokenTypes::Identifier);
-    DEBUG_LOG("Extern function's name is '" + functionName + "'.");
-    std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
-    function->isExtern = true;
-    function->externalLanguage = language;
-
-    return function;
-}
-
-std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
-    eat(TokenTypes::Intrinsic);
-    if (currentToken.getType() == TokenTypes::Function) {
-        eat(TokenTypes::Function);
-    }
-    std::string functionName = currentToken.getValue();
-    eat(TokenTypes::Identifier);
-    std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
-    function->isIntrinsic = true;
-
-    return function;
-}
-
-
 std::shared_ptr<Statement> Parser::parseModule() {
     std::string moduleName;
     std::vector<std::shared_ptr<Statement>> members;

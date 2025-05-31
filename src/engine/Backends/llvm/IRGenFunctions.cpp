@@ -3,10 +3,12 @@
 
 llvm::Function* IRGenerator::createExternFunction(
     const std::string& name,
-    const std::string& language,
+    const std::string& externName,
+    const std::string& libPath,
     llvm::Type* returnType,
     const std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-    bool isVarArg
+    bool isVarArg,
+    bool isStatic
 ) {
     std::vector<llvm::Type*> paramTypes;
     for (const auto& param : params) {
@@ -15,27 +17,26 @@ llvm::Function* IRGenerator::createExternFunction(
 
     llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, paramTypes, isVarArg);
 
-    // std::string libPath = language.substr(1, language.length() - 2); // remove surrounding quotes
-    // bool isDynamicPath = !language.empty() && (language.front() == '"' || language.front() == '\'');
+    // std::string libPath = libPath.substr(1, libPath.length() - 2); // remove surrounding quotes
+    // bool isDynamicPath = !libPath.empty() && (libPath.front() == '"' || libPath.front() == '\'');
     
     // if (isDynamicPath && resolvers.find(libPath) == resolvers.end()) {
         //     addExternalResolver(libPath, std::make_unique<DynamicLibraryResolver>(libPath));
     // }
         
-    std::string libPath = language; // remove surrounding quotes
     if (resolvers.find(libPath) == resolvers.end()) {
         addExternalResolver(libPath, std::make_unique<DynamicLibraryResolver>(libPath));
     }
 
-    auto it = resolvers.find(language);
+    auto it = resolvers.find(libPath);
     if (it == resolvers.end()) {
-        console.error("No resolver found for language: " + language);
+        console.error("No resolver found for libPath: " + libPath);
         return nullptr;
     }
 
-    llvm::Function* function = it->second->resolve(*this, name, funcType);
+    llvm::Function* function = it->second->resolve(*this, externName, funcType);
     if (!function) {
-        console.error("Failed to resolve external function: " + name);
+        console.error("Failed to resolve external function: " + externName);
         return nullptr;
     }
 
@@ -45,14 +46,15 @@ llvm::Function* IRGenerator::createExternFunction(
 
 llvm::Function* IRGenerator::createIntrinsicFunction(
     const std::string& name,
+    const std::string& intrinsicName,
     const std::vector<std::shared_ptr<Omniscript::Expression>>& params
 ) {
-    DEBUG_LOG("Creating intrinsic function by name: " + name);
+    DEBUG_LOG("Creating intrinsic function by name: " + intrinsicName);
 
     // Look up the intrinsic ID by name
-    llvm::Intrinsic::ID intrinsicID = llvm::Intrinsic::lookupIntrinsicID(name);
+    llvm::Intrinsic::ID intrinsicID = llvm::Intrinsic::lookupIntrinsicID(intrinsicName);
     if (intrinsicID == llvm::Intrinsic::not_intrinsic) {
-        console.error("Unknown intrinsic function: " + name);
+        console.error("Unknown intrinsic function: " + intrinsicName);
         return nullptr;
     }
 
@@ -79,7 +81,7 @@ llvm::Function* IRGenerator::createIntrinsicFunction(
     }
 
     // Register it in the current scope (optional)
-    activeScope->set(intrinsicFunc->getName().str(), intrinsicFunc);
+    activeScope->set(name, intrinsicFunc);
     DEBUG_LOG("Registered intrinsic in scope: " + intrinsicFunc->getName().str());
 
     return intrinsicFunc;

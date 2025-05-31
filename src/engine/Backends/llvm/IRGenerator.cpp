@@ -83,7 +83,6 @@ void IRGenerator::initialize() {
 
     currentModule = Module.get();
     addExternalResolver("C", std::make_unique<CStdLibResolver>());
-    addExternalResolver("glfw", std::make_unique<DynamicLibraryResolver>("dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll"));
 }
 
 void IRGenerator::finalize() {
@@ -309,11 +308,30 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         DEBUG_LOG("Creating an overload for function " + func->name + " with mangled name '" + func->mangledName + "'");
         llvm::Type* returnType = resolveLLVMType(func->returnType);
         if (func->isExtern) {
-            return createExternFunction(func->name, func->externLanguage, returnType, func->parameters, func->isVarArg);
+            return createExternFunction(
+                func->mangledName,
+                func->externName,
+                func->libPath,
+                returnType,
+                func->parameters,
+                func->isVarArg,
+                func->isStatic
+            );
         } else if (func->isIntrinsic) {
-            return createIntrinsicFunction("llvm." + func->name, func->parameters);
+            return createIntrinsicFunction(
+                func->mangledName,
+                "llvm." + func->name,
+                func->parameters
+            );
         }
-        return createFunction(func->mangledName, func->body, returnType, func->parameters, scope, func->isVarArg);
+        return createFunction(
+            func->mangledName,
+            func->body,
+            returnType,
+            func->parameters,
+            scope,
+            func->isVarArg
+        );
     }
 
     if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(value)) {
@@ -1381,7 +1399,7 @@ llvm::Value* IRGenerator::createCall(
     llvm::BasicBlock* activeBlock
 ) {
     // 1. Look up function
-    llvm::Function* func = Module->getFunction(callee);
+    llvm::Function* func = Module->getFunction(callee) ? Module->getFunction(callee) : llvm::dyn_cast<llvm::Function>(activeScope->get(callee));
 
     if (!func) {
         console.error("Function '" + callee + "' was not found in scope '" + activeScope->getName() + "'");

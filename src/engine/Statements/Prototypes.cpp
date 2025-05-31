@@ -292,7 +292,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             int variadicIndex = i;
             // if the function is extern don't add an implied count
             // The variadic parameter should be the current parameter not the parameter after the countd 
-            if (!calledFunc->isExtern) {
+            if (!calledFunc->isExtern && !calledFunc->isIntrinsic) {
                 variadicIndex++;
             }
             if (variadicIndex < parameters.size()) {   
@@ -324,8 +324,8 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                         auto argType = typed->getRootType() ? typed->getRootType() : typed->getType();
         
                         if (!argType) {
-                            auto clone = typed->clone();
-                            argType = clone->express(scope)->getType();
+                            auto tempScope = localScope->createChildScope("temp");
+                            argType = (typed->clone()->express(tempScope))->getType();
                             if (!argType) {
                                 console.error(formatError("The variadic argument '" + arg->toString() + "' has no type"));
                             }
@@ -379,7 +379,11 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 auto argType = typed->getRootType() ? typed->getRootType() : typed->getType();
                 
                 if (!argType) {
-                    console.error(formatError("The argument '" + arg->toString() + "' has no type"));
+                    auto tempScope = localScope->createChildScope("temp");
+                    argType = (typed->clone()->express(tempScope))->getType();
+                    if (!argType) {
+                        console.error(formatError("The argument '" + arg->toString() + "' has no type"));
+                    }
                 }
 
                 if (Omniscript::isSameOrCastableTo(argType, param->getType())) {
@@ -525,6 +529,10 @@ bool Call::matchArgumentsToParameters(
             DEBUG_LOG("[Call] Found named arg: " + arg->name);
             namedArgs[arg->name] = arg;
         } else {
+            if (arg->value->getRootType()->isInvalid()) {
+                auto tempScope = scope->createChildScope("temp");
+                arg->value->rootType = arg->value->getType();
+            }
             DEBUG_LOG("[Call] Found positional arg at index: " + std::to_string(positionalArgs.size()) + " of kind '" + arg->value->getRootType()->toString() + "'.");
             positionalArgs.push_back(arg);
         }
@@ -686,21 +694,17 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     
     DEBUG_LOG("[Function] Creating FunctionValue");
     auto functionVal = std::make_shared<Omniscript::FunctionExpression>(name, mangledName, returnType, functionBody, argValues, paramTypes, isVarArg);
-    functionVal->externLanguage = externalLanguage;
+    functionVal->mangledName = mangledName;
+    functionVal->libPath = libPath;
     functionVal->isExtern = isExtern;
+    functionVal->externName = name;
     functionVal->isIntrinsic = isIntrinsic;
+    functionVal->intrinsicName = name;
     functionVal->isVarArg = isVarArg;
 
-    if (isExtern || isIntrinsic) {
-        DEBUG_LOG("[Function] Storing function in scope '" + scope->getName() + "' under name: " + name + ".");
-        scope->set(name, functionVal);
-        // scope->set(mangledName, functionVal);
-        this->mangledName = name;
-    } else {
-        DEBUG_LOG("[Function] Storing overloaded function in scope '" + scope->getName() + "' under base name: " + name + " (mangled as: " + mangledName + ")");
-        scope->addOverloadable(name, functionVal);
-        this->mangledName = mangledName;
-    }
+    DEBUG_LOG("[Function] Storing overloaded function in scope '" + scope->getName() + "' under base name: " + name + " (mangled as: " + mangledName + ")");
+    
+    scope->addOverloadable(name, functionVal);
 }
 
 void FunctionDeclaration::compileBody(SymbolTableType scope) {
@@ -709,7 +713,7 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
         for (const auto& overload : overloads) {
             if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
                 // if is external function don't add an args count parameter and change the variadic to an array
-                if (!isExtern) {
+                if (!isExtern && !isIntrinsic) {
                     for (const auto& parameter : funcExpr->parameters) {
                         auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(parameter);
                         if (param->isVariadic) {

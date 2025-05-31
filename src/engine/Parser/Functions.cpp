@@ -17,6 +17,49 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     return parseFunctionDeclaration("", paramTypes, type);
 }
 
+std::shared_ptr<Statement> Parser::parseExternFunction() {
+    eat(TokenTypes::Extern);
+
+    bool isStatic = false;
+
+    if (currentToken.getType() == TokenTypes::Static) {
+        eat(TokenTypes::Static);
+        isStatic = true;
+    }
+
+    std::string libPath = currentToken.getValue();
+    eat(TokenTypes::StringLiteral);
+    if (currentToken.getType() == TokenTypes::Function) {
+        eat(TokenTypes::Function);
+        std::string functionName = currentToken.getValue();
+        eat(TokenTypes::Identifier);
+        DEBUG_LOG("Extern function's name is '" + functionName + "'.");
+        std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
+        function->isExtern = true;
+        function->libPath = libPath;
+        function->isStatic = isStatic;
+    
+        return function;
+    }
+
+    // Todo:: resolve an entire library
+    return nullptr;
+}
+
+std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
+    eat(TokenTypes::Intrinsic);
+    if (currentToken.getType() == TokenTypes::Function) {
+        eat(TokenTypes::Function);
+    }
+    std::string functionName = currentToken.getValue();
+    eat(TokenTypes::Identifier);
+    std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
+    function->isIntrinsic = true;
+    function->intrinsicName = functionName;
+
+    return function;
+}
+
 std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     const std::string& definedName,
     parameterType paramTypes,

@@ -638,9 +638,12 @@ struct Callable : public virtual Expression {
 
 // FunctionExpression inherits from Callable
 struct FunctionExpression : public Callable {
+    bool isStatic = false;
     bool isExtern = false;
     bool isIntrinsic = false;
-    std::string externLanguage;
+    std::string libPath;
+    std::string externName;
+    std::string intrinsicName;
     std::vector<std::shared_ptr<Expression>> body;
     std::shared_ptr<Type> returnType;
     std::vector<std::shared_ptr<Type>> paramTypes;

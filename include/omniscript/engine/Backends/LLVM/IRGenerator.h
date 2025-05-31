@@ -228,13 +228,16 @@ public:
     llvm::Value* createFixedArray(llvm::Type* elementType, size_t arraySize, const std::vector<llvm::Value*>& elements);
     llvm::Function* createExternFunction(
         const std::string& name,
-        const std::string& language,
+        const std::string& externName,
+        const std::string& libPath,
         llvm::Type* returnType,
         const std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-        bool isVarArg
+        bool isVarArg = false,
+        bool isStatic = false
     );
     llvm::Function* createIntrinsicFunction(
         const std::string& name,
+        const std::string& intrinsicName,
         const std::vector<std::shared_ptr<Omniscript::Expression>>& params
     );
     llvm::Function* createFunction(
@@ -299,16 +302,6 @@ public:
         const std::vector<llvm::Value*>& args,
         bool isGlobal = true
     );
-    
-    llvm::Value* createClassInstance(
-        const std::string& className,
-        const std::string& varName,
-        const std::vector<llvm::Value*>& args);
-    
-    llvm::Value* createPrimitiveInstance(
-        llvm::Type* type,
-        const std::string& varName,
-        llvm::Value* initValue = nullptr);
     
     llvm::Value* createEnum(
         const std::vector<std::string>& names,
@@ -431,6 +424,24 @@ public:
             return nullptr;
         }
 
+        return llvm::Function::Create(
+            funcType,
+            llvm::Function::ExternalLinkage,
+            name,
+            generator.getCurrentModule()
+        );
+    }
+};
+
+// Todo: enable resolving a whole library
+class StaticLibraryResolver : public ExternalFunctionResolver {
+public:
+    llvm::Function* resolve(
+        IRGenerator& generator,
+        const std::string& name,
+        llvm::FunctionType* funcType
+    ) override {
+        // This just declares the function for the linker to resolve.
         return llvm::Function::Create(
             funcType,
             llvm::Function::ExternalLinkage,

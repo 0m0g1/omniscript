@@ -1,3 +1,18 @@
+extern "C" fn printf(...fmt: char*) => int;
+printf("%s%s%s", "Hello world!!!\n", "hello\n", "hello\n");
+
+
+
+
+
+
+
+
+
+
+
+
+
 // import { Math } from std;
 
 // let n: f32 = std.Math->pi;
@@ -24,25 +39,36 @@
 // // // let textCar: char* = malloc(5);
 // // // free(textChar);
 
+// // extern "path/to/lib.dll" fn eternal(...fmt: char*) => int;
+// Todo:: a compiler flag or just a way for the current code to be turned into a dll/so library
+// printf("%s%s%s", "Hello world!!!\n", "hi\n", "hello\n");
 // for (let index = 0; index < 100; index++) {
    
 // }
 
-// printf("%s%s%s", "Hello world!!!\n", "hi\n", "hello\n");
 
-// Todo:: a compiler flag or just a way for the current code to be turned into a dll/so library
-extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" fn glfwInit() => bool;
-extern "C" fn printf(...fmt: char*) => int;
-// // extern "path/to/lib.dll" fn eternal(...fmt: char*) => int;
+// extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" fn glfwInit() => bool;
+// extern "C" fn printf(...fmt: char*) => int;
+// extern "C" fn strcmp(a: char*, b: char*) => int;
 
-let msgOk : char* = "GLFW initialized successfully!\n";
-let msgFail : char* = "GLFW initialization failed.\n";
+// let msgOk = "GLFW initialized successfully!\n";
+// let msgFail = "GLFW initialization failed.\n";
 
-if (glfwInit()) {
-   printf(msgOk);
-} else {
-   printf(msgFail);
-}
+// let test = "hi";
+
+// if (strcmp(test,"ho") == 0) {
+//    printf("ho");
+// } else if (strcmp(test, "hi") == 0) {
+//    printf("hi");
+// } else {
+//    printf("neither");
+// }
+
+// if (glfwInit()) {
+//    printf(msgOk);
+// } else {
+//    printf(msgFail);
+// }
 
 
 

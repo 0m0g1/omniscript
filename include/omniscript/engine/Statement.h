@@ -977,10 +977,16 @@ public TypedStatement,
 public GenericHolder,
 public ContextAwareStatement {
 public:
+    std::string mangledName;
+
     bool isIntrinsic = false;
     bool isExtern = false;
-    std::string externalLanguage;
-    std::string mangledName;
+    bool isStatic = false;
+    
+    std::string libPath;
+    std::string externName;
+    std::string intrinsicName;
+    
     std::shared_ptr<Omniscript::Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
     std::vector<std::shared_ptr<Statement>> parameters;
