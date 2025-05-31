@@ -203,6 +203,16 @@ template <typename T>
 struct Primitive : public Expression {
     explicit Primitive(T value) : value(value) {
         type = Type::createPrimitiveType(PrimitiveType::get<T>());
+
+        if constexpr (std::is_same_v<T, std::string> ||
+                    std::is_same_v<T, std::u16string> ||
+                    std::is_same_v<T, std::u32string>
+                ) {
+            auto charType = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
+            auto stringType = Omniscript::Type::createPointerType(this->type);
+            this->type = stringType;
+            this->rootType = Omniscript::Type::createPointerType(charType);
+        }
     }
 
     std::string toString() const override {
@@ -1324,11 +1334,7 @@ template <typename T>
 class StringExpression : public Primitive<T> {
 public:
     StringExpression(T value)
-        : Primitive<T>(value) {
-            auto charType = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
-            auto stringType = Omniscript::Type::createPointerType(charType);
-            this->rootType = stringType;
-        }
+        : Primitive<T>(value) {}
 
     virtual ~StringExpression() = default;
     // StringExpression (template)

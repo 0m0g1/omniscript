@@ -128,7 +128,7 @@ void IRGenerator::printErrors(llvm::Module& module) {
     // }
 }
 
-void IRGenerator::printAssembly() {
+void IRGenerator::printAssembly(llvm::Module* module) {
     // Initialize targets
     llvm::InitializeAllTargetInfos();
     llvm::InitializeAllTargets();
@@ -149,24 +149,37 @@ void IRGenerator::printAssembly() {
 
     llvm::TargetOptions opt;
     auto RM = std::optional<llvm::Reloc::Model>();
-    llvm::TargetMachine* targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, RM);
+    std::unique_ptr<llvm::TargetMachine> targetMachine(
+        target->createTargetMachine(targetTriple, cpu, features, opt, RM));
 
-    Module->setDataLayout(targetMachine->createDataLayout());
-    Module->setTargetTriple(targetTriple);
+    module->setDataLayout(targetMachine->createDataLayout());
+    module->setTargetTriple(targetTriple);
 
+    // Verify module before emission
+    if (llvm::verifyModule(*module, &llvm::errs())) {
+        llvm::errs() << "LLVM module verification failed!\n";
+        module->print(llvm::errs(), nullptr);
+        return;
+    }
+
+    // Create the pass manager
     llvm::legacy::PassManager pass;
-    llvm::SmallString<0> asmOutput;
+    llvm::SmallVector<char, 0> asmOutput;
     llvm::raw_svector_ostream outStream(asmOutput);
 
-    if (targetMachine->addPassesToEmitFile(pass, outStream, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
+    // Configure for assembly output
+    if (targetMachine->addPassesToEmitFile(pass, outStream, nullptr, 
+                                          llvm::CodeGenFileType::AssemblyFile)) {
         llvm::errs() << "TargetMachine can't emit a file of this type\n";
         return;
     }
 
-    pass.run(*Module);
+    // Run the passes
+    pass.run(*module);
 
-    // Now print the generated assembly
-    llvm::outs() << asmOutput.str();
+    // Print the assembly
+    llvm::outs().write(asmOutput.data(), asmOutput.size());
+    llvm::outs().flush();
 }
 
 std::string IRGenerator::debugType(llvm::Type* type) {
@@ -273,8 +286,15 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         DEBUG_LOG("Evaluating a block value");
 
         for (const auto& expr : block->values) {
-            DEBUG_LOG();
-            auto result = codegen(expr, scope);
+            if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(expr)) {
+                //Todo:: Add is void to omniscript types
+                if (!ret->getType()->isVoidLike()) {
+                    return codegen(expr, scope);
+                }
+                return nullptr;
+            } else {
+                auto result = codegen(expr, scope);
+            }
         }
 
         return nullptr;

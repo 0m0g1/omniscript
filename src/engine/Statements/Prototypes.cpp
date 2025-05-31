@@ -324,8 +324,11 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                         auto argType = typed->getRootType() ? typed->getRootType() : typed->getType();
         
                         if (!argType) {
-                            console.error(formatError("The variadic argument '" + arg->toString() + "' has no type"));
-                            continue;
+                            auto clone = typed->clone();
+                            argType = clone->express(scope)->getType();
+                            if (!argType) {
+                                console.error(formatError("The variadic argument '" + arg->toString() + "' has no type"));
+                            }
                         }
         
                         if (!Omniscript::isSameOrCastableTo(argType, param->getType())) {

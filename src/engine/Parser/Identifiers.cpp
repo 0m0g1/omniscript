@@ -9,6 +9,7 @@
 std::shared_ptr<Statement> Parser::parseIdentifier() {
     // Parse the root identifier
     std::string rootIdentifier = currentToken.getValue();
+    DEBUG_LOG("The root identifier is '" + rootIdentifier + "'.");
     eat(TokenTypes::Identifier);
 
     // Start with base identifier

@@ -189,11 +189,12 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
     while (currentToken.getType() != end && currentToken.getType() != TokenTypes::EOI) {
         // Ensure we don't get stuck in an infinite loop
         if (currentToken.getType() == TokenTypes::Identifier) {
-            std::string paramName = currentToken.getValue();  // Argument name (e.g., "b")
-            eat(TokenTypes::Identifier);  // Consume identifier
+            std::string paramName;  // Argument name (e.g., "b")
 
             // Check if there's an assignment
-            if (currentToken.getType() == assignOp) {
+            if (lexer.peekToken(1).getType() == assignOp) {
+                paramName = currentToken.getValue();
+                eat(TokenTypes::Identifier);  // Consume identifier
                 eat(assignOp);  // Consume the assignment token
                 args.push_back(parseExpression());  // Parse the value of the argument
             } else {

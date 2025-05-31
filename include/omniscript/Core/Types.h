@@ -442,9 +442,9 @@ public:
         if constexpr (std::is_same_v<T, __float128>) return Kind::FP128;
         if constexpr (std::is_same_v<T, long double>) return Kind::FP128;
 
-        if constexpr (std::is_same_v<T, std::string>) return Kind::Utf8;
-        if constexpr (std::is_same_v<T, std::u16string>) return Kind::Utf16;
-        if constexpr (std::is_same_v<T, std::u32string>) return Kind::Utf32;
+        if constexpr (std::is_same_v<T, std::string>) return Kind::Char;
+        if constexpr (std::is_same_v<T, std::u16string>) return Kind::Char16;
+        if constexpr (std::is_same_v<T, std::u32string>) return Kind::Char32;
 
         return Kind::Invalid;  // Default case if type isn't handled
     }

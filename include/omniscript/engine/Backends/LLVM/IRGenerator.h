@@ -100,7 +100,7 @@ public:
     void printIR();
     void printErrors();
     void printErrors(llvm::Module& module);
-    void printAssembly();
+    void printAssembly(llvm::Module* module);
 
     std::string debugType(llvm::Type* type);
     void optimizeModule(int level = 2); // Define optimization logic

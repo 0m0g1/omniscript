@@ -15,6 +15,18 @@ llvm::Function* IRGenerator::createExternFunction(
 
     llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, paramTypes, isVarArg);
 
+    // std::string libPath = language.substr(1, language.length() - 2); // remove surrounding quotes
+    // bool isDynamicPath = !language.empty() && (language.front() == '"' || language.front() == '\'');
+    
+    // if (isDynamicPath && resolvers.find(libPath) == resolvers.end()) {
+        //     addExternalResolver(libPath, std::make_unique<DynamicLibraryResolver>(libPath));
+    // }
+        
+    std::string libPath = language; // remove surrounding quotes
+    if (resolvers.find(libPath) == resolvers.end()) {
+        addExternalResolver(libPath, std::make_unique<DynamicLibraryResolver>(libPath));
+    }
+
     auto it = resolvers.find(language);
     if (it == resolvers.end()) {
         console.error("No resolver found for language: " + language);

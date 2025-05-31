@@ -146,92 +146,93 @@ llvm::Value* IRGenerator::createWhileLoop(
     return nullptr;
 }
 
-llvm::Value* IRGenerator::createIfStatement(
+llvm::Value* IRGenerator::createIfStatement( 
     const std::vector<std::shared_ptr<Omniscript::Expression>>& conditions,
     const std::vector<std::shared_ptr<Omniscript::Expression>>& bodies,
     const std::shared_ptr<Omniscript::Expression>& elseBody,
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope)
 {
-    if (conditions.empty() || conditions.size() != bodies.size()) return nullptr;
+    if (conditions.empty() || conditions.size() != bodies.size()) {
+        return nullptr;
+    }
 
     llvm::Function* function = Builder->GetInsertBlock()->getParent();
     llvm::LLVMContext& context = Builder->getContext();
 
     auto localScope = scope->createChildScope("ifscope");
 
-    llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(context, "if.merge", function);
-    llvm::BasicBlock* currentBlock = Builder->GetInsertBlock();
-    llvm::BasicBlock* nextCondBlock = nullptr;
+    llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(context, "ifcont");
 
-    // Keep track of where to jump after the current condition fails
-    llvm::BasicBlock* afterBlock = nullptr;
+    std::vector<llvm::BasicBlock*> incomingBlocks;
+    std::vector<llvm::Value*> incomingValues;
 
+    llvm::BasicBlock* nextBlock = nullptr;
+
+    // Handle if/else-if chain
     for (size_t i = 0; i < conditions.size(); ++i) {
+        llvm::BasicBlock* condBlock = Builder->GetInsertBlock();
         llvm::Value* condValue = codegen(conditions[i], localScope);
         if (!condValue) return nullptr;
 
-        // Convert to i1 if needed
         if (condValue->getType()->isIntegerTy(32)) {
-            condValue = Builder->CreateICmpNE(condValue, llvm::ConstantInt::get(condValue->getType(), 0), "ifcond");
+            condValue = Builder->CreateICmpNE(
+                condValue,
+                llvm::ConstantInt::get(condValue->getType(), 0),
+                "ifcond"
+            );
         }
 
-        llvm::BasicBlock* thenBlock = llvm::BasicBlock::Create(context, "if.then", function);
-        nextCondBlock = (i + 1 < conditions.size()) 
-        ? llvm::BasicBlock::Create(context, "if.nextcond", function)
-        : (elseBody ? llvm::BasicBlock::Create(context, "if.else", function) : mergeBlock);
-        
-        Builder->CreateCondBr(condValue, thenBlock, nextCondBlock);
+        llvm::BasicBlock* thenBlock = llvm::BasicBlock::Create(context, "then", function);
+        llvm::BasicBlock* elseBlock = llvm::BasicBlock::Create(context, "else");
 
-        // THEN block
+        Builder->CreateCondBr(condValue, thenBlock, elseBlock);
+
+        // Emit then block
         Builder->SetInsertPoint(thenBlock);
-        if (!codegen(bodies[i], localScope)) {
-            Builder->CreateBr(mergeBlock);
-        }
-
-        if (!Builder->GetInsertBlock()->getTerminator()) {
-            Builder->CreateBr(mergeBlock);
-        }
-        
-        // Prepare to emit the next condition or else block
-        Builder->SetInsertPoint(nextCondBlock);
-    }
-    // Only create merge block if any branch will jump to it
-    bool mergeUsed = false;
-
-    // ELSE block if present
-    if (elseBody) {
-        DEBUG_LOG("There is an else body");
-        if (!codegen(elseBody, localScope)) return nullptr;
-        if (!Builder->GetInsertBlock()->getTerminator()) {
-            Builder->CreateBr(mergeBlock);
-            mergeUsed = true;
-        }
-    } else {
-        DEBUG_LOG("No else body");
-    }
-
-    // If the last 'else if' condition didn't return or branch
-    if (!Builder->GetInsertBlock()->getTerminator()) {
-        DEBUG_LOG("Last else if has no terminator");
+        llvm::Value* thenValue = codegen(bodies[i], localScope);
+        DEBUG_LOG(bodies[i]->toString());
+        // if (!thenValue) return nullptr;
         Builder->CreateBr(mergeBlock);
-        mergeUsed = true;
-    } else {
-        DEBUG_LOG("Last else if has a terminator");
+
+        incomingBlocks.push_back(Builder->GetInsertBlock());
+
+        if (thenValue) {
+            incomingValues.push_back(thenValue);
+        }
+
+        elseBlock->insertInto(function);
+        Builder->SetInsertPoint(elseBlock);
+
+        nextBlock = elseBlock;
     }
 
-    // If mergeBlock was actually used, set insert point there
-    if (mergeUsed) {
-        DEBUG_LOG("Merge block used");
-        Builder->SetInsertPoint(mergeBlock);
-        if (!Builder->GetInsertBlock()->getTerminator()) {
-            console.error("Merge has no terminator");
+    // Handle final else block if provided
+    if (elseBody) {
+        llvm::Value* elseValue = codegen(elseBody, localScope);
+        // if (!elseValue) return nullptr;
+        Builder->CreateBr(mergeBlock);
+        incomingBlocks.push_back(Builder->GetInsertBlock());
+        if (elseValue) {
+            incomingValues.push_back(elseValue);
         }
-    } else {
-        // Erase the unused merge block from the function
-        DEBUG_LOG("Merge block was not used");
-        mergeBlock->eraseFromParent();
+    } else if (nextBlock && Builder->GetInsertBlock() == nextBlock) {
+        // If else not provided, and last else block is still current block
+        Builder->CreateBr(mergeBlock);
+    }
+
+    // Emit merge block if used
+    if (!incomingBlocks.empty()) {
+        mergeBlock->insertInto(function);
+        Builder->SetInsertPoint(mergeBlock);
+
+        if (!incomingValues.empty()) {
+            llvm::PHINode* phi = Builder->CreatePHI(incomingValues[0]->getType(), incomingValues.size(), "iftmp");
+            for (size_t i = 0; i < incomingValues.size(); ++i) {
+                phi->addIncoming(incomingValues[i], incomingBlocks[i]);
+            }
+            return phi;
+        }
     }
 
     return nullptr;
 }
-

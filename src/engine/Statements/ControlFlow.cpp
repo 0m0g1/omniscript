@@ -90,14 +90,16 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
     for (size_t i = 0; i < conditions.size(); ++i) {
         extendContextOf(conditions[i]);
         extendContextOf(bodies[i]);
-        exprConditions.push_back(conditions[i]->express(scope)); // already Expression pointers
-        exprBranches.push_back(bodies[i]->express(scope)); // convert BlockStatement to Expression
+        auto localScope = scope->createChildScope("if " + conditions[i]->toString());
+        exprConditions.push_back(conditions[i]->express(localScope)); // already Expression pointers
+        exprBranches.push_back(bodies[i]->express(localScope)); // convert BlockStatement to Expression
     }
  
      std::shared_ptr<Omniscript::Expression> elseExpr = nullptr;
      if (elseBody) {
         extendContextOf(elseBody);
-         elseExpr = elseBody->express(scope); // convert BlockStatement to Expression
+        auto localScope = scope->createChildScope("else");
+        elseExpr = elseBody->express(localScope); // convert BlockStatement to Expression
      }
  
      return std::make_shared<Omniscript::IfExpression>(

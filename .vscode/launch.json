@@ -15,7 +15,8 @@
             "--execute",
             "--debug",
             "--optimization-level",
-            "-1"
+            "-1",
+            "--log-asm"
         ],
         "stopAtEntry": false,
         "cwd": "${workspaceFolder}",

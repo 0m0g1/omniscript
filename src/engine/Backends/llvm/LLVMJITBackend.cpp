@@ -75,14 +75,13 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         DEBUG_LOG();
     }
 
+    llvm::orc::ThreadSafeContext tsContext(irGen->getContext());
+    std::unique_ptr<llvm::Module> module = std::move(irGen->getModule());
     if (config.logAsm) {
         DEBUG_LOG();
-        irGen->printAssembly();
+        irGen->printAssembly(module.get());
         DEBUG_LOG();
     }
-    
-    llvm::orc::ThreadSafeContext tsContext(irGen->getContext());
-    auto module = std::move(irGen->getModule());
     
     // Initialize globals
     if (auto startupSym = jit->lookup("__startup__")) {
