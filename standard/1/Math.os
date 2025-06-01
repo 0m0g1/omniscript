@@ -7,8 +7,8 @@ module Math {
     public fn pow(x: float, y: float) => float {
         return intrinsic_pow(x, y);
     };
-    
     private intrinsic fn intrinsic_pow(x: float, y: float) => float;
+    
     
 
     // public fn powi(base: int = 1, exponent: int = 1) => int {

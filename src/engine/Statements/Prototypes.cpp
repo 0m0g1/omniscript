@@ -625,6 +625,9 @@ bool Call::matchArgumentsToParameters(
 }
 
 void FunctionDeclaration::registerInScope(SymbolTableType scope) {
+    if (isRegistered) {
+        return;
+    }
     DEBUG_LOG();
     DEBUG_LOG("[Function] Constructing a function " + name + " prototype the return Type is '" + type->toString() + "'.");
 
@@ -727,6 +730,7 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     
     scope->addOverloadable(name, functionVal);
     this->mangledName = mangledName;
+    isRegistered = true;
 }
 
 void FunctionDeclaration::compileBody(SymbolTableType scope) {
@@ -764,14 +768,14 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
         std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
         funcExpr->body = functionBody;
     }
-    
+
     bodyCompiled = true;
 }
 
 std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTableType scope) {
     registerInScope(scope);
     
-    if (!isExtern and !isIntrinsic) {
+    if (!isExtern && !isIntrinsic) {
         compileBody(scope);
     }
     
@@ -844,10 +848,11 @@ void FunctionDeclaration::setReturnTypesInStatement(
 
 std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
     DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + (type ? type->toString() : "undefined"));
-
+    
     std::shared_ptr<Omniscript::Expression> result;
-
-    if (defaultValue) {
+    
+    if (!std::dynamic_pointer_cast<TypedStatement>(defaultValue)->getType()->isInvalid()) {
+        DEBUG_LOG("The default value is " + defaultValue->toString());
         extendContextOf(defaultValue);
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
             if (!type) {

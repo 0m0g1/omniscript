@@ -56,7 +56,6 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     // First process all includes (flatten the hierarchy)
     std::vector<std::shared_ptr<Statement>> flattenedStatements;
     for (const auto& stmt : statements) {
-        extendContextOf(stmt);
         if (auto include = std::dynamic_pointer_cast<IncludeStatement>(stmt)) {
             for (const auto& innerExpr : include->getStatements()) {
                 flattenedStatements.push_back(innerExpr);

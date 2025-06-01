@@ -988,6 +988,7 @@ public ContextAwareStatement {
 public:
     std::string mangledName;
 
+    bool isRegistered = false;
     bool bodyCompiled = false;
     bool isIntrinsic = false;
     bool isExtern = false;
