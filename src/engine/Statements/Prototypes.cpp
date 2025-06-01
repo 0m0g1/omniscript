@@ -850,8 +850,26 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
     DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + (type ? type->toString() : "undefined"));
     
     std::shared_ptr<Omniscript::Expression> result;
-    
-    if (!std::dynamic_pointer_cast<TypedStatement>(defaultValue)->getType()->isInvalid()) {
+
+    bool isValidDefaultValue = true;
+
+    if (defaultValue) {
+        auto typed = std::dynamic_pointer_cast<TypedStatement>(defaultValue);
+        if (typed) {
+            if (typed->getRootType()->isInvalid()) {
+                auto resultType = typed->clone()->express(scope)->getType();
+                isValidDefaultValue = !resultType->isInvalid();
+            } else {
+                isValidDefaultValue = true;
+            }
+        } else {
+            isValidDefaultValue = false;
+        }
+    } else {
+        isValidDefaultValue = false;
+    }
+
+    if (isValidDefaultValue) {
         DEBUG_LOG("The default value is " + defaultValue->toString());
         extendContextOf(defaultValue);
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {

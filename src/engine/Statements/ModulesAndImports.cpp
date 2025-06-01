@@ -72,6 +72,8 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     for (const auto& stmt : flattenedStatements) {
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
+        
+        extendContextOf(member->getValue());
 
         if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
             DEBUG_LOG(func->toString());
@@ -86,8 +88,6 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
-        
-        extendContextOf(member->getValue());
         
         DEBUG_LOG("Passing '" + member->toString() + "' as a parameter to create module type '" + getName() + "_module_type'."); 
 
