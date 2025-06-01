@@ -315,7 +315,7 @@ std::shared_ptr<Literal> BoolLiteral::castTo(std::shared_ptr<Omniscript::Type> t
         }
         case Kind::FP128:
         case Kind::PPC_FP128: {
-            auto lit = std::make_shared<FloatLiteral>(static_cast<__float128>(value ? 1.0Q : 0.0Q));
+            auto lit = std::make_shared<FloatLiteral>(static_cast<__float128>(value ? 1.0 : 0.0));
             lit->isFloat128 = true;
             return lit;
         }

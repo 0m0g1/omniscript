@@ -31,7 +31,8 @@ project "Osengine"
 
     links {
         "LLVM-20",
-        "pthread"
+        "pthread",
+        "quadmath"
     }
 
     filter "configurations:Debug"
