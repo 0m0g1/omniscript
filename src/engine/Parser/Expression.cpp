@@ -207,24 +207,33 @@ std::shared_ptr<Statement> Parser::factor() {
         }
     }
 
-    // Handle float literals (32-bit and 64-bit)
-    else if (currentToken.getType() == TokenTypes::FloatLiteral) {
+   else if (currentToken.getType() == TokenTypes::FloatLiteral) {
         eat(TokenTypes::FloatLiteral);
         std::string value = previousToken.getValue();
 
-        // Check for 'f' or 'd' suffix to determine float type
-        if (!value.empty() && (value.back() == 'f' || value.back() == 'F')) {
-            left = std::make_shared<FloatLiteral>(std::stof(value)); // Float32
-        } else {
-            left = std::make_shared<FloatLiteral>(std::stod(value)); // Default to Float64
+        // Determine suffix
+        bool isFloat = false;
+        bool isDouble = false;
+
+        if (!value.empty()) {
+            char last = value.back();
+            if (last == 'f' || last == 'F') {
+                isFloat = true;
+                value.pop_back(); // remove suffix before parsing
+            } else if (last == 'd' || last == 'D') {
+                isDouble = true;
+                value.pop_back();
+            }
         }
+
+        __float128 f128_value = strtoflt128(value.c_str(), nullptr);
+        auto floatStmt = std::make_shared<FloatLiteral>(f128_value);
+        floatStmt->isFloat32 = isFloat;
+        floatStmt->isFloat64 = isDouble;
+
+        left = floatStmt;
     }
 
-    // Handle float literals
-    else if (currentToken.getType() == TokenTypes::FloatLiteral) {
-        eat(TokenTypes::FloatLiteral);
-        left = std::make_shared<FloatLiteral>(std::stof(previousToken.getValue())); // Assuming Float32Bit is your float type
-    }
     // Handle integer literals (decimal)
     else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
         eat(TokenTypes::IntegerLiteral);

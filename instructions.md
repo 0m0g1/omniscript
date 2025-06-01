@@ -45,4 +45,4 @@ Post-Build Notes:
 -----------------
 
 - On Windows, the `premake5.lua` script automatically copies required LLVM `.dll` files to the build output folder.
-- Ensure your LLVM headers and libraries are correctly placed inside `dependencies/llvm/include` and `dependencies/llvm/lib` respectively.
+- Ensure the LLVM headers and libraries are correctly placed inside `dependencies/llvm/include` and `dependencies/llvm/lib` respectively.

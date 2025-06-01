@@ -625,7 +625,13 @@ private:
 
 class FloatLiteral : public NumericLiteral {
 public:
-    explicit FloatLiteral(double val) 
+    bool isFloat16;
+    bool isFloat32;
+    bool isFloat64;
+    bool isFloat80;
+    bool isFloat128;
+
+    explicit FloatLiteral(__float128 val) 
         : value(val) {
             setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Half));
         }
@@ -639,7 +645,7 @@ public:
     std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const override;
 
 private:
-    double value;
+    __float128 value;
 };    
 
 // Arbitrary-precision integer (BigInt)

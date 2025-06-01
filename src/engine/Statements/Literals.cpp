@@ -92,38 +92,73 @@ std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type
         case Kind::Int16:
         case Kind::Int32:
         case Kind::Int64:
-            return std::make_shared<IntegerLiteral>(value);  // Safe truncation assumed
-        case Kind::Float:
-        case Kind::Double:
-        case Kind::FP128:
+            return std::make_shared<IntegerLiteral>(value);  // Truncation assumed safe
+
         case Kind::Half: {
-            auto val = std::make_shared<FloatLiteral>(static_cast<double>(value));
-            val->setType(type);
-            return val;
+            auto lit = std::make_shared<FloatLiteral>(static_cast<_Float16>(value));
+            lit->isFloat16 = true;
+            return lit;
         }
+        case Kind::Float: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<float>(value));
+            lit->isFloat32 = true;
+            return lit;
+        }
+        case Kind::Double: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<double>(value));
+            lit->isFloat64 = true;
+            return lit;
+        }
+        case Kind::FP128:
+        case Kind::PPC_FP128: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<__float128>(value));
+            lit->isFloat128 = true;
+            return lit;
+        }
+        case Kind::X86_FP80: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<long double>(value));
+            lit->isFloat80 = true;
+            return lit;
+        }
+
         case Kind::Bool:
             return std::make_shared<BoolLiteral>(value != 0);
+
         case Kind::Char:
         case Kind::Char16:
         case Kind::Char32:
             return std::make_shared<CharacterLiteral>(static_cast<char32_t>(value));
+
         default:
             return nullptr;
     }
 }
 
 std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType scope) {
-    // Default to 64-bit float if type is null or unknown
+    // Default to 128-bit float if type is not specified
     if (!type) {
-        DEBUG_LOG("Creating a 64-bit float");
-        type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Double);
-        return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));  // Default to double (64-bit)
+        if (isFloat16) {
+            type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Half);
+        } else if (isFloat32) {
+            type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Float);
+        } else if (isFloat64) {
+            type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Double);
+        } else if (isFloat80) {
+            type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::X86_FP80);
+        } else if (isFloat128) {
+            type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::FP128);
+        } else {
+            // Default to 128-bit float if no suffix specified
+            DEBUG_LOG("No suffix: defaulting to 128-bit float");
+            type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::FP128);
+        }
     }
 
-    auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Half);
+    auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::FP128); // use __float128 as source type
 
     if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type))  {
-        console.error("The specified type is " + type->description() + " but '" + std::to_string(value) + "' is a float.");
+        console.error("The specified type is " + type->description() +
+                      " but '" + /* custom __float128 to string needed here */ "' is a float.");
     } else {
         if (!type->isFloat()) {
             DEBUG_LOG("Casting float to '" + type->description() + "'.");
@@ -132,78 +167,90 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
         DEBUG_LOG("Creating an '" + type->description() + "' float.");
     }
 
-
-    // Check if the type is a 32-bit float
+    // Target-specific 16-bit float handling
     #ifdef __ARM_ARCH
-        // ARM platforms using __fp16
-        if (type->isFloat(16)) {
-            DEBUG_LOG("Creating a 16-bit float (__fp16 for ARM)");
-            return std::make_shared<Omniscript::Float<__fp16>>(static_cast<__fp16>(value));  // ARM __fp16 type
-        }
+    if (type->isFloat(16)) {
+        DEBUG_LOG("Creating a 16-bit float (__fp16 for ARM)");
+        return std::make_shared<Omniscript::Float<__fp16>>(static_cast<__fp16>(value));
+    }
     #elif defined(__x86_64__) || defined(__i386__)
-        // x86 platforms using _Float16
-        if (type->isFloat(16)) {
-            DEBUG_LOG("Creating a 16-bit float (_Float16 for x86)");
-            return std::make_shared<Omniscript::Float<_Float16>>(static_cast<_Float16>(value));  // x86 _Float16 type
-        }
+    if (type->isFloat(16)) {
+        DEBUG_LOG("Creating a 16-bit float (_Float16 for x86)");
+        return std::make_shared<Omniscript::Float<_Float16>>(static_cast<_Float16>(value));
+    }
     #endif
+
     if (type->isFloat(32)) {
         DEBUG_LOG("Creating a 32-bit float");
-        return std::make_shared<Omniscript::Float<float>>(static_cast<float>(value));  // 32-bit float
+        return std::make_shared<Omniscript::Float<float>>(static_cast<float>(value));
     }
 
-    // Check if the type is a 64-bit float
     if (type->isFloat(64)) {
         DEBUG_LOG("Creating a 64-bit float");
-        return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));  // 64-bit double
+        return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));
     }
 
-    // Check if the type is FP128 (128-bit floating point)
-    if (type->isFloat(128)) {
-        DEBUG_LOG("Creating a 128-bit float (FP128)");
-        return std::make_shared<Omniscript::Float<__float128>>(static_cast<__float128>(value));  // FP128 (128-bit)
-    }
-
-    // Check if the type is X86_FP80 (80-bit floating point)
     if (type->isFloat(80)) {
         DEBUG_LOG("Creating an 80-bit float (X86_FP80)");
-        return std::make_shared<Omniscript::Float<long double>>(static_cast<long double>(value));  // X86_FP80 (80-bit)
+        return std::make_shared<Omniscript::Float<long double>>(static_cast<long double>(value));
     }
 
-    // Check if the type is PPC_FP128 (128-bit floating point)
     if (type->isFloat(128)) {
-        DEBUG_LOG("Creating a 128-bit float (PPC_FP128)");
-        return std::make_shared<Omniscript::Float<__float128>>(static_cast<__float128>(value));  // PPC_FP128 (128-bit)
+        DEBUG_LOG("Creating a 128-bit float (FP128 or PPC_FP128)");
+        return std::make_shared<Omniscript::Float<__float128>>(value);
     }
 
-    // If necessary, handle other custom floating-point types (e.g., Half, etc.)
-    return nullptr;  // If no valid type matches, return nullptr
+    return nullptr;
 }
 
 std::shared_ptr<Literal> FloatLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
     using Kind = Omniscript::Kind;
+
     switch (targetType->getKind()) {
-        case Kind::Float:
-        case Kind::Double:
         case Kind::Half: {
-            auto val = std::make_shared<FloatLiteral>(value);
-            val->setType(type);
-            return val;
+            auto lit = std::make_shared<FloatLiteral>(static_cast<_Float16>(value));
+            lit->isFloat16 = true;
+            return lit;
         }
+        case Kind::Float: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<float>(value));
+            lit->isFloat32 = true;
+            return lit;
+        }
+        case Kind::Double: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<double>(value));
+            lit->isFloat64 = true;
+            return lit;
+        }
+        case Kind::FP128:
+        case Kind::PPC_FP128: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<__float128>(value));
+            lit->isFloat128 = true;
+            return lit;
+        }
+        case Kind::X86_FP80: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<long double>(value));
+            lit->isFloat80 = true;
+            return lit;
+        }
+
         case Kind::Int8:
         case Kind::Int16:
         case Kind::Int32:
         case Kind::Int64: {
             auto val = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
-            val->setType(type);
+            val->setType(targetType);
             return val;
         }
+
         case Kind::Bool:
             return std::make_shared<BoolLiteral>(value != 0.0);
+
         default:
             return nullptr;
     }
 }
+
 
 // Arbitrary-precision integer (BigInt)
 std::shared_ptr<Omniscript::Expression> BigInt::express(SymbolTableType scope) {
@@ -251,15 +298,36 @@ std::shared_ptr<Literal> BoolLiteral::castTo(std::shared_ptr<Omniscript::Type> t
         case Kind::Int32:
         case Kind::Int64:
             return std::make_shared<IntegerLiteral>(value ? 1 : 0);
-        case Kind::Float:
-        case Kind::Double:
-        case Kind::Half:
-            return std::make_shared<FloatLiteral>(value ? 1.0 : 0.0);
+        case Kind::Half: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<_Float16>(value ? 1.0f : 0.0f));
+            lit->isFloat16 = true;
+            return lit;
+        }
+        case Kind::Float: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<float>(value ? 1.0f : 0.0f));
+            lit->isFloat32 = true;
+            return lit;
+        }
+        case Kind::Double: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<double>(value ? 1.0 : 0.0));
+            lit->isFloat64 = true;
+            return lit;
+        }
+        case Kind::FP128:
+        case Kind::PPC_FP128: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<__float128>(value ? 1.0Q : 0.0Q));
+            lit->isFloat128 = true;
+            return lit;
+        }
+        case Kind::X86_FP80: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<long double>(value ? 1.0L : 0.0L));
+            lit->isFloat80 = true;
+            return lit;
+        }
         default:
             return nullptr;
     }
 }
-
 
 std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableType scope) {
     if (!type) {
