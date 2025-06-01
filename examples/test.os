@@ -16,28 +16,24 @@ extern "C" fn printf(...fmt: char*) => int;
 
 
 
-let x : int = 123;
-let y : uint = 456;
-let z : f16 = 456;
-let zz : f32 = 456;
-let zzz : f64 = 456;
-let zzzz : f80 = 456;
-let zzzzz : f128 = 456;
+// let x : int = 123;
+// let y : uint = 456;
+// let z : f16 = 456;
+// let zz : f32 = 456;
+// let zzz : f64 = 456;
+// let zzzz : f80 = 456;
+// let zzzzz : f128 = 456;
 
-printf("%d\n", x);
-printf("%u\n", y);
-printf("%x\n", x);
-printf("%X\n", x);
-printf("%o\n", x);
-printf("%.2f\n", z);
-printf("%.4f\n", zz);
-printf("%.4f\n", zzz);
-printf("%.4f\n", zzzz);
-printf("%.4f\n", zzzzz);
-
-
-
-
+// printf("%d\n", x);
+// printf("%u\n", y);
+// printf("%x\n", x);
+// printf("%X\n", x);
+// printf("%o\n", x);
+// printf("%.2f\n", z);
+// printf("%.4f\n", zz);
+// printf("%.4f\n", zzz);
+// printf("%.4f\n", zzzz);
+// printf("%.4f\n", zzzzz);
 
 
 // extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" fn glfwInit() => bool;

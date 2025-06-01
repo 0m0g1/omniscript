@@ -46,3 +46,15 @@ Post-Build Notes:
 
 - On Windows, the `premake5.lua` script automatically copies required LLVM `.dll` files to the build output folder.
 - Ensure the LLVM headers and libraries are correctly placed inside `dependencies/llvm/include` and `dependencies/llvm/lib` respectively.
+
+
+Other Notes
+===========
+To enable syntax highlighting, you’ll need to install the OmniScript Language Server (LSP).
+
+You can find it here: 
+[OmniScript Language Server](https://github.com/0m0g1/omniscript-language-server)
+
+After downloading, open VSCode and run:
+Developer: Install Extension from Location
+Then select the downloaded folder to complete the installation.
