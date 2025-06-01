@@ -38,7 +38,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         function->isExtern = true;
         function->libPath = libPath;
         function->isStatic = isStatic;
-    
+        function->externName = functionName;
+        
         return function;
     }
 

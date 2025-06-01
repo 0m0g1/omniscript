@@ -318,9 +318,17 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
                 func->isStatic
             );
         } else if (func->isIntrinsic) {
+            std::string nameWithoutPrefix = func->intrinsicName;
+            const std::string prefix = "intrinsic_";
+
+            // Strip 'intrinsic_' prefix if present
+            if (nameWithoutPrefix.rfind(prefix, 0) == 0) {
+                nameWithoutPrefix = nameWithoutPrefix.substr(prefix.size());
+            }
+
             return createIntrinsicFunction(
                 func->mangledName,
-                "llvm." + func->name,
+                "llvm." + nameWithoutPrefix,
                 func->parameters
             );
         }

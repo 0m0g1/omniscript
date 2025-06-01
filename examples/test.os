@@ -1,4 +1,23 @@
-extern "C" fn printf(...fmt: char*) => int;
+import { Math } from "std";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// extern "C" fn printf(...fmt: char*) => int;
+// intrinsic fn pow(x: f32, y: f32) => f32;
+
+// let x: f32 = pow(2.0, 2.0);
+// printf("%.0f", x);
 
 // let name : char* = "foo";
 // printf("%s%s%s%s", "Hello world!!!\n", "and hello ", name, "\n");
@@ -48,15 +67,6 @@ extern "C" fn printf(...fmt: char*) => int;
 //    printf(msgFail);
 // }
 
-
-
-
-
-
-
-
-
-
 // extern "C" fn printf(...fmt: char*) => int;
 // extern "C" fn strcmp(a: char*, b: char*) => int;
 // let name : char* = "foo";
@@ -71,15 +81,6 @@ extern "C" fn printf(...fmt: char*) => int;
 // } else {
 //    printf("neither");
 // }
-
-
-
-
-
-
-
-
-
 
 // import { Math } from std;
 

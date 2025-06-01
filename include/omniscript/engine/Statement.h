@@ -472,7 +472,10 @@ public:
 
 };
     
-class CreateModule : public NamedStatement, public TypedStatement {
+class CreateModule : 
+public NamedStatement, 
+public TypedStatement,
+public ContextAwareStatement {
 private:
     std::string modulePath;
 
@@ -985,6 +988,7 @@ public ContextAwareStatement {
 public:
     std::string mangledName;
 
+    bool bodyCompiled = false;
     bool isIntrinsic = false;
     bool isExtern = false;
     bool isStatic = false;
@@ -1057,7 +1061,9 @@ private:
     std::vector<std::shared_ptr<Statement>> body;
 };
 
-class Member : public NamedStatement {
+class Member : 
+public NamedStatement,
+public ContextAwareStatement {
 public:
     Member(const std::string& memberName, std::shared_ptr<Statement> value, const MemberModifiers& modifiers)
         : value(std::move(value)), modifiers(modifiers) {

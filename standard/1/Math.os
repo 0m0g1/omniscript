@@ -3,8 +3,14 @@ module Math {
     const pi: f32 = 3.141592653589793;
     const e: float = 2.718281828459045;
 
-    // Basic Arithmetic
-    // public intrinsic fn pow(x: float, y: float) => float;
+    // // Basic Arithmetic
+    public fn pow(x: float, y: float) => float {
+        return intrinsic_pow(x, y);
+    };
+    
+    private intrinsic fn intrinsic_pow(x: float, y: float) => float;
+    
+
     // public fn powi(base: int = 1, exponent: int = 1) => int {
     //     let result: int = 1;
     //     for (let i = 0; i < exponent; i += 1) {
@@ -12,7 +18,7 @@ module Math {
     //     }
     //     return result;
     // }
-    public intrinsic fn abs(x: int) => int;
+    // public intrinsic fn abs(x: int) => int;
     // public intrinsic fn abs(x: float) => float;
     // public intrinsic fn sqrt(x: float) => float;
     // public intrinsic fn cbrt(x: float) => float;

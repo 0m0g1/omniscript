@@ -34,6 +34,8 @@ public:
         console.log("Options:");
         console.log("  --debug                  Enable debug mode");
         console.log("  --entry                  The function to call when starting the program");
+        console.log("  --emit-staticlib         Execute statements (JIT compilation)");
+        console.log("  --emit-sharedlib         Execute statements (JIT compilation)");
         console.log("  --execute                Execute statements (JIT compilation)");
         console.log("  --log-asm                Log The final generated asembly code");
         console.log("  --log-final-code         Log The final generated code");

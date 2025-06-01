@@ -107,6 +107,27 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     // Attempt overload resolution
     DEBUG_LOG("[Call] Attempting overload resolution for '" + originalCallee + "'");
     auto overloads = scope->getOverloads(originalCallee);
+
+    if (overloads.empty()) {
+        auto& contextList = getAccessContext();
+        std::string qualifiedName;
+    
+        for (size_t i = 0; i < contextList.size(); ++i) {
+            if (!qualifiedName.empty()) {
+                qualifiedName += ".";
+            }
+            qualifiedName += contextList[i];
+    
+            auto fullCalleeName = qualifiedName + "." + originalCallee;
+            overloads = scope->getOverloads(fullCalleeName);
+             DEBUG_LOG("[Call] Attempting overload resolution for '" + fullCalleeName + "'");
+            if (!overloads.empty()) {
+                DEBUG_LOG("Found overloads for: " + fullCalleeName + "\n");
+                break;
+            }
+        }
+    }
+
     if (!overloads.empty()) {
         DEBUG_LOG("[Call] Found " + std::to_string(overloads.size()) + " overload candidates");
 
@@ -697,9 +718,9 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     functionVal->mangledName = mangledName;
     functionVal->libPath = libPath;
     functionVal->isExtern = isExtern;
-    functionVal->externName = name;
+    functionVal->externName = externName;
     functionVal->isIntrinsic = isIntrinsic;
-    functionVal->intrinsicName = name;
+    functionVal->intrinsicName = intrinsicName;
     functionVal->isVarArg = isVarArg;
 
     DEBUG_LOG("[Function] Storing overloaded function in scope '" + scope->getName() + "' under base name: " + name + " (mangled as: " + mangledName + ")");
@@ -709,6 +730,10 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
 }
 
 void FunctionDeclaration::compileBody(SymbolTableType scope) {
+    if (bodyCompiled) {
+        return;
+    }
+
     auto overloads = scope->getOverloads(name);
     if (!overloads.empty()) {
         for (const auto& overload : overloads) {
@@ -739,6 +764,8 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
         std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
         funcExpr->body = functionBody;
     }
+    
+    bodyCompiled = true;
 }
 
 std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTableType scope) {
@@ -767,7 +794,6 @@ std::string FunctionDeclaration::generateMangledName() const {
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(parameters[i])) {
             auto paramType = typed->getType();
             mangled += paramType ? (paramType->isPointer() ? paramType->getBasePointeeType()->toString() + "*" : paramType->toString()) : "unknown";
-            // mangled += paramType ? paramType->toString() : "unknown";
         } else {
             mangled += "any";
         }

@@ -14,7 +14,7 @@ std::shared_ptr<Statement> Parser::parseInclude() {
     std::string includePath;
 
     if (currentToken.getType() != TokenTypes::StringLiteral) {
-        throw std::runtime_error("Syntax Error: Expected string literal after 'include'");
+        console.error("Syntax Error: Expected string literal after 'include'");
     }
 
     includePath = currentToken.getValue();
@@ -208,5 +208,9 @@ std::shared_ptr<Statement> Parser::parseModule() {
     eat(TokenTypes::RightBrace);
 
     eat(TokenTypes::EOI, "There can only be one module per file and nothing declared after the module.");
-    return std::make_shared<CreateModule>(moduleName, members);
+    auto module = std::make_shared<CreateModule>(moduleName, members);
+    if (auto ctxAware = std::dynamic_pointer_cast<ContextAwareStatement>(module)) {
+        ctxAware->pushContext(moduleName);
+    }
+    return module;
 }
