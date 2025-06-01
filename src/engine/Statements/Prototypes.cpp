@@ -331,10 +331,10 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                             }
                         }
         
-                        if (!Omniscript::isSameOrCastableTo(argType, param->getType())) {
-                            console.error(formatError("Type mismatch in variadic arg for parameter '" + paramName + "'"));
-                            continue;
-                        }
+                        // if (!Omniscript::isSameOrCastableTo(argType, param->getType())) {
+                        //     console.error(formatError("Type mismatch in variadic arg for parameter '" + paramName + "'"));
+                        //     continue;
+                        // }
         
                         auto value = arg->express(scope);
                         if (!value || value->getType()->isInvalid()) {
@@ -553,10 +553,10 @@ bool Call::matchArgumentsToParameters(
                 auto arg = positionalArgs[positionalIndex++];
                 auto argType = (arg->value->getRootType() ? arg->value->getRootType() : arg->value->getType());
 
-                if (!Omniscript::isSameOrCastableTo(argType, param->getType())) {
-                    DEBUG_LOG("[Call] Type mismatch in variadic arguments for parameter: " + paramName);
-                    return false;
-                }
+                // if (!Omniscript::isSameOrCastableTo(argType, param->getType())) {
+                //     DEBUG_LOG("[Call] Type mismatch in variadic arguments for parameter: " + paramName);
+                //     return false;
+                // }
             }
 
             // After this variadic param, we ignore any further param definitions

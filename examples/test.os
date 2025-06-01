@@ -1,11 +1,69 @@
 extern "C" fn printf(...fmt: char*) => int;
 
 let name : char* = "foo";
-
 printf("%s%s%s%s", "Hello world!!!\n", "and hello ", name, "\n");
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+// let x : int = 123;
+// let y : uint = 456;
+// let z : f64 = 456;
+// printf("%d\n", x);
+// printf("%u\n", y);
+// printf("%x\n", x);
+// printf("%X\n", x);
+// printf("%o\n", x);
+// printf("%.2f\n", z);
+// printf("%.4f\n", z);
+
+
+
+// extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" fn glfwInit() => bool;
+
+
+// let msgOk = "GLFW initialized successfully!\n";
+// let msgFail = "GLFW initialization failed.\n";
+
+// if (glfwInit()) {
+//    printf(msgOk);
+// } else {
+//    printf(msgFail);
+// }
+
+
+
+
+
+
+
+
+
+
+// extern "C" fn printf(...fmt: char*) => int;
+// extern "C" fn strcmp(a: char*, b: char*) => int;
+// let name : char* = "foo";
+
+
+// let test: char* = "hi";
+
+// if (strcmp(test,"ho") == 0) {
+//    printf("ho");
+// } else if (strcmp(test, "hi") == 0) {
+//    printf("hi");
+// } else {
+//    printf("neither");
+// }
 
 
 
@@ -48,32 +106,7 @@ printf("%s%s%s%s", "Hello world!!!\n", "and hello ", name, "\n");
 // for (let index = 0; index < 100; index++) {
    
 // }
-
-
-// extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" fn glfwInit() => bool;
-// extern "C" fn printf(...fmt: char*) => int;
 // extern "C" fn strcmp(a: char*, b: char*) => int;
-
-// let msgOk = "GLFW initialized successfully!\n";
-// let msgFail = "GLFW initialization failed.\n";
-
-// let test = "hi";
-
-// if (strcmp(test,"ho") == 0) {
-//    printf("ho");
-// } else if (strcmp(test, "hi") == 0) {
-//    printf("hi");
-// } else {
-//    printf("neither");
-// }
-
-// if (glfwInit()) {
-//    printf(msgOk);
-// } else {
-//    printf(msgFail);
-// }
-
-
 
 // function add(...nums : int) => i32 {
 //    let sum : int32 = 0;

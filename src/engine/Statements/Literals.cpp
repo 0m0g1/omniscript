@@ -95,6 +95,7 @@ std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type
             return std::make_shared<IntegerLiteral>(value);  // Safe truncation assumed
         case Kind::Float:
         case Kind::Double:
+        case Kind::FP128:
         case Kind::Half: {
             auto val = std::make_shared<FloatLiteral>(static_cast<double>(value));
             val->setType(type);
