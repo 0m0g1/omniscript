@@ -595,9 +595,16 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expressio
         return createBool(boolean->getValue());
     }
     // Handle half (16-bit floating-point)
-    // else if (auto halfPrimitive = std::dynamic_pointer_cast<Omniscript::Float<__half>>(value)) {
-    //     return create16BitFloat(halfPrimitive->getValue());
-    // }
+    // Target-specific 16-bit float handling
+    #ifdef __ARM_ARCH
+        else if (auto halfPrimitive = std::dynamic_pointer_cast<Omniscript::Float<__fp16>>(value)) {
+            return create16BitFloat(halfPrimitive->getValue());
+        }
+    #elif defined(__x86_64__) || defined(__i386__)
+        else if (auto halfPrimitive = std::dynamic_pointer_cast<Omniscript::Float<_Float16>>(value)) {
+            return create16BitFloat(halfPrimitive->getValue());
+        }
+    #endif
     // Handle float (32-bit floating-point)
     else if (auto floatPrimitive = std::dynamic_pointer_cast<Omniscript::Float<float>>(value)) {
         return create32BitFloat(floatPrimitive->getValue());
@@ -605,6 +612,10 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expressio
     // Handle double (64-bit floating-point)
     else if (auto doublePrimitive = std::dynamic_pointer_cast<Omniscript::Float<double>>(value)) {
         return create64BitFloat(doublePrimitive->getValue());
+    }
+    // Handle double (64-bit floating-point)
+    else if (auto longDoublePrimitive = std::dynamic_pointer_cast<Omniscript::Float<long double>>(value)) {
+        return create80BitFloat(longDoublePrimitive->getValue());
     }
     // Handle FP128 (128-bit floating-point)
     else if (auto fp128Primitive = std::dynamic_pointer_cast<Omniscript::Float<__float128>>(value)) {
@@ -1069,10 +1080,67 @@ llvm::Value* IRGenerator::create64BitInteger(int64_t value) {
     return llvm::ConstantInt::get(llvm::Type::getInt64Ty(*Context), value, true);
 }
 
-// Create a 16-bit floating-point (half)
-// llvm::Value* IRGenerator::create16BitFloat(__half value) {
-//     return llvm::ConstantFP::get(llvm::Type::getHalfTy(*Context), static_cast<float>(value));  // Half precision needs to be converted to float
-// }
+llvm::Value* IRGenerator::create80BitFloat(long double value) {
+    llvm::LLVMContext& C = *Context;
+
+    #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+        // On x86/x64 GCC/Clang: long double is 80-bit (x87 extended precision)
+        if (sizeof(long double) == 10 || sizeof(long double) == 12 || sizeof(long double) == 16) {
+            llvm::Type* f80Type = llvm::Type::getX86_FP80Ty(C);
+
+            // Zero out buffer to avoid garbage in high bits
+            uint8_t buffer[16] = {};
+            std::memcpy(buffer, &value, sizeof(long double));
+
+            // Extract 80-bit value: low 64 bits + upper 16 bits
+            uint64_t low = *reinterpret_cast<const uint64_t*>(buffer);
+            uint16_t high = *reinterpret_cast<const uint16_t*>(buffer + 8);
+            llvm::APInt api(80, {low, static_cast<uint64_t>(high)});
+            llvm::APFloat apf(llvm::APFloat::x87DoubleExtended(), api);
+            return llvm::ConstantFP::get(C, apf);
+        }
+    #endif
+
+    #if defined(__aarch64__) || defined(__powerpc64__) || defined(__wasm__) || defined(_MSC_VER)
+        // Common fallback: long double is 64-bit or 128-bit IEEE (same as double or quadfloat)
+        if (sizeof(long double) == 8) {
+            llvm::Type* f64Type = llvm::Type::getDoubleTy(C);
+            return llvm::ConstantFP::get(f64Type, static_cast<double>(value));
+        } else if (sizeof(long double) == 16) {
+            llvm::Type* f128Type = llvm::Type::getFP128Ty(C);
+
+            uint8_t buffer[16] = {};
+            std::memcpy(buffer, &value, 16);
+            llvm::APInt api(128, { 
+                *reinterpret_cast<const uint64_t*>(&buffer[0]), 
+                *reinterpret_cast<const uint64_t*>(&buffer[8]) 
+            });
+            llvm::APFloat apf(llvm::APFloat::IEEEquad(), api);
+            return llvm::ConstantFP::get(C, apf);
+        }
+    #endif
+
+    // If platform unknown or unsupported long double layout
+    console.error("Unsupported long double format on this platform.\n");
+    return nullptr;
+    // llvm::errs() << "Unsupported long double format on this platform.\n";
+    // std::abort();
+    // return nullptr;
+}
+
+ // Target-specific 16-bit float handling
+#ifdef __ARM_ARCH
+llvm::Value* IRGenerator::create16BitFloat(__fp16 value) {
+    llvm::Type* type = llvm::Type::getHalfTy(*Context); // LLVM 16-bit float type
+    return llvm::ConstantFP::get(type, static_cast<double>(value)); // safe conversion
+}
+
+#elif defined(__x86_64__) || defined(__i386__)
+llvm::Value* IRGenerator::create16BitFloat(_Float16 value) {
+    llvm::Type* type = llvm::Type::getHalfTy(*Context);
+    return llvm::ConstantFP::get(type, static_cast<double>(value));
+}
+#endif
 
 // Create a 32-bit floating-point (float)
 llvm::Value* IRGenerator::create32BitFloat(float value) {

@@ -1,7 +1,7 @@
 extern "C" fn printf(...fmt: char*) => int;
 
-let name : char* = "foo";
-printf("%s%s%s%s", "Hello world!!!\n", "and hello ", name, "\n");
+// let name : char* = "foo";
+// printf("%s%s%s%s", "Hello world!!!\n", "and hello ", name, "\n");
 
 
 
@@ -16,16 +16,27 @@ printf("%s%s%s%s", "Hello world!!!\n", "and hello ", name, "\n");
 
 
 
-// let x : int = 123;
-// let y : uint = 456;
-// let z : f64 = 456;
-// printf("%d\n", x);
-// printf("%u\n", y);
-// printf("%x\n", x);
-// printf("%X\n", x);
-// printf("%o\n", x);
-// printf("%.2f\n", z);
-// printf("%.4f\n", z);
+let x : int = 123;
+let y : uint = 456;
+let z : f16 = 456;
+let zz : f32 = 456;
+let zzz : f64 = 456;
+let zzzz : f80 = 456;
+let zzzzz : f128 = 456;
+
+printf("%d\n", x);
+printf("%u\n", y);
+printf("%x\n", x);
+printf("%X\n", x);
+printf("%o\n", x);
+printf("%.2f\n", z);
+printf("%.4f\n", zz);
+printf("%.4f\n", zzz);
+printf("%.4f\n", zzzz);
+printf("%.4f\n", zzzzz);
+
+
+
 
 
 

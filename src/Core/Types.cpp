@@ -283,8 +283,8 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
         else if (baseType == "half" || baseType == "f16") type = Type::createPrimitiveType(Kind::Half);
         else if (baseType == "float" || baseType == "f32") type = Type::createPrimitiveType(Kind::Float);
         else if (baseType == "double" || baseType == "f64") type = Type::createPrimitiveType(Kind::Double);
+        else if (baseType == "f80" || baseType == "x86_fp80" || baseType == "x86_80bit" || baseType == "x87_FP80" || baseType == "Intel_FP80") type = Type::createPrimitiveType(Kind::X86_FP80);
         else if (baseType == "fp128" || baseType == "f128" || baseType == "long_double") type = Type::createPrimitiveType(Kind::FP128);
-        else if (baseType == "x86_fp80" || baseType == "x86_80bit" || baseType == "x87_FP80" || baseType == "Intel_FP80") type = Type::createPrimitiveType(Kind::X86_FP80);
         else if (baseType == "ppc_fp128" || baseType == "PPC_double_extended" || baseType == "PPC_F128" || baseType == "PPC_Quad") type = Type::createPrimitiveType(Kind::PPC_FP128);
 
     

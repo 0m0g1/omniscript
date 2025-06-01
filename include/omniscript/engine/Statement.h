@@ -625,11 +625,11 @@ private:
 
 class FloatLiteral : public NumericLiteral {
 public:
-    bool isFloat16;
-    bool isFloat32;
-    bool isFloat64;
-    bool isFloat80;
-    bool isFloat128;
+    bool isFloat16 = false;
+    bool isFloat32 = false;
+    bool isFloat64 = false;
+    bool isFloat80 = false;
+    bool isFloat128 = false;
 
     explicit FloatLiteral(__float128 val) 
         : value(val) {

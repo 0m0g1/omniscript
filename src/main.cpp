@@ -38,7 +38,7 @@ public:
         console.log("  --log-asm                Log The final generated asembly code");
         console.log("  --log-final-code         Log The final generated code");
         console.log("  --make                   Compile the source code (AOT compilation)");
-        console.log("  --optimization-level     Compile the source code (AOT compilation)");
+        console.log("  --optimization-level     Optimize the code -1 no optimization 2 max optimization");
         console.log("  --version                Display version information");
         console.log("  --help                   Display this help message");
     }

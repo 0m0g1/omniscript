@@ -45,7 +45,7 @@ llvm::Value* IRGenerator::assignVariable(
 
         // If not constant and initializer isn't a constant, emit store in init func
         if (initialValue && !constInit && !isConstant) {
-            console.warn("Global variable '" + name + "' initialized with non-constant value; adding runtime store.");
+            DEBUG_LOG("Global variable '" + name + "' initialized with non-constant value; adding runtime store.");
 
             llvm::Function* initFunc = getOrCreateGlobalInitFunction();
             llvm::IRBuilder<> tempBuilder(&initFunc->getEntryBlock(), initFunc->getEntryBlock().end());

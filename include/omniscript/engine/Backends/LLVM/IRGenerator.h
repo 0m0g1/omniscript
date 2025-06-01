@@ -178,9 +178,16 @@ public:
     llvm::Value* createUnsigned32BitInteger(uint32_t value);
     llvm::Value* createUnsigned64BitInteger(uint64_t value);
     
-    // llvm::Value* create16BitFloat(__half value);
+    // Target-specific 16-bit float handling
+    #ifdef __ARM_ARCH
+        llvm::Value* create16BitFloat(__fp16 value);
+    #elif defined(__x86_64__) || defined(__i386__)
+        llvm::Value* create16BitFloat(_Float16 value);
+    #endif
+        
     llvm::Value* create32BitFloat(float value);
     llvm::Value* create64BitFloat(double value);
+    llvm::Value* create80BitFloat(long double value);
     llvm::Value* create128BitFloat(__float128 value);
     
     llvm::Value* createBigInt(const std::string& str, unsigned bitWidth); // Arbitrary precision integer

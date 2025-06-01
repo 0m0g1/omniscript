@@ -150,13 +150,11 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
         } else {
             // Default to 128-bit float if no suffix specified
             DEBUG_LOG("No suffix: defaulting to 128-bit float");
-            type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::FP128);
+            type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Double);
         }
     }
 
-    auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::FP128); // use __float128 as source type
-
-    if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type))  {
+    if (!Omniscript::isSameOrCastableTo(rootType, type))  {
         console.error("The specified type is " + type->description() +
                       " but '" + /* custom __float128 to string needed here */ "' is a float.");
     } else {
