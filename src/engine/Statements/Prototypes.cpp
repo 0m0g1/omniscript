@@ -72,15 +72,30 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
                 return constructionBlock;
             } else {
-                callee = typeName + "." + callee;
-                auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? targetName : instanceName));
-                if (auto thisArgType = scope->getType(typeName)) {
-                    thisArg->setType(Omniscript::Type::createPointerType(thisArgType));
-                    thisArg->setRootType(thisArg->getType());
-                    args.insert(args.begin(), thisArg);
-                    DEBUG_LOG("The 'this' arg is of instance '" + (instanceName.empty() ? targetName : instanceName) + "' and of type '" + thisArg->getType()->toString() + "'.");
-                } else {
-                    console.error("The type '" + typeName + "' does not exist in the scope.");
+                const std::string moduleTypeSuffix = "_module_type";
+
+                std::string baseTypeName = typeName;
+                bool isModuleType = false;
+
+                // Strip '_module_type' suffix if present
+                if (baseTypeName.size() > moduleTypeSuffix.size() &&
+                    baseTypeName.compare(baseTypeName.size() - moduleTypeSuffix.size(), moduleTypeSuffix.size(), moduleTypeSuffix) == 0) {
+                    isModuleType = true;
+                    baseTypeName = baseTypeName.substr(0, baseTypeName.size() - moduleTypeSuffix.size());
+                }
+
+                callee = baseTypeName + "." + callee;
+
+                if (!isModuleType) {
+                    auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? targetName : instanceName));
+                    if (auto thisArgType = scope->getType(typeName)) {
+                        thisArg->setType(Omniscript::Type::createPointerType(thisArgType));
+                        thisArg->setRootType(thisArg->getType());
+                        args.insert(args.begin(), thisArg);
+                        DEBUG_LOG("The 'this' arg is of instance '" + (instanceName.empty() ? targetName : instanceName) + "' and of type '" + thisArg->getType()->toString() + "'.");
+                    } else {
+                        console.error("The type '" + typeName + "' does not exist in the scope.");
+                    }
                 }
             }
         } else if (isFromAssignment) {
@@ -599,7 +614,7 @@ bool Call::matchArgumentsToParameters(
             return false;
         }
 
-        auto matchingArgType = (matchingArg->value->getRootType() ? matchingArg->value->getRootType() : matchingArg->value->getType());
+        auto matchingArgType = (matchingArg->value->getRootType()->isInvalid() ? matchingArg->value->getType() : matchingArg->value->getRootType());
         if (!Omniscript::isSameOrCastableTo(matchingArgType, param->getType())) {
             DEBUG_LOG("[Call] Type mismatch for parameter: " + paramName);
             DEBUG_LOG("[Call] Expected type: '" + param->getType()->toString() + "' type got '" );

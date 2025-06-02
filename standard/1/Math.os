@@ -4,11 +4,11 @@ module Math {
     const e: float = 2.718281828459045;
 
     // // Basic Arithmetic
+    private intrinsic fn intrinsic_pow(x: float, y: float) => float;
     public fn pow(x: float, y: float) => float {
         return intrinsic_pow(x, y);
     };
 
-    private intrinsic fn intrinsic_pow(x: float, y: float) => float;
     
 
     // public fn powi(base: int = 1, exponent: int = 1) => int {

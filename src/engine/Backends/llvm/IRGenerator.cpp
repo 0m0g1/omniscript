@@ -329,7 +329,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
             return createIntrinsicFunction(
                 func->mangledName,
                 "llvm." + nameWithoutPrefix,
-                func->parameters
+                returnType
             );
         }
         return createFunction(
@@ -411,7 +411,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
 
 
         if (call->instanceName.empty()) {
-            DEBUG_LOG("Creating a normal call");
+            DEBUG_LOG("Creating a normal call for " + call->calleeName);
             return createCall(call->calleeName, args);
         }
         DEBUG_LOG("Creating an object instance");
@@ -1475,7 +1475,15 @@ llvm::Value* IRGenerator::createCall(
     llvm::BasicBlock* activeBlock
 ) {
     // 1. Look up function
-    llvm::Function* func = Module->getFunction(callee) ? Module->getFunction(callee) : llvm::dyn_cast<llvm::Function>(activeScope->get(callee));
+    llvm::Function* func = nullptr;
+
+    if (auto moduleFunc = Module->getFunction(callee)) {
+        func = moduleFunc;
+    } else {
+        if (auto value = activeScope->get(callee)) {
+            func = llvm::dyn_cast<llvm::Function>(value);
+        }
+    }
 
     if (!func) {
         console.error("Function '" + callee + "' was not found in scope '" + activeScope->getName() + "'");
@@ -1562,12 +1570,17 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
     llvm::Function* currentFunction = Builder->GetInsertBlock()->getParent();
     if (!currentFunction) {
         console.error("Return statement outside function");
+        return nullptr;
     }
 
-    llvm::Function* vaEndFunc = llvm::Intrinsic::getOrInsertDeclaration(Module.get(), llvm::Intrinsic::vaend);
-
+    if (!Module) {
+        console.error("LLVM Module is null");
+        return nullptr;
+    }
+    
     // Insert va_end call before return, only if va_list was created
     if (activeScope->get("va_list")) {
+        llvm::Function* vaEndFunc = llvm::Intrinsic::getOrInsertDeclaration(Module.get(), llvm::Intrinsic::vaend);
         llvm::Value* vaListAlloca = activeScope->get("va_list");
         Builder->CreateCall(vaEndFunc, { vaListAlloca });
     }

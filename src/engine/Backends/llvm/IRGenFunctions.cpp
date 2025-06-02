@@ -44,10 +44,10 @@ llvm::Function* IRGenerator::createExternFunction(
     return function;
 }
 
-llvm::Function* IRGenerator::createIntrinsicFunction(
+llvm::Function* IRGenerator::createIntrinsicFunction( 
     const std::string& name,
     const std::string& intrinsicName,
-    const std::vector<std::shared_ptr<Omniscript::Expression>>& params
+    llvm::Type* returnType
 ) {
     DEBUG_LOG("Creating intrinsic function by name: " + intrinsicName);
 
@@ -58,21 +58,11 @@ llvm::Function* IRGenerator::createIntrinsicFunction(
         return nullptr;
     }
 
-    // Create function type
-    std::vector<llvm::Type*> paramTypes;
-    for (auto& param : params) {
-        auto type = param->getType();
-        auto llvmType = resolveLLVMType(type);
-        paramTypes.push_back(llvmType);
-        
-        DEBUG_LOG("Resolved parameter type: " + type->description() + " to LLVM type: " + debugType(llvmType));
-    }
-
-    // Get the intrinsic function declaration
+    // Get the intrinsic function declaration passing only the return type
     llvm::Function* intrinsicFunc = llvm::Intrinsic::getOrInsertDeclaration(
         currentModule,
         intrinsicID,
-        paramTypes
+        { returnType }
     );
 
     if (!intrinsicFunc) {
@@ -86,7 +76,6 @@ llvm::Function* IRGenerator::createIntrinsicFunction(
 
     return intrinsicFunc;
 }
-
 
 llvm::Function* IRGenerator::createFunction(
     const std::string& name,
@@ -337,6 +326,8 @@ void IRGenerator::generateFunctionBody(
 
     // Verify the function for consistency
     if (llvm::verifyFunction(*function, &llvm::errs())) {
+        printIR();
+        printErrors();
         console.error("Function verification failed: " + function->getName().str());
         function->eraseFromParent();
     } else {

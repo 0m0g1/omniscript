@@ -245,7 +245,7 @@ public:
     llvm::Function* createIntrinsicFunction(
         const std::string& name,
         const std::string& intrinsicName,
-        const std::vector<std::shared_ptr<Omniscript::Expression>>& params
+        llvm::Type* returnType
     );
     llvm::Function* createFunction(
         const std::string& name,

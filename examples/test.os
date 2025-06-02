@@ -1,8 +1,8 @@
 import { Math } from "std";
+extern "C" fn printf(...fmt: char*) => int;
 
-
-
-
+let n : f32 = Math.pow(2.0, 2.0);
+printf("%.2f", n);
 
 
 
