@@ -133,7 +133,6 @@ llvm::Function* IRGenerator::registerFunction(
         paramTypes.push_back(llvmType);
         
         DEBUG_LOG("Resolved parameter type: " + type->toString() + " to LLVM type: " + debugType(llvmType));
-        i++;
     }
 
     DEBUG_LOG("Resolved return type LLVM: " + debugType(returnType));
