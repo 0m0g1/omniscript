@@ -266,11 +266,10 @@ bool Parser::checkIfLambdaExpression() {
             lexer.peekToken(i).getType() == TokenTypes::Identifier ||
             lexer.peekToken(i).getType() == TokenTypes::Comma || 
             lexer.peekToken(i).getType() == TokenTypes::Assign ||
-            lexer.peekToken(i).getType() == TokenTypes::StringLiteral ||
-            lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
-            lexer.peekToken(i).getType() == TokenTypes::FloatLiteral ||
             lexer.peekToken(i).getType() == TokenTypes::Colon // Argument type annotation
             ) {
+
+            DEBUG_LOG(getTokenTypeName(lexer.peekToken(i).getType()));
             
             // Check for argument name (identifier)
             if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {

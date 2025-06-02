@@ -382,14 +382,15 @@ MemberModifiers Parser::parseMemberModifiers() {
            currentToken.getType() == TokenTypes::Override ||
            currentToken.getType() == TokenTypes::Static ||
            currentToken.getType() == TokenTypes::Final ||
-           currentToken.getType() == TokenTypes::Virtual ||
-           (
-            currentToken.getType() == TokenTypes::Const
-            && (lexer.peekToken(1).getType() != TokenTypes::Identifier && 
-                (lexer.peekToken(2).getType() != TokenTypes::Colon || 
-                lexer.peekToken(2).getType() != TokenTypes::Equals)
-            )
-            ) 
+           currentToken.getType() == TokenTypes::Virtual
+        //    ||
+        //    (
+        //     currentToken.getType() == TokenTypes::Const
+        //     && (lexer.peekToken(1).getType() != TokenTypes::Identifier && 
+        //         (lexer.peekToken(2).getType() != TokenTypes::Colon || 
+        //         lexer.peekToken(2).getType() != TokenTypes::Equals)
+        //     )
+        //     ) 
         ) {
 
         modifiers.isInitialized = true;
@@ -429,10 +430,10 @@ MemberModifiers Parser::parseMemberModifiers() {
             eat(TokenTypes::Virtual);
         }
 
-        if (currentToken.getType() == TokenTypes::Const) {
-            modifiers.isConst = true;
-            eat(TokenTypes::Const);
-        }
+        // if (currentToken.getType() == TokenTypes::Const) {
+        //     modifiers.isConst = true;
+        //     eat(TokenTypes::Const);
+        // }
     }
 
     return modifiers;
