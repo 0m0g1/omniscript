@@ -239,6 +239,24 @@ void IRGenerator::optimizeModule(int level) {
     }
 }
 
+void IRGenerator::compileAllFunctionBodies(std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope) {
+    for (const auto& func : userDefinedFunctions) {
+        DEBUG_LOG("Generating body for function: " + func->name + " (mangled: " + func->mangledName + ")");
+        auto llvmFunc = currentModule->getFunction(func->mangledName);
+        if (!llvmFunc) {
+            console.error("Function not found in module during body generation: " + func->mangledName);
+            continue;
+        }
+
+        generateFunctionBody(
+            func->mangledName,
+            llvmFunc,
+            func->parameters,
+            func->body,
+            scope
+        );
+    }
+}
 
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope) {
     DEBUG_LOG();
@@ -282,21 +300,59 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
     
     if (auto block = std::dynamic_pointer_cast<Omniscript::BlockExpression>(value)) {
-        DEBUG_LOG("Evaluating a block value");
+        DEBUG_LOG("Evaluating a block value — First pass (registration)");
 
         for (const auto& expr : block->values) {
-            if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(expr)) {
-                //Todo:: Add is void to omniscript types
-                if (!ret->getType()->isVoidLike()) {
-                    return codegen(expr, scope);
+            if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr)) {
+                DEBUG_LOG("Processing function declaration: " + func->name + " (mangled: " + func->mangledName + ")");
+                llvm::Type* returnType = resolveLLVMType(func->returnType);
+
+                if (func->isExtern) {
+                    createExternFunction(
+                        func->mangledName,
+                        func->externName,
+                        func->libPath,
+                        returnType,
+                        func->parameters,
+                        func->isVarArg,
+                        func->isStatic
+                    );
+                } else if (func->isIntrinsic) {
+                    std::string nameWithoutPrefix = func->intrinsicName;
+                    const std::string prefix = "intrinsic_";
+                    if (nameWithoutPrefix.rfind(prefix, 0) == 0)
+                        nameWithoutPrefix = nameWithoutPrefix.substr(prefix.size());
+
+                    createIntrinsicFunction(
+                        func->mangledName,
+                        "llvm." + nameWithoutPrefix,
+                        returnType
+                    );
+                } else {
+                    // Normal user-defined function: register only
+                    registerFunction(
+                        func->mangledName,
+                        returnType,
+                        func->parameters,
+                        scope,
+                        func->isVarArg
+                    );
+                    userDefinedFunctions.push_back(func);
                 }
-                return nullptr;
-            } else {
-                auto result = codegen(expr, scope);
             }
         }
 
-        return nullptr;
+        // Codegen other non-function expressions in the block
+        for (const auto& expr : block->values) {
+            if (!std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr)) {
+                if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(expr)) {
+                    if (!ret->getType()->isVoidLike())
+                        return codegen(expr, scope);
+                } else {
+                    codegen(expr, scope);
+                }
+            }
+        }
     }
 
     if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerExpression>(value)) {
@@ -332,14 +388,14 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
                 returnType
             );
         }
-        return createFunction(
+        registerFunction(
             func->mangledName,
-            func->body,
             returnType,
             func->parameters,
             scope,
             func->isVarArg
         );
+        userDefinedFunctions.push_back(func);
     }
 
     if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(value)) {

@@ -56,6 +56,9 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         DEBUG_LOG();
         DEBUG_LOG();
     }
+
+    irGen->compileAllFunctionBodies(scope);
+    
     DEBUG_LOG();
     DEBUG_LOG("Done evaluating statements");
     DEBUG_LOG("==========================");
@@ -150,11 +153,11 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         if (returnType->isIntegerTy(32)) {
             auto entryFunc = entrySymbol->toPtr<int(*)()>();
             int result = entryFunc();
-            DEBUG_LOG("Execution Result: " + std::to_string(result));
+            DEBUG_LOG("\nExecution Result: " + std::to_string(result));
         } else if (returnType->isVoidTy()) {
             auto entryFunc = entrySymbol->toPtr<void(*)()>();
             entryFunc();
-            DEBUG_LOG("Execution Completed (void function).");
+            DEBUG_LOG("\nExecution Completed (void function).");
         } else {
             console.error("Unsupported return type for custom entry function.");
         }

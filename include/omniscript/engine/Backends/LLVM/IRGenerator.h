@@ -81,6 +81,8 @@ private:
         return "[IRGenerator] " + msg;
     }
 
+    std::vector<std::shared_ptr<Omniscript::FunctionExpression>> userDefinedFunctions;
+
 public:
     // Constructor initializes context, builder, and module
     IRGenerator(const std::string& mainModulePath);
@@ -255,6 +257,7 @@ public:
         std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope,
         bool isVarArg = false
     );
+    void compileAllFunctionBodies(std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope);
     llvm::Function* registerFunction(
         const std::string& name,
         llvm::Type* returnType,
