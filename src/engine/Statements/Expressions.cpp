@@ -72,18 +72,18 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         console.error("The right operand has no type or is not a typed statement");
     }
 
-    if (leftType && leftType->isInvalid()) {
+    if (!leftType || leftType->isInvalid()) {
         auto tempScope = scope->createChildScope("temp");
         auto leftClone = left->clone();
         extendContextOf(leftClone);
         leftType = leftClone->express(tempScope)->getType();
     }
 
-    if (rightType && rightType->isInvalid()) {
+    if (!rightType || rightType->isInvalid()) {
         auto tempScope = scope->createChildScope("temp");
         auto rightClone = right->clone();
         extendContextOf(rightClone);
-        leftType = rightClone->express(tempScope)->getType();
+        rightType = rightClone->express(tempScope)->getType();
     }
 
     if (!leftType || leftType->isInvalid()) {
