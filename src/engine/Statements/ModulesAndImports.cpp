@@ -47,11 +47,9 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     DEBUG_LOG("Creating module '" + modulePath + "'.");
 
     std::vector<std::shared_ptr<Omniscript::Expression>> expressions;
-    std::vector<std::shared_ptr<Statement>> parameterStatements;
-    std::vector<std::shared_ptr<Statement>> constructorArgs;
+    std::vector<std::shared_ptr<Omniscript::ModuleMemberExpression>> members;
 
-    auto moduleType = std::make_shared<Omniscript::UserDefinedType>(name, Omniscript::Kind::Module);
-    scope->addType(name, moduleType);
+    auto moduleScope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>(nullptr, modulePath);
 
     // First process all includes (flatten the hierarchy)
     std::vector<std::shared_ptr<Statement>> flattenedStatements;
@@ -65,9 +63,9 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
         }
     }
 
-
     // 1. Handle nested modules and prepare parameters
     std::vector<std::shared_ptr<FunctionDeclaration>> funcs = {};
+    std::vector<MemberModifiers> funcsModifiers = {};
 
     for (const auto& stmt : flattenedStatements) {
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
@@ -78,116 +76,80 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
         if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
             DEBUG_LOG(func->toString());
             auto funcExpr = reinterprateStatement(func);
-            func->registerInScope(scope);
+            func->registerInScope(moduleScope);
             funcs.push_back(func);
         }
     }
 
     for (const auto& stmt : flattenedStatements) {
         DEBUG_LOG(stmt->toString());
-
+        
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
         
-        DEBUG_LOG("Passing '" + member->toString() + "' as a parameter to create module type '" + getName() + "_module_type'."); 
+        auto val = member->getValue();
+        
+        DEBUG_LOG("Handling module member '" + member->toString() + "'."); 
 
-        if (auto nestedModule = std::dynamic_pointer_cast<ImportModule>(member->getValue())) {
-            // Add nested module statement first
-            auto nestedModuleExpressionBlock = std::dynamic_pointer_cast<Omniscript::BlockExpression>(nestedModule->express(scope));
-            for (const auto& val : nestedModuleExpressionBlock->values) {
-                expressions.push_back(val);
-            }    
-
-            // Create pointer-type parameter for the nested module
-            auto paramStmt = std::make_shared<ParameterStatement>(member->getName());
-            paramStmt->setType(Omniscript::Type::createPointerType(scope->getType(member->getName() + "_module_type")));
-            parameterStatements.push_back(paramStmt);
-            moduleType->paramTypes.push_back(scope->getType(member->getName() + "_module_type"));
+        // Nested module handling
+        if (auto nestedModule = std::dynamic_pointer_cast<ImportModule>(val)) {
+            auto nestedExpr = nestedModule->express(moduleScope);
+            if (auto block = std::dynamic_pointer_cast<Omniscript::BlockExpression>(nestedExpr)) {
+                for (auto& e : block->values) {
+                    expressions.push_back(e);
+                }
+            } else {
+                expressions.push_back(nestedExpr);
+            }
         } else if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
-            continue;
+            funcsModifiers.push_back(member->getModifiers());
         } else {
             // Direct value member parameter
-            auto paramStmt = reinterprateStatement(member->getValue());
-            moduleType->paramTypes.push_back(std::dynamic_pointer_cast<TypedStatement>(paramStmt)->getType());
-            parameterStatements.push_back(paramStmt);
+            auto memberExprValue = reinterprateStatement(member->getValue())->express(moduleScope);
+            expressions.push_back(memberExprValue);
         }
+
+        auto memberExpr = std::make_shared<Omniscript::ModuleMemberExpression>(
+            expressions.back()->getName(),  // assuming expr is from express() and has a name
+            expressions.back(),
+            member->getModifiers()
+        );
+        
+        members.push_back(memberExpr);
     }
 
-    for (const auto& func : funcs) {
-        auto result = func->express(scope);
+
+    for (int i = 0; i < funcs.size(); i++) {
+        const auto& func = funcs[i];
+        auto result = func->express(moduleScope);
         expressions.push_back(result);
 
-        // auto ref = std::make_shared<AddressOf>(result->getName());
-        if (!func->isIntrinsic) {
-            auto paramStmt = std::make_shared<ParameterStatement>(func->getName());
-            paramStmt->setType(Omniscript::Type::createPointerType(result->getType()));
-            moduleType->paramTypes.push_back(result->getType());
-            parameterStatements.push_back(paramStmt);
-        } else {
-            expressions.push_back(result);
-        }
-    }
-
-    // 2. Create the struct type for the module
-    auto structStmt = std::make_shared<ConstructStructPrototype>(getName() + "_module_type", parameterStatements);
-    expressions.push_back(structStmt->express(scope));
-
-    // 3. Build arguments for constructor
-    for (const auto& stmt : flattenedStatements) {
-        auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
-        if (!member) continue;
-
-        DEBUG_LOG("Passing '" + member->toString() + "' as an argument to create an instance module type '" + getName() + "_module_type'.");
+        auto memberExpr = std::make_shared<Omniscript::ModuleMemberExpression>(
+            expressions.back()->getName(),  // assuming expr is from express() and has a name
+            expressions.back(),
+            funcsModifiers[i]
+        );
         
-        if (auto nestedModule = std::dynamic_pointer_cast<ImportModule>(member->getValue())) {
-            auto ref = std::make_shared<ReferenceTo>(member->getName());
-            ref->setRootType(ref->getType());
-            constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), ref));
-        } else if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
-            continue;
-        } else if (auto classDeclr = std::dynamic_pointer_cast<ConstructClassPrototype>(member->getValue())) {
-            continue;
-        } else {
-            DEBUG_LOG("Arg '" + member->getValue()->toString() + "' ");
-            auto paramStmt = std::dynamic_pointer_cast<ParameterStatement>(reinterprateStatement(member->getValue()));
-            // DEBUG_LOG("Arg '" + paramStmt->getDefaultValue()->toString() + "' ");
-            constructorArgs.push_back(std::make_shared<ArgumentStatement>(member->getName(), paramStmt->getDefaultValue()));
-        }
+        members.push_back(memberExpr);
     }
 
-    for (const auto& func : funcs) {
-        if (!func->isIntrinsic) {
-            auto ref = std::make_shared<AddressOf>(func->getName());
-            constructorArgs.push_back(std::make_shared<ArgumentStatement>(func->getName(), ref));
-        }
-    }
+    auto module = std::make_shared<Omniscript::ModuleExpression>(name, members);
+    scope->setConstant(name, module);
+    scope->defineModule(modulePath, moduleScope);
 
-    // 4. Create and evaluate the module instance
-    auto instanceStmt = std::make_shared<ObjectConstructorStatement>(
-        getName() + "_module_type",
-        getName(),
-        constructorArgs
-    );
-    expressions.push_back(instanceStmt->express(scope));
-
-    // 5. Record the type of this module
-    setType(scope->getType(getName() + "_module_type"));
-
-    // 6. Return final BlockExpression wrapping all sub-expressions
     return std::make_shared<Omniscript::BlockExpression>(expressions);
 }
 
 std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<Statement> statement) {
     DEBUG_LOG("Reinterprating statement '" + statement->toString() + "'.");
     if (auto assignment = std::dynamic_pointer_cast<AssignVariable>(statement)) {
-        auto memberStatement = std::make_shared<ParameterStatement>(assignment->getName(), assignment->getValue()->clone());
+        assignment->setName(getName() + "." + assignment->getName());
         if (!assignment->getType()) {
             DEBUG_LOG("Assignment has no type");
         } else {
             DEBUG_LOG("Assignment has a type of '" + assignment->getType()->toString() + "'.");
         }
-        memberStatement->setType(assignment->getType());
-        return memberStatement;
+        return assignment;
     } else if (auto function = std::dynamic_pointer_cast<FunctionDeclaration>(statement)) {
         function->setName(getName() + "." + function->getName());
         return function;

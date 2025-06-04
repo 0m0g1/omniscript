@@ -41,7 +41,6 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
     );
 }
 
-
 std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableType scope) {
     DEBUG_LOG();
 
@@ -51,42 +50,55 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     extendContextOf(left);
     extendContextOf(right);
 
-    // Always evaluate expressions first
-    std::shared_ptr<Omniscript::Expression> leftValue = left->express(scope);
-    std::shared_ptr<Omniscript::Expression> rightValue = right->express(scope);
-
-    if (!leftValue || !rightValue) return nullptr;
+    std::shared_ptr<Omniscript::Type> leftType = nullptr;
+    std::shared_ptr<Omniscript::Type> rightType = nullptr;
 
     auto leftTyped = std::dynamic_pointer_cast<TypedStatement>(left);
     auto rightTyped = std::dynamic_pointer_cast<TypedStatement>(right);
 
-    if (!leftTyped || !rightTyped) {
-        DEBUG_LOG("One or both expressions are not typed after evaluation.");
-        return nullptr;
+    if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
+        leftType = leftLiteral->getRootType();
+    } else if (leftTyped) {
+        leftType = leftTyped->getType();
+    } else {
+        console.error("The left operand has no type or is not a typed statement");
     }
 
-    auto leftType = leftTyped->getType();
-    auto rightType = rightTyped->getType();
-
-    if (!leftType) {
-        DEBUG_LOG("left is null");
-    }
-    
-    if (!rightType) {
-        DEBUG_LOG("right is null");
+    if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
+        rightType = rightLiteral->getRootType();
+    } else if (rightTyped) {
+        rightType = rightTyped->getType();
+    } else {
+        console.error("The right operand has no type or is not a typed statement");
     }
 
-    if (!leftType || !rightType) {
-        DEBUG_LOG("One or both types are still null after evaluation.");
-        return nullptr;
+    if (leftType && leftType->isInvalid()) {
+        auto tempScope = scope->createChildScope("temp");
+        auto leftClone = left->clone();
+        extendContextOf(leftClone);
+        leftType = leftClone->express(tempScope)->getType();
     }
 
-    // Infer a common type if type hasn't been set
+    if (rightType && rightType->isInvalid()) {
+        auto tempScope = scope->createChildScope("temp");
+        auto rightClone = right->clone();
+        extendContextOf(rightClone);
+        leftType = rightClone->express(tempScope)->getType();
+    }
+
+    if (!leftType || leftType->isInvalid()) {
+        console.error("The left operand's type is invalid");
+    }
+
+    if (!rightType || rightType->isInvalid()) {
+        console.error("The right operand's type is invalid");
+    }
+
+    // Infer a common type if not already set
     if (!type) {
         if (op.isComparisonOperator()) {
             type = Omniscript::resolveType({ "bool" });
         } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
-            // Infer based on compatible numeric types
             if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
                 type = rightType;
             } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
@@ -98,18 +110,27 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         } else if (op.isLogicalOperator()) {
             type = Omniscript::resolveType({ "bool" });
         } else if (op.isAssignmentOperator()) {
-            type = leftType; // Typically the type of the left-hand side
+            type = leftType;
         } else {
-            DEBUG_LOG("Unhandled binary operator type: " + getTokenTypeName(op.getType( )));
+            DEBUG_LOG("Unhandled binary operator type: " + getTokenTypeName(op.getType()));
+            return nullptr;
+        }
+
+        if (!type || type->isInvalid()) {
+            console.error("Failed to infer binary expression type.");
             return nullptr;
         }
 
         DEBUG_LOG("Inferred binary expression type as: " + type->description());
     }
 
-    // Set the inferred type on both typed statements
-    leftTyped->setType(type);
-    rightTyped->setType(type);
+    if (leftTyped) leftTyped->setType(type);
+    if (rightTyped) rightTyped->setType(type);
+
+    std::shared_ptr<Omniscript::Expression> leftValue = left->express(scope);
+    std::shared_ptr<Omniscript::Expression> rightValue = right->express(scope);
+
+    if (!leftValue || !rightValue) return nullptr;
 
     DEBUG_LOG("The left value is: " + leftValue->toString());
     DEBUG_LOG("The right value is: " + rightValue->toString());

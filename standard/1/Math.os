@@ -75,8 +75,8 @@ module Math {
     // } // gcd :contentReference[oaicite:33]{index=33}
 
     // // Angle Conversion
-    // public fn radians(deg: float) => float { return deg * (pi / 180.0); }
-    public fn degrees(rad: float) => float { return rad * (180.0 / pi); }
+    public fn radians(deg: float) => float { return deg * (pi / 180.0); }
+    // public fn degrees(rad: float) => float { return rad * (180.0 / pi); }
 
     // Random
     // public fn random() => float   { return intrinsic_random(); }           // [0,1) uniform

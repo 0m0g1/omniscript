@@ -1,24 +1,25 @@
 import { Math } from "std";
-extern "C" fn printf(...fmt: char*) => int;
+// extern "C" fn printf(...fmt: char*) => int;
 
-let n : f32 = Math.pow(2.0, 2.0);
-printf("%.2f", n);
-
-
-
-function powi(base: int = 1, exponent: int = 1) => int {
-   let result: int = 1;
-   for (let i = 0; i < exponent; i += 1) {
-      result *= base;
-   }
-   return result;
-}
+// let n : f32 = Math.pow(2.0, 2.0);
+// printf("%.2f", n);
 
 
-let n: int = pow(2, 2);
-let f: float = pow(2.0 as float, 2.0 as float);
 
-let pow = [powiii, powfff, powddd]
+// function powi(base: int = 1, exponent: int = 1) => int {
+//    let result: int = 1;
+//    for (let i = 0; i < exponent; i += 1) {
+//       result *= base;
+//    }
+//    return result;
+// }
+
+
+// let n: int = pow(2, 2);
+// let f: float = pow(2.0 as float, 2.0 as float);
+
+// let pow = [powiii, powfff, powddd]
+
 
 // extern "C" fn printf(...fmt: char*) => int;
 // intrinsic fn pow(x: f32, y: f32) => f32;

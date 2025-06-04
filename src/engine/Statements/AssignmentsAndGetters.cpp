@@ -69,23 +69,48 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
 std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType scope) {
     DEBUG_LOG();
     DEBUG_LOG("Getting symbol '" + name + "'.");
-    if (!scope->exists(name)) {
-        console.error("Symbol '" + name + "' does not exist in scope '" + scope->getName() + "'.");
+    DEBUG_LOG(getContextAsString());
+
+    std::shared_ptr<Omniscript::Expression> expr = scope->get(name);
+    std::string resolvedName = name;
+
+    if (!expr) {
+        std::string qualifiedName;
+        for (size_t i = 0; i < accessContext.size(); ++i) {
+            if (!qualifiedName.empty()) qualifiedName += ".";
+            qualifiedName += accessContext[i];
+
+            std::string fullCalleeName = qualifiedName + "." + name;
+            expr = scope->get(fullCalleeName);
+            DEBUG_LOG("[Call] Attempting overload resolution for '" + fullCalleeName + "'");
+            if (expr) {
+                DEBUG_LOG("Found overloads for: " + fullCalleeName + "\n");
+                resolvedName = fullCalleeName;
+                break;
+            }
+        }
     }
 
-    std::shared_ptr<Omniscript::Type> symbolType = scope->get(name)->getType();
+    if (!expr) {
+        console.error("Symbol '" + name + "' could not be resolved in scope '" + scope->getName() + "'.");
+        return nullptr;
+    }
+
+    std::shared_ptr<Omniscript::Type> symbolType = expr->getType();
 
     if (type) {
         if (!Omniscript::isSameOrCastableTo(symbolType, type)) {
-            console.error("Symbol '" + name + "' is of type '" + symbolType->toString() + "' it cannot be casted to a '" + type->toString() + "'.");
+            console.error("Symbol '" + resolvedName + "' is of type '" + symbolType->toString() +
+                          "', which cannot be casted to '" + type->toString() + "'.");
+        } else {
+            DEBUG_LOG("The casted type is '" + type->toString() + "'.");
         }
-        DEBUG_LOG("The casted type is '" + type->toString() + "'.");
     } else {
-        DEBUG_LOG("The infered type is '" + symbolType->toString() + "'.");
+        DEBUG_LOG("The inferred type is '" + symbolType->toString() + "'.");
         setType(symbolType);
     }
 
-    return std::make_shared<Omniscript::VariableAccess>(name, type);
+    return std::make_shared<Omniscript::VariableAccess>(resolvedName, type);
 }
 
 // Get Dynamic Variable

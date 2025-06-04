@@ -644,7 +644,7 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
         return;
     }
     DEBUG_LOG();
-    DEBUG_LOG("[Function] Constructing a function " + name + " prototype the return Type is '" + type->toString() + "'.");
+    DEBUG_LOG("[Function] Constructing a function '" + name + "' prototype in '" + scope->getName() + "' the return Type is '" + type->toString() + "'.");
 
     DEBUG_LOG("[Function] Creating a local scope for the function");
     localScope = scope->createChildScope(name);

@@ -75,7 +75,7 @@ class NamedStatement: public virtual Statement {
 public:
     ~NamedStatement() = default;
     virtual std::string getName() const { return name; };
-    void setName(const std::string& newName) { name = newName; }
+    virtual void setName(const std::string& newName) { name = newName; }
     virtual std::string toString() const override { return name; }
 
 protected:
@@ -789,6 +789,7 @@ public:
     }
 
     std::string getName() const override { return variable; }
+    void setName(const std::string newVarName) { variable = newVarName; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
     std::string toString() const override {
