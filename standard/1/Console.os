@@ -1,60 +1,95 @@
 module Console {
-//   public enum LogLevel { LOG, INFO, WARN, ERROR, DEBUG };
+    extern "C" fn printf(...fmt: char*) => int;
+    extern "C" fn Beep(freq: int, duration: int) => int;
+    extern "C" fn time(ptr: void*) => int;
+    extern "C" fn localtime(ptr: void*) => void*;
+    extern "C" fn strftime(buf: void*, size: int, fmt: char*, tm: void*) => int;
 
-//   public var debugEnabled: bool = false;
+//   enum LogLevel { LOG, INFO, WARN, ERROR, DEBUG };
 
-//   public function setDebug(on: bool) => void { debugEnabled = on; }
+//   var debugEnabled: bool = false;
 
-//   public function log(msg: string) => void { write(msg, LOG); }
-//   public function info(msg: string) => void { write(msg, INFO); }
-//   public function warn(msg: string) => void { write(msg, WARN); }
-//   public function error(msg: string) => void { write(msg, ERROR); }
-//   public function debug(msg: string) => void {
-//     if (debugEnabled) write(msg, DEBUG);
+//   fn setDebug(on: bool) => void {
+//     debugEnabled = on;
 //   }
 
-//   public function write(msg: string,
-//                         level: LogLevel = LOG,
-//                         newline: bool = true) => void {
-//     // choose ANSI color based on level…
-//     Backend.write(coloredMsg);
-//     if (newline) Backend.write("\n");
+//   fn getTimestamp() => char* {
+//     var t: int = 0;
+//     time(&t);
+//     var tm = localtime(&t);
+//     var buf: [64]char;
+//     strftime(&buf[0], 64, "%Y-%m-%d %H:%M:%S", tm);
+//     return &buf[0];
 //   }
 
-//   public function assert(cond: bool, msg: string = "") => void {
-//     if (!cond) error("Assertion failed: " + msg);
+//   fn getColor(level: LogLevel) => char* {
+//     if (level == INFO) return "\x1b[32m"; // Green
+//     if (level == WARN) return "\x1b[33m"; // Yellow
+//     if (level == ERROR) return "\x1b[31m"; // Red
+//     if (level == DEBUG) return "\x1b[36m"; // Cyan
+//     return "\x1b[0m"; // Reset
 //   }
 
-//   public function clear() => void { Backend.clearScreen(); }
-
-//   public function count(label: string = "default") => void { /* … */ }
-//   public function countReset(label: string = "default") => void { /* … */ }
-
-//   public function group(label: string = "") => void { /* … */ }
-//   public function groupCollapsed(label: string = "") => void { /* … */ }
-//   public function groupEnd() => void { /* … */ }
-
-//   public function time(label: string = "default") => void { /* … */ }
-//   public function timeLog(label: string = "default") => void { /* … */ }
-//   public function timeEnd(label: string = "default") => void { /* … */ }
-
-//   public function trace(msg: string = "") => void { /* … */ }
-
-//   public function dir(obj: any) => void { /* … */ }
-//   public function dirxml(obj: any) => void { /* … */ }
-
-//   public function table(data: any[], columns?: string[]) => void { /* … */ }
-
-//   public function input(prompt: string = "") => string {
-//     Backend.write(prompt);
-//     return Backend.readLine();
+//   fn getLevelLabel(level: LogLevel) => char* {
+//     if (level == INFO) return "INFO";
+//     if (level == WARN) return "WARN";
+//     if (level == ERROR) return "ERROR";
+//     if (level == DEBUG) return "DEBUG";
+//     return "LOG";
 //   }
 
-//   public function beep() => void { Backend.write("\u0007"); }
+//   fn write(msg: char*, level: LogLevel = LOG, newline: bool = true) => void {
+//     var timestamp = getTimestamp();
+//     var color = getColor(level);
+//     var label = getLevelLabel(level);
 
-//   private module Backend {
-//     public function write(text: string) => void = "__console_write";
-//     public function clearScreen() => void = "__console_clear";
-//     public function readLine() => string = "__console_readline";
+//     printf("%s[%s] [%s] %s\x1b[0m", color, timestamp, label, msg);
+//     if (newline) {
+//       printf("\n");
+//     }
 //   }
+
+    // public fn log(msg: char*) => void {
+    //     write(msg, LOG);
+    // }
+
+//   fn info(msg: char*) => void {
+//     write(msg, INFO);
+//   }
+
+//   fn warn(msg: char*) => void {
+//     write(msg, WARN);
+//   }
+
+//   fn error(msg: char*) => void {
+//     write(msg, ERROR);
+//   }
+
+//   fn debug(msg: char*) => void {
+//     if (debugEnabled) {
+//       write(msg, DEBUG);
+//     }
+//   }
+
+//   fn assert(cond: bool, msg: char* = "") => void {
+//     if (!cond) {
+//       error("Assertion failed:");
+//       if (msg[0] != 0) {
+//         error(msg);
+//       }
+//     }
+//   }
+
+  fn beep() => void {
+    printf("\a");
+    Beep(800, 200); // windows
+  }
+
+  fn beep(freq: int, duration: int) => void {
+    Beep(freq, duration); // windows
+  }
+
+  fn clear() => void {
+    printf("\x1b[2J\x1b[H"); // ANSI: clear screen and move cursor to top-left
+  }
 }

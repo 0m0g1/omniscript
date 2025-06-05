@@ -1,10 +1,25 @@
-import { Math } from "std";
-extern "C" fn printf(...fmt: char*) => int;
+import { Math, IO } from "std";
+
 
 let n : f32 = std.Math.powf(2.0, 3.0);
-// let n : f32 = std.Math.pi;
-printf("%.2f", n);
+std.IO.Console.printf("%.2f\n", n);
 
+
+std.IO.Console.printf("Playing melody...\n");
+        
+// D Major Scale (D4 to D5)
+std.IO.Console.Beep(294, 300);  // D4
+std.IO.Console.Beep(330, 300);  // E4
+std.IO.Console.Beep(370, 300);  // F#4
+std.IO.Console.Beep(392, 300);  // G4
+std.IO.Console.Beep(440, 300);  // A4
+std.IO.Console.Beep(494, 300);  // B4
+std.IO.Console.Beep(554, 300);  // C#5
+std.IO.Console.Beep(587, 300);  // D5 (hold last note longer)
+std.IO.Console.Beep(587, 300);  // D5 (hold last note longer)
+
+
+std.IO.Console.printf("Done!");
 
 
 // function powi(base: int = 1, exponent: int = 1) => int {
@@ -198,19 +213,19 @@ printf("%.2f", n);
 
 // let a = 0;
 // for (let i = 0; i < 5; i++) {
-//    console.log(i);
+//    std.IO.Console.log(i);
 //    a++;
 // }
 
-// console.log(a);
+// std.IO.Console.log(a);
 
 // changeA();
 // a = (changeA() + (5 + 1) / 2 * 3 - 1);
 
 
 // function ab(n = 1, b = 2) {
-//    console.info(n);
-//    console.info(b);
+//    std.IO.Console.info(n);
+//    std.IO.Console.info(b);
 // }
 
 // ab(n = "hell0", b = "hi");

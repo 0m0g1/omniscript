@@ -110,7 +110,7 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
             expressions.push_back(memberExprValue);
         }
 
-        if (!std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
+        if (!std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue()) && !expressions.empty()) {
             DEBUG_LOG("Appending module member '" + member->getName() + "'.");
             auto memberExpr = std::make_shared<Omniscript::ModuleMemberExpression>(
                 member->getName(),  // assuming expr is from express() and has a name
