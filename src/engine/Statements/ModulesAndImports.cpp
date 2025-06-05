@@ -49,7 +49,8 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     std::vector<std::shared_ptr<Omniscript::Expression>> expressions;
     std::vector<std::shared_ptr<Omniscript::ModuleMemberExpression>> members;
 
-    auto moduleScope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>(nullptr, modulePath);
+    // auto moduleScope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>(nullptr, modulePath);
+    auto moduleScope = scope;
 
     // First process all includes (flatten the hierarchy)
     std::vector<std::shared_ptr<Statement>> flattenedStatements;
@@ -109,13 +110,15 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
             expressions.push_back(memberExprValue);
         }
 
-        auto memberExpr = std::make_shared<Omniscript::ModuleMemberExpression>(
-            expressions.back()->getName(),  // assuming expr is from express() and has a name
-            expressions.back(),
-            member->getModifiers()
-        );
-        
-        members.push_back(memberExpr);
+        if (!std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
+            DEBUG_LOG("Appending module member '" + member->getName() + "'.");
+            auto memberExpr = std::make_shared<Omniscript::ModuleMemberExpression>(
+                member->getName(),  // assuming expr is from express() and has a name
+                expressions.back(),
+                member->getModifiers()
+            );
+            members.push_back(memberExpr);
+        }
     }
 
 
@@ -142,8 +145,15 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
 
 std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<Statement> statement) {
     DEBUG_LOG("Reinterprating statement '" + statement->toString() + "'.");
+    std::string context;
+
+    for (int i = 0; i < accessContext.size() - 1; i++) {
+        std::string& ctx = accessContext[i];
+        context += ctx + ".";
+    }
+ 
     if (auto assignment = std::dynamic_pointer_cast<AssignVariable>(statement)) {
-        assignment->setName(getName() + "." + assignment->getName());
+        assignment->setName(context + getName() + "." + assignment->getName());
         if (!assignment->getType()) {
             DEBUG_LOG("Assignment has no type");
         } else {
@@ -151,10 +161,10 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
         }
         return assignment;
     } else if (auto function = std::dynamic_pointer_cast<FunctionDeclaration>(statement)) {
-        function->setName(getName() + "." + function->getName());
+        function->setName(context + getName() + "." + function->getName());
         return function;
     } else if (auto classDeclr = std::dynamic_pointer_cast<ConstructClassPrototype>(statement)) {
-        classDeclr->setName(getName() + "." + classDeclr->getName());
+        classDeclr->setName(context + getName() + "." + classDeclr->getName());
         return classDeclr;
     }
 
@@ -186,6 +196,7 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
     for (const auto& stmt : statements) {
         DEBUG_LOG("[ImportModule] Found statement '" + stmt->toString() + "' in file '" + path + "'.");
         if (auto createModule = std::dynamic_pointer_cast<CreateModule>(stmt)) {
+            extendContextOf(createModule);
             if (createModule->getName() == moduleName || moduleName.empty()) {
                 createModule->setPath(path);
                 moduleStmt = createModule;

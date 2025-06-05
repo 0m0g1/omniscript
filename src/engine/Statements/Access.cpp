@@ -7,6 +7,52 @@
 
 // ============================== Accesses  ============================== //
 
+
+void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::string memberName, SymbolTableType scope) {
+    // Ensure base type is a class
+    auto aggregateExpr = std::dynamic_pointer_cast<Omniscript::AggregateExpression>(scope->get(baseTypeName));
+    if (aggregateExpr) {
+        auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(scope->get(baseTypeName));
+        auto classExpr = std::dynamic_pointer_cast<Omniscript::ClassExpression>(scope->get(baseTypeName));
+        auto moduleExpr = std::dynamic_pointer_cast<Omniscript::ModuleExpression>(scope->get(baseTypeName));
+        
+        if (auto type = scope->get(baseTypeName)) {
+            DEBUG_LOG("Accessing a member of type '" + type->toString() + "'.");
+        } else {
+            DEBUG_LOG("No type defined");
+        }
+
+        std::shared_ptr<Omniscript::MemberExpression> member;
+
+        DEBUG_LOG(getContextAsString());
+        if (structExpr) {
+            // member = structExpr->getMember(memberName);
+        } else if (classExpr) {
+            member = classExpr->getMember(memberName);
+        } else if (moduleExpr) {
+            member = moduleExpr->getMember(memberName);
+        } else {
+            console.error("Type '" + baseTypeName + "' is not an aggregate Type (class, struct, module).");
+            return;
+        }
+
+        if (!member) {
+            console.error("Member '" + memberName + "' not found in type '" + baseTypeName + "'.");
+            return;
+        }
+    
+        
+        if (!structExpr && !member->isPublic() && member->isPrivate() && !containsContext(classExpr->getName())) {
+            if (classExpr) {
+                console.error("Cannot access private member '" + memberName + "' of class '" + classExpr->getName() + "'.");
+            } else if (moduleExpr) {
+                console.error("Cannot access private member '" + memberName + "' of module '" + moduleExpr->getName() + "'.");
+            } 
+            return;
+        }
+    }
+}
+
 void Access::verifyMemberAccessibility() {
 
 }
@@ -16,7 +62,18 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     std::string baseTypeName;
     std::string resolvedObjectName = objectName;
 
+    std::string prefix = accessContext[0];
+    for (size_t i = 0; i < accessContext.size() - 1; ++i) {
+        std::string baseName = accessContext[i];
+        std::string memberName = accessContext[i + 1];
+
+        DEBUG_LOG("Validating access for '" + memberName + "' in '" + baseName + "'.");
+        validateAccessiblity(baseName, memberName, scope);
+        prefix += "." + memberName;
+    }
+
     // Evaluate base expression or get type from variable
+    DEBUG_LOG("The object is " + object->toString());
     if (object) {
         if (auto getter = std::dynamic_pointer_cast<GetVariable>(object)) {
             objectName = getter->getName();
@@ -50,6 +107,40 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                 type->description();
             object = nullptr;
 
+        } else if (auto memberAcc = std::dynamic_pointer_cast<MemberAccess>(object)) {
+            std::shared_ptr<Omniscript::Expression> expr; 
+            resolvedObjectName = objectName;
+            std::string qualifiedName;
+            for (size_t i = 0; i < accessContext.size(); ++i) {
+                if (!qualifiedName.empty()) qualifiedName += ".";
+                qualifiedName += accessContext[i];
+
+                std::string fullName = qualifiedName + "." + memberName;
+                DEBUG_LOG("[MemberAccess] Trying contextual name: " + fullName);
+            }
+
+            qualifiedName += "." + memberName;
+            
+            expr = scope->get(qualifiedName);
+
+            if (expr) {
+                type = expr->getType();
+                DEBUG_LOG("'" + qualifiedName + "' has type " + type->toString() + "'.");
+                
+                if (!assignmentValue) {
+                    return std::make_shared<Omniscript::VariableAccess>(qualifiedName, type);
+                }
+    
+                std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
+                extendContextOf(assignmentValue);
+                assignmentExpr = assignmentValue->express(scope);
+                if (!assignmentExpr) {
+                    console.error("Failed to evaluate assignment expression");
+                    return nullptr;
+                }
+                return std::make_shared<Omniscript::VariableAssignment>(qualifiedName, assignmentExpr);
+            }
+            
         } else {
             baseExpr = object->express(scope);
             if (!baseExpr) {
@@ -91,8 +182,6 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             type->getBasePointeeType()->getName() :
             type->description();
     }
-
-    validateAccessiblity(baseTypeName, memberName, scope);
 
     auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(scope->getType(baseTypeName));
     if (!userType) {
