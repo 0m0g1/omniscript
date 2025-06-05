@@ -220,7 +220,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     evaluatedArgs.push_back(inputExpr);
                 } else {
                     result = arg->express(scope);
-                    DEBUG_LOG("[Call] Evaluated an unamed argument");
+                    DEBUG_LOG("[Call] Evaluated an unamed argument " + result->toString());
                     auto inputExpr = std::make_shared<Omniscript::FunctionInputExpression>("", result->getType(), result);
                     evaluatedArgs.push_back(inputExpr);
                 }

@@ -104,7 +104,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
             } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
                 type = leftType;
             } else {
-                DEBUG_LOG("Incompatible arithmetic/bitwise types: " + leftType->description() + " vs " + rightType->description());
+                console.error("Incompatible arithmetic/bitwise types: " + leftType->toString() + " vs " + rightType->toString());
                 return nullptr;
             }
         } else if (op.isLogicalOperator()) {
@@ -121,16 +121,17 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
             return nullptr;
         }
 
-        DEBUG_LOG("Inferred binary expression type as: " + type->description());
+        DEBUG_LOG("Inferred binary expression type as: " + type->toString());
     }
 
-    if (leftTyped) leftTyped->setType(type);
-    if (rightTyped) rightTyped->setType(type);
+    // if (leftTyped) leftTyped->setType(type);
+    // if (rightTyped) rightTyped->setType(type);
 
     std::shared_ptr<Omniscript::Expression> leftValue = left->express(scope);
     std::shared_ptr<Omniscript::Expression> rightValue = right->express(scope);
 
-    if (!leftValue || !rightValue) return nullptr;
+    if (!leftValue) console.error("The left value is null");
+    if (!rightValue) console.error("The right value is null");
 
     DEBUG_LOG("The left value is: " + leftValue->toString());
     DEBUG_LOG("The right value is: " + rightValue->toString());
@@ -150,7 +151,11 @@ bool BinaryExpression::isCompileTimeEvaluatable() {
 }
 
 std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType scope) {
-    DEBUG_LOG("Creating a unary expression");
+    if (operand) {
+        DEBUG_LOG("Creating a unary expression " + operand->toString());
+    } else {
+        console.error("There is no operand");
+    }
 
     extendContextOf(operand);
     // Set the expected type on the operand
@@ -167,7 +172,9 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
     }
 
     // Evaluate the operand
-    if (!operandValue) return nullptr;
+    if (!operandValue) {
+        console.error("No operand value");
+    }
 
     bool isPrefix = position == Position::Prefix;
 

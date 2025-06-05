@@ -14,20 +14,42 @@ void Access::verifyMemberAccessibility() {
 std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType scope) {
     std::shared_ptr<Omniscript::Expression> baseExpr = nullptr;
     std::string baseTypeName;
+    std::string resolvedObjectName = objectName;
 
     // Evaluate base expression or get type from variable
     if (object) {
         if (auto getter = std::dynamic_pointer_cast<GetVariable>(object)) {
             objectName = getter->getName();
-            auto var = scope->get(objectName);
-            if (!var) {
-                console.error("Variable '" + objectName + "' not found in scope");
+            std::shared_ptr<Omniscript::Expression> expr = scope->get(objectName);
+            resolvedObjectName = objectName;
+
+            if (!expr) {
+                std::string qualifiedName;
+                for (size_t i = 0; i < accessContext.size(); ++i) {
+                    if (!qualifiedName.empty()) qualifiedName += ".";
+                    qualifiedName += accessContext[i];
+
+                    std::string fullName = qualifiedName + "." + objectName;
+                    expr = scope->get(fullName);
+                    DEBUG_LOG("[MemberAccess] Trying contextual name: " + fullName);
+                    if (expr) {
+                        resolvedObjectName = fullName;
+                        break;
+                    }
+                }
+            }
+
+            if (!expr) {
+                console.error("Variable '" + objectName + "' not found in current or contextual scope");
                 return nullptr;
             }
-            baseTypeName = (var->getType()->isPointer()) ? 
-                var->getType()->getBasePointeeType()->getName() :
-                var->getType()->description();
+
+            auto type = expr->getType();
+            baseTypeName = (type->isPointer()) ? 
+                type->getBasePointeeType()->getName() :
+                type->description();
             object = nullptr;
+
         } else {
             baseExpr = object->express(scope);
             if (!baseExpr) {
@@ -35,19 +57,39 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                 return nullptr;
             }
             auto baseType = baseExpr->getType();
-            baseTypeName = (baseType->isPointer()) ? 
+            baseTypeName = (baseType->isPointer()) ?
                 baseType->getBasePointeeType()->getName() :
                 baseType->description();
         }
     } else {
-        auto var = scope->get(objectName);
-        if (!var) {
-            console.error("Variable '" + objectName + "' not found in scope");
+        std::shared_ptr<Omniscript::Expression> expr = scope->get(objectName);
+        resolvedObjectName = objectName;
+
+        if (!expr) {
+            std::string qualifiedName;
+            for (size_t i = 0; i < accessContext.size(); ++i) {
+                if (!qualifiedName.empty()) qualifiedName += ".";
+                qualifiedName += accessContext[i];
+
+                std::string fullName = qualifiedName + "." + objectName;
+                expr = scope->get(fullName);
+                DEBUG_LOG("[MemberAccess] Trying contextual name: " + fullName);
+                if (expr) {
+                    resolvedObjectName = fullName;
+                    break;
+                }
+            }
+        }
+
+        if (!expr) {
+            console.error("Variable '" + objectName + "' not found in current or contextual scope");
             return nullptr;
         }
-        baseTypeName = (var->getType()->isPointer()) ? 
-            var->getType()->getBasePointeeType()->getName() :
-            var->getType()->description();
+
+        auto type = expr->getType();
+        baseTypeName = (type->isPointer()) ?
+            type->getBasePointeeType()->getName() :
+            type->description();
     }
 
     validateAccessiblity(baseTypeName, memberName, scope);
@@ -94,14 +136,14 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     // Build final expression
     std::shared_ptr<Omniscript::Expression> baseVarExpr = baseExpr;
     if (!baseVarExpr) {
-        auto var = scope->get(objectName);
-        baseVarExpr = std::make_shared<Omniscript::VariableAccess>(objectName, var->getType());
+        auto var = scope->get(resolvedObjectName);
+        baseVarExpr = std::make_shared<Omniscript::VariableAccess>(resolvedObjectName, var->getType());
     }
 
     auto result = std::make_shared<Omniscript::MemberAccessExpression>(
         baseVarExpr,
         baseTypeName,
-        objectName,
+        resolvedObjectName,
         memberName,
         memberIndex,
         type,

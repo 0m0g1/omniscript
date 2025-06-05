@@ -15,6 +15,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     // Start with base identifier
     std::shared_ptr<Statement> expr = std::make_shared<GetVariable>(rootIdentifier);
     std::vector<std::string> memberPath = {};
+    std::vector<std::string> accessContext = {};
     std::string member = rootIdentifier;
 
     // Loop for dot/arrow/call access
@@ -51,6 +52,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             member = nextMember;
             eat(TokenTypes::Identifier);
             memberPath.push_back(nextMember);
+            accessContext.push_back(nextMember);
             expr = std::make_shared<MemberAccess>(expr, member);  // Pass full path
         }
 
@@ -74,13 +76,18 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
 
         // Assignment
         else if (isAssignmentExpression(currentToken.getType())) {
-            return parseAssignment(expr);
+            expr = parseAssignment(expr);
+            break;
         }
 
         // Done
         else {
             break;
         }
+    }
+
+    if (auto ctxAware = std::dynamic_pointer_cast<ContextAwareStatement>(expr)) {
+        ctxAware->setAccessContext(accessContext);
     }
 
     return expr;
