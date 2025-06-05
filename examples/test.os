@@ -1,9 +1,9 @@
 import { Math } from "std";
 extern "C" fn printf(...fmt: char*) => int;
 
-// let n : f32 = std.Math.pow(2.0, 2.0);
+let n : f32 = std.Math.powf(2.0, 3.0);
 // let n : f32 = std.Math.pi;
-// printf("%.2f", n);
+printf("%.2f", n);
 
 
 

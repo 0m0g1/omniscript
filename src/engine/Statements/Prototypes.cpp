@@ -54,6 +54,31 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     // If there is a target we are calling a method
     if (!targetName.empty()) {
         auto obj = scope->get(impliedTargetName.empty() ? targetName : impliedTargetName);
+
+        std::string contextualName;
+        for (size_t i = 0; i < accessContext.size(); ++i) {
+            if (!contextualName.empty()) contextualName += ".";
+            contextualName += accessContext[i];
+
+            std::string fullName = contextualName + "." + callee;
+            DEBUG_LOG("[MemberAccess] Trying contextual name: " + fullName);
+        }
+
+        contextualName += "." + callee;
+
+        auto contextualObj = scope->get(contextualName);
+        if (!contextualObj) {
+            auto contextualArray = scope->getOverloads(contextualName);
+            if (!contextualArray.empty()) {
+                contextualObj = contextualArray[0];
+            }
+        }
+
+        if (contextualObj) {
+            callee = contextualName;
+            obj = contextualObj;
+        }
+
         if (!std::dynamic_pointer_cast<Omniscript::FunctionExpression>(obj) && obj) {
             std::string typeName = obj->getType()->getName();
             DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");

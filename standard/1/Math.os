@@ -1,47 +1,122 @@
 module Math {
     // Constants
-    // public const pi: float   = 3.141592653589793;
-    // public const e: float    = 2.718281828459045;
-    // public const inf: double = 1.0 / 0.0;
-    // public const nan: double = 0.0 / 0.0;
+    public const pi: double   = 3.141592653589793;
+    public const e: double    = 2.718281828459045;
+    public const inf: double  = 1.0 / 0.0;
+    public const nan: double  = 0.0 / 0.0;
 
-    // // Extern "C" function declarations
+    // Basic Arithmetic
+    extern "C" fn powf(x: float, y: float) => float;
+    extern "C" fn pow(x: double, y: double) => double;
+    // To Do: add double and f80 types
+    // extern "C" fn powl(x: i64 double, y: i64 double) => f80;
+    extern "C" fn powl(x: f80, y: f80) => f80;
 
-    // // Basic Arithmetic
-    extern "C" fn pow(x: float, y: float) => float;
-    // extern "C" fn abs(x: int) => int;
+    extern "C" fn abs(x: int) => int;
+    // To do: add i64 and i64 types
+    // extern "C" fn labs(x: i64) => i64;
+    // extern "C" fn llabs(x: i64) => i64;
+    extern "C" fn labs(x: i64) => i64;
+    extern "C" fn llabs(x: i64) => i64;
 
-    // // Floating point variants
-    // extern "C" fn fabs(x: float) => float;
-    // extern "C" fn sqrt(x: float) => float;
-    // extern "C" fn floor(x: float) => float;
-    // extern "C" fn ceil(x: float) => float;
-    // extern "C" fn trunc(x: float) => float;
-    // extern "C" fn round(x: float) => float;
+    // Floating point absolute value
+    extern "C" fn fabsf(x: float) => float;
+    extern "C" fn fabs(x: double) => double;
+    // extern "C" fn fabsl(x: f80) => f80;
 
-    // // Trigonometric
-    // extern "C" fn sin(x: float) => float;
-    // extern "C" fn cos(x: float) => float;
-    // extern "C" fn tan(x: float) => float;
-    // extern "C" fn asin(x: float) => float;
-    // extern "C" fn acos(x: float) => float;
-    // extern "C" fn atan(x: float) => float;
-    // extern "C" fn atan2(y: float, x: float) => float;
+    // Square root
+    extern "C" fn sqrtf(x: float) => float;
+    extern "C" fn sqrt(x: double) => double;
+    extern "C" fn sqrtl(x: f80) => f80;
 
-    // // Hyperbolic
-    // extern "C" fn sinh(x: float) => float;
-    // extern "C" fn cosh(x: float) => float;
-    // extern "C" fn tanh(x: float) => float;
+    // Floor
+    extern "C" fn floorf(x: float) => float;
+    extern "C" fn floor(x: double) => double;
+    extern "C" fn floorl(x: f80) => f80;
 
-    // // Exponential and Logarithmic
-    // extern "C" fn exp(x: float) => float;
-    // extern "C" fn exp2(x: float) => float;
-    // extern "C" fn log(x: float) => float;
-    // extern "C" fn log2(x: float) => float;
-    // extern "C" fn log10(x: float) => float;
+    // Ceil
+    extern "C" fn ceilf(x: float) => float;
+    extern "C" fn ceil(x: double) => double;
+    extern "C" fn ceill(x: f80) => f80;
 
-    // // Floating point remainder
-    // extern "C" fn fmod(x: float, y: float) => float;
+    // Truncate
+    extern "C" fn truncf(x: float) => float;
+    extern "C" fn trunc(x: double) => double;
+    extern "C" fn truncl(x: f80) => f80;
+
+    // Round
+    extern "C" fn roundf(x: float) => float;
+    extern "C" fn round(x: double) => double;
+    extern "C" fn roundl(x: f80) => f80;
+
+    // Trigonometric
+    extern "C" fn sinf(x: float) => float;
+    extern "C" fn sin(x: double) => double;
+    extern "C" fn sinl(x: f80) => f80;
+
+    extern "C" fn cosf(x: float) => float;
+    extern "C" fn cos(x: double) => double;
+    extern "C" fn cosl(x: f80) => f80;
+
+    extern "C" fn tanf(x: float) => float;
+    extern "C" fn tan(x: double) => double;
+    extern "C" fn tanl(x: f80) => f80;
+
+    extern "C" fn asinf(x: float) => float;
+    extern "C" fn asin(x: double) => double;
+    extern "C" fn asinl(x: f80) => f80;
+
+    extern "C" fn acosf(x: float) => float;
+    extern "C" fn acos(x: double) => double;
+    extern "C" fn acosl(x: f80) => f80;
+
+    extern "C" fn atanf(x: float) => float;
+    extern "C" fn atan(x: double) => double;
+    extern "C" fn atanl(x: f80) => f80;
+
+    extern "C" fn atan2f(y: float, x: float) => float;
+    extern "C" fn atan2(y: double, x: double) => double;
+    extern "C" fn atan2l(y: f80, x: f80) => f80;
+
+    // Hyperbolic
+    extern "C" fn sinhf(x: float) => float;
+    extern "C" fn sinh(x: double) => double;
+    extern "C" fn sinhl(x: f80) => f80;
+
+    extern "C" fn coshf(x: float) => float;
+    extern "C" fn cosh(x: double) => double;
+    extern "C" fn coshl(x: f80) => f80;
+
+    extern "C" fn tanhf(x: float) => float;
+    extern "C" fn tanh(x: double) => double;
+    extern "C" fn tanhl(x: f80) => f80;
+
+    // Exponential
+    extern "C" fn expf(x: float) => float;
+    extern "C" fn exp(x: double) => double;
+    extern "C" fn expl(x: f80) => f80;
+
+    extern "C" fn exp2f(x: float) => float;
+    extern "C" fn exp2(x: double) => double;
+    extern "C" fn exp2l(x: f80) => f80;
+
+    // Logarithmic
+    extern "C" fn logf(x: float) => float;
+    extern "C" fn log(x: double) => double;
+    extern "C" fn logl(x: f80) => f80;
+
+    extern "C" fn log2f(x: float) => float;
+    extern "C" fn log2(x: double) => double;
+    extern "C" fn log2l(x: f80) => f80;
+
+    extern "C" fn log10f(x: float) => float;
+    extern "C" fn log10(x: double) => double;
+    extern "C" fn log10l(x: f80) => f80;
+
+    // Floating point remainder
+    extern "C" fn fmodf(x: float, y: float) => float;
+    extern "C" fn fmod(x: double, y: double) => double;
+    extern "C" fn fmodl(x: f80, y: f80) => f80;
 
     // // Wrapper functions implemented using externs or basic logic
 
