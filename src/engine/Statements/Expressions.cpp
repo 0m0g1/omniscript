@@ -101,8 +101,14 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
             if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
                 type = rightType;
+                if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
+                    if (leftTyped) leftTyped->setType(type);
+                }
             } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
                 type = leftType;
+                if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
+                    if (rightTyped) rightTyped->setType(type);
+                }
             } else {
                 console.error("Incompatible arithmetic/bitwise types: " + leftType->toString() + " vs " + rightType->toString());
                 return nullptr;
@@ -124,7 +130,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         DEBUG_LOG("Inferred binary expression type as: " + type->toString());
     }
 
-    // if (leftTyped) leftTyped->setType(type);
+    
     // if (rightTyped) rightTyped->setType(type);
 
     std::shared_ptr<Omniscript::Expression> leftValue = left->express(scope);
