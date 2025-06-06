@@ -17,10 +17,10 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
         stmt->setType(type);
     }
 
-    if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(condition)) {
-        std::vector<std::string> typeStr = {"bool"};
-        stmt->setType(Omniscript::resolveType(typeStr));
-    }
+    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(condition)) {
+    //     std::vector<std::string> typeStr = {"bool"};
+    //     stmt->setType(Omniscript::resolveType(typeStr));
+    // }
 
     extendContextOf(condition);
     extendContextOf(truthy);
@@ -57,7 +57,11 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     auto rightTyped = std::dynamic_pointer_cast<TypedStatement>(right);
 
     if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
-        leftType = leftLiteral->getRootType();
+        if (type) {
+            leftType = type;
+        } else {
+            leftType = leftLiteral->getRootType();
+        }
     } else if (leftTyped) {
         leftType = leftTyped->getType();
     } else {
@@ -65,7 +69,11 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     }
 
     if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
-        rightType = rightLiteral->getRootType();
+        if (type) {
+            rightType = type;
+        } else {
+            rightType = rightLiteral->getRootType();
+        }
     } else if (rightTyped) {
         rightType = rightTyped->getType();
     } else {
@@ -95,40 +103,54 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     }
 
     // Infer a common type if not already set
-    if (!type) {
-        if (op.isComparisonOperator()) {
-            type = Omniscript::resolveType({ "bool" });
-        } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
-            if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
-                type = rightType;
-                if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
-                    if (leftTyped) leftTyped->setType(type);
-                }
-            } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
-                type = leftType;
-                if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
-                    if (rightTyped) rightTyped->setType(type);
-                }
-            } else {
-                console.error("Incompatible arithmetic/bitwise types: " + leftType->toString() + " vs " + rightType->toString());
-                return nullptr;
+    // if (!type) {
+    if (op.isComparisonOperator()) {
+        type = Omniscript::resolveType({ "bool" });
+        if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
+            type = rightType;
+            if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
+                if (leftTyped) leftTyped->setType(rightType);
             }
-        } else if (op.isLogicalOperator()) {
-            type = Omniscript::resolveType({ "bool" });
-        } else if (op.isAssignmentOperator()) {
+        } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
             type = leftType;
+            if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
+                if (rightTyped) rightTyped->setType(leftType);
+            }
         } else {
-            DEBUG_LOG("Unhandled binary operator type: " + getTokenTypeName(op.getType()));
+            console.error("Incompatible comparison types: " + leftType->toString() + " vs " + rightType->toString());
             return nullptr;
         }
-
-        if (!type || type->isInvalid()) {
-            console.error("Failed to infer binary expression type.");
+    } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
+        if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
+            // type = rightType;
+            if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
+                if (leftTyped) leftTyped->setType(rightType);
+            }
+        } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
+            // type = leftType;
+            if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
+                if (rightTyped) rightTyped->setType(leftType);
+            }
+        } else {
+            console.error("Incompatible arithmetic/bitwise types: " + leftType->toString() + " vs " + rightType->toString());
             return nullptr;
         }
-
-        DEBUG_LOG("Inferred binary expression type as: " + type->toString());
+    } else if (op.isLogicalOperator()) {
+        type = Omniscript::resolveType({ "bool" });
+    } else if (op.isAssignmentOperator()) {
+        type = leftType;
+    } else {
+        DEBUG_LOG("Unhandled binary operator type: " + getTokenTypeName(op.getType()));
+        return nullptr;
     }
+
+    if (!type || type->isInvalid()) {
+        console.error("Failed to infer binary expression type.");
+        return nullptr;
+    }
+
+    DEBUG_LOG("Inferred binary expression type as: " + type->toString());
+    // }
 
     
     // if (rightTyped) rightTyped->setType(type);
@@ -170,7 +192,7 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
         if (type) {
             stmt->setType(type);
-            operand->express(scope);
+            operandValue = operand->express(scope);
         } else {
             operandValue = operand->express(scope);
             setType(stmt->getType());

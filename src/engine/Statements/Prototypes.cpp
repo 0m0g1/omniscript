@@ -336,7 +336,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             auto evaluated = namedArg->value ? namedArg->value->express(scope) : nullptr;
             localScope->set(paramName, evaluated);
             providedParams.insert(paramName);
-            DEBUG_LOG("[Call] Set named parameter '" + paramName + "' in local scope");
+            DEBUG_LOG("[Call] Set named parameter '" + paramName + "' in local scope with value '" + evaluated->toString() + "' type '" + evaluated->getType()->toString() + "'.");
         }
     }
 
@@ -463,7 +463,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             }
 
             localScope->set(paramName, value);
-            DEBUG_LOG("[Call] Set positional argument for '" + paramName + "'");
+            DEBUG_LOG("[Call] Set positional argument for '" + paramName + "' with value '" + value->toString() + "' and type '" + value->getType()->toString() + "'.");
 
         } else if (param->value) {
             DEBUG_LOG("[Call] Using default value for parameter '" + paramName + "'");

@@ -1,25 +1,25 @@
 import { Math, IO } from "std";
 
 
-let n : f32 = std.Math.powf(2.0, 3.0);
-std.IO.Console.printf("%.2f\n", n);
+// let n : f32 = std.Math.powf(2.0, 3.0);
+// std.IO.Console.printf("%.2f\n", n);
 
 
-std.IO.Console.printf("Playing melody...\n");
+// std.IO.Console.printf("Playing melody...\n");
         
-// D Major Scale (D4 to D5)
-std.IO.Console.Beep(294, 300);  // D4
-std.IO.Console.Beep(330, 300);  // E4
-std.IO.Console.Beep(370, 300);  // F#4
-std.IO.Console.Beep(392, 300);  // G4
-std.IO.Console.Beep(440, 300);  // A4
-std.IO.Console.Beep(494, 300);  // B4
-std.IO.Console.Beep(554, 300);  // C#5
-std.IO.Console.Beep(587, 300);  // D5 (hold last note longer)
-std.IO.Console.Beep(587, 300);  // D5 (hold last note longer)
+// // D Major Scale (D4 to D5)
+// std.IO.Console.Beep(294, 300);  // D4
+// std.IO.Console.Beep(330, 300);  // E4
+// std.IO.Console.Beep(370, 300);  // F#4
+// std.IO.Console.Beep(392, 300);  // G4
+// std.IO.Console.Beep(440, 300);  // A4
+// std.IO.Console.Beep(494, 300);  // B4
+// std.IO.Console.Beep(554, 300);  // C#5
+// std.IO.Console.Beep(587, 300);  // D5 (hold last note longer)
+// std.IO.Console.Beep(587, 300);  // D5 (hold last note longer)
 
 
-std.IO.Console.printf("Done!");
+// std.IO.Console.printf("Done!");
 
 
 // function powi(base: int = 1, exponent: int = 1) => int {
