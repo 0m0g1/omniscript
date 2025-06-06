@@ -24,7 +24,8 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
         auto castedStmt = literal->castTo(targetType);
         return castedStmt->express(scope);
     } else {
-        return std::make_shared<Omniscript::CastExpression>(value, targetType);
+        auto result = value->express(scope);
+        return std::make_shared<Omniscript::CastExpression>(result, targetType);
     }
 
     return nullptr;// Or handle casting explicitly at runtime/codegen
