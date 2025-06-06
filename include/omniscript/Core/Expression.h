@@ -204,7 +204,7 @@ struct CastExpression : public Expression {
     std::shared_ptr<Type> castTargetType;
 
     CastExpression(std::shared_ptr<Expression> expr, std::shared_ptr<Type> targetType)
-        : targetExpr(std::move(expr)), castTargetType(std::move(targetType)) {
+        : targetExpr(expr), castTargetType(targetType) {
         type = castTargetType;
     }
 
