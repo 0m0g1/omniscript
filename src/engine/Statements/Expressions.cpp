@@ -68,7 +68,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     } else if (leftTyped) {
         leftType = leftTyped->getType();
     } else {
-        console.error("The left operand has no type or is not a typed statement");
+        console.error("The left operand '" + left->toString() + "' has no type or is not a typed statement");
     }
 
     if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
@@ -80,7 +80,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     } else if (rightTyped) {
         rightType = rightTyped->getType();
     } else {
-        console.error("The right operand has no type or is not a typed statement");
+        console.error("The left operand '" + right->toString() + "' has no type or is not a typed statement");
     }
 
     if (!leftType || leftType->isInvalid()) {
@@ -88,7 +88,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         auto leftClone = left->clone();
         extendContextOf(leftClone);
         leftType = leftClone->express(tempScope)->getType();
-        DEBUG_LOG("The evaluated left type is of type '" + leftType->toString() + "'.");
+        DEBUG_LOG("The evaluated left operand type is of type '" + leftType->toString() + "'.");
     }
     
     if (!rightType || rightType->isInvalid()) {
@@ -96,15 +96,15 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         auto rightClone = right->clone();
         extendContextOf(rightClone);
         rightType = rightClone->express(tempScope)->getType();
-        DEBUG_LOG("The evaluated right type is of type '" + rightType->toString() + "'.");
+        DEBUG_LOG("The evaluated right operand type is of type '" + rightType->toString() + "'.");
     }
 
     if (!leftType || leftType->isInvalid()) {
-        console.error("The left operand's type is invalid");
+        console.error("The left operand '" + left->toString() + "' has an invalid type.");
     }
-
+    
     if (!rightType || rightType->isInvalid()) {
-        console.error("The right operand's type is invalid");
+        console.error("The right operand '" + right->toString() + "' has an invalid type.");
     }
 
     if (type) {
@@ -114,7 +114,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                 if (leftTyped) leftTyped->setType(type);
             }
         } else {
-            console.error("Left of type '" + leftType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
+            console.error("The left operand '" + left->toString() + "' of type '" + leftType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
         }
 
         if (Omniscript::isSameOrCastableTo(rightType, type)) {
@@ -123,7 +123,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                 if (rightTyped) rightTyped->setType(type);
             }
         } else {
-            console.error("Right of type '" + rightType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
+            console.error("The right operand '" + right->toString() + "' of type '" + rightType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
         }
     }
 

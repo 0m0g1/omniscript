@@ -383,6 +383,7 @@ public:
         const std::string& moduleName,
         const std::unordered_map<std::string, llvm::Value*>& members
     );
+    llvm::Value* generateCast(llvm::Value* src, llvm::Type* destType);
 };
 
 class ExternalFunctionResolver {

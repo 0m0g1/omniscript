@@ -283,6 +283,16 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         );
     }
 
+    if (auto castExpr = std::dynamic_pointer_cast<Omniscript::CastExpression>(value)) {
+        DEBUG_LOG("Generating cast from type " + castExpr->targetExpr->getType()->toString() + " to " + castExpr->type->toString());
+
+        llvm::Value* src = codegen(castExpr->targetExpr, scope);
+        if (!src) return nullptr;
+
+        llvm::Type* destType = resolveLLVMType(castExpr->type);
+        return generateCast(src, destType);
+    }
+
     // Handle ReferenceValue
     if (auto refValue = std::dynamic_pointer_cast<Omniscript::ReferenceExpression>(value)) {
         DEBUG_LOG("Creating reference to variable " + refValue->referentName);
@@ -616,8 +626,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         );
     
         return moduleInstance;
-    }    
+    }   
 
+    console.error("Trying to call codegen with an unsupported expression");
     return nullptr;
 }
 
@@ -1843,8 +1854,8 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         //             }
         //             // You might need to add more cases here depending on your IR
         //         }
-        //         return isSigned ? builder.CreateAShr(left, right, "ashrtmp")
-        //                         : builder.CreateLShr(left, right, "lshrtmp");
+        //         return isSigned ? Builder->CreateAShr(left, right, "ashrtmp")
+        //                         : Builder->CreateLShr(left, right, "lshrtmp");
         //     }
         //     return nullptr; // Shift right only valid for integer types
         // }
@@ -2498,4 +2509,50 @@ llvm::Value* IRGenerator::createModuleObject(
     DEBUG_LOG("Module struct instance created: " + moduleName);
 
     return moduleInstance;
+}
+
+llvm::Value* IRGenerator::generateCast(llvm::Value* src, llvm::Type* destType) {
+    llvm::Type* srcType = src->getType();
+
+    if (srcType == destType) {
+        DEBUG_LOG("No cast needed; source and destination types match.");
+        return src;
+    }
+
+    if (srcType->isIntegerTy() && destType->isIntegerTy()) {
+        unsigned srcBits = srcType->getIntegerBitWidth();
+        unsigned destBits = destType->getIntegerBitWidth();
+        if (destBits > srcBits) {
+            return Builder->CreateZExt(src, destType, "zext");
+        } else if (destBits < srcBits) {
+            return Builder->CreateTrunc(src, destType, "trunc");
+        } else {
+            return src; // same bit width
+        }
+    }
+
+    if (srcType->isIntegerTy() && destType->isFloatingPointTy()) {
+        return Builder->CreateSIToFP(src, destType, "sitofp");
+    }
+
+    if (srcType->isFloatingPointTy() && destType->isIntegerTy()) {
+        return Builder->CreateFPToSI(src, destType, "fptosi");
+    }
+
+    if (srcType->isFloatingPointTy() && destType->isFloatingPointTy()) {
+        unsigned srcBits = srcType->getPrimitiveSizeInBits();
+        unsigned destBits = destType->getPrimitiveSizeInBits();
+        if (destBits > srcBits) {
+            return Builder->CreateFPExt(src, destType, "fpext");
+        } else {
+            return Builder->CreateFPTrunc(src, destType, "fptrunc");
+        }
+    }
+
+    if (srcType->isPointerTy() && destType->isPointerTy()) {
+        return Builder->CreateBitCast(src, destType, "ptrcast");
+    }
+
+    console.error("Unsupported cast from '" + debugType(srcType) + "' to '" + debugType(destType) + "'");
+    return nullptr;
 }

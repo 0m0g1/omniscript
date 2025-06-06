@@ -41,9 +41,32 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         function->externName = functionName;
         
         return function;
+    } else if (currentToken.getType() == TokenTypes::LeftBrace) {
+        eat(TokenTypes::LeftBrace);
+        std::vector<std::shared_ptr<Statement>> functions;
+        while (currentToken.getType() != TokenTypes::RightBrace) {
+            if (currentToken.getType() == TokenTypes::Function) {
+                eat(TokenTypes::Function);
+            }
+            std::string functionName = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+            DEBUG_LOG("Extern function's name is '" + functionName + "'.");
+            std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
+            function->isExtern = true;
+            function->libPath = libPath;
+            function->isStatic = isStatic;
+            function->externName = functionName;
+            
+            functions.push_back(function);
+        }
+        eat(TokenTypes::RightBrace);
+
+        auto block = std::make_shared<BlockStatement>(functions);
+        return block;
     }
 
     // Todo:: resolve an entire library
+    eat(TokenTypes::Function, "Expected a function or '{' after the lib path in extern declarations");
     return nullptr;
 }
 

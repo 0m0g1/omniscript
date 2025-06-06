@@ -12,10 +12,19 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
     DEBUG_LOG("");
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
         DEBUG_LOG("[Cast] Casting a '" + typed->getRootType()->description() + "' to a '" + targetType->description() + "'.");
+    } else {
+        if (value) {
+            console.error("Cannot cast " + value->toString() + " it has no type.");
+        } else {
+            console.error("There is no value to cast.");
+        }
     }
+
     if (auto literal = std::dynamic_pointer_cast<Literal>(value)) {
         auto castedStmt = literal->castTo(targetType);
         return castedStmt->express(scope);
+    } else {
+        return std::make_shared<Omniscript::CastExpression>(value, targetType);
     }
 
     return nullptr;// Or handle casting explicitly at runtime/codegen
