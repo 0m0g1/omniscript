@@ -5,12 +5,12 @@ module Math {
     // public const inf: double  = 1.0 / 0.0;
     // public const nan: double  = 0.0 / 0.0;
 
-    // Basic Arithmetic
-    extern "C" fn powf(x: float, y: float) => float;
+    // // Basic Arithmetic
+    // extern "C" fn powf(x: float, y: float) => float;
     // extern "C" fn pow(x: double, y: double) => double;
-    // To Do: add double and long double types
-    // extern "C" fn powl(x: i64 double, y: i64 double) => f80;
-    // extern "C" fn powl(x: long double, y: long double) => f80;
+    // // To Do: add double and long double types
+    // // extern "C" fn powl(x: i64 double, y: i64 double) => f80;
+    // // extern "C" fn powl(x: long double, y: long double) => f80;
     // extern "C" fn powl(x: f80, y: f80) => f80;
 
     // extern "C" fn abs(x: int) => int;
@@ -26,9 +26,9 @@ module Math {
     // // extern "C" fn fabsl(x: f80) => f80;
 
     // // Square root
-    // extern "C" fn sqrtf(x: float) => float;
-    // extern "C" fn sqrt(x: double) => double;
-    // extern "C" fn sqrtl(x: f80) => f80;
+    extern "C" fn sqrtf(x: float) => float;
+    extern "C" fn sqrt(x: double) => double;
+    extern "C" fn sqrtl(x: f80) => f80;
 
     // // Floor
     // extern "C" fn floorf(x: float) => float;
@@ -119,16 +119,15 @@ module Math {
     // extern "C" fn fmod(x: double, y: double) => double;
     // extern "C" fn fmodl(x: f80, y: f80) => f80;
 
-    // // Wrapper functions implemented using externs or basic logic
+    // Wrapper functions implemented using externs or basic logic
 
-    public fn cbrt(x: float) => float {
-        return x < 0.0 ? -powf(-x, 1.0 / 3.0) : powf(x, 1.0 / 3.0);
-    }
-
-    // public fn hypot(x: float, y: float) => float {
-    //     // return sqrt(x * x + y * y);
-    //     return 0;
+    // public fn cbrt(x: float) => float {
+    //     return x < 0.0 ? -powf(-x, 1.0 / 3.0) : powf(x, 1.0 / 3.0);
     // }
+
+    public fn hypot(x: float, y: float) => float {
+        return sqrtf(x * x + y * y);
+    }
 
     // public fn erf(x: float) => float {
     //     // Abramowitz and Stegun approximation
@@ -183,11 +182,11 @@ module Math {
     //     return 0;
     // }
 
-    // // public fn radians(deg: float) => float {
-    // //     return deg * (pi / 180.0);
-    // // }
+    // public fn radians(deg: float) => float {
+    //     return deg * (pi / 180.0);
+    // }
 
-    // // public fn degrees(rad: float) => float {
-    // //     return rad * (180.0 / pi);
-    // // }
+    // public fn degrees(rad: float) => float {
+    //     return rad * (180.0 / pi);
+    // }
 }

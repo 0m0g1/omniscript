@@ -46,6 +46,9 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
 
     DEBUG_LOG("Left expression: " + (left ? left->toString() : "null"));
     DEBUG_LOG("Right expression: " + (right ? right->toString() : "null"));
+    if (type) {
+        DEBUG_LOG("The binary expression's type is '" + type->toString() + "'.");
+    }
 
     extendContextOf(left);
     extendContextOf(right);
@@ -85,13 +88,15 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         auto leftClone = left->clone();
         extendContextOf(leftClone);
         leftType = leftClone->express(tempScope)->getType();
+        DEBUG_LOG("The evaluated left type is of type '" + leftType->toString() + "'.");
     }
-
+    
     if (!rightType || rightType->isInvalid()) {
         auto tempScope = scope->createChildScope("temp");
         auto rightClone = right->clone();
         extendContextOf(rightClone);
         rightType = rightClone->express(tempScope)->getType();
+        DEBUG_LOG("The evaluated right type is of type '" + rightType->toString() + "'.");
     }
 
     if (!leftType || leftType->isInvalid()) {
@@ -102,55 +107,75 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         console.error("The right operand's type is invalid");
     }
 
+    if (type) {
+        if (Omniscript::isSameOrCastableTo(leftType, type)) {
+            if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
+                leftType = type;
+                if (leftTyped) leftTyped->setType(type);
+            }
+        } else {
+            console.error("Left of type '" + leftType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
+        }
+
+        if (Omniscript::isSameOrCastableTo(rightType, type)) {
+            if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
+                rightType = type;
+                if (rightTyped) rightTyped->setType(type);
+            }
+        } else {
+            console.error("Right of type '" + rightType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
+        }
+    }
+
     // Infer a common type if not already set
-    // if (!type) {
-    if (op.isComparisonOperator()) {
-        type = Omniscript::resolveType({ "bool" });
-        if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
-            type = rightType;
-            if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
-                if (leftTyped) leftTyped->setType(rightType);
+    if (!type) {
+        if (op.isComparisonOperator()) {
+            type = Omniscript::resolveType({ "bool" });
+            if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
+                type = rightType;
+                if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
+                    if (leftTyped) leftTyped->setType(rightType);
+                }
+            } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
+                type = leftType;
+                if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
+                    if (rightTyped) rightTyped->setType(leftType);
+                }
+            } else {
+                console.error("Incompatible comparison types: " + leftType->toString() + " vs " + rightType->toString());
+                return nullptr;
             }
-        } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
+        } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
+            if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
+                type = rightType;
+                if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
+                    if (leftTyped) leftTyped->setType(rightType);
+                }
+            } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
+                type = leftType;
+                if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
+                    if (rightTyped) rightTyped->setType(leftType);
+                }
+            } else {
+                console.error("Incompatible arithmetic/bitwise types: " + leftType->toString() + " vs " + rightType->toString());
+                return nullptr;
+            }
+        } else if (op.isLogicalOperator()) {
+            type = Omniscript::resolveType({ "bool" });
+        } else if (op.isAssignmentOperator()) {
             type = leftType;
-            if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
-                if (rightTyped) rightTyped->setType(leftType);
-            }
         } else {
-            console.error("Incompatible comparison types: " + leftType->toString() + " vs " + rightType->toString());
+            DEBUG_LOG("Unhandled binary operator type: " + getTokenTypeName(op.getType()));
             return nullptr;
         }
-    } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
-        if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
-            // type = rightType;
-            if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
-                if (leftTyped) leftTyped->setType(rightType);
-            }
-        } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
-            // type = leftType;
-            if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
-                if (rightTyped) rightTyped->setType(leftType);
-            }
-        } else {
-            console.error("Incompatible arithmetic/bitwise types: " + leftType->toString() + " vs " + rightType->toString());
+
+        if (!type || type->isInvalid()) {
+            console.error("Failed to infer binary expression type.");
             return nullptr;
         }
-    } else if (op.isLogicalOperator()) {
-        type = Omniscript::resolveType({ "bool" });
-    } else if (op.isAssignmentOperator()) {
-        type = leftType;
-    } else {
-        DEBUG_LOG("Unhandled binary operator type: " + getTokenTypeName(op.getType()));
-        return nullptr;
-    }
 
-    if (!type || type->isInvalid()) {
-        console.error("Failed to infer binary expression type.");
-        return nullptr;
+        DEBUG_LOG("Inferred binary expression type as: " + type->toString());
     }
-
-    DEBUG_LOG("Inferred binary expression type as: " + type->toString());
-    // }
 
     
     // if (rightTyped) rightTyped->setType(type);
