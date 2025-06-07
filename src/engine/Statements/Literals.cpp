@@ -11,7 +11,13 @@
 std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
     DEBUG_LOG("");
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
-        DEBUG_LOG("[Cast] Casting a '" + typed->getRootType()->description() + "' to a '" + targetType->description() + "'.");
+        if (typed->getRootType()) {
+            DEBUG_LOG("[Cast] Casting '" + value->toString() + "' a '" + typed->getRootType()->toString() + "' to a '" + targetType->toString() + "'.");
+        } else if (typed->getType()) {
+            DEBUG_LOG("[Cast] Casting '" + value->toString() + "' a '" + typed->getType()->toString() + "' to a '" + targetType->toString() + "'.");
+        } else {
+            DEBUG_LOG("[Cast] Casting a '" + value->toString() + "' to a '" + targetType->toString() + "'.");
+        }
     } else {
         if (value) {
             console.error("Cannot cast " + value->toString() + " it has no type.");
@@ -19,6 +25,8 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
             console.error("There is no value to cast.");
         }
     }
+
+    extendContextOf(value);
 
     if (auto literal = std::dynamic_pointer_cast<Literal>(value)) {
         auto castedStmt = literal->castTo(targetType);

@@ -363,6 +363,8 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
                 }
             }
         }
+
+        return nullptr;
     }
 
     if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerExpression>(value)) {
@@ -628,7 +630,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return moduleInstance;
     }   
 
-    console.error("Trying to call codegen with an unsupported expression");
+    console.error("Trying to call codegen with an unsupported expression '" + value->toString() + "'.");
     return nullptr;
 }
 

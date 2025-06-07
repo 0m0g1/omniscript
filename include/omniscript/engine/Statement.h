@@ -499,6 +499,10 @@ public:
     std::string toString() const override {
         return "((" + targetType->description() + ") " + value->toString() + ")";
     }
+
+    std::shared_ptr<Statement> clone() const override {
+        return std::make_shared<Cast>(value->clone(), type);  // Clone using copy constructor
+    }
 };
 
 

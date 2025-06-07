@@ -28,13 +28,19 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
 
     // Evaluate condition, then branches
     std::shared_ptr<Omniscript::Expression> condValue = condition->express(scope);
-    if (!condValue) return nullptr;
+    if (!condValue) {
+        console.error("The ternary expression has an invalid condition");
+    }
 
     std::shared_ptr<Omniscript::Expression> trueValue = truthy->express(scope);
-    if (!trueValue) return nullptr;
+    if (!trueValue) {
+        console.error("The ternary expression has an invalid true value");
+    }
 
     std::shared_ptr<Omniscript::Expression> falseValue = falsey->express(scope);
-    if (!falseValue) return nullptr;
+    if (!falseValue) {
+        console.error("The ternary expression has an invalid false value");
+    }
 
     return std::make_shared<Omniscript::TernaryExpression>(
         condValue, trueValue, falseValue, type
