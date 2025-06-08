@@ -60,6 +60,9 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
     std::shared_ptr<Omniscript::Expression> conditionExpr = condition ? condition->express(localScope) : nullptr;
     DEBUG_LOG("Created its condition expression: " + conditionExpr->toString() + "'.");
 
+    if (body) {
+        body->isGlobal = false;
+    }
     std::shared_ptr<Omniscript::Expression> bodyExpr = body ? body->express(localScope) : nullptr;
     DEBUG_LOG("Created its body expression: " + bodyExpr->toString() + "'.");
 
@@ -95,6 +98,7 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
         extendContextOf(conditions[i]);
         extendContextOf(bodies[i]);
         bodies[i]->setType(type);
+        bodies[i]->isGlobal = false;
         auto localScope = scope->createChildScope("if " + conditions[i]->toString());
         exprConditions.push_back(conditions[i]->express(localScope)); // already Expression pointers
         exprBranches.push_back(bodies[i]->express(localScope)); // convert BlockStatement to Expression
@@ -102,6 +106,7 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
  
      std::shared_ptr<Omniscript::Expression> elseExpr = nullptr;
      if (elseBody) {
+        elseBody->isGlobal = false;
         extendContextOf(elseBody);
         elseBody->setType(type);
         auto localScope = scope->createChildScope("else");
@@ -138,6 +143,7 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
     DEBUG_LOG("Created its condition expression");
     std::shared_ptr<Omniscript::Expression> increamentExpr = increment? increment->express(localScope) : nullptr;
     DEBUG_LOG("Created its update expression");
+    body->isGlobal = false;
     std::shared_ptr<Omniscript::Expression> bodyExpr = body->express(localScope);
     DEBUG_LOG("Created its body");
 

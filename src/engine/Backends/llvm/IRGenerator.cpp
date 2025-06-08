@@ -1682,12 +1682,9 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
 
     // Ensure type compatibility
     if (returnValue->getType() != expectedReturnType) {
-        console.error(
-                                "Return type mismatch: expected " + 
-                                 debugType(expectedReturnType) + 
-                                 ", got " + 
-                                 debugType(returnValue->getType())
-                                );
+        console.error("Return type mismatch: expected " + 
+            debugType(expectedReturnType) + ", got " + 
+            debugType(returnValue->getType()));
     }
 
     // Create the return instruction

@@ -163,6 +163,7 @@ module Math {
             }
             return result;
         }
+        return -1;
     }
 
     // public fn gcd(a: int, b: int) => int {
