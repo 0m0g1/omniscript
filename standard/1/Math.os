@@ -1,6 +1,6 @@
 module Math {
     // Constants
-    public const pi: double   = 3.141592653589793;
+    // public const pi: double   = 3.141592653589793;
     // public const e: double    = 2.718281828459045;
     // public const inf: double  = 1.0 / 0.0;
     // public const nan: double  = 0.0 / 0.0;
@@ -22,11 +22,14 @@ module Math {
 
     // // Floating point absolute value
     // extern "C" fn fabsf(x: float) => float;
+    public fn fabsf(x: float) => float {
+        return x < 0.0 ? -x : x;
+    }
     // extern "C" fn fabs(x: double) => double;
     // // extern "C" fn fabsl(x: f80) => f80;
 
     // // Square root
-    extern "C" fn sqrtf(x: float) => float;
+    // extern "C" fn sqrtf(x: float) => float;
     // extern "C" fn sqrt(x: double) => double;
     // extern "C" fn sqrtl(x: f80) => f80;
 
@@ -93,7 +96,7 @@ module Math {
     // extern "C" fn tanhl(x: f80) => f80;
 
     // // Exponential
-    // extern "C" fn expf(x: float) => float;
+    extern "C" fn expf(x: float) => float;
     // extern "C" fn exp(x: double) => double;
     // extern "C" fn expl(x: f80) => f80;
 
@@ -139,15 +142,12 @@ module Math {
     //     let p: float = 0.3275911;
 
     //     let sign = x < 0.0 ? -1.0 : 1.0;
-    //     // let abs_x = fabsf(x);
+    //     let abs_x = fabsf(x);
 
-    //     // let t = 1.0 / (1.0 + p * abs_x);
-    //     let y = 1.0;
-    //     // let y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * expf(-abs_x * abs_x);
-    //     // let y = expf(-abs_x * abs_x);
+    //     let t = 1.0 / (1.0 + p * abs_x);
+    //     let y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * expf(-abs_x * abs_x);
 
     //     return sign * y;
-    //     // return 0;
     // }
 
     // public fn erfc(x: float) => float {
@@ -155,17 +155,17 @@ module Math {
     //     // return 0;
     // }
 
-    // public fn factorial(n: int) => int {
-    //     // if (n >= 0) {
-    //     //     let result: int = 1;
-    //     //     for (let i = 2; i <= n; i += 1) {
-    //     //         result *= i;
-    //     //     }
-    //     //     return result;
-    //     // }
-    //     return 0;
-    //     // throw an error?
-    // }
+    public fn factorial(n: int) => int {
+        if (n >= 0) {
+            let result: int = 1;
+            for (let i = 2; i <= n; i += 1) {
+                result *= i;
+            }
+            return result;
+        }
+        // return 0;
+        // throw an error?
+    }
 
     // public fn gcd(a: int, b: int) => int {
     //     // var x = abs(a);
@@ -184,11 +184,11 @@ module Math {
     //     return 0;
     // }
 
-    public fn radians(deg: float) => float {
-        return deg * (pi as float / 180.0);
-    }
+    // public fn radians(deg: float) => float {
+    //     return deg * (pi as float / 180.0);
+    // }
 
-    public fn degrees(rad: float) => float {
-        return rad * (180.0 / pi as float);
-    }
+    // public fn degrees(rad: float) => float {
+    //     return rad * (180.0 / pi as float);
+    // }
 }

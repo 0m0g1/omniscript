@@ -354,14 +354,23 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
 
         // Codegen other non-function expressions in the block
         for (const auto& expr : block->values) {
-            if (!std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr)) {
-                if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(expr)) {
-                    if (!ret->getType()->isVoidLike())
-                        return codegen(expr, scope);
-                } else {
-                    codegen(expr, scope);
+            if (std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr)) {
+                continue;
+            }
+
+            if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(expr)) {
+                if (!ret->getType()->isVoidLike()) {
+                    return codegen(expr, scope);
+                }
+            } 
+
+            if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(expr)) {
+                if (!varAssign->isStatic) {
+                    varAssign->isGlobal = block->isGlobal;
                 }
             }
+
+            codegen(expr, scope);
         }
 
         return nullptr;

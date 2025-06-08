@@ -719,6 +719,7 @@ struct FunctionExpression : public Callable {
 };
 
 struct BlockExpression : public Expression {
+    bool isGlobal = true;
     std::vector<std::shared_ptr<Expression>> values;  // Store multiple values in a vector
 
     BlockExpression(std::vector<std::shared_ptr<Expression>> values)
@@ -1370,6 +1371,7 @@ public:
 };
 
 struct VariableAssignment : public Expression {
+    bool isStatic;
     bool isConstant;
     bool isGlobal;
     bool isReassignment;

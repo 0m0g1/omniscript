@@ -31,7 +31,9 @@ std::shared_ptr<Omniscript::Expression> Initializer::express(SymbolTableType sco
 
 
 std::shared_ptr<Omniscript::Expression> BlockStatement::express(SymbolTableType scope) {
-    return std::make_shared<Omniscript::BlockExpression>(expressAsVector(scope));
+    auto block = std::make_shared<Omniscript::BlockExpression>(expressAsVector(scope));
+    block->isGlobal = isGlobal;
+    return block;
 }
 
 std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::expressAsVector(SymbolTableType scope) {
@@ -93,11 +95,12 @@ void BlockStatement::recursiveInternalUpdate() {
             if (assign->isStatic) {
                 assign->isGlobal = true;
             } else {
-                assign->isGlobal = false;
+                assign->isGlobal = isGlobal;
             }
         }
         // Todo: work on for loop bodies, while loop etc
         if (auto innerBlock = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
+            innerBlock->isGlobal = isGlobal;
             innerBlock->recursiveInternalUpdate();
         }
     }

@@ -798,12 +798,14 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
                     }
                 }
                 if (mangledName == funcExpr->mangledName) {
+                    body->isGlobal = false;
                     std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
                     funcExpr->body = functionBody;
                 }
             }
         }
     } else {
+        body->isGlobal = false;
         auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(scope->get(name));
         std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
         funcExpr->body = functionBody;

@@ -302,6 +302,7 @@ public TypedStatement ,
 public GenericHolder,
 public ContextAwareStatement {
 public:
+    bool isGlobal = true;
     std::vector<std::shared_ptr<Statement>> statements;
     
     BlockStatement(std::vector<std::shared_ptr<Statement>> statements = {})
@@ -1140,8 +1141,40 @@ public:
         const std::vector<std::shared_ptr<Statement>>& args,
         const SymbolTableType& scope
     );
-    
-        bool isFromAssignment = false;
+
+    std::shared_ptr<Statement> clone() const override {
+        // Deep copy the arguments
+        std::vector<std::shared_ptr<Statement>> copiedArgs;
+        for (const auto& arg : args) {
+            copiedArgs.push_back(arg->clone());
+        }
+
+        // Deep copy the expression if it exists
+        std::shared_ptr<Statement> copiedExpr = expr ? expr->clone() : nullptr;
+
+        // Construct a new Call instance based on what data is available
+        std::shared_ptr<Call> clonedCall;
+
+        if (copiedExpr && !instanceName.empty()) {
+            clonedCall = std::make_shared<Call>(copiedExpr, callee, instanceName, copiedArgs);
+        } else if (copiedExpr) {
+            clonedCall = std::make_shared<Call>(copiedExpr, callee, copiedArgs);
+        } else if (!instanceName.empty()) {
+            clonedCall = std::make_shared<Call>(callee, instanceName, copiedArgs);
+        } else {
+            clonedCall = std::make_shared<Call>(callee, copiedArgs);
+        }
+
+        // Copy flags and other relevant internal state
+        clonedCall->isFromAssignment = isFromAssignment;
+        if (isFromConstantAssignment) {
+            clonedCall->markAsConstant();
+        }
+
+        return clonedCall;
+    }
+
+    bool isFromAssignment = false;
     private:
         bool isFromConstantAssignment = false;
         std::string callee;

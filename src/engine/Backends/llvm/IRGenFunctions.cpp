@@ -41,6 +41,7 @@ llvm::Function* IRGenerator::createExternFunction(
     }
 
     activeScope->set(name, function);
+
     return function;
 }
 
@@ -282,6 +283,12 @@ void IRGenerator::generateFunctionBody(
     for (const auto& expr : body) {
         if (Builder->GetInsertBlock()->getTerminator()) {
             break; // Don't emit instructions after return
+        }
+
+        if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(expr)) {
+            if (!varAssign->isStatic) {
+                varAssign->isGlobal = false;
+            }
         }
 
         DEBUG_LOG("Generating code for body expression of kind: " + expr->getType()->toString());
