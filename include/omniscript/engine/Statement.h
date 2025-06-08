@@ -1292,6 +1292,7 @@ public TypedStatement {
 };
 
 class ControlFlowStatement :
+public TypedStatement,
 public ContextAwareStatement,
 public GenericHolder  {
 public:

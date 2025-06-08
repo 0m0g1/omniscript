@@ -8,7 +8,11 @@
 // ============================== Control flow statements  ============================== //
 
 std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType scope) {
-    DEBUG_LOG("[Return] Creating a return value of kind '" + type->description() + "'.");
+    if (type) {
+        DEBUG_LOG("[Return] Creating a return value of kind '" + type->description() + "'.");
+    } else {
+        DEBUG_LOG("[Return] The return statement has no type");
+    }
     std::shared_ptr<Omniscript::Expression> result = nullptr;
     if (returnValue) {
         extendContextOf(returnValue);
@@ -90,6 +94,7 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
     for (size_t i = 0; i < conditions.size(); ++i) {
         extendContextOf(conditions[i]);
         extendContextOf(bodies[i]);
+        bodies[i]->setType(type);
         auto localScope = scope->createChildScope("if " + conditions[i]->toString());
         exprConditions.push_back(conditions[i]->express(localScope)); // already Expression pointers
         exprBranches.push_back(bodies[i]->express(localScope)); // convert BlockStatement to Expression
@@ -98,6 +103,7 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
      std::shared_ptr<Omniscript::Expression> elseExpr = nullptr;
      if (elseBody) {
         extendContextOf(elseBody);
+        elseBody->setType(type);
         auto localScope = scope->createChildScope("else");
         elseExpr = elseBody->express(localScope); // convert BlockStatement to Expression
      }

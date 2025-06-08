@@ -191,47 +191,54 @@ llvm::Value* IRGenerator::createIfStatement(
         Builder->SetInsertPoint(thenBlock);
         llvm::Value* thenValue = codegen(bodies[i], localScope);
         DEBUG_LOG(bodies[i]->toString());
-        // if (!thenValue) return nullptr;
-        Builder->CreateBr(mergeBlock);
 
-        incomingBlocks.push_back(Builder->GetInsertBlock());
-
-        if (thenValue) {
-            incomingValues.push_back(thenValue);
+        bool hasTerminator = Builder->GetInsertBlock()->getTerminator();
+        if (!hasTerminator) {
+            Builder->CreateBr(mergeBlock);
+            incomingBlocks.push_back(Builder->GetInsertBlock());
+            if (thenValue) incomingValues.push_back(thenValue);
+        } else if (thenValue) {
+            // Do not push the block because it won’t reach merge
+            // Possibly track that this branch returned and skip PHI creation later
         }
 
         elseBlock->insertInto(function);
         Builder->SetInsertPoint(elseBlock);
-
-        nextBlock = elseBlock;
+         
+        if (i < conditions.size() - 1) {
+            nextBlock = elseBlock;
+        }
     }
 
     // Handle final else block if provided
     if (elseBody) {
         llvm::Value* elseValue = codegen(elseBody, localScope);
         // if (!elseValue) return nullptr;
-        Builder->CreateBr(mergeBlock);
+        if (!Builder->GetInsertBlock()->getTerminator()) {
+            Builder->CreateBr(mergeBlock);
+        }
         incomingBlocks.push_back(Builder->GetInsertBlock());
         if (elseValue) {
             incomingValues.push_back(elseValue);
         }
     } else if (nextBlock && Builder->GetInsertBlock() == nextBlock) {
         // If else not provided, and last else block is still current block
-        Builder->CreateBr(mergeBlock);
+        if (!Builder->GetInsertBlock()->getTerminator()) {
+            Builder->CreateBr(mergeBlock);
+        }
     }
 
     // Emit merge block if used
-    if (!incomingBlocks.empty()) {
-        mergeBlock->insertInto(function);
-        Builder->SetInsertPoint(mergeBlock);
-
-        if (!incomingValues.empty()) {
-            llvm::PHINode* phi = Builder->CreatePHI(incomingValues[0]->getType(), incomingValues.size(), "iftmp");
-            for (size_t i = 0; i < incomingValues.size(); ++i) {
-                phi->addIncoming(incomingValues[i], incomingBlocks[i]);
-            }
-            return phi;
+    if (!incomingValues.empty()) {
+        if (incomingValues[0]->getType()->isVoidTy()) {
+            return nullptr;
         }
+
+        llvm::PHINode* phi = Builder->CreatePHI(incomingValues[0]->getType(), incomingValues.size(), "iftmp");
+        for (size_t i = 0; i < incomingValues.size(); ++i) {
+            phi->addIncoming(incomingValues[i], incomingBlocks[i]);
+        }
+        return phi;
     }
 
     return nullptr;

@@ -101,7 +101,6 @@ void BlockStatement::recursiveInternalUpdate() {
         // Todo: work on for loop bodies, while loop etc
         if (auto innerBlock = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
             innerBlock->isGlobal = isGlobal;
-            innerBlock->recursiveInternalUpdate();
         }
     }
 }

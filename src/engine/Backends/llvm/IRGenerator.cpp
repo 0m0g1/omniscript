@@ -359,8 +359,12 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
             }
 
             if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(expr)) {
-                if (!ret->getType()->isVoidLike()) {
-                    return codegen(expr, scope);
+                if (ret->getType()) {
+                    if (!ret->getType()->isVoidLike()) {
+                        return codegen(expr, scope);
+                    }
+                } else {
+                    console.error("The return type has no type");
                 }
             } 
 
