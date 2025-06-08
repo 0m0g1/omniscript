@@ -22,9 +22,9 @@ module Math {
 
     // // Floating point absolute value
     // extern "C" fn fabsf(x: float) => float;
-    public fn fabsf(x: float) => float {
-        return x < 0.0 ? -x : x;
-    }
+    // public fn fabsf(x: float) => float {
+    //     return x < 0.0 ? -x : x;
+    // }
     // extern "C" fn fabs(x: double) => double;
     // // extern "C" fn fabsl(x: f80) => f80;
 
@@ -156,13 +156,13 @@ module Math {
     // }
 
     public fn factorial(n: int) => int? {
-        if (n >= 0) {
-            let result: int = 1;
-            for (let i = 2; i <= n; i += 1) {
-                result *= i;
-            }
-            return result;
-        }
+        // if (n >= 0) {
+        //     let result: int = 1;
+        //     for (let i = 2; i <= n; i += 1) {
+        //         result *= i;
+        //     }
+        //     return result;
+        // }
         // return null;
         return -1;
     }

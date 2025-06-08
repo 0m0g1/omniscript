@@ -9,7 +9,7 @@
 
 std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType scope) {
     if (type) {
-        DEBUG_LOG("[Return] Creating a return value of kind '" + type->description() + "'.");
+        DEBUG_LOG("[Return] Creating a return value of kind '" + type->toString() + "'.");
     } else {
         DEBUG_LOG("[Return] The return statement has no type");
     }
@@ -21,7 +21,7 @@ std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType
         }
         result = returnValue->express(scope);
 
-        DEBUG_LOG("[Return] The result of the return value is '" + result->toString() + "' of kind '" + result->getType()->description() + "'.");
+        DEBUG_LOG("[Return] The result of the return value is '" + result->toString() + "' of kind '" + result->getType()->toString() + "'.");
     } else {
         DEBUG_LOG("[Return] The result of the return value is 'void'.");
     }

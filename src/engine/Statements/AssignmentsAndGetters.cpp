@@ -140,7 +140,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
         if (type->isGeneric()) {
             auto genericVal = scope->get(type->getName());
             if (auto generic = std::dynamic_pointer_cast<Omniscript::TypeExpression>(genericVal)) {
-                DEBUG_LOG("The generic type is " + generic->getTypeExpression()->description());
+                DEBUG_LOG("The generic type is " + generic->getTypeExpression()->toString());
                 type = generic->getTypeExpression()->clone();
             }
         }
@@ -162,8 +162,8 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 } else {
                     result = value->express(scope);
                     if (type->getKind() != result->getType()->getKind() && !result->getType()->isNull()) {
-                        console.error("The variable '" + variable + "' expects type '" + type->description() + "' or 'null' "+ 
-                        " but got '" + result->getType()->description() + "' instead.");
+                        console.error("The variable '" + variable + "' expects type '" + type->toString() + "' or 'null' "+ 
+                        " but got '" + result->getType()->toString() + "' instead.");
                     }
                 }
             }
@@ -199,12 +199,12 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
 
                         DEBUG_LOG("HERE 2.4");
                         
-                        DEBUG_LOG(expectedBaseType->description() + " " + actualBaseType->description());
+                        DEBUG_LOG(expectedBaseType->toString() + " " + actualBaseType->toString());
                         if (expectedBaseType->getKind() != actualBaseType->getKind()) {
                             DEBUG_LOG("HERE 2.4.1");
                             console.error("Reference '" + variable + "' expects base type '" +
-                                expectedBaseType->description() + "' but got '" +
-                                actualBaseType->description() + "' instead.");
+                                expectedBaseType->toString() + "' but got '" +
+                                actualBaseType->toString() + "' instead.");
                         }
                         DEBUG_LOG("HERE 2.5");
                         // Check reference depth matches
@@ -244,7 +244,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 type = typed->getType();
                 result = value->express(scope);
             }
-            DEBUG_LOG("The infered type is " + result->getType()->description());
+            DEBUG_LOG("The infered type is " + result->getType()->toString());
         }
     }
 
@@ -260,7 +260,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     if (isReassign) {
         std::shared_ptr<Omniscript::Expression> prevValue = scope->get(variable);
         if (!Omniscript::isSameOrCastableTo(result->getType(), prevValue->getType())) {
-            console.error("'" + variable + "' should be of type " + prevValue->getType()->description() + "' not a '" + result->getType()->description() + "'.");
+            console.error("'" + variable + "' should be of type " + prevValue->getType()->toString() + "' not a '" + result->getType()->toString() + "'.");
         }
     }
 

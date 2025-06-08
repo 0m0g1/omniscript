@@ -137,7 +137,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
     
         type = Omniscript::resolveType(dataTypes);
     
-        DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " '" + variableName + "' with type '" + type->description() + "'.");
+        DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " '" + variableName + "' with type '" + type->toString() + "'.");
     }
     
     if (currentToken.getType() != TokenTypes::Semicolon) {

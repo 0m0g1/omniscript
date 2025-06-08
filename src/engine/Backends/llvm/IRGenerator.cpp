@@ -424,7 +424,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(value)) {
-        DEBUG_LOG("Creating a return statement of kind '" + ret->getType()->description() + "'.");
+        DEBUG_LOG("Creating a return statement of kind '" + ret->getType()->toString() + "'.");
 
         llvm::Type* type = resolveLLVMType(ret->getType());
         llvm::Value* val = codegen(ret->value, scope);
@@ -930,7 +930,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         return nullptr;
     }
 
-    DEBUG_LOG("Resolving a '" + type->description() + "'.");
+    DEBUG_LOG("Resolving a '" + type->toString() + "'.");
     llvm::LLVMContext& context = *Context;
 
     if (auto customType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(type)) {
@@ -967,7 +967,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
     if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(type)) {
         llvm::Type* returnType = resolveLLVMType(funcType->returnType);
         if (!returnType) {
-            console.error("[ERROR] Failed to resolve function return type: " + funcType->getReturnType()->description());
+            console.error("[ERROR] Failed to resolve function return type: " + funcType->getReturnType()->toString());
             return nullptr;
         }
 
@@ -975,7 +975,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         for (const auto& param : funcType->parameterTypes) {
             llvm::Type* paramLLVMType = resolveLLVMType(param);
             if (!paramLLVMType) {
-                console.error("[ERROR] Failed to resolve function parameter type: " + param->description());
+                console.error("[ERROR] Failed to resolve function parameter type: " + param->toString());
                 return nullptr;
             }
             paramTypes.push_back(paramLLVMType);
@@ -987,7 +987,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
 
     // If the type is an array, resolve the base type first.
     if (type->isArray()) {
-        DEBUG_LOG("The array is of size '" + std::to_string(type->fixedSize) + "' and holds type " + type->elementType->description() + "'.");
+        DEBUG_LOG("The array is of size '" + std::to_string(type->fixedSize) + "' and holds type " + type->elementType->toString() + "'.");
         auto elementType = resolveLLVMType(type->elementType);
         uint64_t arraySize = type->fixedSize;
         return llvm::ArrayType::get(elementType, arraySize);
@@ -1154,7 +1154,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             llvmType = llvm::PointerType::get(llvm::Type::getInt32Ty(context), 0);
             break;
         default:
-            console.error("[ERROR] Unknown type: " + type->description());
+            console.error("[ERROR] Unknown type: " + type->toString());
             return nullptr;
     }
     

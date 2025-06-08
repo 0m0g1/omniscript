@@ -158,7 +158,7 @@ llvm::Function* IRGenerator::registerFunction(
             //     arg.addAttr(llvm::Attribute::ReadOnly); // <--- Mark as readonly if constant
             // }
             DEBUG_LOG("Setting function argument: " + param->name + 
-                    " of kind: " + param->getType()->description() + 
+                    " of kind: " + param->getType()->toString() + 
                     (inpt->isConstant ? " [const]" : ""));
         }
         idx++;

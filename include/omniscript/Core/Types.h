@@ -560,7 +560,7 @@ public:
         }
     
         // Add the base type at the end
-        parts.push_back(current->description());
+        parts.push_back(current->toString());
     
         // Reverse to get natural order (base type first)
         std::reverse(parts.begin(), parts.end());
@@ -675,7 +675,7 @@ public:
             current = std::dynamic_pointer_cast<ReferenceType>(current)->getReferencedType();
         }
 
-        parts.push_back(current->description());
+        parts.push_back(current->toString());
         std::reverse(parts.begin(), parts.end());
 
         std::string desc;

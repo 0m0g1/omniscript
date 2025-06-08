@@ -104,7 +104,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             auto type = expr->getType();
             baseTypeName = (type->isPointer()) ? 
                 type->getBasePointeeType()->getName() :
-                type->description();
+                type->toString();
             object = nullptr;
 
         } else if (auto memberAcc = std::dynamic_pointer_cast<MemberAccess>(object)) {
@@ -150,7 +150,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             auto baseType = baseExpr->getType();
             baseTypeName = (baseType->isPointer()) ?
                 baseType->getBasePointeeType()->getName() :
-                baseType->description();
+                baseType->toString();
         }
     } else {
         std::shared_ptr<Omniscript::Expression> expr = scope->get(objectName);
@@ -180,7 +180,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
         auto type = expr->getType();
         baseTypeName = (type->isPointer()) ?
             type->getBasePointeeType()->getName() :
-            type->description();
+            type->toString();
     }
 
     auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(scope->getType(baseTypeName));
@@ -278,7 +278,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType sco
     }
 
     if (!found) {
-        console.error("Member '" + memberName + "' not found in type '" + userType->description() + "'");
+        console.error("Member '" + memberName + "' not found in type '" + userType->toString() + "'");
         return nullptr;
     }
 
@@ -360,7 +360,7 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
     }
 
     if (!found) {
-        console.error("Member '" + memberName + "' not found in type '" + userType->description() + "'");
+        console.error("Member '" + memberName + "' not found in type '" + userType->toString() + "'");
         return nullptr;
     }
 
