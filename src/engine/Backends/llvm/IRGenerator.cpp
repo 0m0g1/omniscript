@@ -293,6 +293,48 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return generateCast(src, destType);
     }
 
+    if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(value)) {
+        DEBUG_LOG("Generating nullable expression");
+
+        // Generate the value
+        llvm::Value* innerValue = codegen(nullable->inner, scope);
+
+        if (!innerValue) {
+            DEBUG_LOG("Nullable expression has null value");
+            // Return a 'null' representation
+            // Assuming you use `{ i1, T }` style struct, set `is_null = true` and `value = undef`
+            llvm::Type* valueType = resolveLLVMType(nullable->getType()); // Get full nullable type
+            llvm::Type* innerType = resolveLLVMType(nullable->inner->getType());
+            llvm::StructType* nullableType = llvm::StructType::get(*Context, {
+                llvm::Type::getInt1Ty(*Context), // is_null
+                innerType
+            });
+
+            llvm::Value* undefVal = llvm::UndefValue::get(innerType);
+            llvm::Value* isNull = llvm::ConstantInt::getTrue(*Context);
+
+            llvm::Value* result = llvm::UndefValue::get(nullableType);
+            result = Builder->CreateInsertValue(result, isNull, {0});
+            result = Builder->CreateInsertValue(result, undefVal, {1});
+            return result;
+        }
+
+        // If value is not null
+        llvm::Type* innerType = innerValue->getType();
+        llvm::StructType* nullableType = llvm::StructType::get(*Context, {
+            llvm::Type::getInt1Ty(*Context), // is_null
+            innerType
+        });
+
+        llvm::Value* isNotNull = llvm::ConstantInt::getFalse(*Context);
+
+        llvm::Value* result = llvm::UndefValue::get(nullableType);
+        result = Builder->CreateInsertValue(result, isNotNull, {0});
+        result = Builder->CreateInsertValue(result, innerValue, {1});
+
+        return result;
+    }
+
     // Handle ReferenceValue
     if (auto refValue = std::dynamic_pointer_cast<Omniscript::ReferenceExpression>(value)) {
         DEBUG_LOG("Creating reference to variable " + refValue->referentName);
@@ -943,7 +985,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
     }
 
     // Todo:: Possibly call the type nullable type
-    if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullType>(type)) {
+    if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableType>(type)) {
         DEBUG_LOG("Resolving nullable type: " + nullable->toString());
 
         // Nullable<T> is represented as { i1, T } (i1 = isNull flag)
