@@ -101,6 +101,12 @@ protected:
     std::shared_ptr<Omniscript::Type> rootType;
 };
     
+class ScopedStatement: public virtual TypedStatement {
+public:
+    ~ScopedStatement() = default;
+    virtual std::string toString() const override { return "ScopedStatement"; }
+};
+
 class Terminator: public virtual TypedStatement {
 public:
     ~Terminator() = default;
@@ -298,7 +304,7 @@ public:
 };
 
 class BlockStatement : 
-public TypedStatement , 
+public ScopedStatement, 
 public GenericHolder,
 public ContextAwareStatement {
 public:
@@ -1292,7 +1298,7 @@ public TypedStatement {
 };
 
 class ControlFlowStatement :
-public TypedStatement,
+public ScopedStatement,
 public ContextAwareStatement,
 public GenericHolder  {
 public:

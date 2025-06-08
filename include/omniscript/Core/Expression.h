@@ -387,7 +387,7 @@ struct NullExpression : public Expression {
     std::string toString() const override { return "Null expects " + type->toString(); }
     // NullExpression
     std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<NullExpression>();
+        return std::make_shared<NullExpression>(expectedType ? expectedType : nullptr);
     }
 };
 
@@ -401,8 +401,36 @@ struct NullPointerExpression : public Expression {
     std::string toString() const override { return "NullPointer expects " + type->toString(); } 
     // NullPointerExpression
     std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<NullPointerExpression>();
+        return std::make_shared<NullPointerExpression>(expectedType ? expectedType : nullptr);
     }
+};
+
+struct NullableExpression : public Expression {
+    std::shared_ptr<Expression> inner;
+
+    NullableExpression() = default;
+
+    explicit NullableExpression(std::shared_ptr<Expression> expr)
+        : inner(std::move(expr)) {
+        if (inner) {
+            type = inner->getType();
+            rootType = inner->getRootType();
+        } else {
+            type = Type::createUndefined();
+            rootType = Type::createUndefined();
+        }
+    }
+
+    std::string toString() const override {
+        return inner ? "Nullable(" + inner->toString() + ")" : "Nullable(null)";
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<NullableExpression>(inner ? inner->clone() : nullptr);
+    }
+
+    bool isNull() const { return !inner; }
+    std::shared_ptr<Expression> get() const { return inner; }
 };
 
 struct AddressOfExpression : public Expression {

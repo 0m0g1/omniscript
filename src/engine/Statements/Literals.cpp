@@ -10,6 +10,7 @@
 
 std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
     DEBUG_LOG("");
+
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
         if (typed->getRootType()) {
             DEBUG_LOG("[Cast] Casting '" + value->toString() + "' a '" + typed->getRootType()->toString() + "' to a '" + targetType->toString() + "'.");
@@ -28,16 +29,35 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
 
     extendContextOf(value);
 
+    // Literal cast (handles constant folding, primitive -> primitive, etc.)
     if (auto literal = std::dynamic_pointer_cast<Literal>(value)) {
         auto castedStmt = literal->castTo(targetType);
         return castedStmt->express(scope);
-    } else {
-        auto result = value->express(scope);
-        return std::make_shared<Omniscript::CastExpression>(result, targetType);
     }
 
-    return nullptr;// Or handle casting explicitly at runtime/codegen
+    auto result = value->express(scope);
+
+    // If casting to a nullable type
+    if (targetType->isNullable()) {
+        // If the result is already null or nullable, just return as NullableExpression
+        if (std::dynamic_pointer_cast<Omniscript::NullableExpression>(result)) {
+            return result;
+        }
+
+        // If we're casting a null literal (e.g., NullExpression or NullPointerExpression)
+        if (std::dynamic_pointer_cast<Omniscript::NullExpression>(result) ||
+            std::dynamic_pointer_cast<Omniscript::NullPointerExpression>(result)) {
+            return std::make_shared<Omniscript::NullableExpression>(); // nullable(null)
+        }
+
+        // Wrap any expression in a NullableExpression
+        return std::make_shared<Omniscript::NullableExpression>(result);
+    }
+
+    // Normal cast expression fallback
+    return std::make_shared<Omniscript::CastExpression>(result, targetType);
 }
+
 
 std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
     if (!type) {

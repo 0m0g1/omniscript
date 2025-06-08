@@ -103,12 +103,16 @@ std::shared_ptr<Type> Type::createPointerType(std::shared_ptr<Type> pointee) {
     return std::make_shared<PointerType>(std::move(pointee));
 }
 
-std::shared_ptr<Type> Type::createNullPointerType() {
-    return std::make_shared<NullPointerType>();
+std::shared_ptr<Type> Type::createNullPointerType(std::shared_ptr<Type> innerType) {
+    return std::make_shared<NullPointerType>(innerType);
 }
 
-std::shared_ptr<Type> Type::createNullType() {
-    return std::make_shared<NullType>();
+std::shared_ptr<Type> Type::createNullType(std::shared_ptr<Type> innerType) {
+    return std::make_shared<NullType>(innerType);
+}
+
+std::shared_ptr<Type> Type::createNullableType(std::shared_ptr<Type> innerType) {
+    return std::make_shared<NullableType>(innerType);
 }
 
 std::shared_ptr<Type> Type::createReferenceType(std::shared_ptr<Type> referent) {
@@ -185,6 +189,7 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     size_t index = 0;
     int totalPointerDepth = 0;
     int totalReferenceDepth = 0;
+    int nullableDepth = 0;
 
     // Stack of arrays (outermost first)
     std::vector<std::optional<uint64_t>> arrayStack;
@@ -199,25 +204,6 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
             index += 1;
         }
     }
-    // while (index < dataTypes.size() && dataTypes[index] == "[") {
-    //     if (index + 2 < dataTypes.size() && dataTypes[index + 2] == "]") {
-    //         std::string sizeStr = dataTypes[index + 1];
-
-    //         if (std::all_of(sizeStr.begin(), sizeStr.end(), ::isdigit)) {
-    //             arrayStack.push_back(std::stoull(sizeStr));  // Fixed array
-    //         } else if (sizeStr.empty()) {
-    //             arrayStack.push_back(std::nullopt);          // Dynamic array
-    //         } else {
-    //             std::cerr << "[ERROR] Invalid array size: '" << sizeStr << "'\n";
-    //             return nullptr;
-    //         }
-
-    //         index += 3; // Move past [, size, ]
-    //     } else {
-    //         std::cerr << "[ERROR] Invalid array declaration near index " << index << "\n";
-    //         return nullptr;
-    //     }
-    // }
 
     // References
     while (index < dataTypes.size() && dataTypes[index] == "&") {
@@ -231,6 +217,13 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
         index++;
     }
 
+    // Nulltypes
+    while (index < dataTypes.size() && dataTypes[index] == "?") {
+        nullableDepth++;
+        index++;
+    }
+
+
     // Base type
     if (index >= dataTypes.size()) {
         std::cerr << "[ERROR] No base type found after modifiers!" << std::endl;
@@ -242,6 +235,18 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     // Post-type pointer depth
     while (index < dataTypes.size() && dataTypes[index] == "*") {
         totalPointerDepth++;
+        index++;
+    }
+
+    // Post-type reference depth
+    while (index < dataTypes.size() && dataTypes[index] == "&") {
+        totalReferenceDepth++;
+        index++;
+    }
+
+    // Post-type Nullable depth
+    while (index < dataTypes.size() && dataTypes[index] == "?") {
+        nullableDepth++;
         index++;
     }
 
@@ -330,10 +335,28 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     for (int i = 0; i < totalPointerDepth; ++i) {
         type = Type::createPointerType(type);
     }
+
+    for (int i = 0; i < nullableDepth; ++i) {
+        type = Type::createNullableType(type);
+        // if (type->isPointer()) {
+        //     type = Type::createNullPointerType(type);
+        // } else {
+            // type = Type::createNullableType(type);
+        // }
+    }
+
     return type;
 }
 
 bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
+    if (!from) {
+        console.error("The type to cast from is null");
+    }
+
+    if (!to) {
+        console.error("The type to cast to is null");
+    }
+
     if (from == to || from->kind == to->kind)
         return true;
 
@@ -345,8 +368,18 @@ bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr
         }
     }
 
+    // todo: there might be a bug here
     if (from->isNull() && (to->isPointer() || to->isReference()))
         return true;
+
+    if (from->isNullable()) {
+        auto nullable = std::dynamic_pointer_cast<NullType>(from);
+        if (to->isNullable()) {
+            auto nullableTo = std::dynamic_pointer_cast<NullType>(to);
+            return isSameOrCastableTo(nullable->innerType, nullableTo->innerType);
+        }
+        return isSameOrCastableTo(nullable->innerType, to);
+    }
 
     if (from->isInteger() && to->isInteger()) {
         // return (from->isSigned() == to->isSigned()) &&

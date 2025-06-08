@@ -28,7 +28,7 @@ enum class Kind {
     // Primitive Types
     Primitive,
     Void,
-    Nullptr, Null,
+    Nullptr, Null, Nullable,
     Bool,
     Char, Char16, Char32,
     Size_t,
@@ -97,6 +97,7 @@ public:
     bool isPointer() const { return kind == Kind::Pointer || kind == Kind::Nullptr; }
     bool isNullType() const { return kind == Kind::Null || kind == Kind::Nullptr; }
     bool isNull() const { return kind == Kind::Null; }
+    bool isNullable() const { return kind == Kind::Nullable; }
     bool isNullPointer() const { return kind == Kind::Nullptr; }
     bool isReference() const { return kind == Kind::Reference; }
     bool isFunction() const { return kind == Kind::Function; }
@@ -350,7 +351,7 @@ public:
     virtual std::string kindName() const;
     //Todo:: Implement a description/toString method for types
     virtual std::string description() const { return kindName(); }
-    std::string toString() const { return description(); }
+    virtual std::string toString() const { return description(); }
     Kind getKind() const { return kind; }
 
     virtual std::string getName() const { return "type"; };
@@ -371,8 +372,9 @@ public:
     static std::shared_ptr<Type> createUnresolved(const std::vector<std::string>& types);
     static std::shared_ptr<Type> createUndefined();
     static std::shared_ptr<Type> createPrimitiveType(Kind kind);
-    static std::shared_ptr<Type> createNullType();
-    static std::shared_ptr<Type> createNullPointerType();
+    static std::shared_ptr<Type> createNullType(std::shared_ptr<Type> innerType = nullptr);
+    static std::shared_ptr<Type> createNullPointerType(std::shared_ptr<Type> innerType = nullptr);
+    static std::shared_ptr<Type> createNullableType(std::shared_ptr<Type> innerType = nullptr);
     static std::shared_ptr<Type> createMetaType();
     static std::shared_ptr<Type> createPointerType(std::shared_ptr<Type> pointee);
     static std::shared_ptr<Type> createReferenceType(std::shared_ptr<Type> referent);
@@ -580,33 +582,50 @@ public:
 
 class NullType : public Type {
 public:
-    NullType() {  // You can use any default 'unknown' type
+    std::shared_ptr<Type> innerType;
+    NullType(std::shared_ptr<Type> innerType = nullptr) : innerType(innerType) {  // You can use any default 'unknown' type
         kind = Kind::Null;
     }
 
-    std::string pointerDescription() const override {
-        return "null";
+    std::string toString() const override {
+        return "Null<" + (innerType ? innerType->toString() : "Unknown") + ">";
     }
 
     std::shared_ptr<Type> clone() const override {
-        return std::make_shared<NullType>();
-    }    
+        return std::make_shared<NullType>(innerType ? innerType->clone() : nullptr);
+    }  
+};
+
+class NullableType : public Type {
+public:
+    std::shared_ptr<Type> innerType;
+    NullableType(std::shared_ptr<Type> innerType = nullptr) : innerType(innerType) {  // You can use any default 'unknown' type
+        kind = Kind::Nullable;
+    }
+
+    std::string toString() const override {
+        return "Nullable<" + (innerType ? innerType->toString() : "Unknown") + ">";
+    }
+
+    std::shared_ptr<Type> clone() const override {
+        return std::make_shared<NullableType>(innerType ? innerType->clone() : nullptr);
+    }  
 };
 
 class NullPointerType : public Type {
 public:
-    NullPointerType() {  // You can use any default 'unknown' type
+    std::shared_ptr<Type> innerType;
+    NullPointerType(std::shared_ptr<Type> innerType = nullptr) : innerType(innerType) {  // You can use any default 'unknown' type
         kind = Kind::Nullptr;
     }
 
-    std::string pointerDescription() const override {
-        return "nullptr";
+    std::string toString() const override {
+        return "Nullptr<" + (innerType ? innerType->toString() : "Unknown") + ">";
     }
 
     std::shared_ptr<Type> clone() const override {
-        return std::make_shared<NullPointerType>();
-    }
-    
+        return std::make_shared<NullPointerType>(innerType ? innerType->clone() : nullptr);
+    }  
 };
 
 

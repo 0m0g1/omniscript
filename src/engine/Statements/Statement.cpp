@@ -45,13 +45,17 @@ std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::expressAsVe
     for (const auto& stmt : statements) {
         // Handle type propagation if needed
         DEBUG_LOG(stmt->toString());
-        if (auto typed = std::dynamic_pointer_cast<TypedStatement>(stmt)) {
+        if (auto typed = std::dynamic_pointer_cast<ScopedStatement>(stmt)) {
             if (type) {
                 typed->setType(type);
             }
         }
 
-        if (auto assignment = std::dynamic_pointer_cast<Assignment>(stmt)) {
+        if (auto typed = std::dynamic_pointer_cast<ReturnStatement>(stmt)) {
+            if (type) {
+                typed->setType(type);
+            }
+        } else if (auto assignment = std::dynamic_pointer_cast<Assignment>(stmt)) {
             assignment->setGlobalVisibilityTo(false);
         }
 

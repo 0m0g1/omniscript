@@ -293,11 +293,16 @@ std::vector<std::string> Parser::parseType() {
     std::vector<std::string> dataTypes;
 
      // First, check for any pointer/reference symbols before the base type
-     while (currentToken.getType() == TokenTypes::Multiply || currentToken.getType() == TokenTypes::BitwiseAnd) {
+     while (
+            currentToken.getType() == TokenTypes::Multiply ||
+            currentToken.getType() == TokenTypes::BitwiseAnd ||
+            currentToken.getType() == TokenTypes::QuestionMark) {
         if (currentToken.getType() == TokenTypes::Multiply) {
             dataTypes.push_back("*");
         } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
             dataTypes.push_back("&");
+        } else if (currentToken.getType() == TokenTypes::QuestionMark) {
+            dataTypes.push_back("?");
         }
         eat(currentToken.getType());
     }
@@ -316,11 +321,18 @@ std::vector<std::string> Parser::parseType() {
     }
 
     // After processing the base type, check for pointers or references after the type
-    while (currentToken.getType() == TokenTypes::Multiply || currentToken.getType() == TokenTypes::BitwiseAnd) {
+    while (
+            currentToken.getType() == TokenTypes::Multiply ||
+            currentToken.getType() == TokenTypes::BitwiseAnd ||
+            currentToken.getType() == TokenTypes::BitwiseAnd ||
+            currentToken.getType() == TokenTypes::QuestionMark
+        ) {
         if (currentToken.getType() == TokenTypes::Multiply) {
             dataTypes.push_back("*");
         } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
             dataTypes.push_back("&");
+        } else if (currentToken.getType() == TokenTypes::QuestionMark) {
+            dataTypes.push_back("?");
         }
         eat(currentToken.getType());
     }

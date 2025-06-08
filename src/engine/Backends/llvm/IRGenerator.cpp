@@ -942,6 +942,28 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         return userType;
     }
 
+    // Todo:: Possibly call the type nullable type
+    if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullType>(type)) {
+        DEBUG_LOG("Resolving nullable type: " + nullable->toString());
+
+        // Nullable<T> is represented as { i1, T } (i1 = isNull flag)
+        if (!nullable->innerType) {
+            console.error("[ERROR] Nullable has no inner type ");
+        }
+        
+        llvm::Type* innerLLVMType = resolveLLVMType(nullable->innerType);
+        if (!innerLLVMType) {
+            console.error("[ERROR] Failed to resolve inner type of nullable: " + nullable->innerType->toString());
+            return nullptr;
+        }
+
+        // Create struct: { i1 is_null, T value }
+        return llvm::StructType::get(*Context, {
+            llvm::Type::getInt1Ty(*Context),  // null flag
+            innerLLVMType                     // actual value
+        });
+    }
+
     if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(type)) {
         llvm::Type* returnType = resolveLLVMType(funcType->returnType);
         if (!returnType) {
