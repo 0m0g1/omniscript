@@ -590,7 +590,6 @@ public:
     }
     std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const override;
 
-private:
     int64_t value;
 };
 
@@ -615,7 +614,6 @@ public:
     }
     std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const override;
 
-private:
     __float128 value;
 };    
 

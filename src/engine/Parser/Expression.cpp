@@ -150,10 +150,35 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
         currentToken.getType() == TokenTypes::LogicalNot ||
         currentToken.getType() == TokenTypes::Tilde ||
         currentToken.getType() == TokenTypes::Increment ||
-        currentToken.getType() == TokenTypes::Decrement) {
+        currentToken.getType() == TokenTypes::Decrement ||
+        currentToken.getType() == TokenTypes::Multiply ||
+        currentToken.getType() == TokenTypes::BitwiseAnd) {
         TokenTypes op = currentToken.getType();
         eat(op);
         auto operand = parseUnaryExpression();
+        
+        if (op == TokenTypes::Plus) {
+            return operand;
+        } else if (op == TokenTypes::Minus) {
+            if (auto integerLiteral = std::dynamic_pointer_cast<IntegerLiteral>(operand)) {
+                integerLiteral->value = -integerLiteral->value; 
+                return operand;
+            } else if (auto floatLiteral = std::dynamic_pointer_cast<FloatLiteral>(operand)) {
+                floatLiteral->value = -floatLiteral->value; 
+                return operand;
+            }
+        } else if (op == TokenTypes::LogicalNot) {
+            if (auto boolLiteral = std::dynamic_pointer_cast<BoolLiteral>(operand)) {
+                boolLiteral->value = !boolLiteral->value; 
+                return operand;
+            }
+        } else if (op == TokenTypes::Tilde) {
+            if (auto integerLiteral = std::dynamic_pointer_cast<IntegerLiteral>(operand)) {
+                integerLiteral->value = ~integerLiteral->value;
+                return operand;
+            }
+        } 
+
         return std::make_shared<UnaryExpression>(op, operand, UnaryExpression::Position::Prefix);
     }
 

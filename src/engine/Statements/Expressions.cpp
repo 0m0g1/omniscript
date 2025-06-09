@@ -218,6 +218,7 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
 
     extendContextOf(operand);
     // Set the expected type on the operand
+
     std::shared_ptr<Omniscript::Expression> operandValue;
 
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
