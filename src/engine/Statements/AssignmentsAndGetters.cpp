@@ -103,6 +103,11 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
             console.error("Symbol '" + resolvedName + "' is of type '" + symbolType->toString() +
                           "', which cannot be casted to '" + type->toString() + "'.");
         } else {
+            if (type->isNullable() && !symbolType->isNullable()) {
+                auto val = std::make_shared<Omniscript::VariableAccess>(resolvedName, symbolType);
+                auto result = std::make_shared<Omniscript::NullableExpression>(val);
+                return result;
+            }
             DEBUG_LOG("The casted type is '" + type->toString() + "'.");
         }
     } else {
