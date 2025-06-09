@@ -89,11 +89,14 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         console.error("The left operand '" + right->toString() + "' has no type or is not a typed statement");
     }
 
+    std::shared_ptr<Omniscript::Expression> leftResult;
+    std::shared_ptr<Omniscript::Expression> rightResult;
     if (!leftType || leftType->isInvalid()) {
         auto tempScope = scope->createChildScope("temp");
         auto leftClone = left->clone();
         extendContextOf(leftClone);
-        leftType = leftClone->express(tempScope)->getType();
+        leftResult = leftClone->express(tempScope);
+        leftType = leftResult->getType();
         DEBUG_LOG("The evaluated left operand type is of type '" + leftType->toString() + "'.");
     }
     
@@ -101,7 +104,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         auto tempScope = scope->createChildScope("temp");
         auto rightClone = right->clone();
         extendContextOf(rightClone);
-        rightType = rightClone->express(tempScope)->getType();
+        rightResult = rightClone->express(tempScope);
+        rightType = rightResult->getType();
         DEBUG_LOG("The evaluated right operand type is of type '" + rightType->toString() + "'.");
     }
 
@@ -138,18 +142,25 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         if (op.isComparisonOperator()) {
             type = Omniscript::resolveType({ "bool" });
             if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
-                type = rightType;
                 if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
                     if (leftTyped) leftTyped->setType(rightType);
+                } else if (rightType->isNull() && leftType->isNullable()) {
+                    if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccess>(leftResult)) {
+                        varAccess->extractValue = false;
+                        if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(varAccess->value)) {
+                            nullable->nullCaseHandled = true;
+                        }
+                    }
                 }
             } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
-                type = leftType;
                 if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
                     if (rightTyped) rightTyped->setType(leftType);
                 } else if (leftType->isNull() && rightType->isNullable()) {
-                    if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(left)) {
-                        nullable->nullCaseHandled = true;
-                        nullable->extractValue = false;
+                    if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccess>(rightResult)) {
+                        varAccess->extractValue = false;
+                        if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(varAccess->value)) {
+                            nullable->nullCaseHandled = true;
+                        }
                     }
                 }
             } else {

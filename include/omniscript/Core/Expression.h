@@ -395,7 +395,7 @@ struct NullExpression : public Expression {
 
 struct NullPointerExpression : public Expression {
     bool nullCaseHandled = false;
-    bool extractValue = false;
+    bool extractValue = true;
     std::shared_ptr<Type> expectedType;
     NullPointerExpression(std::shared_ptr<Type> expectedType = nullptr) : expectedType(expectedType) {
         type = Type::createPointerType(expectedType);
@@ -411,7 +411,7 @@ struct NullPointerExpression : public Expression {
 
 struct NullableExpression : public Expression {
     bool nullCaseHandled = false;
-    bool extractValue = false;
+    bool extractValue = true;
     std::shared_ptr<Expression> inner;
 
     NullableExpression(std::shared_ptr<Expression> expr = nullptr)
@@ -1437,6 +1437,7 @@ struct VariableAssignment : public Expression {
 
 struct VariableAccess : public Expression {
     bool extractValue = false;
+    std::shared_ptr<Omniscript::Expression> value;
     std::string variableName;
 
     explicit VariableAccess(std::string name, std::shared_ptr<Type> type = nullptr) 
@@ -1449,7 +1450,9 @@ struct VariableAccess : public Expression {
     }
     // VariableAccess
     std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<VariableAccess>(variableName, type ? type->clone() : nullptr);
+        auto clone = std::make_shared<VariableAccess>(variableName, type ? type->clone() : nullptr);
+        clone->value = value;
+        return clone;
     }
 };
 

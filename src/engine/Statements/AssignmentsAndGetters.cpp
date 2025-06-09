@@ -134,6 +134,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
 
     auto varAccess = std::make_shared<Omniscript::VariableAccess>(resolvedName, type);
     varAccess->extractValue = extractValue;
+    varAccess->value = expr;
     return varAccess;
 }
 
