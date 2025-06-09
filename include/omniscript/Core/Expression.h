@@ -410,7 +410,7 @@ struct NullableExpression : public Expression {
 
     NullableExpression() = default;
 
-    explicit NullableExpression(std::shared_ptr<Expression> expr)
+    NullableExpression(std::shared_ptr<Expression> expr = nullptr)
         : inner(std::move(expr)) {
         if (inner) {
             type = inner->getType();

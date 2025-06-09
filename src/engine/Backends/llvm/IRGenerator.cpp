@@ -296,15 +296,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(value)) {
         DEBUG_LOG("Generating nullable expression");
 
-        // Generate the value
-        llvm::Value* innerValue = codegen(nullable->inner, scope);
-
-        if (!innerValue) {
+        if (!nullable->inner) {
             DEBUG_LOG("Nullable expression has null value");
             // Return a 'null' representation
             // Assuming you use `{ i1, T }` style struct, set `is_null = true` and `value = undef`
-            llvm::Type* valueType = resolveLLVMType(nullable->getType()); // Get full nullable type
-            llvm::Type* innerType = resolveLLVMType(nullable->inner->getType());
+            llvm::Type* innerType = resolveLLVMType(nullable->getType()); // Get full nullable type
             llvm::StructType* nullableType = llvm::StructType::get(*Context, {
                 llvm::Type::getInt1Ty(*Context), // is_null
                 innerType
@@ -320,6 +316,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         }
 
         // If value is not null
+        // Generate the value
+        llvm::Value* innerValue = codegen(nullable->inner, scope);
+
         llvm::Type* innerType = innerValue->getType();
         llvm::StructType* nullableType = llvm::StructType::get(*Context, {
             llvm::Type::getInt1Ty(*Context), // is_null
