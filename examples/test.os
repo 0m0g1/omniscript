@@ -5,7 +5,7 @@ let n: int? = std.Math.factorial(2);
 if (n == null) {
    std.IO.Console.printf("n is null");
 } else {
-   std.IO.Console.printf("n is not null");
+   std.IO.Console.printf("n is %i", n);
 }
 // let n : f32 = std.Math.powf(2.0, 3.0);
 // std.IO.Console.printf("%.2f\n", n);

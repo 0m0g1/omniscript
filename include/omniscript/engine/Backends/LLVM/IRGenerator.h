@@ -226,7 +226,7 @@ public:
     llvm::Value* getReferenceToVariable(const std::string& varname);
     llvm::Value* dereferenceValue(llvm::Value* value);
     llvm::Value* fullyDereferencePointer(llvm::Value* ptr);
-    llvm::Value* getVariable(const std::string& varname);
+    llvm::Value* getVariable(const std::string& varname, bool extractValue = false);
     
     llvm::Value* createDynamicVariable(const std::string& name, llvm::Value* value);
     llvm::Value* createDynamicConstant(const std::string& name, llvm::Value* value);

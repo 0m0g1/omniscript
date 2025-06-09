@@ -99,16 +99,23 @@ llvm::Value* IRGenerator::assignVariable(
 }
 
 
-llvm::Value* IRGenerator::getVariable(const std::string& name) {
+llvm::Value* IRGenerator::getVariable(const std::string& name, bool extractValue) {
     llvm::Value* val = activeScope->get(name);
+    llvm::Value* loaded = nullptr;
 
     if (llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(val)) {
-        return Builder->CreateLoad(alloca->getAllocatedType(), alloca, name + ".val");
+        loaded = Builder->CreateLoad(alloca->getAllocatedType(), alloca, name + ".val");
     } else if (llvm::GlobalVariable* gvar = llvm::dyn_cast<llvm::GlobalVariable>(val)) {
-        return Builder->CreateLoad(gvar->getValueType(), gvar, name + ".val");
+        loaded = Builder->CreateLoad(gvar->getValueType(), gvar, name + ".val");
+    } else {
+        loaded = val;
     }
 
-    return val;
+    if (extractValue && isNullableStruct(loaded->getType())) {
+        return Builder->CreateExtractValue(loaded, 1); // Unwrap safely
+    }
+
+    return loaded;
 }
 
 llvm::Value* IRGenerator::createConstant(const std::string& name, llvm::Type* type, llvm::Value* value) {

@@ -378,6 +378,8 @@ struct InvalidExpression : public Expression {
 };
 
 struct NullExpression : public Expression {
+    bool nullCaseHandled = false;
+    bool extractValue = true;
     std::shared_ptr<Type> expectedType;
     NullExpression(std::shared_ptr<Type> expectedType = nullptr) : expectedType(expectedType) {
         type = expectedType;
@@ -392,6 +394,8 @@ struct NullExpression : public Expression {
 };
 
 struct NullPointerExpression : public Expression {
+    bool nullCaseHandled = false;
+    bool extractValue = false;
     std::shared_ptr<Type> expectedType;
     NullPointerExpression(std::shared_ptr<Type> expectedType = nullptr) : expectedType(expectedType) {
         type = Type::createPointerType(expectedType);
@@ -407,13 +411,14 @@ struct NullPointerExpression : public Expression {
 
 struct NullableExpression : public Expression {
     bool nullCaseHandled = false;
+    bool extractValue = false;
     std::shared_ptr<Expression> inner;
 
     NullableExpression(std::shared_ptr<Expression> expr = nullptr)
         : inner(std::move(expr)) {
         if (inner) {
-            type = inner->getType();
-            rootType = inner->getRootType();
+            type = type->createNullableType(inner->getType());
+            rootType = type;
         } else {
             type = Type::createUndefined();
             rootType = Type::createUndefined();
@@ -1431,6 +1436,7 @@ struct VariableAssignment : public Expression {
 };
 
 struct VariableAccess : public Expression {
+    bool extractValue = false;
     std::string variableName;
 
     explicit VariableAccess(std::string name, std::shared_ptr<Type> type = nullptr) 

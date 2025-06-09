@@ -506,7 +506,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
 
     if (auto var = std::dynamic_pointer_cast<Omniscript::VariableAccess>(value)) {
         DEBUG_LOG("Accessing variable: " + var->variableName);
-        return getVariable(var->variableName);
+        return getVariable(var->variableName, var->extractValue);
     }
 
     if (auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(value)) {

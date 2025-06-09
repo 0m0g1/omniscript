@@ -96,7 +96,22 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
         return nullptr;
     }
 
+    DEBUG_LOG("The variable stored in scope is '" + expr->toString() + "'.");
+
     std::shared_ptr<Omniscript::Type> symbolType = expr->getType();
+
+    // Check if expr is NullableExpression and nullCaseHandled is true
+    bool extractValue = false;
+    if (auto nullableExpr = std::dynamic_pointer_cast<Omniscript::NullableExpression>(expr)) {
+        if (nullableExpr->extractValue && !nullableExpr->nullCaseHandled) {
+            console.error(
+                "Attempted to access a potentially nullable variable '" + name + "' without handling the null case.\n" +
+                "You must check for null before accessing it.\n" +
+                "For example: if (" + name + " == null) { /* handle null */ } else { /* safe to use */ }"
+            );
+        } 
+        extractValue = true;
+    }
 
     if (type) {
         if (!Omniscript::isSameOrCastableTo(symbolType, type)) {
@@ -104,8 +119,10 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
                           "', which cannot be casted to '" + type->toString() + "'.");
         } else {
             if (type->isNullable() && !symbolType->isNullable()) {
+                // Wrap the non-nullable expression in a NullableExpression
                 auto val = std::make_shared<Omniscript::VariableAccess>(resolvedName, symbolType);
                 auto result = std::make_shared<Omniscript::NullableExpression>(val);
+                // By default, nullCaseHandled == false here, which is correct
                 return result;
             }
             DEBUG_LOG("The casted type is '" + type->toString() + "'.");
@@ -115,7 +132,9 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
         setType(symbolType);
     }
 
-    return std::make_shared<Omniscript::VariableAccess>(resolvedName, type);
+    auto varAccess = std::make_shared<Omniscript::VariableAccess>(resolvedName, type);
+    varAccess->extractValue = extractValue;
+    return varAccess;
 }
 
 // Get Dynamic Variable
@@ -163,12 +182,17 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 if (!typed->getType() && !type->isInvalid()) {
                     typed->setType(type);
                     result = value->express(scope);
-                    DEBUG_LOG("The variables set type is '" + type->toString() + "'.");
+                    if (!Omniscript::isSameOrCastableTo(result->type, type)) {
+                        console.error("Type mismatch when assigning to variable '" + name + "'.\n"
+                            "Expected type: '" + type->toString() + "', but got: '" + result->type->toString() + "'.\n"
+                            "The type was inferred, but the assigned value is not compatible.");
+                    }
+                    DEBUG_LOG("The variable's inferred type is '" + type->toString() + "'.");
                 } else {
                     result = value->express(scope);
-                    if (type->getKind() != result->getType()->getKind() && !result->getType()->isNull()) {
-                        console.error("The variable '" + variable + "' expects type '" + type->toString() + "' or 'null' "+ 
-                        " but got '" + result->getType()->toString() + "' instead.");
+                    if (!Omniscript::isSameOrCastableTo(result->type, type)) {
+                        console.error("Type mismatch for variable '" + name + "'.\n"
+                            "Expected type: '" + type->toString() + "' (or 'null'), but got: '" + result->getType()->toString() + "'.");
                     }
                 }
             }

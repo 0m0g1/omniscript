@@ -149,6 +149,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                 } else if (leftType->isNull() && rightType->isNullable()) {
                     if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(left)) {
                         nullable->nullCaseHandled = true;
+                        nullable->extractValue = false;
                     }
                 }
             } else {
