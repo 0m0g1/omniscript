@@ -210,31 +210,36 @@ llvm::Value* IRGenerator::createIfStatement(
         }
     }
 
-    bool mergeBlockUsed = false;
-
     // Handle final else block if provided
     if (elseBody) {
         llvm::Value* elseValue = codegen(elseBody, localScope);
-        // if (!elseValue) return nullptr;
-        if (!Builder->GetInsertBlock()->getTerminator()) {
+
+        // Set insert point to current block *before* emitting the branch
+        llvm::BasicBlock* currentBlock = Builder->GetInsertBlock();
+        if (!currentBlock->getTerminator()) {
+            mergeBlock->insertInto(function);
             Builder->CreateBr(mergeBlock);
-            mergeBlockUsed = true;
         }
-        incomingBlocks.push_back(Builder->GetInsertBlock());
+
+        incomingBlocks.push_back(currentBlock);
         if (elseValue) {
             incomingValues.push_back(elseValue);
         }
     } else if (nextBlock && Builder->GetInsertBlock() == nextBlock) {
         // If else not provided, and last else block is still current block
         if (!Builder->GetInsertBlock()->getTerminator()) {
+            mergeBlock->insertInto(function);
             Builder->CreateBr(mergeBlock);
-            mergeBlockUsed = true;
         }
     }
 
-    if (mergeBlockUsed) {
+    // Ensure mergeBlock is in the function and active
+    if (!mergeBlock->getParent()) {
         mergeBlock->insertInto(function);
     }
+
+    // Set the insert point to mergeBlock so following code continues here
+    Builder->SetInsertPoint(mergeBlock);
 
     // Emit merge block if used
     if (!incomingValues.empty()) {
@@ -246,6 +251,7 @@ llvm::Value* IRGenerator::createIfStatement(
         for (size_t i = 0; i < incomingValues.size(); ++i) {
             phi->addIncoming(incomingValues[i], incomingBlocks[i]);
         }
+        
         return phi;
     }
 

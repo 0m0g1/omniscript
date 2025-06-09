@@ -102,8 +102,14 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
 
     if (type) {
         if (!Omniscript::isSameOrCastableTo(symbolType, type)) {
-            console.error("Symbol '" + resolvedName + "' is of type '" + symbolType->toString() +
-                          "', which cannot be casted to '" + type->toString() + "'.");
+            if (symbolType->isNullable()) {
+                if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccess>(expr)) {
+                    if (!varAccess->extractValue) {
+                        console.error("Symbol '" + resolvedName + "' is of type '" + symbolType->toString() +
+                                      "', which cannot be casted to '" + type->toString() + "'.");
+                    }
+                }
+            }
         } else {
             if (type->isNullable() && !symbolType->isNullable()) {
                 // Wrap the non-nullable expression in a NullableExpression

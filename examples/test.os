@@ -8,6 +8,9 @@ if (n == null) {
    std.IO.Console.printf("n is %i", n);
 }
 
+// std.IO.Console.printf("done");
+let variableafterifblock : int = n;
+
 // let n : f32 = std.Math.powf(2.0, 3.0);
 // std.IO.Console.printf("%.2f\n", n);
 

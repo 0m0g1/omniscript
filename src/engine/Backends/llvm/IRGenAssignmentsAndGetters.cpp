@@ -23,7 +23,7 @@ llvm::Value* IRGenerator::assignVariable(
             }
 
             llvm::StoreInst* store = Builder->CreateStore(initialValue, existingVar);
-            store->setAlignment(llvm::Align(4)); // Adjust based on type if needed
+            store->setAlignment(llvm::Align(4));
         }
         return existingVar;
     }
@@ -43,13 +43,9 @@ llvm::Value* IRGenerator::assignVariable(
         activeScope->set(name, gVar);
         DEBUG_LOG("Global variable '" + name + "' created with type: " + debugType(type));
 
-        // If not constant and initializer isn't a constant, emit store in init func
         if (initialValue && !constInit && !isConstant) {
             DEBUG_LOG("Global variable '" + name + "' initialized with non-constant value; adding runtime store.");
-
-            llvm::Function* initFunc = getOrCreateGlobalInitFunction();
-            llvm::IRBuilder<> tempBuilder(&initFunc->getEntryBlock(), initFunc->getEntryBlock().end());
-            tempBuilder.CreateStore(initialValue, gVar);
+            Builder->CreateStore(initialValue, gVar);
         }
 
         return gVar;
@@ -57,12 +53,9 @@ llvm::Value* IRGenerator::assignVariable(
 
     // --- Local variable ---
     llvm::Function* function = (activeBlock ? activeBlock->getParent() : Builder->GetInsertBlock()->getParent());
-    llvm::IRBuilder<> tempBuilder(Builder->getContext());
-    tempBuilder.SetInsertPoint(activeBlock ? activeBlock : &function->getEntryBlock(), (activeBlock ? activeBlock->begin() : function->getEntryBlock().begin()));
 
-    llvm::AllocaInst* alloca = tempBuilder.CreateAlloca(type, nullptr, name);
+    llvm::AllocaInst* alloca = Builder->CreateAlloca(type, nullptr, name);
 
-    // Apply alignment (based on type as before)
     unsigned align = 4;
     if (type->isIntegerTy()) {
         unsigned bits = type->getIntegerBitWidth();
@@ -72,12 +65,12 @@ llvm::Value* IRGenerator::assignVariable(
     }
     alloca->setAlignment(llvm::Align(align));
 
-    // Store initializer if present
+    // Store initializer (with Builder in correct place now)
     if (initialValue) {
         llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
         store->setAlignment(llvm::Align(align));
 
-        // Move before return if one exists
+        // Move before return if it exists in the same block
         llvm::BasicBlock* entryBlock = &function->getEntryBlock();
         for (llvm::Instruction& I : *entryBlock) {
             if (llvm::isa<llvm::ReturnInst>(&I)) {
@@ -97,7 +90,6 @@ llvm::Value* IRGenerator::assignVariable(
     DEBUG_LOG("Local variable '" + name + "' allocated and initialized" + (isConstant ? " (const)" : ""));
     return alloca;
 }
-
 
 llvm::Value* IRGenerator::getVariable(const std::string& name, bool extractValue) {
     llvm::Value* val = activeScope->get(name);
