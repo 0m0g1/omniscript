@@ -1,15 +1,15 @@
 import { Math, IO } from "std";
 
-let n: int? = std.Math.factorial(5);
+// let n: int? = std.Math.factorial(-5);
 
-if (n == null) {
-   std.IO.Console.printf("n is null");
-} else {
-   std.IO.Console.printf("n is %i", n);
-}
+// if (n == null) {
+//    std.IO.Console.printf("n is null");
+// } else {
+//    std.IO.Console.printf("n is %i", n);
+// }
 
 // std.IO.Console.printf("done");
-let variableafterifblock : int = n;
+// let variableafterifblock : int = n;
 
 // let n : f32 = std.Math.powf(2.0, 3.0);
 // std.IO.Console.printf("%.2f\n", n);

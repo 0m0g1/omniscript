@@ -168,6 +168,8 @@ llvm::Function* IRGenerator::registerFunction(
     activeScope->set(name, function);
     DEBUG_LOG("Stored function: " + name + " in scope");
 
+    function->addFnAttr("no-stack-probe");
+    
     return function;
 }
 

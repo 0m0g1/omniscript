@@ -89,20 +89,33 @@ void IRGenerator::finalize() {
     // Find the top-level function
     llvm::Function* topFunc = Module->getFunction("__top_level__");
     if (!topFunc) {
-        llvm::errs() << "No top-level function found.\n";
+        llvm::errs() << "Warning: No top-level function found.\n";
         return;
     }
 
-    // Get the last basic block (or current insert block)
-    llvm::BasicBlock* lastBlock = &topFunc->back(); // last block in function
+    // Handle empty function case
+    if (topFunc->empty()) {
+        llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", topFunc);
+        Builder->SetInsertPoint(entry);
+        Builder->CreateRetVoid();
+        return;
+    }
+
+    // Get the last basic block
+    llvm::BasicBlock* lastBlock = &topFunc->back();
 
     // If the block has no terminator, add a `ret void`
     if (!lastBlock->getTerminator()) {
         Builder->SetInsertPoint(lastBlock);
+        
+        // Check if we're in the middle of a block (unlikely but possible)
+        if (Builder->GetInsertBlock() != lastBlock) {
+            Builder->SetInsertPoint(lastBlock);
+        }
+        
         Builder->CreateRetVoid();
     }
 }
-
 
 void IRGenerator::printIR() {
     Module->print(llvm::outs(), nullptr);

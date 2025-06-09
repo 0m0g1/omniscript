@@ -35,6 +35,13 @@ project "Osengine"
         "quadmath"
     }
 
+    -- Disable stack probes for Windows
+    filter { "system:windows", "toolset:msc*" }  -- MSVC/Clang-cl
+        buildoptions { "/mno-stack-arg-probe" }
+
+    filter { "system:windows", "toolset:not msc*" }  -- MinGW/Clang
+        buildoptions { "-mno-stack-arg-probe" }
+
     filter "configurations:Debug"
         defines { "DEBUG" }
         symbols "On"
@@ -49,4 +56,3 @@ project "Osengine"
             "powershell -Command \"Copy-Item 'dependencies/llvm/bin/*.dll' -Destination 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}'\""
         }                
         
-    filter {}

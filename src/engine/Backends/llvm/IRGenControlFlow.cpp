@@ -204,7 +204,16 @@ llvm::Value* IRGenerator::createIfStatement(
 
         elseBlock->insertInto(function);
         Builder->SetInsertPoint(elseBlock);
-         
+        
+        if (i == conditions.size() - 1 && !elseBody) {
+            // No else clause, make sure we emit a branch to merge
+            if (!Builder->GetInsertBlock()->getTerminator()) {
+                mergeBlock->insertInto(function);
+                Builder->CreateBr(mergeBlock);
+                incomingBlocks.push_back(Builder->GetInsertBlock());
+            }
+        }
+
         if (i < conditions.size() - 1) {
             nextBlock = elseBlock;
         }
@@ -233,18 +242,23 @@ llvm::Value* IRGenerator::createIfStatement(
         }
     }
 
-    // Ensure mergeBlock is in the function and active
-    if (!mergeBlock->getParent()) {
-        mergeBlock->insertInto(function);
-    }
-
+    // If mergeBlock is in the function and active
     // Set the insert point to mergeBlock so following code continues here
-    Builder->SetInsertPoint(mergeBlock);
+    if (mergeBlock->getParent()) {
+        Builder->SetInsertPoint(mergeBlock);
+    }
 
     // Emit merge block if used
     if (!incomingValues.empty()) {
         if (incomingValues[0]->getType()->isVoidTy()) {
             return nullptr;
+        }
+
+        for (auto val : incomingValues) {
+            if (val->getType() != incomingValues[0]->getType()) {
+                console.error("Mismatched PHI types in if-statement");
+                return nullptr;
+            }
         }
 
         llvm::PHINode* phi = Builder->CreatePHI(incomingValues[0]->getType(), incomingValues.size(), "iftmp");
