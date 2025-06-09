@@ -58,6 +58,15 @@ void IRGenerator::initialize() {
 
     std::string error;
     std::string triple = llvm::sys::getDefaultTargetTriple();
+    
+    // Force Windows target triple if not already set
+    #ifdef _WIN32
+        if (triple.find("windows") == std::string::npos) {
+            triple = "x86_64-pc-windows-msvc";
+        }
+        // Add module flag instead of inline asm
+        Module->addModuleFlag(llvm::Module::Warning, "StackProbeSize", 2147483647);
+    #endif
 
     Module->setTargetTriple(triple);
 
@@ -74,12 +83,15 @@ void IRGenerator::initialize() {
 
     Module->setDataLayout(targetMachine->createDataLayout());
 
+    #ifdef _MSC_VER
+        Module->appendModuleInlineAsm("\t.globl __chkstk_ms");
+    #endif
+
     // Optional: Setup main or top-level function
     llvm::FunctionType* funcType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
     llvm::Function* topFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "__top_level__", Module.get());
     llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", topFunc);
     Builder->SetInsertPoint(entry);
-    // Builder->CreateRetVoid(); // placeholder
 
     currentModule = Module.get();
     addExternalResolver("C", std::make_unique<CStdLibResolver>());
