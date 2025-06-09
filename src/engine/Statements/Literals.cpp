@@ -75,8 +75,9 @@ std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
 
     if (type->isNullable()) {
         auto nullable = std::dynamic_pointer_cast<Omniscript::NullableType>(type);
-        auto nullableExpr = std::make_shared<NullableExpression>();
-        nullableExpr->setType(nullable->innerType);
+        auto nullableExpr = std::make_shared<Omniscript::NullableExpression>();
+        nullableExpr->type = nullable->innerType;
+        nullableExpr->rootType = nullable->innerType;
         return nullableExpr;
     }
     

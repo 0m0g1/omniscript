@@ -296,7 +296,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(value)) {
         DEBUG_LOG("Generating nullable expression");
 
-        if (!nullable->inner) {
+        if (nullable->isNull()) {
             DEBUG_LOG("Nullable expression has null value");
             // Return a 'null' representation
             // Assuming you use `{ i1, T }` style struct, set `is_null = true` and `value = undef`
@@ -475,7 +475,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     if (auto unary = std::dynamic_pointer_cast<Omniscript::UnaryExpression>(value)) {
         DEBUG_LOG("Creating a unary expression");
         llvm::Value* operandVal = codegen(unary->operand, scope);
-        if (!operandVal) return nullptr;
+        if (!operandVal) {
+            console.error("The operand value is invalid");
+        }
         return createUnaryExpression(operandVal, unary->op, unary->position);
     }
 
@@ -484,7 +486,12 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         llvm::Value* lhs = codegen(binary->left, scope);
         llvm::Value* rhs = codegen(binary->right, scope);
         DEBUG_LOG("lhs type: '" + debugType(lhs->getType()) + "' rhs type: '" + debugType(rhs->getType()) + "'.");
-        if (!lhs || !rhs) return nullptr;
+        if (!lhs) {
+            console.error("The lhs value is invalid");
+        }
+        if (!rhs) {
+            console.error("The rhs value is invalid");
+        }
         return createBinaryExpression(lhs, binary->op, rhs);
     }
 
@@ -1783,6 +1790,14 @@ std::string IRGenerator::typeToString(llvm::Type* type) {
     return rso.str();
 }
 
+bool IRGenerator::isNullableStruct(llvm::Type* type) {
+    if (auto* structType = llvm::dyn_cast<llvm::StructType>(type)) {
+        return structType->getNumElements() == 2 &&
+               structType->getElementType(0)->isIntegerTy(1);  // i1
+    }
+    return false;
+}
+
 llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes op, bool isPostfix) {
     if (!operand) {
         console.error("Unknown unary operation");
@@ -1846,6 +1861,16 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         console.error("Unknown binary operation");
         return nullptr;
     };
+
+    if (op == TokenTypes::Equals && isNullableStruct(left->getType()) && right->getType()->isVoidTy()) {
+        llvm::Value* hasValue = Builder->CreateExtractValue(left, {0}, "hasValue");
+        return Builder->CreateICmpEQ(hasValue, Builder->getInt1(true), "nonnull");
+    }
+
+    if (op == TokenTypes::NotEquals && isNullableStruct(left->getType()) && right->getType()->isVoidTy()) {
+        llvm::Value* hasValue = Builder->CreateExtractValue(left, {0}, "hasValue");
+        return Builder->CreateICmpEQ(hasValue, Builder->getInt1(false), "isnull");
+    }
 
     switch (op) {
         // Arithmetic

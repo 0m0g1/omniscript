@@ -3,7 +3,7 @@ module Console {
     // extern "C" fn Beep(freq: int, duration: int) => int;
     // extern "C" fn time(ptr: void*) => int;
     // extern "C" fn localtime(ptr: void*) => void*;
-    extern "C" fn strftime(buf: void*, size: int, fmt: char*, tm: void*) => int;
+    // extern "C" fn strftime(buf: void*, size: int, fmt: char*, tm: void*) => int;
 
 //   enum LogLevel { LOG, INFO, WARN, ERROR, DEBUG };
 
@@ -80,16 +80,16 @@ module Console {
 //     }
 //   }
 
-  fn beep() => void {
-    printf("\a");
-    Beep(800, 200); // windows
-  }
+  // fn beep() => void {
+  //   printf("\a");
+  //   Beep(800, 200); // windows
+  // }
 
-  fn beep(freq: int, duration: int) => void {
-    Beep(freq, duration); // windows
-  }
+  // fn beep(freq: int, duration: int) => void {
+  //   Beep(freq, duration); // windows
+  // }
 
-  fn clear() => void {
-    printf("\x1b[2J\x1b[H"); // ANSI: clear screen and move cursor to top-left
-  }
+  // fn clear() => void {
+  //   printf("\x1b[2J\x1b[H"); // ANSI: clear screen and move cursor to top-left
+  // }
 }

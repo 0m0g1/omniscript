@@ -210,12 +210,15 @@ llvm::Value* IRGenerator::createIfStatement(
         }
     }
 
+    bool mergeBlockUsed = false;
+
     // Handle final else block if provided
     if (elseBody) {
         llvm::Value* elseValue = codegen(elseBody, localScope);
         // if (!elseValue) return nullptr;
         if (!Builder->GetInsertBlock()->getTerminator()) {
             Builder->CreateBr(mergeBlock);
+            mergeBlockUsed = true;
         }
         incomingBlocks.push_back(Builder->GetInsertBlock());
         if (elseValue) {
@@ -225,7 +228,12 @@ llvm::Value* IRGenerator::createIfStatement(
         // If else not provided, and last else block is still current block
         if (!Builder->GetInsertBlock()->getTerminator()) {
             Builder->CreateBr(mergeBlock);
+            mergeBlockUsed = true;
         }
+    }
+
+    if (mergeBlockUsed) {
+        mergeBlock->insertInto(function);
     }
 
     // Emit merge block if used

@@ -146,6 +146,10 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                 type = leftType;
                 if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
                     if (rightTyped) rightTyped->setType(leftType);
+                } else if (leftType->isNull() && rightType->isNullable()) {
+                    if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(left)) {
+                        nullable->nullCaseHandled = true;
+                    }
                 }
             } else {
                 console.error("Incompatible comparison types: " + leftType->toString() + " vs " + rightType->toString());

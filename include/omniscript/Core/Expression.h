@@ -406,9 +406,8 @@ struct NullPointerExpression : public Expression {
 };
 
 struct NullableExpression : public Expression {
+    bool nullCaseHandled = false;
     std::shared_ptr<Expression> inner;
-
-    NullableExpression() = default;
 
     NullableExpression(std::shared_ptr<Expression> expr = nullptr)
         : inner(std::move(expr)) {
@@ -426,11 +425,18 @@ struct NullableExpression : public Expression {
     }
 
     std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<NullableExpression>(inner ? inner->clone() : nullptr);
+        auto clone = std::make_shared<NullableExpression>(inner ? inner->clone() : nullptr);
+        clone->nullCaseHandled = nullCaseHandled;
+        return clone;
     }
 
     bool isNull() const { return !inner; }
-    std::shared_ptr<Expression> get() const { return inner; }
+    std::shared_ptr<Expression> get() const {
+        if (!inner || !nullCaseHandled) {
+            throw std::runtime_error("Attempted to unwrap a nullable expression without null-checking it.");
+        }
+        return inner;
+    }
 };
 
 struct AddressOfExpression : public Expression {

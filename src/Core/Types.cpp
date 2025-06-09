@@ -372,6 +372,9 @@ bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr
     if (from->isNull() && (to->isPointer() || to->isReference()))
         return true;
 
+    if (from->isNullable() && to->isNull())
+        return true;
+
     if (to->isNullable()) {
         auto nullableTo = std::dynamic_pointer_cast<NullableType>(to);
         if (from->isNullable()) {
