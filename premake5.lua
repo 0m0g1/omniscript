@@ -14,9 +14,6 @@ project "Osengine"
 
     files {
         "src/**.cpp"
-        -- "src/main.cpp",
-        -- "src/engine/*.cpp",
-        -- "src/runtime/object.cpp"
     }
 
     includedirs {
@@ -26,7 +23,6 @@ project "Osengine"
     
     libdirs {
         "dependencies/llvm/lib"
-        -- "C:/msys64/mingw64/lib"
     }
 
     links {
@@ -36,10 +32,10 @@ project "Osengine"
     }
 
     -- Disable stack probes for Windows
-    filter { "system:windows", "toolset:msc*" }  -- MSVC/Clang-cl
+    filter { "system:windows", "toolset:msc*" }
         buildoptions { "/mno-stack-arg-probe" }
 
-    filter { "system:windows", "toolset:not msc*" }  -- MinGW/Clang
+    filter { "system:windows", "toolset:not msc*" }
         buildoptions { "-mno-stack-arg-probe" }
 
     filter "configurations:Debug"
@@ -51,8 +47,15 @@ project "Osengine"
         defines { "PLATFORM_WINDOWS" }
         systemversion "latest"
 
+        -- Link against required MSVC runtime libs to fix __chkstk_ms
+        links {
+            "legacy_stdio_definitions",
+            "ucrt",
+            "vcruntime",
+            "msvcrt"
+        }
+
         postbuildcommands {
             "powershell -Command \"if (-not (Test-Path -Path 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}')) { New-Item -ItemType Directory -Force -Path 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}' }\"",
             "powershell -Command \"Copy-Item 'dependencies/llvm/bin/*.dll' -Destination 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}'\""
-        }                
-        
+        }
