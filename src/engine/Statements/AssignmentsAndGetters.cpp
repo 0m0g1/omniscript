@@ -100,19 +100,6 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
 
     std::shared_ptr<Omniscript::Type> symbolType = expr->getType();
 
-    // Check if expr is NullableExpression and nullCaseHandled is true
-    bool extractValue = false;
-    if (auto nullableExpr = std::dynamic_pointer_cast<Omniscript::NullableExpression>(expr)) {
-        if (nullableExpr->extractValue && !nullableExpr->nullCaseHandled) {
-            console.error(
-                "Attempted to access a potentially nullable variable '" + name + "' without handling the null case.\n" +
-                "You must check for null before accessing it.\n" +
-                "For example: if (" + name + " == null) { /* handle null */ } else { /* safe to use */ }"
-            );
-        } 
-        extractValue = true;
-    }
-
     if (type) {
         if (!Omniscript::isSameOrCastableTo(symbolType, type)) {
             console.error("Symbol '" + resolvedName + "' is of type '" + symbolType->toString() +
@@ -133,7 +120,6 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
     }
 
     auto varAccess = std::make_shared<Omniscript::VariableAccess>(resolvedName, type);
-    varAccess->extractValue = extractValue;
     varAccess->value = expr;
     return varAccess;
 }

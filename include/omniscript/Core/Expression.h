@@ -1436,7 +1436,7 @@ struct VariableAssignment : public Expression {
 };
 
 struct VariableAccess : public Expression {
-    bool extractValue = false;
+    bool extractValue = true;
     std::shared_ptr<Omniscript::Expression> value;
     std::string variableName;
 
@@ -1451,6 +1451,7 @@ struct VariableAccess : public Expression {
     // VariableAccess
     std::shared_ptr<Expression> clone() const override {
         auto clone = std::make_shared<VariableAccess>(variableName, type ? type->clone() : nullptr);
+        clone->extractValue = extractValue;
         clone->value = value;
         return clone;
     }

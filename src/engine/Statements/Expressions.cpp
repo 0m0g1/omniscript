@@ -142,27 +142,9 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         if (op.isComparisonOperator()) {
             type = Omniscript::resolveType({ "bool" });
             if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
-                if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
-                    if (leftTyped) leftTyped->setType(rightType);
-                } else if (rightType->isNull() && leftType->isNullable()) {
-                    if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccess>(leftResult)) {
-                        varAccess->extractValue = false;
-                        if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(varAccess->value)) {
-                            nullable->nullCaseHandled = true;
-                        }
-                    }
-                }
+                if (leftTyped) leftTyped->setType(rightType);
             } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
-                if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
-                    if (rightTyped) rightTyped->setType(leftType);
-                } else if (leftType->isNull() && rightType->isNullable()) {
-                    if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccess>(rightResult)) {
-                        varAccess->extractValue = false;
-                        if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(varAccess->value)) {
-                            nullable->nullCaseHandled = true;
-                        }
-                    }
-                }
+                if (rightTyped) rightTyped->setType(leftType);
             } else {
                 console.error("Incompatible comparison types: " + leftType->toString() + " vs " + rightType->toString());
                 return nullptr;
@@ -170,14 +152,10 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
             if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
                 type = rightType;
-                if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
-                    if (leftTyped) leftTyped->setType(rightType);
-                }
+                if (leftTyped) leftTyped->setType(rightType);
             } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
                 type = leftType;
-                if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
-                    if (rightTyped) rightTyped->setType(leftType);
-                }
+                if (rightTyped) rightTyped->setType(leftType);
             } else {
                 console.error("Incompatible arithmetic/bitwise types: " + leftType->toString() + " vs " + rightType->toString());
                 return nullptr;
@@ -199,14 +177,23 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         DEBUG_LOG("Inferred binary expression type as: " + type->toString());
     }
 
-    
-    // if (rightTyped) rightTyped->setType(type);
-
     std::shared_ptr<Omniscript::Expression> leftValue = left->express(scope);
     std::shared_ptr<Omniscript::Expression> rightValue = right->express(scope);
-
+    
     if (!leftValue) console.error("The left value is null");
     if (!rightValue) console.error("The right value is null");
+    
+    if (rightType->isNull() && leftType->isNullable()) {
+        if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccess>(leftValue)) {
+            varAccess->extractValue = false;
+        }
+    }
+
+    if (leftType->isNull() && rightType->isNullable()) {
+        if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccess>(rightValue)) {
+            varAccess->extractValue = false;
+        }
+    }
 
     DEBUG_LOG("The left value is: " + leftValue->toString());
     DEBUG_LOG("The right value is: " + rightValue->toString());
