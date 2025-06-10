@@ -4,35 +4,55 @@ llvm::Value* IRGenerator::createForLoop(
     const std::shared_ptr<Omniscript::ForLoopExpression>& forExpr,
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
 ) {
-    llvm::Function* function = Builder->GetInsertBlock()->getParent();
-    llvm::LLVMContext& context = Builder->getContext();
-
     // Create a local scope for loop
     pushScope();
     auto localScope = scope->createChildScope("forloop");
 
-    // Emit initializer if present
+    // Assume initializer is "let i = value"
+    std::string loopVarName;
+    llvm::Value* initialValue = nullptr;
     if (forExpr->initializer) {
-        if (!codegen(forExpr->initializer, localScope)) return nullptr;
+        auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(forExpr->initializer);
+        if (!varAssign || varAssign->isGlobal) {
+            console.error("Expected local variable assignment in for initializer.");
+        }
+
+        loopVarName = varAssign->variableName;
+        initialValue = codegen(varAssign->getValue(), localScope);
+        if (!initialValue) return nullptr;
     }
 
+    llvm::Function* function = Builder->GetInsertBlock()->getParent();
+    llvm::LLVMContext& context = Builder->getContext();
+
     // Create basic blocks
-    llvm::BasicBlock* condBlock = llvm::BasicBlock::Create(context, "for.cond", function);
-    llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context, "for.body", function);
+    llvm::BasicBlock* preheaderBlock = Builder->GetInsertBlock();
+    llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context, "for.loop", function);
     llvm::BasicBlock* incrementBlock = llvm::BasicBlock::Create(context, "for.inc", function);
     llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "for.end", function);
 
     // Jump to condition
-    Builder->CreateBr(condBlock);
-    Builder->SetInsertPoint(condBlock);
+    Builder->CreateBr(bodyBlock);
 
-    // Emit condition (if not null)
+    // Condition block
+    Builder->SetInsertPoint(bodyBlock);
+
+    // Create PHI node for loop variable
+    llvm::PHINode* phi = nullptr;
+    if (!loopVarName.empty()) {
+        phi = Builder->CreatePHI(initialValue->getType(), 2, loopVarName);
+        phi->addIncoming(initialValue, preheaderBlock);
+
+        // Store SSA value in scope (not alloca)
+        activeScope->set(loopVarName, phi);
+    }
+
+    // Generate loop condition
     llvm::Value* condValue = nullptr;
     if (forExpr->condition) {
         condValue = codegen(forExpr->condition, localScope);
         if (!condValue) return nullptr;
 
-        // Normalize to boolean
         if (condValue->getType()->isIntegerTy()) {
             condValue = Builder->CreateICmpNE(
                 condValue,
@@ -47,7 +67,6 @@ llvm::Value* IRGenerator::createForLoop(
             );
         }
     } else {
-        // No condition → always true
         condValue = llvm::ConstantInt::getTrue(context);
     }
 
@@ -55,28 +74,33 @@ llvm::Value* IRGenerator::createForLoop(
 
     // Emit body
     Builder->SetInsertPoint(bodyBlock);
-    bool bodyHasContent = false;
     auto block = std::dynamic_pointer_cast<Omniscript::BlockExpression>(forExpr->body);
     if (block) {
         for (auto& expr : block->values) {
-            if (expr) {
-                bodyHasContent = true;
-                if (!codegen(expr, localScope)) return nullptr;
-            }
+            if (expr && !codegen(expr, localScope)) return nullptr;
         }
     }
 
-    // If body has no terminator, jump to increment
-    if (!bodyHasContent || !Builder->GetInsertBlock()->getTerminator()) {
+    // Branch to increment
+    if (!Builder->GetInsertBlock()->getTerminator()) {
         Builder->CreateBr(incrementBlock);
     }
 
-    // Emit increment if present
+    // Increment block
     Builder->SetInsertPoint(incrementBlock);
+
+    llvm::Value* incrementValue = nullptr;
     if (forExpr->increment) {
-        if (!codegen(forExpr->increment, localScope)) return nullptr;
+        incrementValue = codegen(forExpr->increment, localScope);
+        if (!incrementValue) return nullptr;
     }
-    Builder->CreateBr(condBlock);
+
+    // If SSA loop var exists, add new value to PHI node
+    if (phi && incrementValue) {
+        phi->addIncoming(incrementValue, Builder->GetInsertBlock());
+    }
+
+    Builder->CreateBr(bodyBlock);
 
     // Final block
     Builder->SetInsertPoint(afterBlock);
@@ -84,6 +108,7 @@ llvm::Value* IRGenerator::createForLoop(
 
     return nullptr;
 }
+
 
 llvm::Value* IRGenerator::createWhileLoop(
     const std::shared_ptr<Omniscript::WhileLoopExpression>& whileExpr,
@@ -162,6 +187,7 @@ llvm::Value* IRGenerator::createIfStatement(
     auto localScope = scope->createChildScope("ifscope");
 
     llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(context, "ifcont");
+    bool mergeBlockInserted = false;
 
     std::vector<llvm::BasicBlock*> incomingBlocks;
     std::vector<llvm::Value*> incomingValues;
@@ -183,7 +209,15 @@ llvm::Value* IRGenerator::createIfStatement(
         }
 
         llvm::BasicBlock* thenBlock = llvm::BasicBlock::Create(context, "then", function);
-        llvm::BasicBlock* elseBlock = llvm::BasicBlock::Create(context, "else");
+        llvm::BasicBlock* elseBlock;
+        
+        if (i == conditions.size() - 1 && !elseBody) {
+            elseBlock = mergeBlock; // add if else body here
+            mergeBlock->insertInto(function);
+            mergeBlockInserted = true;
+        } else {
+            elseBlock = llvm::BasicBlock::Create(context, "else");
+        }
 
         Builder->CreateCondBr(condValue, thenBlock, elseBlock);
 
@@ -202,20 +236,24 @@ llvm::Value* IRGenerator::createIfStatement(
             // Possibly track that this branch returned and skip PHI creation later
         }
 
-        elseBlock->insertInto(function);
-        Builder->SetInsertPoint(elseBlock);
-        
         if (i == conditions.size() - 1 && !elseBody) {
             // No else clause, make sure we emit a branch to merge
             if (!Builder->GetInsertBlock()->getTerminator()) {
-                mergeBlock->insertInto(function);
+                if (!mergeBlockInserted) {
+                    mergeBlock->insertInto(function);
+                    mergeBlockInserted = true;
+                }
                 Builder->CreateBr(mergeBlock);
                 incomingBlocks.push_back(Builder->GetInsertBlock());
             }
         }
 
-        if (i < conditions.size() - 1) {
-            nextBlock = elseBlock;
+        if (elseBody) {
+            if (elseBlock != mergeBlock) {
+                nextBlock = elseBlock;
+                elseBlock->insertInto(function);
+                Builder->SetInsertPoint(elseBlock);
+            }
         }
     }
 
@@ -244,6 +282,7 @@ llvm::Value* IRGenerator::createIfStatement(
 
     // If mergeBlock is in the function and active
     // Set the insert point to mergeBlock so following code continues here
+
     if (mergeBlock->getParent()) {
         Builder->SetInsertPoint(mergeBlock);
     }

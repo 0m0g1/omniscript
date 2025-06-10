@@ -32,7 +32,7 @@ INCLUDES += -Iinclude -Idependencies/llvm/include
 FORCE_INCLUDE +=
 ALL_CPPFLAGS += $(CPPFLAGS) -MD -MP $(DEFINES) $(INCLUDES)
 ALL_RESFLAGS += $(RESFLAGS) $(DEFINES) $(INCLUDES)
-LIBS += -lLLVM-20 -lpthread -lquadmath -llegacy_stdio_definitions -lucrt -lvcruntime -lmsvcrt
+LIBS += -lLLVM-20 -lpthread -lquadmath -lucrt -lmsvcrt
 LDDEPS +=
 LINKCMD = $(CXX) -o "$@" $(OBJECTS) $(RESOURCES) $(ALL_LDFLAGS) $(LIBS)
 define PREBUILDCMDS
@@ -117,7 +117,6 @@ GENERATED += $(OBJDIR)/String.o
 GENERATED += $(OBJDIR)/Types.o
 GENERATED += $(OBJDIR)/lexer.o
 GENERATED += $(OBJDIR)/main.o
-GENERATED += $(OBJDIR)/omniscript_pch.o
 GENERATED += $(OBJDIR)/tokens.o
 GENERATED += $(OBJDIR)/utils.o
 OBJECTS += $(OBJDIR)/Access.o
@@ -157,7 +156,6 @@ OBJECTS += $(OBJDIR)/String.o
 OBJECTS += $(OBJDIR)/Types.o
 OBJECTS += $(OBJDIR)/lexer.o
 OBJECTS += $(OBJDIR)/main.o
-OBJECTS += $(OBJDIR)/omniscript_pch.o
 OBJECTS += $(OBJDIR)/tokens.o
 OBJECTS += $(OBJDIR)/utils.o
 
@@ -335,9 +333,6 @@ $(OBJDIR)/tokens.o: src/engine/tokens.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/main.o: src/main.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/omniscript_pch.o: src/omniscript_pch.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/utils.o: src/utils.cpp

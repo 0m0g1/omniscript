@@ -64,8 +64,6 @@ void IRGenerator::initialize() {
         if (triple.find("windows") == std::string::npos) {
             triple = "x86_64-pc-windows-msvc";
         }
-        // Add module flag instead of inline asm
-        Module->addModuleFlag(llvm::Module::Warning, "StackProbeSize", 2147483647);
     #endif
 
     Module->setTargetTriple(triple);
@@ -82,10 +80,6 @@ void IRGenerator::initialize() {
     );
 
     Module->setDataLayout(targetMachine->createDataLayout());
-
-    #ifdef _MSC_VER
-        Module->appendModuleInlineAsm("\t.globl __chkstk_ms");
-    #endif
 
     // Optional: Setup main or top-level function
     llvm::FunctionType* funcType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
@@ -719,7 +713,6 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return moduleInstance;
     }   
 
-    console.error("Trying to call codegen with an unsupported expression '" + value->toString() + "'.");
     return nullptr;
 }
 

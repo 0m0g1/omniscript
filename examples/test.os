@@ -1,12 +1,16 @@
 import { Math, IO } from "std";
 
-// let n: int? = std.Math.factorial(-5);
+// function __chkstk_ms() => void {
+//    return;
+// };
 
-// if (n == null) {
-//    std.IO.Console.printf("n is null");
-// } else {
-//    std.IO.Console.printf("n is %i", n);
-// }
+let n: int? = std.Math.factorial(2);
+
+if (n == null) {
+   std.IO.Console.printf("n is null");
+} else {
+   std.IO.Console.printf("n is %i", n);
+}
 
 // std.IO.Console.printf("done");
 // let variableafterifblock : int = n;

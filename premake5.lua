@@ -49,9 +49,9 @@ project "Osengine"
 
         -- Link against required MSVC runtime libs to fix __chkstk_ms
         links {
-            "legacy_stdio_definitions",
+            -- "legacy_stdio_definitions",
             "ucrt",
-            "vcruntime",
+            -- "vcruntime",
             "msvcrt"
         }
 

@@ -168,8 +168,6 @@ llvm::Function* IRGenerator::registerFunction(
     activeScope->set(name, function);
     DEBUG_LOG("Stored function: " + name + " in scope");
 
-    function->addFnAttr("no-stack-probe");
-    
     return function;
 }
 
@@ -242,7 +240,7 @@ void IRGenerator::generateFunctionBody(
             break;
         }
 
-        if (param->getName() == "this" && index == 0) {
+        if (/* arg escapes = false*/ true) {
             activeScope->set(argName, &arg); // Use directly
         } else {
             llvm::AllocaInst* alloca = createEntryBlockAlloca(function, arg.getType(), argName);
@@ -257,9 +255,9 @@ void IRGenerator::generateFunctionBody(
 
     if (function->getFunctionType()->isVarArg()) {
         // 1. Allocate va_list variable (usually a pointer-sized alloca)
-        llvm::Type* i8Ty = llvm::Type::getInt8Ty(*Context);
-        llvm::Type* i8PtrTy = llvm::PointerType::getUnqual(i8Ty);
-        llvm::AllocaInst* vaListAlloca = createEntryBlockAlloca(function, i8PtrTy, "va_list");
+        // llvm::Type* i8Ty = llvm::Type::getInt8Ty(*Context);
+        // llvm::Type* i8PtrTy = llvm::PointerType::getUnqual(i8Ty);
+        // llvm::AllocaInst* vaListAlloca = createEntryBlockAlloca(function, i8PtrTy, "va_list");
         
         // 2. Insert call to llvm.va_start intrinsic with the va_list
         // llvm::FunctionCallee vaStartCallee = llvm::Intrinsic::getOrInsertDeclaration(Module.get(), llvm::Intrinsic::vastart);
@@ -270,7 +268,7 @@ void IRGenerator::generateFunctionBody(
         // Now, you can expose vaListAlloca in the scope so the function's body codegen
         // can generate llvm.va_arg calls as needed to fetch variadic arguments dynamically.
 
-        activeScope->set("va_list", vaListAlloca);
+        // activeScope->set("va_list", vaListAlloca);
 
         // Note: You should also insert llvm.va_end before the function returns,
         // ideally right before every return instruction. You can either:
@@ -325,8 +323,7 @@ void IRGenerator::generateFunctionBody(
             DEBUG_LOG("Created return instruction for function: " + function->getName().str());
         } else {
             // Error: Non-void function missing return
-            console.error("Non-void function missing return: " + function->getName().str());
-            return;
+            console.warn("Non-void function missing return: " + function->getName().str());
         }
     }
 
