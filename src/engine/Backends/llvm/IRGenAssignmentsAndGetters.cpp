@@ -53,9 +53,21 @@ llvm::Value* IRGenerator::assignVariable(
 
     // --- Local variable ---
     llvm::Function* function = (activeBlock ? activeBlock->getParent() : Builder->GetInsertBlock()->getParent());
+    llvm::BasicBlock* entryBlock = &function->getEntryBlock();
 
+    // Save current insertion point
+    llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
+
+    // Move builder to the beginning of the entry block
+    Builder->SetInsertPoint(entryBlock, entryBlock->begin());
+
+    // Create the alloca
     llvm::AllocaInst* alloca = Builder->CreateAlloca(type, nullptr, name);
 
+    // Restore builder to original insertion point
+    Builder->restoreIP(savedIP);
+
+    // Set alignment
     unsigned align = 4;
     if (type->isIntegerTy()) {
         unsigned bits = type->getIntegerBitWidth();
@@ -65,19 +77,10 @@ llvm::Value* IRGenerator::assignVariable(
     }
     alloca->setAlignment(llvm::Align(align));
 
-    // Store initializer (with Builder in correct place now)
+    // Store initializer
     if (initialValue) {
         llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
         store->setAlignment(llvm::Align(align));
-
-        // Move before return if it exists in the same block
-        llvm::BasicBlock* entryBlock = &function->getEntryBlock();
-        for (llvm::Instruction& I : *entryBlock) {
-            if (llvm::isa<llvm::ReturnInst>(&I)) {
-                store->moveBefore(I.getIterator());
-                break;
-            }
-        }
     }
 
     // Register in scope

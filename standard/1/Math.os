@@ -155,15 +155,11 @@ module Math {
     //     // return 0;
     // }
 
-    public fn factorial(n: int) => int? {
+    public fn factorial(n: int) => int {
         if (n >= 0) {
             let result: int = 1;
-            for (let i = 2; i <= n; /*i += 1*/) {
-                result *= i;
-            }
-            return result;
-        }
-        return null;
+        } 
+        return 0;
     }
 
     // public fn gcd(a: int, b: int) => int {

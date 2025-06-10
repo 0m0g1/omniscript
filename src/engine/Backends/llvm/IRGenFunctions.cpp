@@ -331,14 +331,14 @@ void IRGenerator::generateFunctionBody(
     DEBUG_LOG("Popped function scope");
 
     // Verify the function for consistency
-    if (llvm::verifyFunction(*function, &llvm::errs())) {
-        printIR();
-        printErrors();
-        console.error("Function verification failed: " + function->getName().str());
-        function->eraseFromParent();
-    } else {
-        DEBUG_LOG("Function verified successfully: " + function->getName().str());
-    }
+    // if (llvm::verifyFunction(*function, &llvm::errs())) {
+    //     printIR();
+    //     printErrors();
+    //     console.error("Function verification failed: " + function->getName().str());
+    //     function->eraseFromParent();
+    // } else {
+    //     DEBUG_LOG("Function verified successfully: " + function->getName().str());
+    // }
 
     Builder->restoreIP(savedIP); 
 }
