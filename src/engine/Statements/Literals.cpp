@@ -493,7 +493,7 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
             auto castResult = cast->express(scope);
             return castResult;
         }
-        console.error("error message");   
+        console.error("Cannot cast a char* to a " + type->toString());   
     }
 
     std::shared_ptr<Omniscript::Type> pointeeType = type->getPointeeType();

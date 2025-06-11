@@ -1883,14 +1883,52 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         return nullptr;
     };
 
-    if (op == TokenTypes::Equals && isNullableStruct(left->getType()) && right->getType()->isVoidTy()) {
-        llvm::Value* hasValue = Builder->CreateExtractValue(left, {0}, "hasValue");
-        return Builder->CreateICmpEQ(hasValue, Builder->getInt1(true), "nonnull");
-    }
+    // Nullable == null or null == Nullable
+    if (op == TokenTypes::Equals || op == TokenTypes::NotEquals) {
+        bool isEqualOp = (op == TokenTypes::Equals);
 
-    if (op == TokenTypes::NotEquals && isNullableStruct(left->getType()) && right->getType()->isVoidTy()) {
-        llvm::Value* hasValue = Builder->CreateExtractValue(left, {0}, "hasValue");
-        return Builder->CreateICmpEQ(hasValue, Builder->getInt1(false), "isnull");
+        // Left is nullable, right is null
+        if (isNullableStruct(left->getType()) && right->getType()->isVoidTy()) {
+            llvm::Value* hasValue = Builder->CreateExtractValue(left, {0}, "hasValue");
+            return Builder->CreateICmpEQ(
+                hasValue, 
+                Builder->getInt1(!isEqualOp),  // Equal -> false (is null), NotEqual -> true (is not null)
+                isEqualOp ? "nonnull" : "isnull"
+            );
+        }
+
+        // Right is nullable, left is null
+        if (isNullableStruct(right->getType()) && left->getType()->isVoidTy()) {
+            llvm::Value* hasValue = Builder->CreateExtractValue(right, {0}, "hasValue");
+            return Builder->CreateICmpEQ(
+                hasValue, 
+                Builder->getInt1(!isEqualOp),
+                isEqualOp ? "nonnull" : "isnull"
+            );
+        }
+
+        // Nullable == Non-nullable
+        if (isNullableStruct(left->getType()) && !isNullableStruct(right->getType()) && !right->getType()->isVoidTy()) {
+            llvm::Value* leftHasValue = Builder->CreateExtractValue(left, {0}, "hasValue");
+            llvm::Value* leftValue = Builder->CreateExtractValue(left, {1}, "value");
+
+            // if (!left.hasValue) return false;
+            llvm::Value* checkHasValue = Builder->CreateICmpEQ(leftHasValue, Builder->getInt1(true));
+            llvm::Value* checkValue = Builder->CreateICmpEQ(leftValue, right);
+
+            return Builder->CreateAnd(checkHasValue, checkValue);
+        }
+
+        // Non-nullable == Nullable
+        if (!isNullableStruct(left->getType()) && isNullableStruct(right->getType()) && !left->getType()->isVoidTy()) {
+            llvm::Value* rightHasValue = Builder->CreateExtractValue(right, {0}, "hasValue");
+            llvm::Value* rightValue = Builder->CreateExtractValue(right, {1}, "value");
+
+            llvm::Value* checkHasValue = Builder->CreateICmpEQ(rightHasValue, Builder->getInt1(true));
+            llvm::Value* checkValue = Builder->CreateICmpEQ(left, rightValue);
+
+            return Builder->CreateAnd(checkHasValue, checkValue);
+        }
     }
 
     switch (op) {

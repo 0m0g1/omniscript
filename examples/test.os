@@ -1,16 +1,35 @@
-import { Math, IO } from "std";
+import "std";
 
-// function __chkstk_ms() => void {
-//    return;
-// };
+let n: int? = std.Math.factorial(5);
 
-// let n: int? = std.Math.factorial(2);
+if (n == -1) {
+   std.IO.Console.printf("n is an invalid factorial.\nPlease input a positive integer.");
+} else {
+   std.IO.Console.printf("n is %i", n);
+}
 
-// if (n == null) {
-//    std.IO.Console.printf("n is null");
-// } else {
-//    std.IO.Console.printf("n is %i", n);
-// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // std.IO.Console.printf("done");
 // let variableafterifblock : int = n;

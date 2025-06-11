@@ -1,4 +1,29 @@
 module Math {
+
+    public fn factorial(n: int) => int? {
+        if (n >= 0) {
+            let result: int = 1;
+            for (let i = 2; i <= n; i += 1) {
+                result *= i;
+            }
+            return result;
+        }
+        return -1;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
     // Constants
     // public const pi: double   = 3.141592653589793;
     // public const e: double    = 2.718281828459045;
@@ -96,7 +121,7 @@ module Math {
     // extern "C" fn tanhl(x: f80) => f80;
 
     // // Exponential
-    extern "C" fn expf(x: float) => float;
+    // extern "C" fn expf(x: float) => float;
     // extern "C" fn exp(x: double) => double;
     // extern "C" fn expl(x: f80) => f80;
 
@@ -155,12 +180,10 @@ module Math {
     //     // return 0;
     // }
 
-    public fn factorial(n: int) => int {
-        if (n >= 0) {
-            let result: int = 1;
-        } 
-        return 0;
-    }
+
+
+
+
 
     // public fn gcd(a: int, b: int) => int {
     //     // var x = abs(a);
