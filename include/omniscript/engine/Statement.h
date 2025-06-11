@@ -677,7 +677,7 @@ public:
     }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "StringLiteral: " + value; }
+    std::string toString() const override { return "StringLiteral: " + utf32_to_utf8(value); }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<StringLiteral>(value);  // Clone using copy constructor
     }
@@ -822,7 +822,7 @@ public:
     bool isCompileTimeEvaluatable() override;
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
     std::shared_ptr<Statement> returnValue;
-    std::string toString() const override { return "Return: " + (value? value->toString() : "void;"); }
+    std::string toString() const override { return "Return: " + (returnValue? returnValue->toString() : "void;"); }
     std::shared_ptr<Statement> clone() const override {
         // Clone the returnValue if it's not nullptr, otherwise leave it as nullptr
         std::shared_ptr<Statement> clonedReturnValue = returnValue ? returnValue->clone() : nullptr;
@@ -897,7 +897,7 @@ public:
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "Argument: " (value? value->toString() : " no value"); }
+    std::string toString() const override { return "Argument: " + (value? value->toString() : " no value"); }
 };
 
 class Callable: public NamedStatement {
@@ -1402,7 +1402,7 @@ public:
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
     std::string toString() const override { 
-        return "For: (" + (condition? + condition->toString() : "no-condition") + ")"; 
+        return "For: (" + (condition? condition->toString() : "no-condition") + ")"; 
     }  
 };
 

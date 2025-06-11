@@ -5,8 +5,6 @@
 //Includes
 // #include <string>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/engine/Symboltable.h>
-#include <omniscript/engine/Statement.h>
 #include <omniscript/debuggingtools/console.h>
 #include <omniscript/engine/tokens.h>
 
