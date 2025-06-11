@@ -1,12 +1,12 @@
 import "std";
 
-let n: int? = std.Math.factorial(5);
+// let n: int = std.Math.factorial(5);
 
-if (n == -1) {
-   std.IO.Console.printf("n is an invalid factorial.\nPlease input a positive integer.");
-} else {
-   std.IO.Console.printf("n is %i", n);
-}
+// if (n == -1) {
+//    std.IO.Console.printf("n is an invalid factorial.\nPlease input a positive integer.");
+// } else {
+//    std.IO.Console.printf("n is %i", n);
+// }
 
 
 

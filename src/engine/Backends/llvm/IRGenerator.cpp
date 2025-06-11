@@ -326,7 +326,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
             });
 
             llvm::Value* undefVal = llvm::UndefValue::get(innerType);
-            llvm::Value* isNull = llvm::ConstantInt::getTrue(*Context);
+            llvm::Value* isNull = llvm::ConstantInt::getFalse(*Context);
 
             llvm::Value* result = llvm::UndefValue::get(nullableType);
             result = Builder->CreateInsertValue(result, isNull, {0});
@@ -344,10 +344,10 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
             innerType
         });
 
-        llvm::Value* isNotNull = llvm::ConstantInt::getFalse(*Context);
+        llvm::Value* isNull = llvm::ConstantInt::getTrue(*Context);
 
         llvm::Value* result = llvm::UndefValue::get(nullableType);
-        result = Builder->CreateInsertValue(result, isNotNull, {0});
+        result = Builder->CreateInsertValue(result, isNull, {0});
         result = Builder->CreateInsertValue(result, innerValue, {1});
 
         return result;

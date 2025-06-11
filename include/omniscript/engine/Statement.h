@@ -797,7 +797,7 @@ public:
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "GetVariable"; }
+    std::string toString() const override { return "GetVariable:" + name; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<GetVariable>(name);
     }

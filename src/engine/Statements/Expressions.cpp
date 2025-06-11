@@ -42,6 +42,20 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
         console.error("The ternary expression has an invalid false value");
     }
 
+    if (Omniscript::isSameOrCastableTo(trueValue->getType(), falseValue->getType())) {
+        type = falseValue->getType();
+    } else if (Omniscript::isSameOrCastableTo(falseValue->getType(), trueValue->getType())) {
+        type = trueValue->getType();
+    }
+
+    if (type) {
+        if (!Omniscript::isSameOrCastableTo(trueValue->getType(), type)) {
+            console.error("The ternary expression is of type " + type->toString() + " the true value is of type " + trueValue->getType()->toString() + "'.");
+        } else if (!Omniscript::isSameOrCastableTo(falseValue->getType(), type)) {
+            console.error("The ternary expression is of type " + type->toString() + " the false value is of type " + falseValue->getType()->toString() + "'.");
+        }
+    }
+
     return std::make_shared<Omniscript::TernaryExpression>(
         condValue, trueValue, falseValue, type
     );
@@ -51,6 +65,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     DEBUG_LOG();
 
     DEBUG_LOG("Left expression: " + (left ? left->toString() : "null"));
+    DEBUG_LOG("The operation is '" + getTokenTypeName(op.getType()) + "'.");
     DEBUG_LOG("Right expression: " + (right ? right->toString() : "null"));
     if (type) {
         DEBUG_LOG("The binary expression's type is '" + type->toString() + "'.");
@@ -118,22 +133,24 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     }
 
     if (type) {
-        if (Omniscript::isSameOrCastableTo(leftType, type)) {
-            if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
-                leftType = type;
-                if (leftTyped) leftTyped->setType(type);
+        if (!op.isComparisonOperator()) {
+            if (Omniscript::isSameOrCastableTo(leftType, type)) {
+                if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
+                    leftType = type;
+                    if (leftTyped) leftTyped->setType(type);
+                }
+            } else {
+                console.error("The left operand '" + left->toString() + "' of type '" + leftType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
             }
-        } else {
-            console.error("The left operand '" + left->toString() + "' of type '" + leftType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
-        }
-
-        if (Omniscript::isSameOrCastableTo(rightType, type)) {
-            if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
-                rightType = type;
-                if (rightTyped) rightTyped->setType(type);
+    
+            if (Omniscript::isSameOrCastableTo(rightType, type)) {
+                if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
+                    rightType = type;
+                    if (rightTyped) rightTyped->setType(type);
+                }
+            } else {
+                console.error("The right operand '" + right->toString() + "' of type '" + rightType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
             }
-        } else {
-            console.error("The right operand '" + right->toString() + "' of type '" + rightType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
         }
     }
 
