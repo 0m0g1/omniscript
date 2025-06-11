@@ -130,14 +130,6 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
     return varAccess;
 }
 
-// Get Dynamic Variable
-GetDynamicVariable::GetDynamicVariable(const std::string &variable) : variable(variable) {}
-
-std::shared_ptr<Omniscript::Expression> GetDynamicVariable::express(SymbolTableType scope) {
-    // return generator.getDynamicVariable(variable);
-    return nullptr;
-}
-
 std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType scope) {
     DEBUG_LOG("Assigning variable " + variable + (type? " of type " + type->toString() : ""));
 
@@ -297,14 +289,5 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     assignment->isGlobal = isGlobal;
     assignment->isConstant = isConstant;
     return assignment;
-}
-
-// Dynamic Assignment
-createDynamicVariable::createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value)
-    : variable(variable), value(value) {}
-
-std::shared_ptr<Omniscript::Expression> createDynamicVariable::express(SymbolTableType scope) {
-    // return generator.assignDynamicVariable(variable, value->express(scope));
-    return nullptr;
 }
 
