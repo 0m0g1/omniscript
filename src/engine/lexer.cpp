@@ -575,7 +575,13 @@ Token Lexer::getNumberLiterals(char &currentChar) {
         }
 
         // Handle suffixes (e.g., 'f' for float, otherwise default to double)
-        if (currentPosition < source.length() && source[currentPosition] == 'f') {
+        if (currentPosition < source.length() && 
+            (
+                source[currentPosition] == 'f' || source[currentPosition] == 'F' ||
+                source[currentPosition] == 'd' || source[currentPosition] == 'D' ||
+                source[currentPosition] == 'l' || source[currentPosition] == 'L'
+            )
+            ) {
             numberValue += source[currentPosition];
             currentPosition++;
             column++;

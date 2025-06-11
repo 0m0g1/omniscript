@@ -442,7 +442,7 @@ public:
         if constexpr (std::is_same_v<T, float>) return Kind::Float;
         if constexpr (std::is_same_v<T, double>) return Kind::Double;
         if constexpr (std::is_same_v<T, __float128>) return Kind::FP128;
-        if constexpr (std::is_same_v<T, long double>) return Kind::FP128;
+        if constexpr (std::is_same_v<T, long double>) return Kind::X86_FP80;
 
         if constexpr (std::is_same_v<T, std::string>) return Kind::Char;
         if constexpr (std::is_same_v<T, std::u16string>) return Kind::Char16;

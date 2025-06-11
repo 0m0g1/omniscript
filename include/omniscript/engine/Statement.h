@@ -584,7 +584,7 @@ public:
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
     int getValue() const { return value; }
-    std::string toString() const override { return "IntegerLiteralStatement"; }
+    std::string toString() const override { return "IntegerLiteral: " + std::to_string(value); }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<IntegerLiteral>(value);  // Clone using copy constructor
     }
@@ -608,7 +608,7 @@ public:
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "FloatLiteralStatement"; }
+    std::string toString() const override { return "FloatLiteral: " + std::to_string(static_cast<long double>(value)); }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<FloatLiteral>(value);  // Clone using copy constructor
     }
@@ -637,7 +637,7 @@ public:
         return 1024;
     }
 
-    std::string toString() const override { return "BigIntLiteralStatement"; }
+    std::string toString() const override { return "BigIntLiteral: " + value; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<BigInt>(value);  // Clone using copy constructor
     }
@@ -658,7 +658,7 @@ public:
     }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "CharacterLiteralStatement"; }
+    std::string toString() const override { return "CharacterLiteral: " + value; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<CharacterLiteral>(value);  // Clone using copy constructor
     }
@@ -677,7 +677,7 @@ public:
     }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "StringLiteralStatement"; }
+    std::string toString() const override { return "StringLiteral: " + value; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<StringLiteral>(value);  // Clone using copy constructor
     }
@@ -694,7 +694,7 @@ public:
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "BoolLiteralStatement"; }
+    std::string toString() const override { return "BoolLiteral: " + std::to_string(value); }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<BoolLiteral>(value);  // Clone using copy constructor
     }
@@ -743,7 +743,7 @@ public:
         isConstant = state;
     }
     std::shared_ptr<Statement> getValue() { return value; }
-    virtual std::string toString() const override { return "Assignment"; }
+    virtual std::string toString() const override { return "Assignment for " + name; }
 };
 
 class AssignVariable : public Assignment {
@@ -771,23 +771,11 @@ private:
 };
 
 
-
-class createDynamicVariable : public Assignment {
-public:
-    createDynamicVariable(const std::string &variable, std::shared_ptr<Statement> value);
-    std::string getName() const override {return variable;}
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
-
-private:
-    std::string variable;
-    std::shared_ptr<Statement> value;
-};
-
-
 // Variable Retrieval
-class GetVariable : public NamedStatement, public TypedStatement, public Expression {
+class GetVariable : 
+public NamedStatement,
+public TypedStatement,
+public Expression {
 public:
     explicit GetVariable(const std::string &var) {
         setName(var);
@@ -805,20 +793,6 @@ public:
 private:
     std::string variable;
 };
-    
-
-class GetDynamicVariable : public NamedStatement {
-public:
-    GetDynamicVariable(const std::string &variable);
-    std::string getName() const override {return variable;}
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
-
-private:
-    std::string variable;
-};
-    
 
 class GenericAssignment : public NamedStatement {
 public:
@@ -827,7 +801,7 @@ public:
     std::string getName() const override {return variable;}
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "GenericAssignment"; }
 
 private:
     std::string variable;
@@ -848,7 +822,7 @@ public:
     bool isCompileTimeEvaluatable() override;
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
     std::shared_ptr<Statement> returnValue;
-    std::string toString() const override { return "ReturnStatement"; }
+    std::string toString() const override { return "Return: " + (value? value->toString() : "void;"); }
     std::shared_ptr<Statement> clone() const override {
         // Clone the returnValue if it's not nullptr, otherwise leave it as nullptr
         std::shared_ptr<Statement> clonedReturnValue = returnValue ? returnValue->clone() : nullptr;
@@ -870,7 +844,7 @@ public:
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "CreateStruct: " + name; }
 };
 
 class ParameterStatement : 
@@ -900,7 +874,7 @@ public:
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "ParameterStatement"; }
+    std::string toString() const override { return "Parameter: " + (defaultValue? defaultValue->toString() : "no default value"); }
     std::shared_ptr<Statement> getDefaultValue();
 
     std::shared_ptr<Statement> clone() const override {
@@ -923,7 +897,7 @@ public:
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "ArgumentStatement"; }
+    std::string toString() const override { return "Argument: " (value? value->toString() : " no value"); }
 };
 
 class Callable: public NamedStatement {
@@ -985,7 +959,7 @@ public:
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "FunctionDeclerationStatement"; }
+    std::string toString() const override { return "Decleration Function: " + name + " returns " + ( returnType? returnType->toString() : "void"); }
     std::string generateMangledName() const;
 
     void setReturnTypes();
@@ -1022,7 +996,7 @@ public:
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "ConstructStructPrototype"; }
+    std::string toString() const override { return "ConstructStructPrototype: " + name; }
 
     std::vector<std::shared_ptr<Statement>> getBody() const { return body; }
 private:
@@ -1094,7 +1068,7 @@ public:
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "ConstructClassPrototype"; }
+    std::string toString() const override { return "ConstructClassPrototype: " + name; }
 
     std::vector<std::shared_ptr<ClassMember>> getBody() const { return body; }
 private:
@@ -1126,7 +1100,7 @@ public:
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "CallStatement"; }
+    std::string toString() const override { return "Call: " + callee; }
     std::string getName() const override { return callee; }
     static bool matchArgumentsToParameters(
         const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& args,
@@ -1221,7 +1195,16 @@ public:
     // Code generation method
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "UnaryExpressionStatement"; }
+    std::string toString() const override {
+        std::string opStr = getOperatorString(op);
+        std::string operandStr = operand ? operand->toString() : "<null>";
+
+        if (position == Position::Prefix) {
+            return "(" + opStr + operandStr + ")";
+        } else {
+            return "(" + operandStr + opStr + ")";
+        }
+    }
     std::shared_ptr<Statement> clone() const override {
         // Clone operand if it's not nullptr, otherwise leave it as nullptr
         std::shared_ptr<Statement> clonedOperand = operand ? operand->clone() : nullptr;
@@ -1279,7 +1262,13 @@ public TypedStatement {
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "TernaryExpressionStatement"; }
+    std::string toString() const override {
+        std::string condStr   = condition ? condition->toString() : "<null>";
+        std::string truthyStr = truthy ? truthy->toString() : "<null>";
+        std::string falseyStr = falsey ? falsey->toString() : "<null>";
+
+        return "(" + condStr + " ? " + truthyStr + " : " + falseyStr + ")";
+    }
     std::shared_ptr<Statement> clone() const override {
         // Clone condition, truthy, and falsey operands
         std::shared_ptr<Statement> clonedCondition = condition ? condition->clone() : nullptr;
@@ -1385,7 +1374,9 @@ public:
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
     std::shared_ptr<Statement> condition;
     std::shared_ptr<BlockStatement> body;
-    std::string toString() const override { return "WhileStatement"; }
+    std::string toString() const override { 
+        return "While: (" + (condition? condition->toString() : "no-condition") + ")"; 
+    }
 
 private:
     // Helper function to evaluate the condition as a boolean
@@ -1410,21 +1401,23 @@ public:
             increment(std::move(incr)), body(std::move(body)) {}
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "Forloop"; }  
+    std::string toString() const override { 
+        return "For: (" + (condition? + condition->toString() : "no-condition") + ")"; 
+    }  
 };
 
 class BreakStatement : public ControlFlowStatement {
 public:
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "Break;"; }
 };
 
 class ContinueStatement : public ControlFlowStatement {
 public:
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { return "LiteralStatement"; }
+    std::string toString() const override { return "Continue;"; }
 };
 
 class ObjectConstructorStatement : public TypedStatement {

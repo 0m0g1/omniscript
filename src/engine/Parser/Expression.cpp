@@ -239,6 +239,7 @@ std::shared_ptr<Statement> Parser::factor() {
         // Determine suffix
         bool isFloat = false;
         bool isDouble = false;
+        bool isLong = false;
 
         if (!value.empty()) {
             char last = value.back();
@@ -248,6 +249,9 @@ std::shared_ptr<Statement> Parser::factor() {
             } else if (last == 'd' || last == 'D') {
                 isDouble = true;
                 value.pop_back();
+            } else if (last == 'l' || last == 'L') {
+                isLong = true;
+                value.pop_back();
             }
         }
 
@@ -255,6 +259,7 @@ std::shared_ptr<Statement> Parser::factor() {
         auto floatStmt = std::make_shared<FloatLiteral>(f128_value);
         floatStmt->isFloat32 = isFloat;
         floatStmt->isFloat64 = isDouble;
+        floatStmt->isFloat80 = isLong;
 
         left = floatStmt;
     }
