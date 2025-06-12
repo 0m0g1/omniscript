@@ -18,13 +18,13 @@
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/TargetSelect.h>
 
+#include <omniscript/engine/Statement.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/utils.h>
 #include <omniscript/Core/Types.h>
 #include <omniscript/Core/Expression.h>
 
-class Statement;
 class ExternalFunctionResolver;
 
 struct GlobalInit {
