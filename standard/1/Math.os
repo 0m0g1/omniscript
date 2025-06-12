@@ -317,7 +317,7 @@ module Math {
     }
 
     public fn erfc(x: float) => float {
-        return 1.0 - erf(x);
+        return 1.0 - erff(x);
     }
 
     public fn gcd(a: int, b: int) => int {
