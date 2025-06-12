@@ -201,7 +201,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
             continue;
         } else if (auto block = std::dynamic_pointer_cast<BlockStatement>(member)) {
             for (const auto& stmt : block->statements) {
-                if (auto named = std::dynamic_pointer_cast<FunctionDeclaration>(member)) {
+                if (auto named = std::dynamic_pointer_cast<NamedStatement>(stmt)) {
                     std::string m_Name = named->getName();
                     auto wrapped = std::make_shared<ModuleMember>(m_Name, stmt, modifiers);
                     members.push_back(wrapped);
