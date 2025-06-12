@@ -58,6 +58,9 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
             function->externName = functionName;
             
             functions.push_back(function);
+            if (currentToken.getType() == TokenTypes::Semicolon) {
+                eat(TokenTypes::Semicolon);
+            }
         }
         eat(TokenTypes::RightBrace);
 

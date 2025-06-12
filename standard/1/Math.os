@@ -39,9 +39,15 @@ module Math {
     public const huge_val: double = inf;
 
     // Elementary functions
-    extern "C" fn powf(x: float, y: float) => float;
-    extern "C" fn pow(x: double, y: double) => double;
-    extern "C" fn powl(x: f80, y: f80) => f80;
+
+    extern "C" {
+        fn powf(x: float, y: float) => float;
+        fn pow(x: double, y: double) => double;
+        fn powl(x: f80, y: f80) => f80;
+    }
+    // extern "C" fn powf(x: float, y: float) => float;
+    // extern "C" fn pow(x: double, y: double) => double;
+    // extern "C" fn powl(x: f80, y: f80) => f80;
 
     extern "C" fn sqrtf(x: float) => float;
     extern "C" fn sqrt(x: double) => double;

@@ -196,13 +196,21 @@ std::shared_ptr<Statement> Parser::parseModule() {
         
         if (auto named = std::dynamic_pointer_cast<NamedStatement>(member)) {
             memberName = named->getName();
-        } else {
-            console.error("Cannot determine name of member in module: " + moduleName);
+            auto wrapped = std::make_shared<ModuleMember>(memberName, member, modifiers);
+            members.push_back(wrapped);
+            continue;
+        } else if (auto block = std::dynamic_pointer_cast<BlockStatement>(member)) {
+            for (const auto& stmt : block->statements) {
+                if (auto named = std::dynamic_pointer_cast<FunctionDeclaration>(member)) {
+                    std::string m_Name = named->getName();
+                    auto wrapped = std::make_shared<ModuleMember>(m_Name, stmt, modifiers);
+                    members.push_back(wrapped);
+                }
+            }
             continue;
         }
 
-        auto wrapped = std::make_shared<ModuleMember>(memberName, member, modifiers);
-        members.push_back(wrapped);
+        console.error("Cannot determine name of member in module: " + moduleName);
     }
 
     eat(TokenTypes::RightBrace);
