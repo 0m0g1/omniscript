@@ -157,7 +157,7 @@ std::shared_ptr<Literal> PointerLiteral::castTo(std::shared_ptr<Omniscript::Type
         return std::make_shared<BoolLiteral>(address != 0);
     }
     // Case 4: Casting to nullable pointer type
-    else if (auto nullable = std::dynamic_pointer_cast<NullableType>(targetType)) {
+    else if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableType>(targetType)) {
         if (nullable->innerType->isPointer()) {
 
             if (address == 0) {
