@@ -24,19 +24,19 @@ Build Steps:
 
 1. **Generate Makefiles (run when the Lua project script is changed or a new C++ file is added):**
    Run:
-   ./scripts/premake/premake5.exe gmake2
+   `./scripts/premake/premake5.exe gmake2`
 
 2. **Clean Build (run only if any C++ file is moved to a different location):**
    Run:
-   make.exe clean
+   `make clean`
 
 3. **Compile in Debug Mode:**
    Run:
-   make.exe config=debug
+   `make config=debug`
 
 4. **Compile in Release Mode:**
    Run:
-   make.exe config=release
+   `make config=release`
 
 Running the Engine:
 -------------------
