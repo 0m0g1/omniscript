@@ -1,3 +1,4 @@
+let ptr: void* = 0 as void*;
 // extern "C" fn printf(...fmt: char*) => int;
 // extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
 //    fn glfwInit() => int;
@@ -13,37 +14,44 @@
 //    fn gladLoadGL() => int;
 // }
 
-// // Entry point
-// fn main() {
-//     if (glfwInit() == 0) {
-//         printf("Failed to initialize GLFW");
-//         return;
-//     }
+// function main(argc : int) => i32 {
+//    if (glfwInit() == 0) {
+//       printf("Failed to initialize GLFW");
+//       return 1;
+//    }
+//    let window = glfwCreateWindow(800, 600, "OmniScript Window",  0 as void*, 0 as void*);
+//    glfwTerminate();
+//    return 0;
+// }
 
-//     let window = glfwCreateWindow(800, 600, "OmniScript Window", null, null);
-//     if (window == 0 as void*) {
-//         printf("Failed to create window");
-//         glfwTerminate();
-//         return;
-//     }
+// Entry point
+// function main() {
+   //  
 
-//     glfwMakeContextCurrent(window);
+   //  let window = glfwCreateWindow(800, 600, "OmniScript Window", null, null);
+   //  if (window == nullptr) {
+   //      printf("Failed to create window");
+   //      glfwTerminate();
+   //      return;
+   //  }
 
-//     if (gladLoadGL() == 0) {
-//         printf("Failed to load OpenGL functions");
-//         glfwTerminate();
-//         return;
-//     }
+   //  glfwMakeContextCurrent(window);
 
-//     // Main loop
-//     while (glfwWindowShouldClose(window) == 0) {
-//         // TODO: OpenGL rendering goes here
+   //  if (gladLoadGL() == 0) {
+   //      printf("Failed to load OpenGL functions");
+   //      glfwTerminate();
+   //      return;
+   //  }
 
-//         glfwSwapBuffers(window);
-//         glfwPollEvents();
-//     }
+   //  // Main loop
+   //  while (glfwWindowShouldClose(window) == 0) {
+   //      // TODO: OpenGL rendering goes here
 
-//     glfwTerminate();
+   //      glfwSwapBuffers(window);
+   //      glfwPollEvents();
+   //  }
+
+   //  glfwTerminate();
 // }
 
 
@@ -75,7 +83,7 @@
 
 
 
-import "std";
+// import "std";
 
 // let n: int = std.Math.factorial(5);
 

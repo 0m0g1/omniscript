@@ -62,26 +62,25 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
 
 
 std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
-    if (!type) {
-        type = Omniscript::Type::createNullPointerType();
-    }
-    return Omniscript::make_expression<Omniscript::NullPointerExpression>(type);
+    return Omniscript::make_expression<Omniscript::NullPointerExpression>(
+        type? type :
+        Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void)
+    );
 }
 
 std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
-    if (!type) {
-        type = Omniscript::Type::createNullType();
-    }
-
     if (type->isNullable()) {
         auto nullable = std::dynamic_pointer_cast<Omniscript::NullableType>(type);
         auto nullableExpr = std::make_shared<Omniscript::NullableExpression>();
-        nullableExpr->type = nullable->innerType;
-        nullableExpr->rootType = nullable->innerType;
+        nullableExpr->type = nullable->innerType ? nullable->innerType : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
+        nullableExpr->rootType = nullable->innerType ? nullable->innerType : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
         return nullableExpr;
     }
     
-    return Omniscript::make_expression<Omniscript::NullExpression>(type);
+    return Omniscript::make_expression<Omniscript::NullExpression>(
+        type? type :
+        Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void)
+    );
 }
 
 std::shared_ptr<Omniscript::Expression> PointerLiteral::express(SymbolTableType scope) {

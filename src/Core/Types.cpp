@@ -100,11 +100,11 @@ std::shared_ptr<Type> Type::createPrimitiveType(Kind kind) {
 }
 
 std::shared_ptr<Type> Type::createPointerType(std::shared_ptr<Type> pointee, bool isConst, bool isVolatile) {
-    return std::make_shared<PointerType>(pointee, isConst, isVolatile);
+    return std::make_shared<PointerType>(pointee? pointee : createPrimitiveType(Kind::Void), isConst, isVolatile);
 }
 
 std::shared_ptr<Type> Type::createNullPointerType(std::shared_ptr<Type> innerType) {
-    return std::make_shared<NullPointerType>(innerType);
+    return std::make_shared<NullPointerType>(innerType? innerType : createPrimitiveType(Kind::Void));
 }
 
 std::shared_ptr<Type> Type::createNullType(std::shared_ptr<Type> innerType) {

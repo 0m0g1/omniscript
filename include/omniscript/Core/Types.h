@@ -565,11 +565,18 @@ public:
         // Walk through all pointer levels
         while (current->isPointer()) {
             parts.push_back("pointer");
-            current = std::dynamic_pointer_cast<PointerType>(current)->getPointeeType();
+            current = std::dynamic_pointer_cast<PointerType>(current);
+            if (current) {
+                current->getPointeeType();
+            } else {
+                break;
+            }
         }
-    
-        // Add the base type at the end
-        parts.push_back(current->toString());
+        
+        if (current) {
+            // Add the base type at the end
+            parts.push_back(current->toString());
+        }
     
         // Reverse to get natural order (base type first)
         std::reverse(parts.begin(), parts.end());
@@ -674,11 +681,19 @@ public:
         // Walk through all pointer levels
         while (current->isPointer()) {
             parts.push_back("pointer");
-            current = std::dynamic_pointer_cast<PointerType>(current)->getPointeeType();
+            current = std::dynamic_pointer_cast<PointerType>(current);
+            if (current) {
+                current->getPointeeType();
+            } else {
+                break;
+            }
         }
     
         // Add the base type at the end
-        parts.push_back(current->toString());
+        if (current) {
+            // Add the base type at the end
+            parts.push_back(current->toString());
+        }
     
         // Reverse to get natural order (base type first)
         std::reverse(parts.begin(), parts.end());
