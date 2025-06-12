@@ -169,6 +169,7 @@ public:
     
     llvm::Value* createNullPointer();
     llvm::Value* createNullValue();
+    llvm::Value* createRawPointer(uintptr_t address, llvm::Type* pointeeType);
     
     // Number types
     llvm::Value* create8BitInteger(int8_t value);
@@ -202,7 +203,7 @@ public:
     llvm::Value* createUTF32String(const std::u32string& str);
     
     llvm::Value* createBool(bool value);
-
+    
     // Assignments
     llvm::Function* getOrCreateGlobalInitFunction();
     void scheduleGlobalInitialization(
@@ -224,8 +225,6 @@ public:
     llvm::Value* reassign(const std::string& name, llvm::Value* newValue);
     llvm::Value* getAddressOf(const std::string& varname);
     llvm::Value* getReferenceToVariable(const std::string& varname);
-    llvm::Value* dereferenceValue(llvm::Value* value);
-    llvm::Value* fullyDereferencePointer(llvm::Value* ptr);
     llvm::Value* getVariable(const std::string& varname, bool extractValue = false);
     
     llvm::Value* createDynamicVariable(const std::string& name, llvm::Value* value);

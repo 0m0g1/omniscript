@@ -30,7 +30,7 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
     extendContextOf(value);
 
     // Literal cast (handles constant folding, primitive -> primitive, etc.)
-    if (auto literal = std::dynamic_pointer_cast<Literal>(value)) {
+    if (auto literal = std::dynamic_pointer_cast<Literal>(value)) { 
         if (!targetType->isNullable()) {
             auto castedStmt = literal->castTo(targetType);
             return castedStmt->express(scope);
@@ -82,6 +82,100 @@ std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
     }
     
     return Omniscript::make_expression<Omniscript::NullExpression>(type);
+}
+
+std::shared_ptr<Omniscript::Expression> PointerLiteral::express(SymbolTableType scope) {
+    // Handle null pointer case
+    if (address == 0) {
+        return Omniscript::make_expression<Omniscript::NullPointerExpression>(
+            Omniscript::Type::createNullPointerType()
+        );
+    }
+
+    // Create raw pointer expression
+    auto pointeeType = type ? type->getPointeeType() : 
+        Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
+        
+    auto ptrType = Omniscript::Type::createPointerType(pointeeType, isConst, isVolatile);
+    
+    return Omniscript::make_expression<Omniscript::RawPointerExpression>(
+        address,
+        ptrType
+    );
+}
+
+std::shared_ptr<Literal> PointerLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
+    using Kind = Omniscript::Kind;
+    
+    // Handle null pointer case
+    if (address == 0) {
+        return std::make_shared<Nullptr>(targetType);
+    }
+
+    // Get current pointee type (defaults to void if unspecified)
+    auto currentPointeeType = type ? type->getPointeeType() : 
+        Omniscript::Type::createPrimitiveType(Kind::Void);
+
+    // Case 1: Casting to another pointer type
+    if (targetType->isPointer()) {
+        auto targetPointeeType = targetType->getPointeeType();
+        
+        // void* -> T* is always allowed
+        if (currentPointeeType->isVoidLike()) {
+            return std::make_shared<PointerLiteral>(
+                address,
+                targetPointeeType
+            );
+        }
+        
+        // T* -> void* is always allowed
+        if (targetPointeeType->isVoidLike()) {
+            return std::make_shared<PointerLiteral>(
+                address,
+                targetPointeeType
+            );
+        }
+
+        // Check for compatible pointee types
+        if (Omniscript::isSameOrCastableTo(currentPointeeType, targetPointeeType)) {
+            return std::make_shared<PointerLiteral>(
+                address,
+                targetPointeeType
+            );
+        }
+
+        console.error("Invalid pointer cast from " + currentPointeeType->toString() + 
+                     "* to " + targetPointeeType->toString() + "*");
+        return nullptr;
+    }
+    // Case 2: Casting to integer (address as numeric value)
+    else if (targetType->isInteger()) {
+        return std::make_shared<IntegerLiteral>(static_cast<int64_t>(address));
+    }
+    // Case 3: Casting to boolean (null check)
+    else if (targetType->isBool()) {
+        return std::make_shared<BoolLiteral>(address != 0);
+    }
+    // Case 4: Casting to nullable pointer type
+    else if (auto nullable = std::dynamic_pointer_cast<NullableType>(targetType)) {
+        if (nullable->innerType->isPointer()) {
+
+            if (address == 0) {
+                return std::make_shared<Nullptr>(targetType);
+            }
+            
+            auto nonNullable = std::make_shared<PointerLiteral>(
+                address,
+                targetType->getPointeeType()
+            );
+            
+            // Wrap in nullable container if needed
+            return nonNullable;
+        }
+    }
+
+    console.error("Invalid cast from pointer to " + targetType->toString());
+    return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType scope) {
@@ -143,6 +237,10 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
 }
 
 std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
+    if (targetType->isPointer()) {
+        return std::make_shared<PointerLiteral>(value, targetType->getPointeeType());
+    }
+    
     using Kind = Omniscript::Kind;
 
     switch (targetType->getKind()) {
@@ -188,7 +286,7 @@ std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type
             return std::make_shared<CharacterLiteral>(static_cast<char32_t>(value));
         
         default:
-            console.error("Invalid int cast");
+            console.error("Cannot cast an int to a '" + targetType->toString() + "'.");
             return nullptr;
     }
 }
@@ -313,7 +411,7 @@ std::shared_ptr<Literal> FloatLiteral::castTo(std::shared_ptr<Omniscript::Type> 
             return std::make_shared<BoolLiteral>(value != 0.0);
 
         default:
-            console.error("Invalid float cast");
+            console.error("Cannot cast an float to a '" + targetType->toString() + "'.");
             return nullptr;
     }
 }
@@ -401,7 +499,7 @@ std::shared_ptr<Literal> BoolLiteral::castTo(std::shared_ptr<Omniscript::Type> t
             return lit;
         }
         default:
-            console.error("Invalid bool cast");
+            console.error("Cannot cast a bool to a '" + targetType->toString() + "'.");
             return nullptr;
     }
 }
@@ -470,7 +568,7 @@ std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Ty
             return val;
         }
         default:
-            console.error("Invalid char cast");
+            console.error("Cannot cast a char to a '" + targetType->toString() + "'.");
             return nullptr;
     }
 }
@@ -551,12 +649,10 @@ std::shared_ptr<Literal> StringLiteral::castTo(std::shared_ptr<Omniscript::Type>
         case Kind::Bool:
             return std::make_shared<BoolLiteral>(!value.empty());
         default:
-            console.error("Invalid string cast");
+            console.error("Cannot cast a char* to a '" + targetType->toString() + "'.");
             return nullptr;
     }
 }
-
-
 
 std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
     DEBUG_LOG("[Array] Creating an array");

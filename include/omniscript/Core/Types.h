@@ -82,6 +82,7 @@ public:
     Kind kind = Kind::Invalid;
     std::shared_ptr<Type> returnType;
     std::shared_ptr<Type> elementType;
+    std::shared_ptr<Type> pointeeType;
     size_t fixedSize = 0;
     virtual ~Type() = default;
 
@@ -376,7 +377,11 @@ public:
     static std::shared_ptr<Type> createNullPointerType(std::shared_ptr<Type> innerType = nullptr);
     static std::shared_ptr<Type> createNullableType(std::shared_ptr<Type> innerType = nullptr);
     static std::shared_ptr<Type> createMetaType();
-    static std::shared_ptr<Type> createPointerType(std::shared_ptr<Type> pointee);
+    static std::shared_ptr<Type> createPointerType(
+        std::shared_ptr<Type> pointee,
+        bool isConst = false,
+        bool isVolatile = false
+    );
     static std::shared_ptr<Type> createReferenceType(std::shared_ptr<Type> referent);
     static std::shared_ptr<Type> createFunctionType(
         const std::string& name,
@@ -511,23 +516,27 @@ public:
 
 class PointerType : public Type {
 public:
-    std::shared_ptr<Type> pointee;
+    bool nullCaseHandled = false;
+    bool isConst;
+    bool isVolatile;
 
     // Constructor
-    PointerType(std::shared_ptr<Type> pointeeType)
-        : pointee(pointeeType) {
+    PointerType(std::shared_ptr<Type> pointeeType, bool isConst = false, bool isVolatile = false) {
+            this->pointeeType = pointeeType;
             kind = Kind::Pointer;
+            this->isConst = isConst;
+            this->isVolatile = isVolatile;
         }
 
     // Get the pointee type (directly)
-    std::shared_ptr<Type> getPointeeType() const {
-        return pointee;
+    std::shared_ptr<Type> getPointeeType() const override {
+        return pointeeType;
     }
 
     // Method to get the pointer depth recursively
     int getPointerDepth() const override {
         int depth = 0;
-        auto currentPointee = pointee;
+        auto currentPointee = pointeeType;
 
         while (currentPointee->isPointer()) {
             depth++;
@@ -538,8 +547,8 @@ public:
     }
 
     // Method to get the base pointee type (the deepest pointee type)
-    std::shared_ptr<Type> getBasePointeeType() const override {
-        auto currentPointee = pointee;
+    std::shared_ptr<Type> getBasePointeeType() const {
+        auto currentPointee = pointeeType;
 
         while (currentPointee->isPointer()) {
             currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointeeType();
@@ -551,7 +560,7 @@ public:
     std::string description() const override { return pointerDescription(); }
     std::string pointerDescription() const override {
         std::vector<std::string> parts;
-        std::shared_ptr<Type> current = pointee;  // start from the first pointee
+        std::shared_ptr<Type> current = pointeeType;  // start from the first pointee
     
         // Walk through all pointer levels
         while (current->isPointer()) {
@@ -576,12 +585,13 @@ public:
     }
     
     std::shared_ptr<Type> clone() const override {
-        return std::make_shared<PointerType>(pointee->clone());
+        return std::make_shared<PointerType>(pointeeType->clone());
     }    
 };
 
 class NullType : public Type {
 public:
+    bool nullCaseHandled = false;
     std::shared_ptr<Type> innerType;
     NullType(std::shared_ptr<Type> innerType = nullptr) : innerType(innerType) {  // You can use any default 'unknown' type
         kind = Kind::Null;
@@ -598,6 +608,7 @@ public:
 
 class NullableType : public Type {
 public:
+    bool nullCaseHandled = false;
     std::shared_ptr<Type> innerType;
     NullableType(std::shared_ptr<Type> innerType = nullptr) : innerType(innerType) {  // You can use any default 'unknown' type
         kind = Kind::Nullable;
@@ -614,20 +625,78 @@ public:
 
 class NullPointerType : public Type {
 public:
-    std::shared_ptr<Type> innerType;
-    NullPointerType(std::shared_ptr<Type> innerType = nullptr) : innerType(innerType) {  // You can use any default 'unknown' type
-        kind = Kind::Nullptr;
+    bool nullCaseHandled = false;
+    bool isConst;
+    bool isVolatile;
+
+    // Constructor
+    NullPointerType(std::shared_ptr<Type> pointeeType, bool isConst = false, bool isVolatile = false) {
+            this->pointeeType = pointeeType;
+            kind = Kind::Nullptr;
+            this->isConst = isConst;
+            this->isVolatile = isVolatile;
+        }
+
+    // Get the pointee type (directly)
+    std::shared_ptr<Type> getPointeeType() const override {
+        return pointeeType;
     }
 
-    std::string toString() const override {
-        return "Nullptr<" + (innerType ? innerType->toString() : "Unknown") + ">";
+    // Method to get the pointer depth recursively
+    int getPointerDepth() const override {
+        int depth = 0;
+        auto currentPointee = pointeeType;
+
+        while (currentPointee->isPointer()) {
+            depth++;
+            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointeeType();
+        }
+
+        return depth;
     }
 
+    // Method to get the base pointee type (the deepest pointee type)
+    std::shared_ptr<Type> getBasePointeeType() const {
+        auto currentPointee = pointeeType;
+
+        while (currentPointee->isPointer()) {
+            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointeeType();
+        }
+
+        return currentPointee;
+    }
+
+    std::string description() const override { return pointerDescription(); }
+    std::string pointerDescription() const override {
+        std::vector<std::string> parts;
+        std::shared_ptr<Type> current = pointeeType;  // start from the first pointee
+    
+        // Walk through all pointer levels
+        while (current->isPointer()) {
+            parts.push_back("pointer");
+            current = std::dynamic_pointer_cast<PointerType>(current)->getPointeeType();
+        }
+    
+        // Add the base type at the end
+        parts.push_back(current->toString());
+    
+        // Reverse to get natural order (base type first)
+        std::reverse(parts.begin(), parts.end());
+    
+        // Join with spaces
+        std::string description;
+        for (const auto& part : parts) {
+            if (!description.empty()) description += " ";
+            description += part;
+        }
+    
+        return description;
+    }
+    
     std::shared_ptr<Type> clone() const override {
-        return std::make_shared<NullPointerType>(innerType ? innerType->clone() : nullptr);
-    }  
+        return std::make_shared<NullPointerType>(pointeeType->clone());
+    }    
 };
-
 
 class ReferenceType : public Type {
 public:

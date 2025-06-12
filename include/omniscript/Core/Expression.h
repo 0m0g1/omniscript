@@ -364,6 +364,25 @@ struct PointerExpression : public Expression {
     }
 };
 
+// Supporting expression type
+struct RawPointerExpression : public Expression {
+    size_t address;
+    
+    RawPointerExpression(size_t addr, std::shared_ptr<Type> type)
+        : address(addr) {
+        this->type = type;
+        this->rootType = type;
+    }
+
+    std::string toString() const override {
+        return "RawPointer(" + std::to_string(address) + ")";
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<RawPointerExpression>(address, type);
+    }
+};
+
 struct InvalidExpression : public Expression {
     InvalidExpression() {
         type = Type::createInvalid();

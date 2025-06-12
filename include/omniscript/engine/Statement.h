@@ -512,7 +512,6 @@ public:
     }
 };
 
-
 class Invalid : public Literal {
 public:
     explicit Invalid() {
@@ -565,7 +564,56 @@ public:
         return std::make_shared<Null>();  // Clone using copy constructor
     }
 };
+
+class PointerLiteral : public Literal {
+public:
+    PointerLiteral(size_t address, 
+                          std::shared_ptr<Omniscript::Type> pointeeType = nullptr,
+                          bool isConst = false,
+                          bool isVolatile = false)
+        : address(address),
+          isConst(isConst),
+          isVolatile(isVolatile) {
+        
+        // Default to void* if no type specified
+        if (!pointeeType) {
+            pointeeType = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
+        }
+        
+        setRootType(Omniscript::Type::createPointerType(pointeeType, isConst, isVolatile));
+    }
+
+    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { 
+        return nullptr; 
+    }
     
+    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const override;
+    
+    std::string toString() const override { 
+        std::string typeStr = type ? type->toString() : "unknown";
+        return "PointerLiteral(" + std::to_string(address) + " as " + typeStr + ")"; 
+    }
+    
+    std::shared_ptr<Statement> clone() const override {
+        auto pointeeType = type ? type->getPointeeType() : nullptr;
+        return std::make_shared<PointerLiteral>(
+            address,
+            pointeeType,
+            isConst,
+            isVolatile
+        );
+    }
+
+    size_t getAddress() const { return address; }
+    bool isConstPointer() const { return isConst; }
+    bool isVolatilePointer() const { return isVolatile; }
+
+private:
+    size_t address;
+    bool isConst;
+    bool isVolatile;
+};
 
 // ============================== Numeric Literals ============================== //
 class NumericLiteral : public Literal {

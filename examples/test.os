@@ -1,3 +1,80 @@
+// extern "C" fn printf(...fmt: char*) => int;
+// extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
+//    fn glfwInit() => int;
+//    fn glfwCreateWindow(width: int, height: int, title: char*, monitor: void*, share: void*) => void*;
+//    fn glfwMakeContextCurrent(window: void*) => void;
+//    fn glfwWindowShouldClose(window: void*) => int;
+//    fn glfwPollEvents() => void;
+//    fn glfwSwapBuffers(window: void*) => void;
+//    fn glfwTerminate() => void;
+// }
+
+// extern "dependencies/glad/glad_x86-64/glad.dll" {
+//    fn gladLoadGL() => int;
+// }
+
+// // Entry point
+// fn main() {
+//     if (glfwInit() == 0) {
+//         printf("Failed to initialize GLFW");
+//         return;
+//     }
+
+//     let window = glfwCreateWindow(800, 600, "OmniScript Window", null, null);
+//     if (window == 0 as void*) {
+//         printf("Failed to create window");
+//         glfwTerminate();
+//         return;
+//     }
+
+//     glfwMakeContextCurrent(window);
+
+//     if (gladLoadGL() == 0) {
+//         printf("Failed to load OpenGL functions");
+//         glfwTerminate();
+//         return;
+//     }
+
+//     // Main loop
+//     while (glfwWindowShouldClose(window) == 0) {
+//         // TODO: OpenGL rendering goes here
+
+//         glfwSwapBuffers(window);
+//         glfwPollEvents();
+//     }
+
+//     glfwTerminate();
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import "std";
 
 // let n: int = std.Math.factorial(5);

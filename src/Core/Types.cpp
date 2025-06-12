@@ -99,8 +99,8 @@ std::shared_ptr<Type> Type::createPrimitiveType(Kind kind) {
     return std::make_shared<PrimitiveType>(kind);
 }
 
-std::shared_ptr<Type> Type::createPointerType(std::shared_ptr<Type> pointee) {
-    return std::make_shared<PointerType>(std::move(pointee));
+std::shared_ptr<Type> Type::createPointerType(std::shared_ptr<Type> pointee, bool isConst, bool isVolatile) {
+    return std::make_shared<PointerType>(pointee, isConst, isVolatile);
 }
 
 std::shared_ptr<Type> Type::createNullPointerType(std::shared_ptr<Type> innerType) {
@@ -415,7 +415,7 @@ bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr
     }
 
     if (from->isPointer() && to->isPointer()) {
-        return isSameOrCastableTo(from->getBasePointeeType(), to->getBasePointeeType());
+        return isSameOrCastableTo(from->getPointeeType(), to->getPointeeType());
     }
 
     auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
