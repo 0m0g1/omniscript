@@ -12,7 +12,8 @@ std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType
     if (type) {
         DEBUG_LOG("[Return] Creating a return value of kind '" + type->toString() + "'.");
     } else {
-        DEBUG_LOG("[Return] The return statement has no type");
+        DEBUG_LOG("[Return] The return statement has no type, setting its type to void");
+        type = Omniscript::resolveType({"void"});
     }
     std::shared_ptr<Omniscript::Expression> result = nullptr;
     if (returnValue) {

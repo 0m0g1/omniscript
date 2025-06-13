@@ -1232,6 +1232,8 @@ public:
             case TokenTypes::Tilde: return "~";
             case TokenTypes::Increment: return "++";
             case TokenTypes::Decrement: return "--";
+            case TokenTypes::Multiply: return "*";
+            case TokenTypes::BitwiseAnd: return "&";
             default: return "?";
         }
     }

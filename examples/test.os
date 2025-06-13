@@ -1,58 +1,104 @@
-let ptr: char* = nullptr;
-// extern "C" fn printf(...fmt: char*) => int;
-// extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
-//    fn glfwInit() => int;
-//    fn glfwCreateWindow(width: int, height: int, title: char*, monitor: void*, share: void*) => void*;
-//    fn glfwMakeContextCurrent(window: void*) => void;
-//    fn glfwWindowShouldClose(window: void*) => int;
-//    fn glfwPollEvents() => void;
-//    fn glfwSwapBuffers(window: void*) => void;
-//    fn glfwTerminate() => void;
-// }
+extern "C" {
+    fn printf(...fmt: char*) => int;
+}
 
-// extern "dependencies/glad/glad_x86-64/glad.dll" {
-//    fn gladLoadGL() => int;
-// }
+extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
+    fn glfwInit() => int;
+    fn glfwCreateWindow(w: int, h: int, title: char*, monitor: void*, share: void*) => void*;
+    fn glfwMakeContextCurrent(win: void*) => void;
+    fn glfwWindowShouldClose(win: void*) => int;
+    fn glfwPollEvents() => void;
+    fn glfwSwapBuffers(win: void*) => void;
+    fn glfwTerminate() => void;
+    fn glfwGetCursorPos(win: void*, x_out: double*, y_out: double*) => void;
+    fn glfwGetMouseButton(win: void*, button: int) => int;
+}
 
-// function main(argc : int) => i32 {
-//    if (glfwInit() == 0) {
-//       printf("Failed to initialize GLFW");
-//       return 1;
-//    }
-//    let window = glfwCreateWindow(800, 600, "OmniScript Window",  0 as void*, 0 as void*);
-//    glfwTerminate();
-//    return 0;
-// }
+extern "opengl32.dll" {
+    fn glClearColor(r: float, g: float, b: float, a: float) => void;
+    fn glClear(mask: uint) => void;
+    fn glBegin(mode: uint) => void;
+    fn glEnd() => void;
+    fn glVertex2f(x: float, y: float) => void;
+    fn glColor3f(r: float, g: float, b: float) => void;
+    fn glLoadIdentity() => void;
+    fn glViewport(x: int, y: int, w: int, h: int) => void;
+    fn glMatrixMode(mode: uint) => void;
+    fn glOrtho(left: double, right: double, bottom: double, top: double, near: double, far: double) => void;
+}
 
-// Entry point
-// function main() {
-   //  
+const GL_COLOR_BUFFER_BIT = 0x00004000;
+const GL_PROJECTION = 0x1701;
+const GL_MODELVIEW = 0x1700;
+const GL_QUADS = 0x0007;
 
-   //  let window = glfwCreateWindow(800, 600, "OmniScript Window", null, null);
-   //  if (window == nullptr) {
-   //      printf("Failed to create window");
-   //      glfwTerminate();
-   //      return;
-   //  }
+const BUTTON_LEFT = -0.3;
+const BUTTON_RIGHT = 0.3;
+const BUTTON_TOP = 0.2;
+const BUTTON_BOTTOM = -0.2;
 
-   //  glfwMakeContextCurrent(window);
+if (glfwInit() == 0) {
+    printf("GLFW failed\n");
+    return;
+}
 
-   //  if (gladLoadGL() == 0) {
-   //      printf("Failed to load OpenGL functions");
-   //      glfwTerminate();
-   //      return;
-   //  }
+let window = glfwCreateWindow(800, 600, "Button Example", nullptr, nullptr);
+if (window == nullptr) {
+    printf("Failed to create window\n");
+    glfwTerminate();
+    return;
+}
 
-   //  // Main loop
-   //  while (glfwWindowShouldClose(window) == 0) {
-   //      // TODO: OpenGL rendering goes here
+glfwMakeContextCurrent(window);
 
-   //      glfwSwapBuffers(window);
-   //      glfwPollEvents();
-   //  }
+glViewport(0, 0, 800, 600);
+glMatrixMode(GL_PROJECTION);
+glLoadIdentity();
+glOrtho(-1, 1, -1, 1, -1, 1);
+glMatrixMode(GL_MODELVIEW);
 
-   //  glfwTerminate();
-// }
+// Main loop
+while (glfwWindowShouldClose(window) == 0) {
+    glClearColor(0.2, 0.2, 0.2, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glLoadIdentity();
+
+    // Button color
+    glColor3f(0.3, 0.6, 0.9);
+    glBegin(GL_QUADS);
+        glVertex2f(BUTTON_LEFT, BUTTON_TOP);
+        glVertex2f(BUTTON_RIGHT, BUTTON_TOP);
+        glVertex2f(BUTTON_RIGHT, BUTTON_BOTTOM);
+        glVertex2f(BUTTON_LEFT, BUTTON_BOTTOM);
+    glEnd();
+
+    // Handle click
+    let mx: double = 0.0;
+    let my: double = 0.0;
+    glfwGetCursorPos(window, &mx, &my);
+
+    let win_w = 800.0;
+    let win_h = 600.0;
+
+    // Convert mouse to OpenGL coordinates
+    let norm_x = (mx / win_w) * 2.0 - 1.0;
+    let norm_y = -((my / win_h) * 2.0 - 1.0);
+
+    if (glfwGetMouseButton(window, 0) == 1) {
+        if (norm_x >= BUTTON_LEFT && norm_x <= BUTTON_RIGHT &&
+            norm_y >= BUTTON_BOTTOM && norm_y <= BUTTON_TOP) {
+            printf("Button clicked! Hello, World!\n");
+        }
+    }
+
+    glfwSwapBuffers(window);
+    glfwPollEvents();
+}
+
+glfwTerminate();
+
+
+
 
 
 

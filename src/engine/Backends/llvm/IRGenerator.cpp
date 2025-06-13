@@ -279,6 +279,12 @@ void IRGenerator::compileAllFunctionBodies(std::shared_ptr<SymbolTable<std::shar
 
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope) {
     DEBUG_LOG();
+    if (!value) {
+        console.error("There is no value to be codegened.");
+    }
+    if (!scope) {
+        console.error("There is no scope for codegen to perform its operations in.");
+    }
     DEBUG_LOG("Calling codegen on scope '" + scope->getName() + "' for '" + value->toString() + "'.");
     llvm::Value* result = codegenPrimitive(value, scope);
 
@@ -506,6 +512,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         DEBUG_LOG("Creating a return statement of kind '" + ret->getType()->toString() + "'.");
 
         llvm::Type* type = resolveLLVMType(ret->getType());
+        if (!ret->value) {
+            return createReturn(nullptr, nullptr);
+        }
         llvm::Value* val = codegen(ret->value, scope);
         return createReturn(val, type);
     }
@@ -1627,7 +1636,7 @@ bool IRGenerator::isNullableStruct(llvm::Type* type) {
 
 llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes op, bool isPostfix) {
     if (!operand) {
-        console.error("Unknown unary operation");
+        console.error("Invalid unary operation");
         return nullptr;
     };
 
@@ -1676,8 +1685,11 @@ llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes
             return isPostfix ? operand : newVal;
         }
 
+        case TokenTypes::BitwiseAnd:
+            return operand;
+
         default:
-            console.error("Unknown unary operator");
+            console.error("Unknown unary operator '" + getTokenTypeName(op) + "'.");
             return nullptr;
     }
     return nullptr;
@@ -1685,7 +1697,7 @@ llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes
 
 llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes op, llvm::Value* right) {
     if (!left || !right) {
-        console.error("Unknown binary operation");
+        console.error("Invalid binary operation.");
         return nullptr;
     };
 
@@ -1808,28 +1820,53 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         case TokenTypes::ShiftLeft:
             return Builder->CreateShl(left, right, "shltmp");
             
-        // case TokenTypes::ShiftRight: {
-        //     // For shift right, we need to know if it's arithmetic (signed) or logical (unsigned)
-        //     if (left->getType()->isIntegerTy()) {
-        //         // Check if the value being shifted is signed by looking at its uses
-        //         bool isSigned = false;
-        //         if (llvm::Instruction* inst = llvm::dyn_cast<llvm::Instruction>(left)) {
-        //             if (inst->getOpcode() == llvm::Instruction::SExt) {
-        //                 isSigned = true;
-        //             }
-        //             // You might need to add more cases here depending on your IR
-        //         }
-        //         return isSigned ? Builder->CreateAShr(left, right, "ashrtmp")
-        //                         : Builder->CreateLShr(left, right, "lshrtmp");
-        //     }
-        //     return nullptr; // Shift right only valid for integer types
-        // }
-        case TokenTypes::ShiftRight:
-            return left->getType()->isIntegerTy()
-                ? Builder->CreateAShr(left, right, "shrtmp")
-                : nullptr;
+        case TokenTypes::ShiftRight: {
+            if (!left->getType()->isIntegerTy())
+                return nullptr; // Only valid for integers
+
+            // Check if left is signed or unsigned
+            bool isSigned = left->getType()->isIntegerTy(); // custom helper? or use your own type system
+
+            // Use arithmetic shift for signed integers, logical for unsigned
+            return isSigned
+                ? Builder->CreateAShr(left, right, "ashrtmp")  // arithmetic shift right
+                : Builder->CreateLShr(left, right, "lshrtmp"); // logical shift right
+        }
+
+        case TokenTypes::LogicalAnd: {
+            // Ensure both operands are boolean-like (i1)
+            llvm::Value* lhs = Builder->CreateICmpNE(left, llvm::ConstantInt::get(left->getType(), 0), "lhscond");
+
+            llvm::Function* function = Builder->GetInsertBlock()->getParent();
+
+            // Create blocks
+            llvm::BasicBlock* rhsBlock = llvm::BasicBlock::Create(*Context, "rhs", function);
+            llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(*Context, "landmerge", function);
+
+            // Result variable
+            llvm::PHINode* phi = nullptr;
+
+            // Conditional branch: if lhs is true, evaluate rhs
+            Builder->CreateCondBr(lhs, rhsBlock, mergeBlock);
+
+            // RHS block
+            Builder->SetInsertPoint(rhsBlock);
+            llvm::Value* rhs = Builder->CreateICmpNE(right, llvm::ConstantInt::get(right->getType(), 0), "rhscond");
+            Builder->CreateBr(mergeBlock);
+
+            // Merge block
+            Builder->SetInsertPoint(mergeBlock);
+            phi = Builder->CreatePHI(llvm::Type::getInt1Ty(*Context), 2, "landtmp");
+
+            // Add incoming values to PHI node
+            phi->addIncoming(llvm::ConstantInt::getFalse(*Context), Builder->GetInsertBlock()->getSinglePredecessor());
+            phi->addIncoming(rhs, rhsBlock);
+
+            return phi;
+        }
+
         default:
-            console.error("Unknown binary operator");
+            console.error("Unknown binary operator '" + getTokenTypeName(op) + "'.");
             return nullptr;
         }
     return nullptr;
@@ -1837,7 +1874,7 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
 
 llvm::Value* IRGenerator::createTernaryExpression(llvm::Value* cond, llvm::Value* truthy, llvm::Value* falsey) {
     if (!cond || !truthy || !falsey) {
-        console.error("Unknown ternary operation");
+        console.error("Invalid ternary operation");
         return nullptr;
     };
 

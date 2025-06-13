@@ -51,14 +51,14 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
 
     auto variable = scope->getValue(name);
     if (variable) {
-        setType(Omniscript::Type::createPointerType(variable->getType()));
+        setType(variable->getType());
         return std::make_shared<Omniscript::ReferenceExpression>(name, variable);
     }
 
     if (!variable) {
         auto overloads = scope->getOverloads(name);
         auto mangledName = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overloads[0])->mangledName;
-        setType(Omniscript::Type::createPointerType(variable->getType()));
+        setType(variable->getType());
         return std::make_shared<Omniscript::ReferenceExpression>(mangledName, variable);
     }
     

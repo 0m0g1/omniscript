@@ -152,7 +152,8 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
         currentToken.getType() == TokenTypes::Increment ||
         currentToken.getType() == TokenTypes::Decrement ||
         currentToken.getType() == TokenTypes::Multiply ||
-        currentToken.getType() == TokenTypes::BitwiseAnd) {
+        currentToken.getType() == TokenTypes::BitwiseAnd
+    ) {
         TokenTypes op = currentToken.getType();
         eat(op);
         auto operand = parseUnaryExpression();
@@ -177,7 +178,13 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
                 integerLiteral->value = ~integerLiteral->value;
                 return operand;
             }
-        } 
+        } else if (op == TokenTypes::BitwiseAnd) {
+            if (auto variable = std::dynamic_pointer_cast<GetVariable>(operand)) {
+                operand = std::make_shared<ReferenceTo>(variable->getName());
+            } else {
+                console.error("Cannot get the reference of a symbol that isn't a variable");
+            }
+        }
 
         return std::make_shared<UnaryExpression>(op, operand, UnaryExpression::Position::Prefix);
     }

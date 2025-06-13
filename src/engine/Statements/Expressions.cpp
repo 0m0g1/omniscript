@@ -158,10 +158,18 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     if (!type) {
         if (op.isComparisonOperator()) {
             type = Omniscript::resolveType({ "bool" });
-            if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
-                if (leftTyped) leftTyped->setType(rightType);
-            } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
-                if (rightTyped) rightTyped->setType(leftType);
+            if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
+                if (leftType->isPointer()) {
+                    if (rightTyped) rightTyped->setType(leftType->getPointeeType());
+                } else {
+                    if (rightTyped) rightTyped->setType(leftType);
+                }
+            } else if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
+                if (leftType->isPointer()) {
+                    if (leftTyped) leftTyped->setType(rightType->getPointeeType());
+                } else {
+                    if (leftTyped) leftTyped->setType(rightType);
+                }
             } else {
                 console.error("Incompatible comparison types: " + leftType->toString() + " vs " + rightType->toString());
                 return nullptr;
