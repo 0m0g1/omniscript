@@ -81,7 +81,6 @@ GENERATED :=
 OBJECTS :=
 
 GENERATED += $(OBJDIR)/Access.o
-GENERATED += $(OBJDIR)/Allocator.o
 GENERATED += $(OBJDIR)/Assignments.o
 GENERATED += $(OBJDIR)/AssignmentsAndGetters.o
 GENERATED += $(OBJDIR)/Block.o
@@ -120,7 +119,6 @@ GENERATED += $(OBJDIR)/main.o
 GENERATED += $(OBJDIR)/tokens.o
 GENERATED += $(OBJDIR)/utils.o
 OBJECTS += $(OBJDIR)/Access.o
-OBJECTS += $(OBJDIR)/Allocator.o
 OBJECTS += $(OBJDIR)/Assignments.o
 OBJECTS += $(OBJDIR)/AssignmentsAndGetters.o
 OBJECTS += $(OBJDIR)/Block.o
@@ -228,9 +226,6 @@ $(OBJDIR)/Expression.o: src/Core/Expression.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Types.o: src/Core/Types.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Allocator.o: src/engine/Allocator.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/JITBackend.o: src/engine/Backends/JITBackend.cpp

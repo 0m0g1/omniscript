@@ -190,11 +190,14 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 if (!value) {
                     result = std::make_shared<Omniscript::NullPointerExpression>(type);
                 }  else if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
+                    if (!type->getPointeeType()) {
+                        console.error("Variable '" + name + "' is not a pointer");
+                    }
                     if (!typed->getType()) {
-                        typed->setType(type);
+                        typed->setType(type->getPointeeType());
                     }
                     result = typed->express(scope);
-                    auto resultType = typed->getType();
+                    auto resultType = result->getType();
                     if (!Omniscript::isSameOrCastableTo(resultType, type)) {
                         console.error("The rvalue of '" + variable + "' is not a '" + type->toString() + "', it is a '" + resultType->toString() + "'.");
                     }

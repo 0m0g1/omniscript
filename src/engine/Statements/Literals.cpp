@@ -64,10 +64,12 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
 
 std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
-    return Omniscript::make_expression<Omniscript::NullPointerExpression>(
-        type? type :
-        Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void)
-    );
+
+    auto nullpointerType = type? type : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
+    
+    auto result = Omniscript::make_expression<Omniscript::NullPointerExpression>(type);
+    
+    return result;
 }
 
 std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
