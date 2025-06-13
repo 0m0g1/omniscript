@@ -9,10 +9,12 @@
 // ============================== Entities  ============================== //
 
 std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     return std::make_shared<IntegerLiteral>(valueIndex)->express(scope);
 }
 
 std::shared_ptr<Omniscript::Expression> EnumConstructor::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     auto expr = std::make_shared<Omniscript::EnumExpression>(name, hasLookup, isEnumClass);
     
     for (const auto& val : values) {

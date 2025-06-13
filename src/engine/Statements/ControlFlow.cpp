@@ -8,6 +8,7 @@
 // ============================== Control flow statements  ============================== //
 
 std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     if (type) {
         DEBUG_LOG("[Return] Creating a return value of kind '" + type->toString() + "'.");
     } else {
@@ -51,6 +52,7 @@ bool ReturnStatement::isCompileTimeEvaluatable() {
 }
 
 std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     auto localScope = scope->createChildScope("whileloop");
     DEBUG_LOG("Creating a while loop expression");
 
@@ -91,6 +93,7 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
  }
  
 std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     std::vector<std::shared_ptr<Omniscript::Expression>> exprConditions;
     std::vector<std::shared_ptr<Omniscript::Expression>> exprBranches;
  
@@ -121,14 +124,17 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
  }
 
 std::shared_ptr<Omniscript::Expression> BreakStatement::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> ContinueStatement::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     auto localScope = scope->createChildScope("forloop");
     DEBUG_LOG("Creating a for loop expression");
     std::shared_ptr<Omniscript::Expression> initializationExpr;

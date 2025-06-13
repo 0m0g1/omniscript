@@ -1,4 +1,4 @@
-let ptr: void* = 0 as void*;
+let ptr: char* = nullptr;
 // extern "C" fn printf(...fmt: char*) => int;
 // extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
 //    fn glfwInit() => int;

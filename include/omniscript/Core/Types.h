@@ -540,7 +540,12 @@ public:
 
         while (currentPointee->isPointer()) {
             depth++;
-            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointeeType();
+            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee);
+            if (currentPointee) {
+                currentPointee = currentPointee->getPointeeType();
+            } else {
+                break;
+            }
         }
 
         return depth;
@@ -551,7 +556,12 @@ public:
         auto currentPointee = pointeeType;
 
         while (currentPointee->isPointer()) {
-            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointeeType();
+            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee);
+            if (currentPointee) {
+                currentPointee->getPointeeType();
+            } else {
+                break;
+            }
         }
 
         return currentPointee;
@@ -567,7 +577,7 @@ public:
             parts.push_back("pointer");
             current = std::dynamic_pointer_cast<PointerType>(current);
             if (current) {
-                current->getPointeeType();
+                current = current->getPointeeType();
             } else {
                 break;
             }
@@ -656,7 +666,12 @@ public:
 
         while (currentPointee->isPointer()) {
             depth++;
-            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointeeType();
+            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee);
+            if (currentPointee) {
+                currentPointee = currentPointee->getPointeeType();
+            } else {
+                break;
+            }
         }
 
         return depth;
@@ -667,7 +682,12 @@ public:
         auto currentPointee = pointeeType;
 
         while (currentPointee->isPointer()) {
-            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee)->getPointeeType();
+            currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee);
+            if (currentPointee) {
+                currentPointee->getPointeeType();
+            } else {
+                break;
+            }
         }
 
         return currentPointee;
@@ -683,7 +703,7 @@ public:
             parts.push_back("pointer");
             current = std::dynamic_pointer_cast<PointerType>(current);
             if (current) {
-                current->getPointeeType();
+                current = current->getPointeeType();
             } else {
                 break;
             }

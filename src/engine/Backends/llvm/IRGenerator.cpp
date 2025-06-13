@@ -458,8 +458,10 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerExpression>(value)) {
-        DEBUG_LOG("Creating a null pointer");
-        return createNullPointer();
+        DEBUG_LOG("Creating a null pointer of type " + nullpointer->getType()->toString());
+        DEBUG_LOG("Creating a null pointer of root type " + nullpointer->getRootType()->toString());
+        auto pointeeType = resolveLLVMType(nullpointer->getRootType()->getPointeeType());
+        return createNullPointer(pointeeType);
     }
 
     if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(value)) {
@@ -1084,13 +1086,13 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         if (auto pointer = std::dynamic_pointer_cast<Omniscript::PointerType>(type)) {
             int pointerDepth;
             llvm::Type* pointeeType;
-            pointeeType = resolveLLVMType(pointer->getBasePointeeType());
+            pointeeType = resolveLLVMType(pointer->getPointeeType());
             pointerDepth = pointer->getPointerDepth();
             return llvm::PointerType::get(pointeeType, pointerDepth);
         }
 
         if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerType>(type)) {
-            return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context));
+            return llvm::PointerType::getUnqual(resolveLLVMType(type->getPointeeType()));
         }
         
     }

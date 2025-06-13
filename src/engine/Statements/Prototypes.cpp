@@ -10,6 +10,7 @@
 
 
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG();
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
     std::string targetName = named ? named->getName() : instanceName;
@@ -815,6 +816,7 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
 }
 
 std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     registerInScope(scope);
     
     if (!isExtern && !isIntrinsic) {
@@ -889,6 +891,7 @@ void FunctionDeclaration::setReturnTypesInStatement(
 }
 
 std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + (type ? type->toString() : "undefined"));
     
     std::shared_ptr<Omniscript::Expression> result;
@@ -956,6 +959,7 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
 }
 
 std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("[Argument] Creating argument " + name);
     extendContextOf(value);
     std::shared_ptr<Omniscript::Expression> result;
@@ -981,10 +985,12 @@ std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
 }
 
 std::shared_ptr<Omniscript::Expression> ClassMember::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("[ConstructStructPrototype] Constructing a struct expression");
 
     std::vector<std::shared_ptr<Omniscript::Expression>> fields;
@@ -1062,6 +1068,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
 }
 
 std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG();
     DEBUG_LOG("[ConstructClassPrototype] Constructing a class '" + getName() + "'.");
 
@@ -1172,6 +1179,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
 }
  
 std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("Constructing " + objectType + " " + instanceName);
 
     // std::vector<std::shared_ptr<Omniscript::Expression>> argValues;

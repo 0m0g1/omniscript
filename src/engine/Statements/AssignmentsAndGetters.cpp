@@ -9,6 +9,7 @@
 // ======================= Assignments and Variable Getters ======================= //
 // ============================== Getters  ============================== //
 std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     std::shared_ptr<Omniscript::Expression> referent = scope->getValue(name);
 
     DEBUG_LOG("Getting the address of '" + name + "'.");
@@ -41,6 +42,7 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
 }
 
 std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("Getting a reference to '" + name + "'.");
     // Look up the value in the scope to get the variable
     if (!scope->exists(name)) {
@@ -67,6 +69,7 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
 
 // Get Variable
 std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG();
     DEBUG_LOG("Getting symbol '" + name + "'.");
     DEBUG_LOG(getContextAsString());
@@ -131,6 +134,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
 }
 
 std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("Assigning variable " + variable + (type? " of type " + type->toString() : ""));
 
     std::shared_ptr<Omniscript::Expression> result;
@@ -186,6 +190,9 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 if (!value) {
                     result = std::make_shared<Omniscript::NullPointerExpression>(type);
                 }  else if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
+                    if (!typed->getType()) {
+                        typed->setType(type);
+                    }
                     result = typed->express(scope);
                     auto resultType = typed->getType();
                     if (!Omniscript::isSameOrCastableTo(resultType, type)) {
@@ -262,7 +269,13 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
         }
     }
 
-    if (type) {     
+    if (type) {
+        if (!result) {
+            console.error("Variable '" + variable + " has an invalid r value");
+        } 
+        if (!result->getType()) {
+            console.error("The r-value of variable '" + variable + "' is not valid");
+        }     
         DEBUG_LOG(
                     "The result is " + variable + " " + result->getType()->toString() + " = " + result->toString()
                 );

@@ -1,7 +1,8 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
 
-llvm::Value* IRGenerator::createNullPointer() {
-    return llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(*Context)));
+llvm::Value* IRGenerator::createNullPointer(llvm::Type* pointeeType) {
+    llvm::PointerType* ptrType = llvm::PointerType::getUnqual(pointeeType);
+    return llvm::ConstantPointerNull::get(ptrType);
 }
 
 llvm::Value* IRGenerator::createNullValue() {

@@ -58,6 +58,7 @@ void Access::verifyMemberAccessibility() {
 }
 
 std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     std::shared_ptr<Omniscript::Expression> baseExpr = nullptr;
     std::string baseTypeName;
     std::string resolvedObjectName = objectName;
@@ -243,6 +244,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
 }
 
 std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     // Evaluate the pointer expression recursively
     auto pointerExpr = pointer->express(scope);
     if (!pointerExpr) {
@@ -322,6 +324,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType sco
 }
 
 std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     // Evaluate the pointer expression recursively
     auto pointerExpr = pointer->express(scope);
     if (!pointerExpr) {
@@ -398,6 +401,7 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
 }
 
 std::shared_ptr<Omniscript::Expression> IndexAccess::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     // Evaluate the container expression recursively
     auto containerExpr = expr->express(scope);
     if (!containerExpr) {

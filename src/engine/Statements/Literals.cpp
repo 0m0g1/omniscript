@@ -9,6 +9,7 @@
 // ============================== Literals and casting  ============================== //
 
 std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("");
 
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
@@ -62,6 +63,7 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
 
 
 std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     return Omniscript::make_expression<Omniscript::NullPointerExpression>(
         type? type :
         Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void)
@@ -69,6 +71,7 @@ std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) 
 }
 
 std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     if (type->isNullable()) {
         auto nullable = std::dynamic_pointer_cast<Omniscript::NullableType>(type);
         auto nullableExpr = std::make_shared<Omniscript::NullableExpression>();
@@ -84,11 +87,10 @@ std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
 }
 
 std::shared_ptr<Omniscript::Expression> PointerLiteral::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     // Handle null pointer case
     if (address == 0) {
-        return Omniscript::make_expression<Omniscript::NullPointerExpression>(
-            Omniscript::Type::createNullPointerType()
-        );
+        return Omniscript::make_expression<Omniscript::NullPointerExpression>(type->getPointeeType());
     }
 
     // Create raw pointer expression
@@ -178,6 +180,7 @@ std::shared_ptr<Literal> PointerLiteral::castTo(std::shared_ptr<Omniscript::Type
 }
 
 std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     if (!type) {
         DEBUG_LOG("Creating a 32-bit integer");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Int32);
@@ -291,6 +294,7 @@ std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type
 }
 
 std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     // Default to 128-bit float if type is not specified
     if (!type) {
         if (isFloat16) {
@@ -418,17 +422,20 @@ std::shared_ptr<Literal> FloatLiteral::castTo(std::shared_ptr<Omniscript::Type> 
 
 // Arbitrary-precision integer (BigInt)
 std::shared_ptr<Omniscript::Expression> BigInt::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("Creating a big int " + value);
     unsigned bitWidth = BigInt::determineBitWidth(value);
     return std::make_shared<Omniscript::BigInt>(value, bitWidth);
 }
 
 std::shared_ptr<Omniscript::Expression> Invalid::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("Creating an invalid");
     return std::make_shared<Omniscript::InvalidExpression>();
 }
 
 std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     // DEBUG_LOG("Bool value " + value);
     if (!type) {
         DEBUG_LOG("Creating a bool false");
@@ -504,6 +511,7 @@ std::shared_ptr<Literal> BoolLiteral::castTo(std::shared_ptr<Omniscript::Type> t
 }
 
 std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     if (!type) {
         DEBUG_LOG("Creating a char literal");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
@@ -574,6 +582,7 @@ std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Ty
 
 
 std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     if (!type) {
         DEBUG_LOG("Creating UTF-8 string");
         type = rootType;
@@ -654,6 +663,7 @@ std::shared_ptr<Literal> StringLiteral::castTo(std::shared_ptr<Omniscript::Type>
 }
 
 std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("[Array] Creating an array");
     if (!type) {
         DEBUG_LOG("[Array] The array has no type");

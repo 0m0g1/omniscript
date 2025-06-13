@@ -167,8 +167,8 @@ public:
         std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope);
     llvm::Type* resolveLLVMType(std::shared_ptr<Omniscript::Type> type);
     
-    llvm::Value* createNullPointer();
     llvm::Value* createNullValue();
+    llvm::Value* createNullPointer(llvm::Type* pointeeType);
     llvm::Value* createRawPointer(uintptr_t address, llvm::Type* pointeeType);
     
     // Number types

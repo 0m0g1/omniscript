@@ -580,6 +580,7 @@ public:
             pointeeType = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
         }
         
+        setType(Omniscript::Type::createPointerType(pointeeType, isConst, isVolatile));
         setRootType(Omniscript::Type::createPointerType(pointeeType, isConst, isVolatile));
     }
 
