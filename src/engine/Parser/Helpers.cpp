@@ -180,8 +180,6 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
     while (currentToken.getType() != end && currentToken.getType() != TokenTypes::EOI) {
         if (currentToken.getType() == TokenTypes::Identifier) {
             std::string paramName;
-
-
             if (lexer.peekToken(1).getType() == assignOp) {
                 paramName = currentToken.getValue();
                 eat(TokenTypes::Identifier);
@@ -205,7 +203,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
         }
     }
 
-    eat(end, "Expected ' "+ getTokenTypeName(end) + " ' but found '" + getTokenTypeName(currentToken.getType()) + "' at end of argument list.");
+    eat(end, "Expected '"+ getTokenTypeName(end) + "' but found '" + getTokenTypeName(currentToken.getType()) + "' at end of argument list.");
 
     DEBUG_LOG("Done parsing the arguments");
     return args;
