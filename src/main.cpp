@@ -54,7 +54,7 @@ public:
                 config.debugMode = true;
                 console.enableDebug();
             } else if (arg == "--verbose") {
-                config.verboseMode = true;
+                config.verbose = true;
             } else if (arg == "--execute") {
                 config.mode = CompileMode::JIT;
             } else if (arg == "--make") {
@@ -151,14 +151,14 @@ public:
         parser.setDebugMode(config.debugMode);
         std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
 
-        if (config.verboseMode) {
-            parser.printParseTree();
-            parser.printTokenStream();
-        }
+        // if (config.verbose) {
+        //     parser.printParseTree();
+        //     parser.printTokenStream();
+        // }
 
-        if (config.debugMode) {
-            printConfigDebugInfo(config);
-        }
+        // if (config.debugMode) {
+        //     printConfigDebugInfo(config);
+        // }
 
         if (config.mode == CompileMode::AOT || config.mode == CompileMode::DryCompile) {
             Compiler compiler;

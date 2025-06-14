@@ -8,7 +8,7 @@
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
-#include <llvm/Support/Host.h>
+#include <llvm/TargetParser/Host.h>
 
 class LLVMAOTBackend : public AOTBackend {
 private:
@@ -16,6 +16,9 @@ private:
     std::shared_ptr<llvm::TargetMachine> targetMachine;
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope;
     std::string outputPath;
+
+    void emitObjectFile(const std::string& objFile);
+    void linkExecutable(const std::string& objFile, const std::string& exeFile);
 
 public:
     LLVMAOTBackend();
@@ -25,4 +28,6 @@ public:
     void execute(const std::vector<std::shared_ptr<Statement>>& statements, const Config& config) override;
 
     void emitToFile(const std::string& filename) override;
+    void emitAssemblyFile(const std::string& asmFilename);
+    bool isLinkerAvailable(const std::string& linker);
 };

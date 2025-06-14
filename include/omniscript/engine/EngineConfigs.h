@@ -19,6 +19,7 @@ struct Config {
 
     // Debug and logging
     bool debugMode = false;
+    bool verbose = false;
     bool logFinalCode = false;
     bool logAsm = false;
     bool showMetadata = false;
