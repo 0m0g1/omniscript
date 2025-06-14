@@ -412,6 +412,13 @@ std::shared_ptr<Literal> FloatLiteral::castTo(std::shared_ptr<Omniscript::Type> 
             return val;
         }
 
+        case Kind::Char:
+        case Kind::Char16:
+        case Kind::Char32: {
+            auto val = static_cast<char32_t>(static_cast<int64_t>(value));
+            return std::make_shared<CharacterLiteral>(val);
+        }
+
         case Kind::Bool:
             return std::make_shared<BoolLiteral>(value != 0.0);
 
@@ -567,6 +574,37 @@ std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Ty
             val->setType(targetType);
             return val;
         }
+
+        case Kind::Half: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<_Float16>(value));
+            lit->isFloat16 = true;
+            return lit;
+        }
+        case Kind::Float: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<float>(value));
+            lit->isFloat32 = true;
+            return lit;
+        }
+        case Kind::Double: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<double>(value));
+            lit->isFloat64 = true;
+            return lit;
+        }
+        case Kind::FP128:
+        case Kind::PPC_FP128: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<__float128>(value));
+            lit->isFloat128 = true;
+            return lit;
+        }
+        case Kind::X86_FP80: {
+            auto lit = std::make_shared<FloatLiteral>(static_cast<long double>(value));
+            lit->isFloat80 = true;
+            return lit;
+        }
+
+        case Kind::Bool:
+            return std::make_shared<BoolLiteral>(value != 0);
+
         case Kind::String:
         case Kind::Utf8:
         case Kind::Utf16:
@@ -667,106 +705,137 @@ std::shared_ptr<Literal> StringLiteral::castTo(std::shared_ptr<Omniscript::Type>
 std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("[Array] Creating an array");
+
+    std::vector<std::shared_ptr<Omniscript::Expression>> values;
+    std::shared_ptr<Omniscript::Type> inferredType = nullptr;
+
+    // If type is not specified, infer from values
     if (!type) {
-        DEBUG_LOG("[Array] The array has no type");
-        std::vector<std::shared_ptr<Omniscript::Expression>> values;
-        std::shared_ptr<Omniscript::Type> inferredType = nullptr;
-        bool allSameType = true;
-        
         for (const auto& expr : initialValues) {
             auto val = expr->express(scope);
             if (!val) continue;
-    
+
             auto valType = val->getType();
+
             if (!inferredType) {
-                inferredType = valType; // Infer from first element
+                inferredType = valType;
             } else if (valType->getKind() != inferredType->getKind()) {
-                allSameType = false;
+                console.error("Array elements must all be of the same type for fixed arrays.");
+                return nullptr;
             }
-            
+
             values.push_back(val);
         }
-        
-        if (!allSameType) {
-            // Future: return DynamicArrayValue(values)
-            DEBUG_LOG("[Array] Creating a Heterogeneous Dynamic Array");
+
+        if (!inferredType) {
+            console.error("Failed to infer array type.");
             return nullptr;
         }
-        setType(inferredType);
-        DEBUG_LOG("[Array] Creating a fixed Array");
+
+        setType(Omniscript::FixedArrayType::get(inferredType, values.size()));
         return std::make_shared<Omniscript::FixedArrayExpression>(values, inferredType);
     }
-    
-    DEBUG_LOG("[Array] The array has a type '" + type->toString() + "' of element types '" + type->elementType->toString() + "'.");
-    size_t n = 0;
-    if (type->isFixedArray()) {
-        DEBUG_LOG("[Array] Creating a fixed Array");
-        std::vector<std::shared_ptr<Omniscript::Expression>> values;
-        std::shared_ptr<Omniscript::Type> expectedElementType = type->elementType;  // Assume you have this method
-        DEBUG_LOG("[Array] The expected element kind is '" + expectedElementType->toString() + "'.");
-        for (const auto& expr : initialValues) {
-            std::shared_ptr<Omniscript::Expression> val;
 
-            if (auto typed = std::dynamic_pointer_cast<TypedStatement>(expr)) {
-                if (!typed->getType()) {
-                    typed->setType(type->elementType);
-                }
-            }
-            
-            val = expr->express(scope);
+    // Type is specified: must be fixed array
+    if (!type->isFixedArray()) {
+        console.error("Only fixed arrays are supported.");
+        return nullptr;
+    }
 
-            if (!val) continue;
-            std::shared_ptr<Omniscript::Type> actualType = val->getType();
+    std::shared_ptr<Omniscript::Type> expectedElementType = type->elementType;
+    DEBUG_LOG("[Array] Using specified fixed array type of '" + expectedElementType->toString() + "'.");
 
-            bool isMatch = false;
-            
-            // Check for pointer type compatibility
-            if (expectedElementType->isPointer() && actualType->isPointer()) {
-                isMatch =
-                    expectedElementType->getPointerDepth() == actualType->getPointerDepth() &&
-                    expectedElementType->getBasePointeeType()->getKind() == actualType->getBasePointeeType()->getKind();
-            }
-            // Check for reference type compatibility
-            else if (expectedElementType->isReference() && actualType->isReference()) {
-                isMatch =
-                    expectedElementType->getReferenceDepth() == actualType->getReferenceDepth() &&
-                    expectedElementType->getBaseReferencedType()->getKind() == actualType->getBaseReferencedType()->getKind();
-            }
-            // Fallback to simple kind match
-            else {
-                isMatch = actualType->getKind() == expectedElementType->getKind();
-            }
+    size_t index = 0;
+    for (const auto& expr : initialValues) {
+        auto val = expr->express(scope);
+        if (!val) continue;
 
+        std::shared_ptr<Omniscript::Type> actualType = val->getType();
+        bool isCompatible = actualType->isSameOrCastableTo(expectedElementType);
 
-            if (!isMatch) {
-                if (type->isPointer()) {
-                    console.error("Array element is of type " + actualType->pointerDescription() +
-                                  " but expected type " + expectedElementType->pointerDescription());
-                } else {
-                    console.error("Array element is of type " + actualType->toString() +
-                                  " but expected type " + expectedElementType->toString());
-                }
-            }
-
-            DEBUG_LOG("[Array] Value '" + std::to_string(n) + "' is '" + expectedElementType->toString() + " " + val->toString() + "'.");
-            values.push_back(val);
-            n++;
+        if (!isCompatible) {
+            console.error("Array element at index " + std::to_string(index) + " has type '" +
+                          actualType->toString() + "' but expected '" + expectedElementType->toString() + "'.");
+            return nullptr;
         }
-        
-        return std::make_shared<Omniscript::FixedArrayExpression>(values, expectedElementType);
+
+        // Perform casting if needed
+        if (actualType->getKind() != expectedElementType->getKind()) {
+            if (auto lit = std::dynamic_pointer_cast<Literal>(val)) {
+                val = lit->castTo(expectedElementType);
+                if (!val) {
+                    console.error("Failed to cast array element at index " + std::to_string(index));
+                    return nullptr;
+                }
+            }
+        }
+
+        values.push_back(val);
+        ++index;
     }
-    
-    if (type->isDynamicArray()) {
-        DEBUG_LOG("[Array] Creating a dynamic Array");
-        // Dynamic arrays logic here
-        return nullptr;
-    }
-    
-    if (type->isHeterogeneousArray()) {
-        DEBUG_LOG("[Array] Creating a heterogeneous dynamic Array");
-        // Heterogeneous arrays logic here
+
+    if (values.size() != type->getFixedArrayLength()) {
+        console.error("Fixed array requires exactly " + std::to_string(type->getFixedArrayLength()) +
+                      " elements, but got " + std::to_string(values.size()));
         return nullptr;
     }
 
+    return std::make_shared<Omniscript::FixedArrayExpression>(values, expectedElementType);
+}
+
+std::shared_ptr<Literal> Array::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
+    using Kind = Omniscript::Kind;
+
+    if (!targetType) {
+        console.error("Target type for array cast is null.");
+        return nullptr;
+    }
+
+    std::vector<std::shared_ptr<Statement>> values;
+
+    // --- Handle string conversions ---
+    if (targetType->isString()) {
+        std::ostringstream stream;
+
+        for (size_t i = 0; i < intialValues.size(); ++i) {
+            
+        }
+
+        std::string result = stream.str();
+        std::u32string resultUtf32(result.begin(), result.end());
+
+        auto strLiteral = std::make_shared<StringLiteral>(resultUtf32);
+        strLiteral->setType(targetType);
+        return strLiteral;
+    }
+
+    // --- Handle casting to another fixed array ---
+    if (targetType->isFixedArray()) {
+        auto targetElemType = targetType->elementType;
+
+        if (targetType->getFixedSize() != values.size()) {
+            console.error("Cannot cast fixed array: size mismatch.");
+            return nullptr;
+        }
+
+        std::vector<std::shared_ptr<Omniscript::Expression>> castedValues;
+        for (const auto& val : values) {
+            if (!val) continue;
+
+            auto casted = val->castTo(targetElemType);
+            if (!casted) {
+                console.error("Failed to cast array element to target type " + targetElemType->toString());
+                return nullptr;
+            }
+
+            castedValues.push_back(casted);
+        }
+
+        auto newArray = std::make_shared<FixedArrayExpression>(castedValues, targetElemType);
+        newArray->setType(targetType);
+        return newArray;
+    }
+
+    console.error("Cannot cast array to type '" + targetType->toString() + "'.");
     return nullptr;
 }

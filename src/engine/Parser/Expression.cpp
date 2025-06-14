@@ -7,11 +7,11 @@
 #include <omniscript/omniscript_pch.h>
 
 std::shared_ptr<Statement> Parser::parseExpression() {
-    return parseTernaryExpression(); // Delegate to ternary parsing first
+    return parseTernaryExpression();
 }
 
 std::shared_ptr<Statement> Parser::parseTernaryExpression() {
-    std::shared_ptr<Statement> condition = parseBinaryExpression(); // Start with lower precedence
+    std::shared_ptr<Statement> condition = parseBinaryExpression();
 
     if (currentToken.getType() == TokenTypes::QuestionMark) {
         eat(TokenTypes::QuestionMark);
@@ -21,12 +21,12 @@ std::shared_ptr<Statement> Parser::parseTernaryExpression() {
         return std::make_shared<TernaryExpression>(condition, truthy, falsey);
     }
 
-    return condition; // Return just the binary expression if no ternary is found
+    return condition;
 }
 
 // Parse an expression, handling addition, subtraction, logical operators, and comparison operators
 std::shared_ptr<Statement> Parser::parseBinaryExpression() {
-    std::shared_ptr<Statement> left = logicalOrExpression(); // Start with logical OR (lowest precedence)
+    std::shared_ptr<Statement> left = logicalOrExpression();
 
     while (currentToken.getType() == TokenTypes::Plus || currentToken.getType() == TokenTypes::Minus ||
            currentToken.getType() == TokenTypes::LogicalAnd || currentToken.getType() == TokenTypes::LogicalOr) {
@@ -43,7 +43,7 @@ std::shared_ptr<Statement> Parser::parseBinaryExpression() {
             eat(TokenTypes::LogicalOr);
         }
 
-        left = std::make_shared<BinaryExpression>(left, opToken, logicalOrExpression()); // Chain with logical OR expression
+        left = std::make_shared<BinaryExpression>(left, opToken, logicalOrExpression());
     }
 
     return left;
@@ -144,7 +144,6 @@ std::shared_ptr<Statement> Parser::term() {
 }
 
 std::shared_ptr<Statement> Parser::parseUnaryExpression() {
-    // Handle prefix operators
     if (currentToken.getType() == TokenTypes::Plus ||
         currentToken.getType() == TokenTypes::Minus ||
         currentToken.getType() == TokenTypes::LogicalNot ||
@@ -181,18 +180,19 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
         } else if (op == TokenTypes::BitwiseAnd) {
             if (auto variable = std::dynamic_pointer_cast<GetVariable>(operand)) {
                 operand = std::make_shared<ReferenceTo>(variable->getName());
+            } else if (auto access = std::dynamic_pointer_cast<Access>(operand)) {
+                // Todo:: create a referent to an access
+                // operand = std::make_shared<ReferenceTo>(Access);
             } else {
-                console.error("Cannot get the reference of a symbol that isn't a variable");
+                console.error("Cannot get the reference of a symbol that isn't a variable '" + operand->toString() + "'.");
             }
         }
 
         return std::make_shared<UnaryExpression>(op, operand, UnaryExpression::Position::Prefix);
     }
 
-    // Parse primary expression
     auto expr = factor();
 
-    // Handle postfix operators
     while (currentToken.getType() == TokenTypes::Increment ||
            currentToken.getType() == TokenTypes::Decrement) {
         TokenTypes op = currentToken.getType();
@@ -200,7 +200,6 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
         expr = std::make_shared<UnaryExpression>(op, expr, UnaryExpression::Position::Postfix);
     }
 
-    // Handle 'as' casting (lowest precedence postfix)
     if (currentToken.getType() == TokenTypes::As) {
         eat(TokenTypes::As);
         std::vector<std::string> typeToCastTo = parseType();
@@ -216,7 +215,6 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
 std::shared_ptr<Statement> Parser::factor() {
     DEBUG_LOG("Factoring a '" + getTokenTypeName(currentToken.getType()) + "' with value '" + currentToken.getValue() + "'.");
 
-    // Handle literals
     std::shared_ptr<Statement> left;
 
     if (currentToken.getType() == TokenTypes::IntegerLiteral) {
@@ -231,7 +229,6 @@ std::shared_ptr<Statement> Parser::factor() {
             } else if (value >= std::numeric_limits<int64_t>::min() && value <= std::numeric_limits<int64_t>::max()) {
                 left = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
             } else {
-                // Handle BigInt case
                 left = std::make_shared<BigInt>(valueStr);
             }
         } catch (const std::out_of_range&) {
@@ -243,7 +240,6 @@ std::shared_ptr<Statement> Parser::factor() {
         eat(TokenTypes::FloatLiteral);
         std::string value = previousToken.getValue();
 
-        // Determine suffix
         bool isFloat = false;
         bool isDouble = false;
         bool isLong = false;
@@ -252,7 +248,7 @@ std::shared_ptr<Statement> Parser::factor() {
             char last = value.back();
             if (last == 'f' || last == 'F') {
                 isFloat = true;
-                value.pop_back(); // remove suffix before parsing
+                value.pop_back();
             } else if (last == 'd' || last == 'D') {
                 isDouble = true;
                 value.pop_back();
@@ -271,32 +267,31 @@ std::shared_ptr<Statement> Parser::factor() {
         left = floatStmt;
     }
 
-    // Handle integer literals (decimal)
     else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
         eat(TokenTypes::IntegerLiteral);
         left = std::make_shared<IntegerLiteral>(std::stoll(previousToken.getValue())); // Assuming Int32Bit is your integer type
     }
-    // Handle hexadecimal literals
+
     else if (currentToken.getType() == TokenTypes::HexLiteral) {
         eat(TokenTypes::HexLiteral);
         left = std::make_shared<IntegerLiteral>(std::stoll(previousToken.getValue(), nullptr, 16)); // Base 16
     }
-    // Handle octal literals
+
     else if (currentToken.getType() == TokenTypes::OctalLiteral) {
         eat(TokenTypes::OctalLiteral);
         left = std::make_shared<IntegerLiteral>(std::stoll(previousToken.getValue(), nullptr, 8)); // Base 8
     }
-    // Handle binary literals
+
     else if (currentToken.getType() == TokenTypes::BinaryLiteral) {
         eat(TokenTypes::BinaryLiteral);
         left = std::make_shared<IntegerLiteral>(std::stoll(previousToken.getValue(), nullptr, 2)); // Base 2
     }
-    // Handle big integers (arbitrary-precision)
+
     else if (currentToken.getType() == TokenTypes::BigInt) {
         eat(TokenTypes::BigInt);
         left = std::make_shared<BigInt>(previousToken.getValue()); // Assuming BigInt is your arbitrary-precision type
     }
-    // Handle string literals
+
     else if (currentToken.getType() == TokenTypes::StringLiteral) {
         eat(TokenTypes::StringLiteral);
         left = std::make_shared<StringLiteral>(previousToken.getU32Value());
@@ -314,7 +309,7 @@ std::shared_ptr<Statement> Parser::factor() {
         eat(TokenTypes::Null);
         left = std::make_shared<Null>();
     }
-    // Handle identifiers (variables and functions)
+
     else if (currentToken.getType() == TokenTypes::Identifier || currentToken.getType() == TokenTypes::New) {
         if (currentToken.getType() == TokenTypes::New) {
             eat(TokenTypes::New);
@@ -322,31 +317,26 @@ std::shared_ptr<Statement> Parser::factor() {
         left = parseIdentifier();
         DEBUG_LOG("Parsed the identifier and got " + left->toString() + "'.");
     }
-    // Handle arrays (e.g., [1, 2, 3])
-    else if (currentToken.getType() == TokenTypes::LeftBracket) {
-        eat(TokenTypes::LeftBracket);  // Consume the opening bracket
-        std::vector<std::shared_ptr<Statement>> items;  // Store the array items
 
-        // Parse array items (comma-separated expressions)
+    else if (currentToken.getType() == TokenTypes::LeftBracket) {
+        eat(TokenTypes::LeftBracket);  
+        std::vector<std::shared_ptr<Statement>> items;
+
         while (currentToken.getType() != TokenTypes::RightBracket) {
-            items.push_back(parseExpression());  // Wrap each item in an Expression
+            items.push_back(parseExpression());
             if (currentToken.getType() == TokenTypes::Comma) {
-                eat(TokenTypes::Comma);  // Consume the comma if there are more items
+                eat(TokenTypes::Comma);
             } else {
                 break;
             }
         }
 
-        eat(TokenTypes::RightBracket);  // Consume the closing bracket "]"
-
-        // Store the array directly as a value
+        eat(TokenTypes::RightBracket);  
         left = std::make_shared<Array>(items);
     }
 
-    // Handle expressions within parentheses
     else if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
         int i = 0;
-        //Todo: create an overload for tryParseTypeParametersLookahead(i) that takes in no references
         if (tryParseTypeParametersLookahead(i)) {
             parameterType paramTypes = parseTypeParametersForDeclaration();
             if (checkIfLambdaExpression()) {
@@ -356,21 +346,29 @@ std::shared_ptr<Statement> Parser::factor() {
             left = parseLambdaFunction();
         } else {
             eat(TokenTypes::LeftParen);
-            left = parseExpression();  // Parse the expression within parentheses
+            left = parseExpression();
             eat(TokenTypes::RightParen);
         }
-    } else if (currentToken.getType() == TokenTypes::Character) {
+    } 
+    
+    else if (currentToken.getType() == TokenTypes::Character) {
         char32_t value = currentToken.getU32Value()[0]; 
         eat(TokenTypes::Character);
         left = std::make_shared<CharacterLiteral>(value);
-    } else if (currentToken.getType() == TokenTypes::False) {
+    }
+    
+    else if (currentToken.getType() == TokenTypes::False) {
         eat(TokenTypes::False);
         left = std::make_shared<BoolLiteral>(false);
-    } else if (currentToken.getType() == TokenTypes::True) {
+    }
+    
+    else if (currentToken.getType() == TokenTypes::True) {
         eat(TokenTypes::True);
         left = std::make_shared<BoolLiteral>(true);
     
-    } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
+    }
+    
+    else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
         eat(TokenTypes::BitwiseAnd);
         std::string varName = currentToken.getValue();
         eat(TokenTypes::Identifier);
@@ -385,45 +383,5 @@ std::shared_ptr<Statement> Parser::factor() {
         left = parseObject();
     }
 
-    // Handle dot operator for method calls (e.g., object.method())
-    while (currentToken.getType() == TokenTypes::Dot) {
-        eat(TokenTypes::Dot);  // Consume the dot operator
-
-        // Ensure the next token is an identifier (method name or property)
-        if (currentToken.getType() != TokenTypes::Identifier) {
-            throw std::runtime_error("Expected an identifier after the '.' operator.");
-        }
-
-        std::string methodName = currentToken.getValue();
-        eat(TokenTypes::Identifier);  // Consume the method name
-
-        if (currentToken.getType() == TokenTypes::LeftParen || currentToken.getType() == TokenTypes::LessThan) {
-            DEBUG_LOG("Got method " + methodName);
-
-            // Parse the method call arguments
-            auto args = parseArguments();
-
-            // Create call for method invocation
-            left = std::make_shared<Call>(left, methodName, args);
-        } 
-        // else {
-        //     DEBUG_LOG("Got property " + methodName);
-        //     left = std::make_shared<MemberAccess>(left, methodName);
-        // }
-    }
-    
-    // Parse a parentheses after a string, dictionary, or an array to access a key
-    while (currentToken.getType() == TokenTypes::LeftBracket) {
-        eat(TokenTypes::LeftBracket);
-
-        std::vector<std::shared_ptr<Statement>> args;    
-        args.push_back(parseExpression());
-
-        eat(TokenTypes::RightBracket);
-        left = std::make_shared<Call>(left, "get", args);
-    }
-
-    // Return the final result wrapped in a BinaryExpression
-    // return std::make_shared<BinaryExpression>(left);
     return left;
 }

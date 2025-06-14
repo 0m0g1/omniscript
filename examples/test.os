@@ -1,101 +1,68 @@
 extern "C" {
+    fn sin(x: double) => double;
     fn printf(...fmt: char*) => int;
 }
 
-extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
-    fn glfwInit() => int;
-    fn glfwCreateWindow(w: int, h: int, title: char*, monitor: void*, share: void*) => void*;
-    fn glfwMakeContextCurrent(win: void*) => void;
-    fn glfwWindowShouldClose(win: void*) => int;
-    fn glfwPollEvents() => void;
-    fn glfwSwapBuffers(win: void*) => void;
-    fn glfwTerminate() => void;
-    fn glfwGetCursorPos(win: void*, x_out: double*, y_out: double*) => void;
-    fn glfwGetMouseButton(win: void*, button: int) => int;
+extern "dependencies/openal-soft-1.24.3-bin/bin/Win64/soft_oal.dll" {
+    fn alcOpenDevice(devName: char*) => void*;
+    fn alcCreateContext(dev: void*, attrList: int*) => void*;
+    fn alcMakeContextCurrent(ctx: void*) => bool;
+    fn alcCloseDevice(dev: void*) => bool;
+    fn alcDestroyContext(ctx: void*) => void;
+
+    fn alGenBuffers(n: int, buffers: int*) => void;
+    fn alBufferData(buffer: int, format: int, data: char*, size: int, freq: int) => void;
+    fn alGenSources(n: int, sources: int*) => void;
+    fn alSourcei(source: int, param: int, value: int) => void;
+    fn alSourcePlay(source: int) => void;
+    fn alDeleteSources(n: int, sources: int*) => void;
+    fn alDeleteBuffers(n: int, buffers: int*) => void;
 }
 
-extern "opengl32.dll" {
-    fn glClearColor(r: float, g: float, b: float, a: float) => void;
-    fn glClear(mask: uint) => void;
-    fn glBegin(mode: uint) => void;
-    fn glEnd() => void;
-    fn glVertex2f(x: float, y: float) => void;
-    fn glColor3f(r: float, g: float, b: float) => void;
-    fn glLoadIdentity() => void;
-    fn glViewport(x: int, y: int, w: int, h: int) => void;
-    fn glMatrixMode(mode: uint) => void;
-    fn glOrtho(left: double, right: double, bottom: double, top: double, near: double, far: double) => void;
+// AL Constants
+const AL_FORMAT_MONO16 = 0x1101;
+const AL_BUFFER = 0x1009;
+const PI:  float  = 3.1415927F;
+
+// Open audio device and context
+let device = alcOpenDevice(nullptr);
+let context = alcCreateContext(device, nullptr);
+alcMakeContextCurrent(context);
+
+// Create sine wave data
+let sampleRate = 44100;
+let duration = 1.0; // seconds
+let freq = 440.0; // A4 tone
+let samples = sampleRate * duration;
+
+let buffer = [1];
+let source = [1];
+
+alGenBuffers(1, &buffer[0]);
+alGenSources(1, &source[0]);
+
+// Generate mono 16-bit PCM sine wave
+let data: [44100]float = [samples];
+for (let i: float = 0; i < samples; i += 1) {
+    let t = i / sampleRate;
+    data[i] = (sin(2 * PI * freq * t) * 32767) as int;
 }
 
-const GL_COLOR_BUFFER_BIT = 0x00004000;
-const GL_PROJECTION = 0x1701;
-const GL_MODELVIEW = 0x1700;
-const GL_QUADS = 0x0007;
+let f : char = 0.1 as char;
 
-const BUTTON_LEFT = -0.3;
-const BUTTON_RIGHT = 0.3;
-const BUTTON_TOP = 0.2;
-const BUTTON_BOTTOM = -0.2;
+// // Upload to OpenAL
+// alBufferData(buffer[0], AL_FORMAT_MONO16, data as char*, samples * 2, sampleRate);
+// alSourcei(source[0], AL_BUFFER, buffer[0]);
+// alSourcePlay(source[0]);
 
-if (glfwInit() == 0) {
-    printf("GLFW failed\n");
-    return;
-}
+// // Wait for it to play
+// sleep(1000);
 
-let window = glfwCreateWindow(800, 600, "Button Example", nullptr, nullptr);
-if (window == nullptr) {
-    printf("Failed to create window\n");
-    glfwTerminate();
-    return;
-}
-
-glfwMakeContextCurrent(window);
-
-glViewport(0, 0, 800, 600);
-glMatrixMode(GL_PROJECTION);
-glLoadIdentity();
-glOrtho(-1, 1, -1, 1, -1, 1);
-glMatrixMode(GL_MODELVIEW);
-
-// Main loop
-while (glfwWindowShouldClose(window) == 0) {
-    glClearColor(0.2, 0.2, 0.2, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glLoadIdentity();
-
-    // Button color
-    glColor3f(0.3, 0.6, 0.9);
-    glBegin(GL_QUADS);
-        glVertex2f(BUTTON_LEFT, BUTTON_TOP);
-        glVertex2f(BUTTON_RIGHT, BUTTON_TOP);
-        glVertex2f(BUTTON_RIGHT, BUTTON_BOTTOM);
-        glVertex2f(BUTTON_LEFT, BUTTON_BOTTOM);
-    glEnd();
-
-    // Handle click
-    let mx: double = 0.0;
-    let my: double = 0.0;
-    glfwGetCursorPos(window, &mx, &my);
-
-    let win_w = 800.0;
-    let win_h = 600.0;
-
-    // Convert mouse to OpenGL coordinates
-    let norm_x = (mx / win_w) * 2.0 - 1.0;
-    let norm_y = -((my / win_h) * 2.0 - 1.0);
-
-    if (glfwGetMouseButton(window, 0) == 1) {
-        if (norm_x >= BUTTON_LEFT && norm_x <= BUTTON_RIGHT &&
-            norm_y >= BUTTON_BOTTOM && norm_y <= BUTTON_TOP) {
-            printf("Button clicked! Hello, World!\n");
-        }
-    }
-
-    glfwSwapBuffers(window);
-    glfwPollEvents();
-}
-
-glfwTerminate();
+// // Cleanup
+// alDeleteSources(1, &source[0]);
+// alDeleteBuffers(1, &buffer[0]);
+// alcDestroyContext(context);
+// alcCloseDevice(device);
 
 
 

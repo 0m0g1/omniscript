@@ -556,7 +556,8 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         if (var->extractValue) {
             DEBUG_LOG("Extracting the value of a nullable");
         }
-        return getVariable(var->variableName, var->extractValue);
+        // return getVariable(var->variableName, var->extractValue);
+        return getVariable(var->variableName, false);
     }
 
     if (auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(value)) {
@@ -1627,10 +1628,10 @@ std::string IRGenerator::typeToString(llvm::Type* type) {
 }
 
 bool IRGenerator::isNullableStruct(llvm::Type* type) {
-    if (auto* structType = llvm::dyn_cast<llvm::StructType>(type)) {
-        return structType->getNumElements() == 2 &&
-               structType->getElementType(0)->isIntegerTy(1);  // i1
-    }
+    // if (auto* structType = llvm::dyn_cast<llvm::StructType>(type)) {
+    //     return structType->getNumElements() == 2 &&
+    //            structType->getElementType(0)->isIntegerTy(1);  // i1
+    // }
     return false;
 }
 
@@ -1846,7 +1847,8 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
             // Result variable
             llvm::PHINode* phi = nullptr;
 
-            // Conditional branch: if lhs is true, evaluate rhs
+            llvm::BasicBlock* lhsBlock = Builder->GetInsertBlock(); // Save this before setting insert point
+
             Builder->CreateCondBr(lhs, rhsBlock, mergeBlock);
 
             // RHS block
@@ -1858,8 +1860,8 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
             Builder->SetInsertPoint(mergeBlock);
             phi = Builder->CreatePHI(llvm::Type::getInt1Ty(*Context), 2, "landtmp");
 
-            // Add incoming values to PHI node
-            phi->addIncoming(llvm::ConstantInt::getFalse(*Context), Builder->GetInsertBlock()->getSinglePredecessor());
+            // Correct incoming blocks
+            phi->addIncoming(llvm::ConstantInt::getFalse(*Context), lhsBlock);
             phi->addIncoming(rhs, rhsBlock);
 
             return phi;

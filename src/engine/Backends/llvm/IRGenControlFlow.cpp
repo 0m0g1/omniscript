@@ -111,16 +111,15 @@ llvm::Value* IRGenerator::createWhileLoop(
     auto localScope = scope->createChildScope("whileloop");
 
     llvm::BasicBlock* condBlock = llvm::BasicBlock::Create(context, "while.cond", function);
-    llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context, "while.body", function);
-    llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "while.end", function);
+    llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context, "while.body");
+    llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "while.end");
 
-    Builder->CreateBr(condBlock); // Jump to condition
+    Builder->CreateBr(condBlock);
     Builder->SetInsertPoint(condBlock);
 
     llvm::Value* condValue = whileExpr->condition ? codegen(whileExpr->condition, localScope) : nullptr;
 
     if (!condValue) {
-        // Treat null condition as infinite loop
         condValue = llvm::ConstantInt::getTrue(context);
     } else if (condValue->getType()->isIntegerTy()) {
         condValue = Builder->CreateICmpNE(
@@ -134,31 +133,35 @@ llvm::Value* IRGenerator::createWhileLoop(
             llvm::ConstantFP::get(condValue->getType(), 0.0),
             "whilecond"
         );
+    } else {
+        // Fallback or error
+        console.error("Invalid condition type in while loop");
+        return nullptr;
     }
 
     Builder->CreateCondBr(condValue, bodyBlock, afterBlock);
 
-    // Loop body
+    // Attach bodyBlock now
+    bodyBlock->insertInto(function);
     Builder->SetInsertPoint(bodyBlock);
-    bool bodyHasContent = false;
 
+    bool bodyHasContent = false;
     if (auto block = std::dynamic_pointer_cast<Omniscript::BlockExpression>(whileExpr->body)) {
-        for (auto& expr : block->values) {
-            if (expr) {
-                bodyHasContent = true;
-                if (!codegen(expr, localScope)) return nullptr;
-            }
+        if (!block->values.empty()) {
+            bodyHasContent = true;
+            codegen(whileExpr->body, localScope);
         }
-    } else if (whileExpr->body) {
-        bodyHasContent = true;
-        if (!codegen(whileExpr->body, localScope)) return nullptr;
     }
 
-    if (!bodyHasContent || !Builder->GetInsertBlock()->getTerminator()) {
+    // If the loop body doesn't end in a terminator (return, break, etc.), jump to condition again
+    if (!Builder->GetInsertBlock()->getTerminator()) {
         Builder->CreateBr(condBlock);
     }
 
+    // Attach afterBlock
+    afterBlock->insertInto(function);
     Builder->SetInsertPoint(afterBlock);
+
     return nullptr;
 }
 

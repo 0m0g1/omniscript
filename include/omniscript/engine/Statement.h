@@ -770,6 +770,7 @@ public:
         }
         return std::make_shared<Array>(copiedValues);  // Clone using copy constructor
     }
+    std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const override;
 };
 
         
