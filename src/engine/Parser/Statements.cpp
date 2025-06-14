@@ -12,15 +12,17 @@
 // Parse a single statement
 std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
     std::shared_ptr<Statement> statement;
-    // std::vector<std::shared_ptr<Statement>> statements;
 
-    if (debugMode) { // If we are in debug mode, show all of the tokens being parsed
-        std::string message = "The lexer got token '" + getTokenTypeName(currentToken.getType()) +
-                            "' with value '" + currentToken.getValue() + 
-                            "' at line: " + std::to_string(currentToken.getLine()) + 
-                            " column: " + std::to_string(currentToken.getColumn());
-        DEBUG_LOG(message);  // Using DEBUG_LOG to output the debug message
-    }
+    #ifdef DEBUG
+        // If we are in debug mode, show all of the tokens being parsed
+        if (debugMode) {
+            std::string message = "The lexer got token '" + getTokenTypeName(currentToken.getType()) +
+                                "' with value '" + currentToken.getValue() + 
+                                "' at line: " + std::to_string(currentToken.getLine()) + 
+                                " column: " + std::to_string(currentToken.getColumn());
+            DEBUG_LOG(message); 
+        }
+    #endif
 
     switch (currentToken.getType()) {
         case TokenTypes::Include:
@@ -121,7 +123,7 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             }
         }
         case TokenTypes::RightBrace:
-            statement = nullptr; // add parse RightBrace method
+            statement = nullptr;
             return statement;
         default:
            console.error(

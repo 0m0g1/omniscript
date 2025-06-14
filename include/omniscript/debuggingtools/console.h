@@ -10,7 +10,6 @@
 #include <omniscript/Core.h>
 
 
-// class Console: public Object {
 class Console {
 public:
     enum LogLevel { LOG, INFO, WARN, ERR, DEBUG_LOG };
@@ -24,7 +23,6 @@ public:
         static Console instance;
         return instance;
     }
-
 
     void enableDebug(bool state = true) { debugEnabled = state; }
     bool isDebugging() const {return debugEnabled; }
@@ -42,47 +40,42 @@ public:
             case WARN:
                 std::cout << "\033[1;33m" << message << "\033[0m"; // Yellow text
                 break;
-            case ERR: {
-                // Get the current position
+           case ERR: {
                 Omniscript::filePosition position = Omniscript::getPosition();
 
-                // Format the error message
-                std::string errorMessage = std::string("\033[1;31m") + "ERROR in file: '" + 
-                                        position.filePath + ":" + std::to_string(position.line) + ":" +
-                                        std::to_string(position.col) + ":" +
-                                        "' line: " + std::to_string(position.line) + 
-                                        ", column: " + std::to_string(position.col) +".\033[0m\n" + 
-                                        message + "\nPress Enter to terminate...\n";
+                std::string errorMessage = 
+                    "\033[1;31m" // Bold red text
+                    "ERROR:\n"
+                    "  File   : " + position.filePath + "\n" +
+                    "  Line   : " + std::to_string(position.line) + "\n" +
+                    "  Column : " + std::to_string(position.col) + "\n\n" +
+                    message + "\033[0m\n\nPress Enter to terminate...\n";
 
-                // Print to the console
                 std::cerr << errorMessage;
 
-                // Log the error to a file (append mode)
+                // Save to log file
                 std::ofstream logFile("error_log.txt", std::ios::out | std::ios::trunc);
                 if (logFile.is_open()) {
-                    logFile << "ERROR in file: '" << position.fileName << ":"
-                            << position.col << ":" << position.line << ":"
-                            << "' line: " << position.line
-                            << ", column: " << position.col << ".\n"
-                            << message << "\n\n";
+                    logFile << "ERROR:\n"
+                            << "  File   : " << position.filePath << "\n"
+                            << "  Line   : " << position.line << "\n"
+                            << "  Column : " << position.col << "\n\n"
+                            << message << "\n";
                     logFile.close();
                 } else {
-                    std::cerr << "Unable to open log file.\n";
+                    std::cerr << "Unable to open error_log.txt for writing.\n";
                 }
 
-                // Wait for user input before terminating
-                 // Launch an asynchronous task to get user input
+                // Wait for enter, but allow timeout
                 auto future = std::async(std::launch::async, [] {
                     return std::cin.get();
                 });
 
-                // Wait for user input with a timeout of 5 seconds
-                if (future.wait_for(std::chrono::seconds(5)) == std::future_status::ready) {
-                    char c = future.get(); // Get the character from the future
-                    // std::cout << "\nYou pressed: " << c << std::endl;
-                    std::exit(EXIT_FAILURE); // Terminate the program
+                if (future.wait_for(std::chrono::seconds(4)) == std::future_status::ready) {
+                    char c = future.get();
+                    std::exit(EXIT_FAILURE);
                 } else {
-                    std::exit(EXIT_FAILURE); // Terminate the program
+                    std::exit(EXIT_FAILURE);
                 }
 
                 break;
@@ -99,7 +92,6 @@ public:
         }
     }
 
-    // void log(const std::string& message) { log(message, LOG); }
     void info(const std::string& message = "", bool addNewline = true) { log(message, addNewline, INFO); }
     void warn(const std::string& message = "", bool addNewline = true) { log(message, addNewline, WARN); }
     void error(const std::string& message = "", bool addNewline = true) { log(message, addNewline, ERR); }
@@ -139,19 +131,17 @@ public:
             return;
         }
 
-        const int colWidth = 15; // Set a fixed column width for neat alignment
+        const int colWidth = 15; 
 
-        // Print headers with fixed width
         std::cout << std::left;
         for (const auto& header : headers) {
             std::cout << std::setw(colWidth) << header;
         }
-        std::cout << "\n";
 
-        // Print a divider
+        std::cout << "\n";
+        
         std::cout << std::string(colWidth * headers.size(), '-') << "\n";
 
-        // Print each item
         for (const auto& item : items) {
             std::cout << std::setw(colWidth) << item << "\n";
         }
@@ -169,6 +159,4 @@ private:
     std::unordered_map<std::string, std::chrono::high_resolution_clock::time_point> timers;
 };
 
-
-// Create an alias for the global singleton instance
 #define console Console::instance()

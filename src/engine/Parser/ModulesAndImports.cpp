@@ -33,7 +33,7 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
     bool importAll = false;
     std::string moduleName;
     std::string alias;
-    std::string path; // Path of the module (if from a file)
+    std::string path;
 
     // Handle selective import: `import { console } from "std";`
     if (currentToken.getType() == TokenTypes::LeftBrace) {
@@ -163,7 +163,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
             auto importStmt = std::make_shared<ImportModule>(
                 /* moduleName */ moduleAlias,
                 /* alias */ moduleAlias,
-                /* importedAliases */ std::unordered_map<std::string, std::string>{},  // you can extend this for `import { x as y } from ...` later
+                /* importedAliases */ std::unordered_map<std::string, std::string>{},  // Todo:: `import { x as y } from ...` later
                 /* path */ modulePath,
                 /* importAll */ true       // simple wildcard import for now
             );

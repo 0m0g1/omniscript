@@ -1,21 +1,11 @@
 #pragma once
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/engine/Statement.h>
-#include <omniscript/engine/EngineConfigs.h>
+#include <omniscript/engine/Backend.h>
 
-class JITBackend {
+class JITBackend : public Backend {
 public:
     virtual ~JITBackend() = default;
-
-    virtual void initialize() = 0;
-
-    virtual void execute(
-        const std::vector<std::shared_ptr<Statement>>& statements,
-        const Config& config
-    ) = 0;
 };
-
-
 
 class DummyJITBackend : public JITBackend {
 public:

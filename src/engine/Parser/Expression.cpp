@@ -24,7 +24,6 @@ std::shared_ptr<Statement> Parser::parseTernaryExpression() {
     return condition;
 }
 
-// Parse an expression, handling addition, subtraction, logical operators, and comparison operators
 std::shared_ptr<Statement> Parser::parseBinaryExpression() {
     std::shared_ptr<Statement> left = logicalOrExpression();
 
@@ -49,7 +48,6 @@ std::shared_ptr<Statement> Parser::parseBinaryExpression() {
     return left;
 }
 
-// Parse a logical OR expression
 std::shared_ptr<Statement> Parser::logicalOrExpression() {
     std::shared_ptr<Statement> left = logicalAndExpression();
 
@@ -63,7 +61,6 @@ std::shared_ptr<Statement> Parser::logicalOrExpression() {
     return left;
 }
 
-// Parse a logical AND expression
 std::shared_ptr<Statement> Parser::logicalAndExpression() {
     std::shared_ptr<Statement> left = comparisonExpression();
 
@@ -77,7 +74,6 @@ std::shared_ptr<Statement> Parser::logicalAndExpression() {
     return left;
 }
 
-// Parse a comparison expression, handling ==, !=, <, <=, >, >=
 std::shared_ptr<Statement> Parser::comparisonExpression() {
     std::shared_ptr<Statement> left = term();
 
@@ -107,7 +103,6 @@ std::shared_ptr<Statement> Parser::comparisonExpression() {
     return left;
 }
 
-// Parse a term, handling multiplication, division, modulo, and bitwise operators
 std::shared_ptr<Statement> Parser::term() {
     std::shared_ptr<Statement> left = parseUnaryExpression();
 
@@ -210,8 +205,6 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
     return expr;
 }
 
-
-// Parse a factor, handling literals, identifiers, and parentheses
 std::shared_ptr<Statement> Parser::factor() {
     DEBUG_LOG("Factoring a '" + getTokenTypeName(currentToken.getType()) + "' with value '" + currentToken.getValue() + "'.");
 
@@ -374,13 +367,6 @@ std::shared_ptr<Statement> Parser::factor() {
         eat(TokenTypes::Identifier);
 
         left = std::make_shared<AddressOf>(varName);
-    }
-
-    // Parse objects and dictionaries
-    // {a = 0, b = 1}
-    // {a, b} 
-    else if (currentToken.getType() == TokenTypes::LeftBrace) {
-        left = parseObject();
     }
 
     return left;

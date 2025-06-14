@@ -44,13 +44,12 @@ std::shared_ptr<Statement> Parser::parseEnum() {
             std::string valueName = currentToken.getValue();
             eat(TokenTypes::Identifier);
 
-            int assignedIndex = currentIndex; // Default index
+            int assignedIndex = currentIndex;
             
             if (currentToken.getType() == TokenTypes::Assign) {
                 eat(TokenTypes::Assign);
                 std::shared_ptr<Statement> valueExpr = parseExpression();
                 
-                // Try to evaluate the expression as an integer
                 if (auto intLiteral = std::dynamic_pointer_cast<IntegerLiteral>(valueExpr)) {
                     assignedIndex = intLiteral->getValue();
                 } else {
@@ -59,13 +58,12 @@ std::shared_ptr<Statement> Parser::parseEnum() {
             }
 
             values.push_back(std::make_shared<EnumValue>(valueName, assignedIndex));
-            currentIndex = assignedIndex + 1; // Auto-increment for the next entry
+            currentIndex = assignedIndex + 1;
         }
     }
 
     eat(TokenTypes::RightBrace);
     
-    // Create the EnumConstructor with the lookup flag
     return std::make_shared<EnumConstructor>(enumName, values, hasLookup, isEnumClass);
 }
 

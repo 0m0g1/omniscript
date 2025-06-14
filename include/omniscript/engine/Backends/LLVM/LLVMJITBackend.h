@@ -22,7 +22,6 @@ public:
         llvm::InitializeNativeTargetAsmPrinter();
         llvm::InitializeNativeTargetAsmParser();
         
-        // Create JIT instance
         auto jitOrError = llvm::orc::LLJITBuilder().create();
         if (!jitOrError) {
             throw std::runtime_error("Failed to create LLJIT");

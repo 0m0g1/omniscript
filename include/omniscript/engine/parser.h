@@ -1,16 +1,13 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-//Includes
+
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/lexer.h>
 #include <omniscript/engine/tokens.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/runtime/Class.h>
-
-//Include llvm headers
-// #include <llvm-c/...
 
 using parameterType = std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>>;
 
@@ -37,17 +34,17 @@ class Parser {
         Token currentToken;
         Token previousToken;
 
-        // Function declarations for parsing different token types
-        void parseProgram();                                // To parse a complete program
         
-        void initializeEnvironment();                       // To initialize constants, objects and utility functions
+        void parseProgram();                                
+        
+        void initializeEnvironment();                       
         void initializeFunctions();
         void initializeBuiltInObjects();
         void initializeConstants();
 
         void expectSemicolonOrNewLine();
         
-        std::shared_ptr<Statement> parseStatement(bool checkForTerminalChar = true); // To parse a single statement
+        std::shared_ptr<Statement> parseStatement(bool checkForTerminalChar = true); 
         
         std::shared_ptr<Statement> parseInclude();
         std::shared_ptr<Statement> parseModuleImport();
@@ -56,38 +53,47 @@ class Parser {
         std::shared_ptr<Statement> parseIntrinsicFunction();
 
         std::vector<std::shared_ptr<Statement>> parseParameters();
+
         std::vector<std::shared_ptr<Statement>> parseArguments(
             TokenTypes start = TokenTypes::LeftParen, 
             TokenTypes end = TokenTypes::RightParen,
             TokenTypes assignOp = TokenTypes::Assign
-        ); // Parse code block
+        );
+
         std::shared_ptr<Statement> parseFunctionDeclaration(
             parameterType paramTypes = {},
             std::shared_ptr<Omniscript::Type> type = nullptr
-        ); // To parse function declarations
+        ); 
+
         std::shared_ptr<Statement> parseFunctionDeclaration(
             const std::string& definedName = "",
             parameterType paramTypes = {},
             std::shared_ptr<Omniscript::Type> type = nullptr
         ); 
-        std::shared_ptr<Statement> parseIdentifier();          // To parse an identifier / function call
 
-        std::shared_ptr<ForLoop> parseForLoop();               // To parse for loops
-        std::shared_ptr<BreakStatement> parseBreak();          // To parse break statements
-        std::shared_ptr<ContinueStatement> parseContinue();    // To parse continue statements
-        std::shared_ptr<Statement> parseIfStatement();         // To parse if statements
-        std::shared_ptr<Statement> parseWhileStatement();      // To parse while loops
-        std::shared_ptr<ReturnStatement> parseReturnStatement();// To parse return statements
+        std::shared_ptr<Statement> parseIdentifier();          
+
+        std::shared_ptr<ForLoop> parseForLoop();               
+        std::shared_ptr<BreakStatement> parseBreak();          
+        std::shared_ptr<ContinueStatement> parseContinue();    
+        std::shared_ptr<Statement> parseIfStatement();         
+        std::shared_ptr<Statement> parseWhileStatement();      
+        std::shared_ptr<ReturnStatement> parseReturnStatement();
         bool isAssignmentExpression(TokenTypes tokenType);
-        std::shared_ptr<Statement> parseAssignment(std::shared_ptr<Statement> assignee = nullptr);          // To parse variable assignments
-        std::shared_ptr<Statement> parseAssignment(parameterType paramType);          // To parse variable assignments
-        std::u32string parseStringLiteral();                      // To parse string literals
+        std::shared_ptr<Statement> parseAssignment(std::shared_ptr<Statement> assignee = nullptr);          
+        std::shared_ptr<Statement> parseAssignment(parameterType paramType);      
+
+        std::u32string parseStringLiteral();                   
+        std::shared_ptr<Statement> parseStringTemplate();            
+
         std::shared_ptr<Statement> parseBlock();
+
         std::shared_ptr<Statement> parseLambdaFunction(
             const std::string& name = "",
             parameterType paramTypes = {},
             std::shared_ptr<Omniscript::Type> type = nullptr
         );
+
         bool tryParseTypeParametersLookahead(int& i);
         bool checkIfLambdaExpression();
         bool isGenericCallOrConstructor();
@@ -109,28 +115,24 @@ class Parser {
         std::vector<std::string> parseTypeParametersForCall();
         parameterType parseTypeParametersForDeclaration();
         
-        // Parse Objects
-        /*
-        std::shared_ptr<lambda> parseLambda(); // To parse a lambda function
-        */
         std::shared_ptr<Statement> parseObject();
         std::shared_ptr<Statement> parseClass();
         MemberModifiers parseMemberModifiers();
 
-        // Parse binary and operational expressions (e.g., mathematical expressions)
-        std::shared_ptr<Statement> parseTernaryExpression();   // Parse a ternary expression
-        std::shared_ptr<Statement> parseBinaryExpression();   // Parse a binary expression
+        
+        std::shared_ptr<Statement> parseTernaryExpression();   
+        std::shared_ptr<Statement> parseBinaryExpression();   
         std::shared_ptr<Statement> parseUnaryExpression();
 
-        std::shared_ptr<Statement> parseExpression();         // To parse a general expression
+        std::shared_ptr<Statement> parseExpression();         
         std::shared_ptr<Statement> logicalOrExpression();
         std::shared_ptr<Statement> logicalAndExpression();
         std::shared_ptr<Statement> comparisonExpression();
-        std::shared_ptr<Statement> term();                    // To parse multiplications and divisions
-        std::shared_ptr<Statement> factor();                  // To parse bracketed expressions ()
-        std::shared_ptr<Statement> parseAs();                  // To parse bracketed expressions ()
+        std::shared_ptr<Statement> term();                    
+        std::shared_ptr<Statement> factor();                  
+        std::shared_ptr<Statement> parseAs();                  
 
-        void eat(TokenTypes expectedType, const std::string& errorMessage = ""); // Helper function to consume a token if it matches the expected type
+        void eat(TokenTypes expectedType, const std::string& errorMessage = ""); 
 };
 
 #endif

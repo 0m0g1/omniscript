@@ -42,12 +42,10 @@ struct DynamicValue {
     std::string strValue;
 
     DynamicValue(int val) : type(INT), intValue(val) {}
-    DynamicValue(int64_t val) : type(INT), intValue(static_cast<int>(val)) {}  // New constructor
+    DynamicValue(int64_t val) : type(INT), intValue(static_cast<int>(val)) {}  
     DynamicValue(double val) : type(FLOAT), floatValue(val) {}
     DynamicValue(std::string val) : type(STRING), strValue(std::move(val)) {}
 };
-
-
 
 using IRGenSymbolTableType = std::shared_ptr<SymbolTable<llvm::Value*, llvm::Type*>>;
 
@@ -84,7 +82,7 @@ private:
     std::vector<std::shared_ptr<Omniscript::FunctionExpression>> userDefinedFunctions;
 
 public:
-    // Constructor initializes context, builder, and module
+    
     IRGenerator(const std::string& mainModulePath);
 
     std::unique_ptr<llvm::Module> getModule() { return std::move(Module); }
@@ -105,7 +103,7 @@ public:
     void printAssembly(llvm::Module* module);
 
     std::string debugType(llvm::Type* type);
-    void optimizeModule(int level = 2); // Define optimization logic
+    void optimizeModule(int level = 2); 
 
     bool isLoadedModule(const std::string& modulePath);
     bool isLoadedModuleMember(const std::string& modulePath, const std::string& memberName);
@@ -119,7 +117,6 @@ public:
 
     inline void popActiveBlock() {
         if (insertionPointStack.empty()) {
-            // console.error("No active block to pop!");
             return;
         }
         llvm::BasicBlock* prevBlock = insertionPointStack.top();
@@ -127,7 +124,7 @@ public:
         if (prevBlock) {
             Builder->SetInsertPoint(prevBlock);
         }
-        // If prevBlock is nullptr, the Builder remains unchanged
+        
     }
 
     inline void pushScope(const std::string& name = "") {
@@ -153,11 +150,7 @@ public:
     );
 
     void importModule(const std::string& moduleName, const std::vector<std::string>& members);
-    // bool isModuleUpdated(const std::string& moduleName);
-    // void unloadModule(const std::string& moduleName);
-
-    
-    // Generate IR for different types
+        
     llvm::Value* codegen(
         std::shared_ptr<Omniscript::Expression> value,
         std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
@@ -171,7 +164,7 @@ public:
     llvm::Value* createNullPointer(llvm::Type* pointeeType);
     llvm::Value* createRawPointer(uintptr_t address, llvm::Type* pointeeType);
     
-    // Number types
+    
     llvm::Value* create8BitInteger(int8_t value);
     llvm::Value* create16BitInteger(int16_t value);
     llvm::Value* create32BitInteger(int32_t value);
@@ -181,7 +174,7 @@ public:
     llvm::Value* createUnsigned32BitInteger(uint32_t value);
     llvm::Value* createUnsigned64BitInteger(uint64_t value);
     
-    // Target-specific 16-bit float handling
+    
     #ifdef __ARM_ARCH
         llvm::Value* create16BitFloat(__fp16 value);
     #elif defined(__x86_64__) || defined(__i386__)
@@ -193,7 +186,7 @@ public:
     llvm::Value* create80BitFloat(long double value);
     llvm::Value* create128BitFloat(__float128 value);
     
-    llvm::Value* createBigInt(const std::string& str, unsigned bitWidth); // Arbitrary precision integer
+    llvm::Value* createBigInt(const std::string& str, unsigned bitWidth); 
 
     llvm::Value* createChar(char value);
     llvm::Value* createChar16(char16_t value);
@@ -204,7 +197,7 @@ public:
     
     llvm::Value* createBool(bool value);
     
-    // Assignments
+    
     llvm::Function* getOrCreateGlobalInitFunction();
     void scheduleGlobalInitialization(
         const std::string& name,
@@ -357,11 +350,11 @@ public:
         const std::shared_ptr<Omniscript::WhileLoopExpression>& whileExpr,
         std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
     );
-     // Access expression handling
+     
     llvm::Value* handleAccessExpression(std::shared_ptr<Omniscript::AccessExpression> expr, 
                                       SymbolTableType scope);
     
-    // Specific access type handlers
+    
     llvm::Value* handleMemberAccess(std::shared_ptr<Omniscript::MemberAccessExpression> expr,
                                   llvm::Value* baseValue,
                                   SymbolTableType scope,
@@ -444,7 +437,7 @@ public:
     }
 };
 
-// Todo: enable resolving a whole library
+
 class StaticLibraryResolver : public ExternalFunctionResolver {
 public:
     llvm::Function* resolve(
@@ -452,7 +445,6 @@ public:
         const std::string& name,
         llvm::FunctionType* funcType
     ) override {
-        // This just declares the function for the linker to resolve.
         return llvm::Function::Create(
             funcType,
             llvm::Function::ExternalLinkage,

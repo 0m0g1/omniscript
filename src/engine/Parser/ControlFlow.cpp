@@ -6,8 +6,6 @@
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 
-
-//Todo:: Add proper error messages for various exceptions
 std::shared_ptr<ForLoop> Parser::parseForLoop() {
     eat(TokenTypes::For);
     eat(TokenTypes::LeftParen);
@@ -56,13 +54,11 @@ std::shared_ptr<BreakStatement> Parser::parseBreak() {
     return std::make_shared<BreakStatement>();
 }
 
-// Parse if statements
 std::shared_ptr<Statement> Parser::parseIfStatement() {
     std::vector<std::shared_ptr<Statement>> conditions;
     std::vector<std::shared_ptr<BlockStatement>> bodies;
     std::shared_ptr<BlockStatement> elseBody = nullptr;
 
-    // Parse initial 'if'
     eat(TokenTypes::If);
     eat(TokenTypes::LeftParen);
     auto condition = parseExpression();
@@ -72,7 +68,6 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
     conditions.push_back(condition);
     bodies.push_back(std::dynamic_pointer_cast<BlockStatement>(body));
 
-    // Parse any number of 'else if' branches
     while (currentToken.getType() == TokenTypes::Else_if) {
         eat(TokenTypes::Else_if);
         eat(TokenTypes::LeftParen);
@@ -84,7 +79,6 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
         bodies.push_back(std::dynamic_pointer_cast<BlockStatement>(elseIfBlock));
     }
 
-    // Optional 'else'
     if (currentToken.getType() == TokenTypes::Else) {
         eat(TokenTypes::Else);
         elseBody = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
@@ -95,10 +89,9 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
     return statement;
 }
 
-// Parse while loops
 std::shared_ptr<Statement> Parser::parseWhileStatement() {
-    eat(TokenTypes::While); // Consume the 'while' keyword
-    // Additional logic to parse the condition and body of the while loop would go here
+    eat(TokenTypes::While);
+
     eat(TokenTypes::LeftParen);
     auto condition = parseExpression();
     eat(TokenTypes::RightParen);
@@ -109,9 +102,9 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
     return std::make_shared<WhileStatement>(condition, body);
 }
 
-// Parse return statements
+
 std::shared_ptr<ReturnStatement> Parser::parseReturnStatement() {
-    eat(TokenTypes::Return); // Consume the 'return' keyword
+    eat(TokenTypes::Return);
     if (currentToken.getType() != TokenTypes::Semicolon) {
         std::shared_ptr<Statement> value = parseExpression();
         return std::make_shared<ReturnStatement>(value);

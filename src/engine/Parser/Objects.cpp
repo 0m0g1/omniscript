@@ -74,12 +74,6 @@ std::shared_ptr<Statement> Parser::parseObject() {
     return nullptr;
 }
 
-// std::shared_ptr<Statement> Parser::parseFunctionCall() {
-    
-
-// }
-
-
 std::shared_ptr<Statement> Parser::parseClass() {
     eat(TokenTypes::Class);
     std::string className = currentToken.getValue();
@@ -211,22 +205,27 @@ std::shared_ptr<Statement> Parser::parseStruct() {
     std::vector<std::shared_ptr<Statement>> body;
 
     eat(TokenTypes::LeftBrace);
+
     while (currentToken.getType() != TokenTypes::RightBrace) {
-        // Parse method or field
+
         if (checkIfLambdaExpression()) {
             std::string methodName = structName + "." + currentToken.getValue();
             eat(TokenTypes::Identifier);
-            auto func = parseLambdaFunction(methodName); // You can pass structName here for naming
+            
+            auto func = parseLambdaFunction(methodName);
             body.push_back(func);
+            
             if (currentToken.getType() == TokenTypes::Semicolon) {
                 eat(TokenTypes::Semicolon);
             }
+
         } else if (currentToken.getType() == TokenTypes::Identifier) {
             std::string fieldName = currentToken.getValue();
             std::vector<std::string> type;
             std::shared_ptr<Statement> value = nullptr;
 
             eat(TokenTypes::Identifier);
+
             if (currentToken.getType() == TokenTypes::Colon) {
                 eat(TokenTypes::Colon);
                 type = parseType();
@@ -241,11 +240,14 @@ std::shared_ptr<Statement> Parser::parseStruct() {
             field->setType(Omniscript::resolveType(type));
             body.push_back(field);
             eat(TokenTypes::Semicolon);
+
         } else {
-            // Unexpected token, maybe throw error or recover
             console.error("Unexpected token in struct body.");
         }
+
     }
+
     eat(TokenTypes::RightBrace);
+
     return std::make_shared<ConstructStructPrototype>(structName, body);
 }

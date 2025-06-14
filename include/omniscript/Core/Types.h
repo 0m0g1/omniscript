@@ -16,16 +16,15 @@ inline constexpr int getPointerBitWidth() {
     #elif defined(TARGET_64BIT)
         return 64;
     #else
-        return sizeof(void*) * 8;  // Works in hosted environments
+        return sizeof(void*) * 8;  
     #endif
 }
 
-// Kind enum
 enum class Kind {
     Invalid,
     Undefined,
 
-    // Primitive Types
+    
     Primitive,
     Void,
     Nullptr, Null, Nullable,
@@ -36,12 +35,12 @@ enum class Kind {
     UInt8, UInt16, UInt32, UInt64, UInt128, UInt256, UInt512, UInt1024,
     Half, Float, Double, FP128, X86_FP80, PPC_FP128,
 
-    // Special Types
+    
     Label,
     Token,
     Metadata,
 
-    // Aggregate Types
+    
     Module,
     Class,
     Struct,
@@ -49,25 +48,25 @@ enum class Kind {
     Array,
     Vector,
     
-    // Pointer Types
+    
     Pointer,
     Reference,
 
-    // Function Types
+    
     Function,
 
-    // Custom Types
+    
     String,
     Utf8,
     Utf16,
     Utf32,
     
-    //ArrayTypes
-    FixedArray,       // e.g., [4]i32
-    DynamicArray,     // e.g., [i32]
-    HeterogeneousArray, // e.g., []
     
-    //Other Types
+    FixedArray,       
+    DynamicArray,     
+    HeterogeneousArray, 
+    
+    
     UserDefined,
     Call,
     Unresolved,
@@ -75,7 +74,7 @@ enum class Kind {
     Block,
 };
 
-// Base class for all type representations
+
 class Type {
 public:
     std::string parameterName;
@@ -173,7 +172,7 @@ public:
             case Kind::Int256:
             case Kind::Int512:
             case Kind::Int1024:
-                return true;  // These are signed types
+                return true;  
             case Kind::Size_t:
             case Kind::UInt8:
             case Kind::UInt16:
@@ -183,9 +182,9 @@ public:
             case Kind::UInt256:
             case Kind::UInt512:
             case Kind::UInt1024:
-                return false;  // These are unsigned types
+                return false;  
             default:
-                return false;  // Other types are neither signed nor unsigned integers
+                return false;  
         }
     }
 
@@ -197,7 +196,7 @@ public:
         using enum Kind;
     
         switch (kind) {
-            // Fixed-size primitives
+            
             case Bool:         return 1;
             case Char:         return 8;
             case Char16:       return 16;
@@ -218,7 +217,7 @@ public:
             // Arbitrary precision
             case BigInt:       return -1; // Size not fixed — may depend on value
     
-            // Floats
+            
             case Half:         return 16;
             case Float:        return 32;
             case Double:       return 64;
@@ -228,9 +227,9 @@ public:
     
             // Pointers
             case Pointer:
-            case Reference:    return 64; // Assuming 64-bit pointers (could be dynamic)
+            case Reference:    return getPointerBitWidth(); 
     
-            // Special types with no size
+            
             case Void:
             case Null:
             case Nullptr:
@@ -238,7 +237,7 @@ public:
             case Unresolved:
                 return 0;
     
-            // These are not value types
+            
             case Label:
             case Metadata:
             case Token:
@@ -247,30 +246,30 @@ public:
             case Function:
                 return -1;
     
-            // Arrays
+            
             case FixedArray:
             case DynamicArray:
             case HeterogeneousArray:
-                return -1; // Size depends on element type and length
+                return -1; 
     
-            // Aggregates
+            
             case Struct:
             case Enum:
             case Vector:
-                return -1; // Should be computed based on fields or layout
+                return -1; 
     
-            // Custom / string-like
+            
             case String:
             case Utf8:
             case Utf16:
             case Utf32:
-                return -1; // Variable-sized — usually heap-allocated
+                return -1; 
     
-            // Generics
+            
             case Generic:
-                return -1; // Needs instantiation first
+                return -1; 
     
-            // Catch-all
+            
             default:
                 return -1;
         }
@@ -281,7 +280,7 @@ public:
     }
 
     bool isInteger(int bitwidth = -1) const {
-        // If no bitwidth is specified, just check if the kind is an integer
+        
         if (bitwidth == -1) {
             return kind == Kind::Int8 || kind == Kind::Int16 || kind == Kind::Int32 ||
                    kind == Kind::Int64 || kind == Kind::Int128 || kind == Kind::Int256 ||
@@ -297,7 +296,7 @@ public:
             return getPointerBitWidth() == bitwidth;
         }
 
-        // Otherwise, check the bitwidth against the kind of integer
+        
         switch (bitwidth) {
             case 8:
                 return kind == Kind::Int8 || kind == Kind::UInt8;
@@ -315,10 +314,8 @@ public:
                 return kind == Kind::Int512;
             case 1024:
                 return kind == Kind::Int1024;
-            // case 1024:
-                // return kind == Kind::BigInt;
             default:
-                return false;  // Unsupported bitwidth
+                return false;  
         }
     }
 
@@ -329,7 +326,7 @@ public:
                    kind == Kind::X86_FP80 || kind == Kind::PPC_FP128;
         }
     
-        // Check if the type matches the specified bit width for floats
+        
         if (bitWidth == 16) {
             return kind == Kind::Half;
         } else if (bitWidth == 32) {
@@ -337,12 +334,10 @@ public:
         } else if (bitWidth == 64) {
             return kind == Kind::Double;
         } else if (bitWidth == 128) {
-            return kind == Kind::FP128 || kind == Kind::PPC_FP128;  // PPC_FP128 also matches 128 bits
+            return kind == Kind::FP128 || kind == Kind::PPC_FP128;  
         } else if (bitWidth == 80) {
             return kind == Kind::X86_FP80;
         }
-    
-        // If needed, you can add further checks for other non-standard float types
     
         return false;
     }    
@@ -405,13 +400,11 @@ public:
     
 
     virtual std::shared_ptr<Type> clone() const {
-        // Fallback clone for base Type (can optionally throw if never meant to be instantiated)
         return std::make_shared<Type>(*this);
     }
 };
 
 // --- Derived Types ---
-
 class PrimitiveType : public Type {
 public:
     template <typename T>
@@ -438,12 +431,13 @@ public:
         if constexpr (std::is_same_v<T, uint64_t>) return Kind::UInt64;
         if constexpr (std::is_same_v<T, unsigned __int128>) return Kind::UInt128;
 
-        // Check if the type is a 32-bit float
+        // Check if the type is a 16-bit float
         #ifdef __ARM_ARCH
             if constexpr (std::is_same_v<T, __fp16>) return Kind::Half;
         #elif defined(__x86_64__) || defined(__i386__)
             if constexpr (std::is_same_v<T, _Float16>) return Kind::Half;
         #endif
+
         if constexpr (std::is_same_v<T, float>) return Kind::Float;
         if constexpr (std::is_same_v<T, double>) return Kind::Double;
         if constexpr (std::is_same_v<T, __float128>) return Kind::FP128;
@@ -453,7 +447,7 @@ public:
         if constexpr (std::is_same_v<T, std::u16string>) return Kind::Char16;
         if constexpr (std::is_same_v<T, std::u32string>) return Kind::Char32;
 
-        return Kind::Invalid;  // Default case if type isn't handled
+        return Kind::Invalid;  
     }
 
     Kind primitiveKind;
@@ -519,8 +513,7 @@ public:
     bool nullCaseHandled = false;
     bool isConst;
     bool isVolatile;
-
-    // Constructor
+    
     PointerType(std::shared_ptr<Type> pointeeType, bool isConst = false, bool isVolatile = false) {
             this->pointeeType = pointeeType;
             kind = Kind::Pointer;
@@ -528,12 +521,12 @@ public:
             this->isVolatile = isVolatile;
         }
 
-    // Get the pointee type (directly)
+    
     std::shared_ptr<Type> getPointeeType() const override {
         return pointeeType;
     }
 
-    // Method to get the pointer depth recursively
+    
     int getPointerDepth() const override {
         int depth = 0;
         auto currentPointee = pointeeType;
@@ -551,7 +544,7 @@ public:
         return depth;
     }
 
-    // Method to get the base pointee type (the deepest pointee type)
+    
     std::shared_ptr<Type> getBasePointeeType() const {
         auto currentPointee = pointeeType;
 
@@ -570,9 +563,9 @@ public:
     std::string description() const override { return pointerDescription(); }
     std::string pointerDescription() const override {
         std::vector<std::string> parts;
-        std::shared_ptr<Type> current = pointeeType;  // start from the first pointee
+        std::shared_ptr<Type> current = pointeeType;  
     
-        // Walk through all pointer levels
+        
         while (current->isPointer()) {
             parts.push_back("pointer");
             current = std::dynamic_pointer_cast<PointerType>(current);
@@ -584,14 +577,13 @@ public:
         }
         
         if (current) {
-            // Add the base type at the end
             parts.push_back(current->toString());
         }
     
-        // Reverse to get natural order (base type first)
+        
         std::reverse(parts.begin(), parts.end());
     
-        // Join with spaces
+        
         std::string description;
         for (const auto& part : parts) {
             if (!description.empty()) description += " ";
@@ -610,7 +602,7 @@ class NullType : public Type {
 public:
     bool nullCaseHandled = false;
     std::shared_ptr<Type> innerType;
-    NullType(std::shared_ptr<Type> innerType = nullptr) : innerType(innerType) {  // You can use any default 'unknown' type
+    NullType(std::shared_ptr<Type> innerType = nullptr) : innerType(innerType) {  
         kind = Kind::Null;
     }
 
@@ -627,7 +619,7 @@ class NullableType : public Type {
 public:
     bool nullCaseHandled = false;
     std::shared_ptr<Type> innerType;
-    NullableType(std::shared_ptr<Type> innerType = nullptr) : innerType(innerType) {  // You can use any default 'unknown' type
+    NullableType(std::shared_ptr<Type> innerType = nullptr) : innerType(innerType) {  
         kind = Kind::Nullable;
     }
 
@@ -646,7 +638,7 @@ public:
     bool isConst;
     bool isVolatile;
 
-    // Constructor
+    
     NullPointerType(std::shared_ptr<Type> pointeeType, bool isConst = false, bool isVolatile = false) {
             this->pointeeType = pointeeType;
             kind = Kind::Nullptr;
@@ -654,12 +646,12 @@ public:
             this->isVolatile = isVolatile;
         }
 
-    // Get the pointee type (directly)
+    
     std::shared_ptr<Type> getPointeeType() const override {
         return pointeeType;
     }
 
-    // Method to get the pointer depth recursively
+    
     int getPointerDepth() const override {
         int depth = 0;
         auto currentPointee = pointeeType;
@@ -677,7 +669,7 @@ public:
         return depth;
     }
 
-    // Method to get the base pointee type (the deepest pointee type)
+    
     std::shared_ptr<Type> getBasePointeeType() const {
         auto currentPointee = pointeeType;
 
@@ -696,9 +688,9 @@ public:
     std::string description() const override { return pointerDescription(); }
     std::string pointerDescription() const override {
         std::vector<std::string> parts;
-        std::shared_ptr<Type> current = pointeeType;  // start from the first pointee
+        std::shared_ptr<Type> current = pointeeType;  
     
-        // Walk through all pointer levels
+        
         while (current->isPointer()) {
             parts.push_back("pointer");
             current = std::dynamic_pointer_cast<PointerType>(current);
@@ -709,16 +701,16 @@ public:
             }
         }
     
-        // Add the base type at the end
+        
         if (current) {
-            // Add the base type at the end
+            
             parts.push_back(current->toString());
         }
     
-        // Reverse to get natural order (base type first)
+        
         std::reverse(parts.begin(), parts.end());
     
-        // Join with spaces
+        
         std::string description;
         for (const auto& part : parts) {
             if (!description.empty()) description += " ";
@@ -746,9 +738,9 @@ public:
         return referentType; 
     }
 
-    // Get depth of reference levels (e.g., &&var is depth 2)
+    
     int getReferenceDepth() const override {
-        int depth = 1;  // start from 1 since this is already a reference
+        int depth = 1;  
         auto current = referentType;
 
         while (current->isReference()) {
@@ -759,7 +751,7 @@ public:
         return depth;
     }
 
-    // Get the ultimate base type (i.e., the non-reference type at the bottom)
+    
     std::shared_ptr<Type> getBaseReferencedType() const override {
         auto current = referentType;
 

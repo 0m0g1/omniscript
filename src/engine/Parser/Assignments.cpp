@@ -9,7 +9,6 @@
 #include <omniscript/mainthreadrunner.h>
 #include <omniscript/omniscript_pch.h>
 
-// Parse variable assignments
 bool Parser::isAssignmentExpression(TokenTypes tokenType) {
     if (tokenType == TokenTypes::Assign || 
         tokenType == TokenTypes::PlusAssign || 
@@ -24,13 +23,11 @@ bool Parser::isAssignmentExpression(TokenTypes tokenType) {
 }
 
 std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
-    // We assume this is a lambda assignment like: let fn = (x: int) => x * 2;
 
-    TokenTypes variableType = TokenTypes::Let; // Default to let, or adapt as needed
+    TokenTypes variableType = TokenTypes::Let;
     std::string variableName;
     std::shared_ptr<Omniscript::Type> type = nullptr;
 
-    // Parse `let` or `const`
     if (currentToken.getType() == TokenTypes::Let) {
         eat(TokenTypes::Let);
         variableType = TokenTypes::Let;
@@ -39,24 +36,19 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
         variableType = TokenTypes::Const;
     }
 
-    // Parse variable name
     variableName = currentToken.getValue();
     eat(TokenTypes::Identifier);
 
-    // Parse optional type annotation
     if (currentToken.getType() == TokenTypes::Colon) {
         eat(TokenTypes::Colon);
         std::vector<std::string> dataTypes = parseType();
         type = Omniscript::resolveType(dataTypes);
     }
 
-    // Parse assignment
     eat(TokenTypes::Assign);
 
-    // Parse lambda using provided paramTypes
     std::shared_ptr<Statement> lambda = parseLambdaFunction(variableName, paramTypes);
 
-    // Set lambda's name if it's a FunctionDeclaration
     if (auto funcDecl = std::dynamic_pointer_cast<FunctionDeclaration>(lambda)) {
         if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
             named->setName(variableName);
@@ -82,24 +74,27 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
     bool isPointer = false;
     bool isArray = false;
     
-    // Parse variable declarations (let or const)
     if (!assignee) {
+        
         if (currentToken.getType() == TokenTypes::Let) {
             eat(TokenTypes::Let);
             variableType = TokenTypes::Let;
+
         } else if (currentToken.getType() == TokenTypes::Const) {
             eat(TokenTypes::Const);
             variableType = TokenTypes::Const;
+
         } else {
             variableName = previousToken.getValue();
         }
+
         variableName = currentToken.getValue();
         eat(TokenTypes::Identifier);
-        // Handle type annotation before variable name
+
         std::vector<std::string> dataTypes;
+
         if (currentToken.getType() == TokenTypes::Colon) {
             eat(TokenTypes::Colon);
-    
             dataTypes = parseType();
         
         } else if (currentToken.getType() == TokenTypes::Assign) {
@@ -124,12 +119,13 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
                     named->setName(variableName);
                 }
-                return funcDecl;  // Return the function declaration
+                return funcDecl;
             }
     
             if (variableType == TokenTypes::Let) {
                 return std::make_shared<AssignVariable>(variableName, nullptr, result);
             }
+
             auto constant = std::make_shared<AssignVariable>(variableName, nullptr, result);
             constant->markAsConstant();
             return constant;
@@ -154,6 +150,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                     eat(TokenTypes::Semicolon);
             }
             eat(currentToken.getType());
+
         } else {
             DEBUG_LOG("Assigning a binary or ternary expression");
             Token currentAssignmentOperation = currentToken;
@@ -181,6 +178,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                     break;
             }
         }
+
     } else {
         value = nullptr; // Handle cases like `let a;`
         if (currentToken.getType() != TokenTypes::Newline &&
@@ -198,8 +196,10 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
         }
         return std::make_shared<AssignVariable>(variableName, type, value);
     }
+
     if (auto varGetter = std::dynamic_pointer_cast<GetVariable>(assignee)) {
         return std::make_shared<AssignVariable>(varGetter->getName(), type, value, true);
+
     } else if (auto reassignAccess = std::dynamic_pointer_cast<Access>(assignee)) {
         auto accessClone = std::dynamic_pointer_cast<Access>(reassignAccess->clone());
         accessClone->setAssignmentValueTo(value);

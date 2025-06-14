@@ -9,7 +9,6 @@
 #include <omniscript/mainthreadrunner.h>
 #include <omniscript/omniscript_pch.h>
 
-// Parse function declarations
 std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     parameterType paramTypes,
     std::shared_ptr<Omniscript::Type> type
@@ -244,7 +243,7 @@ std::string Parser::generateSpecializedNameForDecleration(
     oss << baseName;
 
     for (size_t i = 0; i < types.size(); ++i) {
-        oss << "_"; // separator after baseName or previous type group
+        oss << "_";
         const auto& [genericName, concreteType] = types[i];
 
         for (size_t j = 0; j < concreteType.size(); ++j) {
@@ -263,12 +262,10 @@ std::string Parser::generateSpecializedNameForDecleration(
                 oss << part;
             }
 
-            // Only add underscore between parts, not after last
             if (j < concreteType.size() - 1)
                 oss << "_";
         }
 
-        // Add double underscore between groups, not after the last group
         if (i < types.size() - 1)
             oss << "__";
     }
@@ -292,48 +289,42 @@ bool Parser::checkIfLambdaExpression() {
             lexer.peekToken(i).getType() == TokenTypes::Identifier ||
             lexer.peekToken(i).getType() == TokenTypes::Comma || 
             lexer.peekToken(i).getType() == TokenTypes::Assign ||
-            lexer.peekToken(i).getType() == TokenTypes::Colon // Argument type annotation
+            lexer.peekToken(i).getType() == TokenTypes::Colon
             ) {
 
             DEBUG_LOG(getTokenTypeName(lexer.peekToken(i).getType()));
             
-            // Check for argument name (identifier)
             if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                 hasValidArgument = true;
                 i++;
             }
             
-            // Check for argument type annotation (e.g., a: int)
             if (lexer.peekToken(i).getType() == TokenTypes::Colon) {
-                i++; // Skip over the colon
+                i++;
                 if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
-                    // Argument type is valid, so skip the type token
                     i++;
                 }
             }
             
-            // Check for default value (e.g., a: int = 1)
             if (lexer.peekToken(i).getType() == TokenTypes::Assign) {
-                i++; // Skip over the =
+                i++;
                 if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
                     lexer.peekToken(i).getType() == TokenTypes::FloatLiteral ||
                     lexer.peekToken(i).getType() == TokenTypes::StringLiteral) {
-                    // Valid default value
                     i++;
                 }
             }
             
-            // Skip commas between arguments
             if (lexer.peekToken(i).getType() == TokenTypes::Comma) {
                 i++;
             }
         }
 
-        // Check if we have reached the closing parenthesis and arrow (=>)
         if (lexer.peekToken(i).getType() == TokenTypes::RightParen && lexer.peekToken(i + 1).getType() == TokenTypes::Arrow) {
             return true;
         }
     }
+    
     return false;
 }
 
