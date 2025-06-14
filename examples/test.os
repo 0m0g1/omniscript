@@ -1,11 +1,12 @@
 // extern "C" {
-//     // fn sin(x: double) => double;
+//     fn sin(x: double) => double;
 //     fn printf(...fmt: char*) => int;
+//     fn puts(str: char*) => int;
 // }
 
-// printf("hi")
-
+// puts("hi")
 // let n: int32 = 0;
+// let n: double = sin(0.7);
 // n++;
 
 // extern "dependencies/openal-soft-1.24.3-bin/bin/Win64/soft_oal.dll" {
