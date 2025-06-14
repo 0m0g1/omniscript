@@ -676,7 +676,7 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     localScope = scope->createChildScope(name);
 
     if (name == "main") {
-        name = "__main";
+        name = "main";
     }
 
     std::vector<std::shared_ptr<Omniscript::TypeExpression>> genericTypes = createTypeExpressionListFromBoundGenerics();
@@ -748,7 +748,7 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     //     functionBody.push_back(stmt->express(localScope));
     // }
 
-    std::string mangledName = (name == "__main" ? "__main" : generateMangledName());
+    std::string mangledName = (name == "main" ? "main" : generateMangledName());
 
     // Build the FunctionType object from param types and return type
     DEBUG_LOG("[Function] Building the function type");

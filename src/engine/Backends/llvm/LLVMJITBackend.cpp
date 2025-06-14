@@ -100,17 +100,17 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         func = module->getFunction(config.entry);
         entryPoint = config.entry;
     } else {
-        func = module->getFunction("__main");
+        func = module->getFunction("main");
         if (!func) {
             func = module->getFunction("__top_level__");
             entryPoint = "__top_level__";
         } else {
-            entryPoint = "__main";
+            entryPoint = "main";
         }
     }
     
     if (!func) {
-        console.error("No valid entry function found (expected '__main' or '__top_level__').");
+        console.error("No valid entry function found (expected 'main' or '__top_level__').");
     }
     
     // Add the module to the JIT
@@ -138,11 +138,11 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         entryFunc();
         DEBUG_LOG("Execution Completed (void function).");
         
-    } else if (entryPoint == "__main") {
+    } else if (entryPoint == "main") {
         if (!returnType->isIntegerTy(32)) {
-            console.error("__main must return and int 32.");
+            console.error("main must return and int 32.");
         }
-        DEBUG_LOG("Executing __main function...");
+        DEBUG_LOG("Executing main function...");
         auto entryFunc = entrySymbol->toPtr<int(*)()>();
         int result = entryFunc();
         DEBUG_LOG("Execution Result: " + std::to_string(result));
@@ -164,7 +164,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     }
     
     // Execute any pending calls if needed
-    if (config.entry.empty() && !jit->lookup("__main")) {
+    if (config.entry.empty() && !jit->lookup("main")) {
         DEBUG_LOG("Executing pending calls...");
         for (auto& call : pendingCalls) {
             call();

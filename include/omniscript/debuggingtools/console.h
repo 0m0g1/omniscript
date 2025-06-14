@@ -43,23 +43,19 @@ public:
            case ERR: {
                 Omniscript::filePosition position = Omniscript::getPosition();
 
-                std::string errorMessage = 
-                    "\033[1;31m" // Bold red text
-                    "ERROR:\n"
-                    "  File   : " + position.filePath + "\n" +
-                    "  Line   : " + std::to_string(position.line) + "\n" +
-                    "  Column : " + std::to_string(position.col) + "\n\n" +
-                    message + "\033[0m\n\nPress Enter to terminate...\n";
+                std::cerr << "\033[1;31m" // Bold red
+                        << "ERROR in " << position.filePath
+                        << " at line " << position.line
+                        << ", column " << position.col << ":\033[0m\n"; // Reset color
 
-                std::cerr << errorMessage;
+                std::cerr << message << "\nPress Enter to terminate...\n";
 
                 // Save to log file
                 std::ofstream logFile("error_log.txt", std::ios::out | std::ios::trunc);
                 if (logFile.is_open()) {
-                    logFile << "ERROR:\n"
-                            << "  File   : " << position.filePath << "\n"
-                            << "  Line   : " << position.line << "\n"
-                            << "  Column : " << position.col << "\n\n"
+                    logFile << "ERROR in " << position.filePath
+                            << " at line " << position.line
+                            << ", column " << position.col << ":\n"
                             << message << "\n";
                     logFile.close();
                 } else {

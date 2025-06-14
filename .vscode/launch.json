@@ -6,13 +6,33 @@
     "version": "0.2.0",
     "configurations": [
         {
-        "name": "Launch Debug",
+        "name": "DEBUG JIT",
         "type": "cppdbg",
         "request": "launch",
         "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
         "args": [
             "examples\\test.os",
             "--execute",
+            "--debug",
+            "--optimization-level",
+            "-1"
+        ],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "gdb"
+        },
+        {
+        "name": "DEBUG AOT",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
+        "args": [
+            "examples\\test.os",
+            "--make",
+            "--o",
+            "test.os",
             "--debug",
             "--optimization-level",
             "-1"

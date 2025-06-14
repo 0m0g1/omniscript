@@ -1,54 +1,59 @@
-extern "C" {
-    fn sin(x: double) => double;
-    fn printf(...fmt: char*) => int;
-}
+// extern "C" {
+//     // fn sin(x: double) => double;
+//     fn printf(...fmt: char*) => int;
+// }
 
-extern "dependencies/openal-soft-1.24.3-bin/bin/Win64/soft_oal.dll" {
-    fn alcOpenDevice(devName: char*) => void*;
-    fn alcCreateContext(dev: void*, attrList: int*) => void*;
-    fn alcMakeContextCurrent(ctx: void*) => bool;
-    fn alcCloseDevice(dev: void*) => bool;
-    fn alcDestroyContext(ctx: void*) => void;
+// printf("hi")
 
-    fn alGenBuffers(n: int, buffers: int*) => void;
-    fn alBufferData(buffer: int, format: int, data: char*, size: int, freq: int) => void;
-    fn alGenSources(n: int, sources: int*) => void;
-    fn alSourcei(source: int, param: int, value: int) => void;
-    fn alSourcePlay(source: int) => void;
-    fn alDeleteSources(n: int, sources: int*) => void;
-    fn alDeleteBuffers(n: int, buffers: int*) => void;
-}
+// let n: int32 = 0;
+// n++;
 
-// AL Constants
-const AL_FORMAT_MONO16 = 0x1101;
-const AL_BUFFER = 0x1009;
-const PI:  float  = 3.1415927F;
+// extern "dependencies/openal-soft-1.24.3-bin/bin/Win64/soft_oal.dll" {
+//     fn alcOpenDevice(devName: char*) => void*;
+//     fn alcCreateContext(dev: void*, attrList: int*) => void*;
+//     fn alcMakeContextCurrent(ctx: void*) => bool;
+//     fn alcCloseDevice(dev: void*) => bool;
+//     fn alcDestroyContext(ctx: void*) => void;
 
-// Open audio device and context
-let device = alcOpenDevice(nullptr);
-let context = alcCreateContext(device, nullptr);
-alcMakeContextCurrent(context);
+//     fn alGenBuffers(n: int, buffers: int*) => void;
+//     fn alBufferData(buffer: int, format: int, data: char*, size: int, freq: int) => void;
+//     fn alGenSources(n: int, sources: int*) => void;
+//     fn alSourcei(source: int, param: int, value: int) => void;
+//     fn alSourcePlay(source: int) => void;
+//     fn alDeleteSources(n: int, sources: int*) => void;
+//     fn alDeleteBuffers(n: int, buffers: int*) => void;
+// }
 
-// Create sine wave data
-let sampleRate = 44100;
-let duration = 1.0; // seconds
-let freq = 440.0; // A4 tone
-let samples = sampleRate * duration;
+// // AL Constants
+// const AL_FORMAT_MONO16 = 0x1101;
+// const AL_BUFFER = 0x1009;
+// const PI:  float  = 3.1415927F;
 
-let buffer = [1];
-let source = [1];
+// // Open audio device and context
+// let device = alcOpenDevice(nullptr);
+// let context = alcCreateContext(device, nullptr);
+// alcMakeContextCurrent(context);
 
-alGenBuffers(1, &buffer[0]);
-alGenSources(1, &source[0]);
+// // Create sine wave data
+// let sampleRate = 44100;
+// let duration = 1.0; // seconds
+// let freq = 440.0; // A4 tone
+// let samples = sampleRate * duration;
 
-// Generate mono 16-bit PCM sine wave
-let data: [44100]float = [samples];
-for (let i: float = 0; i < samples; i += 1) {
-    let t = i / sampleRate;
-    data[i] = (sin(2 * PI * freq * t) * 32767) as int;
-}
+// let buffer = [1];
+// let source = [1];
 
-let f : char = 0.1 as char;
+// alGenBuffers(1, &buffer[0]);
+// alGenSources(1, &source[0]);
+
+// // Generate mono 16-bit PCM sine wave
+// let data: [44100]float = [samples];
+// for (let i: float = 0; i < samples; i += 1) {
+//     let t = i / sampleRate;
+//     data[i] = (sin(2 * PI * freq * t) * 32767) as int;
+// }
+
+// let f : char = 0.1 as char;
 
 // // Upload to OpenAL
 // alBufferData(buffer[0], AL_FORMAT_MONO16, data as char*, samples * 2, sampleRate);

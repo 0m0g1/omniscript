@@ -188,14 +188,14 @@ void IRGenerator::generateFunctionBody(
     Builder->SetInsertPoint(entry);
     DEBUG_LOG("Created entry block for function: " + function->getName().str());
 
-    if (name == "__main") {
-        DEBUG_LOG("Inserting call to __top_level__ inside __main");
+    if (name == "main") {
+        DEBUG_LOG("Inserting call to __top_level__ inside main");
     
         std::vector<llvm::Value*> topLevelArgs; // no arguments
         llvm::Value* topLevelCall = createCall("__top_level__", topLevelArgs, entry);
         
         if (!topLevelCall) {
-            console.error("Failed to insert call to __top_level__ in __main");
+            console.error("Failed to insert call to __top_level__ in main");
             Builder->CreateUnreachable();
             popScope();
             popActiveBlock();
@@ -203,7 +203,7 @@ void IRGenerator::generateFunctionBody(
             return;
         }
     
-        DEBUG_LOG("Successfully inserted call to __top_level__ inside __main");
+        DEBUG_LOG("Successfully inserted call to __top_level__ inside main");
     }    
     
     // Create a new scope for function parameters + body

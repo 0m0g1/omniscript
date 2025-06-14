@@ -81,6 +81,9 @@ void LLVMAOTBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     irGen->compileAllFunctionBodies(scope);
     irGen->finalizeGlobalInitializers();
     irGen->finalize();
+    if (config.entry.empty()) {
+        irGen->addMainFunction();
+    }
     irGen->optimizeModule(config.optimizationLevel);
 
     if (config.logFinalCode) {
@@ -177,20 +180,46 @@ void LLVMAOTBackend::emitAssemblyFile(const std::string& asmFilename) {
 
 void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::string& exeFile) {
     std::vector<std::pair<std::string, std::vector<std::string>>> linkerOptions = {
-        {"clang++", {"-o", exeFile, objFile, "-lm", "-ldl", "-lpthread"}},
-        {"g++", {"-o", exeFile, objFile, "-lm", "-ldl", "-lpthread"}},
-        {"clang", {"-o", exeFile, objFile}},
-        {"gcc", {"-o", exeFile, objFile}}
+#ifdef _WIN32
+        {"clang++", {
+            "-o", exeFile, 
+            objFile,
+            "-luser32",
+            "-lgdi32",
+            "-lshell32"
+        }},
+        {"g++", {
+            "-o", exeFile,
+            objFile,
+            "-luser32",
+            "-lgdi32",
+            "-lshell32"
+        }}
+#else
+        {"clang++", {
+            "-o", exeFile,
+            objFile,
+            "-lm",
+            "-ldl",
+            "-lpthread"
+        }},
+        {"g++", {
+            "-o", exeFile,
+            objFile,
+            "-lm", 
+            "-ldl",
+            "-lpthread"
+        }}
+#endif
     };
 
     bool linked = false;
-    std::string cmd;  // Moved outside the loop so we can use it after
+    std::string cmd;
 
     for (const auto& [linker, args] : linkerOptions) {
         if (isLinkerAvailable(linker)) {
-            // Build command line
             cmd = linker;
-            for (const auto& arg : args) {  // Use args instead of linkerArgs
+            for (const auto& arg : args) {
                 cmd += " " + arg;
             }
             DEBUG_LOG("Linking with command: " + cmd);
@@ -200,16 +229,14 @@ void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::strin
     }
 
     if (!linked) {
-        throw std::runtime_error("No suitable linker found (tried clang++, g++, clang, gcc)");
+        throw std::runtime_error("No suitable linker found");
     }
-    
-    // Execute linking command
+
     int result = std::system(cmd.c_str());
     if (result != 0) {
         throw std::runtime_error("Linking failed with exit code: " + std::to_string(result));
     }
-        
-    // Make executable on Unix-like systems
+
 #ifndef _WIN32
     fs::permissions(exeFile, 
         fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
@@ -218,3 +245,4 @@ void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::strin
 
     DEBUG_LOG("Executable created: " + exeFile);
 }
+

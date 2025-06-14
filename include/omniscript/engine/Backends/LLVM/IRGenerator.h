@@ -95,6 +95,7 @@ public:
     bool supportsAVX2();
 
     void initialize();
+    void addMainFunction();
     void finalize();
 
     void printIR();

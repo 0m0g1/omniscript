@@ -123,6 +123,33 @@ void IRGenerator::finalize() {
     }
 }
 
+void IRGenerator::addMainFunction() {
+    if (!Module) return;
+
+    llvm::Function* mainFn = Module->getFunction("main");
+    if (mainFn) return; // already present
+
+    llvm::Function* topFunc = Module->getFunction("__top_level__");
+    if (!topFunc) {
+        // If top-level doesn't exist, create a dummy one
+        llvm::FunctionType* topType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
+        topFunc = llvm::Function::Create(topType, llvm::Function::ExternalLinkage, "__top_level__", Module.get());
+        llvm::BasicBlock* topEntry = llvm::BasicBlock::Create(*Context, "entry", topFunc);
+        Builder->SetInsertPoint(topEntry);
+        Builder->CreateRetVoid();
+    }
+
+    // Create the `main` function with `int ()` return type
+    llvm::FunctionType* mainType = llvm::FunctionType::get(llvm::Type::getInt32Ty(*Context), false);
+    mainFn = llvm::Function::Create(mainType, llvm::Function::ExternalLinkage, "main", Module.get());
+    llvm::BasicBlock* mainEntry = llvm::BasicBlock::Create(*Context, "entry", mainFn);
+    Builder->SetInsertPoint(mainEntry);
+
+    // Call __top_level__()
+    Builder->CreateCall(topFunc);
+    Builder->CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), 0));
+}
+
 void IRGenerator::printIR() {
     Module->print(llvm::outs(), nullptr);
 }
