@@ -348,13 +348,62 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     return type;
 }
 
+bool isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
+    if (!from || !to)
+        return false;
+
+    if (from == to)
+        return true;
+
+    if (from->kind != to->kind)
+        return false;
+
+    if (from->isInteger() && to->isInteger())
+        return from->getSize() == to->getSize();
+
+    if (from->isFloat() && to->isFloat())
+        return from->getSize() == to->getSize();
+
+    if (from->isChar() && to->isChar())
+        return from->getBitWidth() == to->getBitWidth();
+
+    if (from->isString() && to->isString())
+        return from->getBitWidth() == to->getBitWidth();
+
+    if (from->isPointer() && to->isPointer())
+        return isSame(from->getPointeeType(), to->getPointeeType());
+
+    if (from->isReference() && to->isReference())
+        return isSame(from->getPointeeType(), to->getPointeeType());
+
+    if (from->isNullable() && to->isNullable()) {
+        auto fromNullable = std::dynamic_pointer_cast<NullableType>(from);
+        auto toNullable = std::dynamic_pointer_cast<NullableType>(to);
+        if (!fromNullable || !toNullable)
+            return false;
+        return isSame(fromNullable->innerType, toNullable->innerType);
+    }
+
+    auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
+    auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
+    if (fromUDT && toUDT) {
+        return fromUDT == toUDT;
+    }
+
+    return false;
+}
+
 bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
     if (!from) {
         console.error("The type to cast from is null");
+    } else {
+        DEBUG_LOG("The type to cast from is '" + from->toString() + "' of kind '" + from->kindName() + "'.");
     }
 
     if (!to) {
         console.error("The type to cast to is null");
+    } else {
+        DEBUG_LOG("The type to cast to is '" + to->toString() + "' of kind '" + to->kindName() + "'.");
     }
 
     if (from == to || from->kind == to->kind)
@@ -385,8 +434,6 @@ bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr
     }
 
     if (from->isInteger() && to->isInteger()) {
-        // return (from->isSigned() == to->isSigned()) &&
-        //        (from->getSize() <= to->getSize());
         return (from->getSize() <= to->getSize());
     }
 

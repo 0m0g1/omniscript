@@ -9,6 +9,7 @@
 #include <omniscript/omniscript_pch.h>
 
 std::shared_ptr<Statement> Parser::parseInclude() {
+    Token startToken = currentToken;
     eat(TokenTypes::Include);
 
     std::string includePath;
@@ -22,11 +23,14 @@ std::shared_ptr<Statement> Parser::parseInclude() {
 
     eat(TokenTypes::Semicolon);
 
-    return std::make_shared<IncludeStatement>(includePath);
+    auto include = std::make_shared<IncludeStatement>(includePath);
+    include->setPosition(startToken);
+    return include;
 }
 
 
 std::shared_ptr<Statement> Parser::parseModuleImport() {
+    Token startToken = currentToken;
     eat(TokenTypes::Import);
 
     std::unordered_map<std::string, std::string> importedAliases;
@@ -113,10 +117,13 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
 
     eat(TokenTypes::Semicolon);
 
-    return std::make_shared<ImportModule>(moduleName, alias, importedAliases, path, importAll);
+    auto import = std::make_shared<ImportModule>(moduleName, alias, importedAliases, path, importAll);
+    import->setPosition(startToken);
+    return import;
 }
 
 std::shared_ptr<Statement> Parser::parseModule() {
+    Token startToken = currentToken;
     std::string moduleName;
     std::vector<std::shared_ptr<Statement>> members;
 
@@ -217,6 +224,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
 
     eat(TokenTypes::EOI, "There can only be one module per file and nothing declared after the module.");
     auto module = std::make_shared<CreateModule>(moduleName, members);
+    module->setPosition(startToken);
     if (auto ctxAware = std::dynamic_pointer_cast<ContextAwareStatement>(module)) {
         ctxAware->pushContext(moduleName);
     }

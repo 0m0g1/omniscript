@@ -23,6 +23,7 @@ bool Parser::isAssignmentExpression(TokenTypes tokenType) {
 }
 
 std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
+    Token startToken = currentToken;
 
     TokenTypes variableType = TokenTypes::Let;
     std::string variableName;
@@ -58,14 +59,18 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
     if (variableType == TokenTypes::Const) {
         auto constant = std::make_shared<AssignVariable>(variableName, type, lambda);
         constant->markAsConstant();
+        constant->setPosition(startToken);
         return constant;
     }
 
-    return std::make_shared<AssignVariable>(variableName, type, lambda);
+    auto assign = std::make_shared<AssignVariable>(variableName, type, lambda);
+    assign->setPosition(startToken);
+    return assign;
 }
 
 
 std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> assignee) {
+    Token startToken = currentToken;
     TokenTypes variableType;
     std::string variableName;
     std::shared_ptr<Statement> value;
@@ -75,7 +80,6 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
     bool isArray = false;
     
     if (!assignee) {
-        
         if (currentToken.getType() == TokenTypes::Let) {
             eat(TokenTypes::Let);
             variableType = TokenTypes::Let;
@@ -103,6 +107,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
     
             std::shared_ptr<Statement> result = parseExpression();
     
+            result->setPosition(startToken);
             if (auto objConstructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(result)) {
                 objConstructor->setInstanceName(variableName);
                 return result;
@@ -187,6 +192,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
             eat(TokenTypes::Semicolon);
         }
     }
+
+    value->setPosition(startToken);
 
     if (!assignee) {
         if (variableType == TokenTypes::Const) {

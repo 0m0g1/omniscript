@@ -6,12 +6,30 @@
     "version": "0.2.0",
     "configurations": [
         {
+        "name": "DEBUG OPENGL",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
+        "args": [
+            "examples\\opengl\\triangle.os",
+            "--execute",
+            "--debug",
+            "--optimization-level",
+            "-1"
+        ],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "gdb"
+        },
+        {
         "name": "DEBUG JIT",
         "type": "cppdbg",
         "request": "launch",
         "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
         "args": [
-            "examples\\test.os",
+            "examples\\timer.os",
             "--execute",
             "--debug",
             "--optimization-level",

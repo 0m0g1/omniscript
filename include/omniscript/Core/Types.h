@@ -862,6 +862,7 @@ public:
 
 
 std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes);
+bool isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to);
 bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to);
 
 }

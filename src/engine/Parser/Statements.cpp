@@ -15,13 +15,11 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
 
     #ifdef DEBUG
         // If we are in debug mode, show all of the tokens being parsed
-        if (debugMode) {
-            std::string message = "The lexer got token '" + getTokenTypeName(currentToken.getType()) +
-                                "' with value '" + currentToken.getValue() + 
-                                "' at line: " + std::to_string(currentToken.getLine()) + 
-                                " column: " + std::to_string(currentToken.getColumn());
-            DEBUG_LOG(message); 
-        }
+        std::string message = "The lexer got token '" + getTokenTypeName(currentToken.getType()) +
+                            "' with value '" + currentToken.getValue() + 
+                            "' at line: " + std::to_string(currentToken.getLine()) + 
+                            " column: " + std::to_string(currentToken.getColumn());
+        DEBUG_LOG(message); 
     #endif
 
     switch (currentToken.getType()) {
@@ -144,7 +142,6 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             eat(currentToken.getType()); 
         }
     }
-
-    statement->setPosition(Omniscript::getPosition());
+    
     return statement;
 }

@@ -33,6 +33,7 @@ std::u32string Parser::parseStringLiteral() {
 }
 
 std::shared_ptr<Statement> Parser::parseStringTemplate() {
+    Token startToken = currentToken;
     std::u32string value = currentToken.getU32Value();
 
     eat(TokenTypes::StringLiteral);

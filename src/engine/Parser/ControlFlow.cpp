@@ -7,6 +7,7 @@
 #include <omniscript/omniscript_pch.h>
 
 std::shared_ptr<ForLoop> Parser::parseForLoop() {
+    Token startToken = currentToken;
     eat(TokenTypes::For);
     eat(TokenTypes::LeftParen);
     std::shared_ptr<Statement> initialization;
@@ -33,28 +34,37 @@ std::shared_ptr<ForLoop> Parser::parseForLoop() {
     auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
     DEBUG_LOG("Parsed the for loops body");
 
-    return std::make_shared<ForLoop>(initialization, condition, increment, body);
+    auto forLoop = std::make_shared<ForLoop>(initialization, condition, increment, body);
+    forLoop->setPosition(startToken);
+    return forLoop;
 }
 
 std::shared_ptr<ContinueStatement> Parser::parseContinue() {
+    Token startToken = currentToken;
     eat(TokenTypes::Continue);
     if (currentToken.getType() != TokenTypes::Semicolon || currentToken.getType() != TokenTypes::Newline) {
         eat(TokenTypes::Semicolon);
     }
     eat(currentToken.getType());
-    return std::make_shared<ContinueStatement>();
+    auto continueStmt = std::make_shared<ContinueStatement>();
+    continueStmt->setPosition(startToken);
+    return continueStmt;
 }
 
 std::shared_ptr<BreakStatement> Parser::parseBreak() {
+    Token startToken = currentToken;
     eat(TokenTypes::Break);
     if (currentToken.getType() != TokenTypes::Semicolon || currentToken.getType() != TokenTypes::Newline) {
         eat(TokenTypes::Semicolon);
     }
     eat(currentToken.getType());
-    return std::make_shared<BreakStatement>();
+    auto breakStmt = std::make_shared<BreakStatement>();
+    breakStmt->setPosition(currentToken);
+    return breakStmt;
 }
 
 std::shared_ptr<Statement> Parser::parseIfStatement() {
+    Token startToken = currentToken;
     std::vector<std::shared_ptr<Statement>> conditions;
     std::vector<std::shared_ptr<BlockStatement>> bodies;
     std::shared_ptr<BlockStatement> elseBody = nullptr;
@@ -85,11 +95,13 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
     }
 
     auto statement = std::make_shared<IfStatement>(conditions, bodies, elseBody);
+    statement->setPosition(startToken);
     DEBUG_LOG("Parsed IfStatement with " + std::to_string(conditions.size()) + " branches");
     return statement;
 }
 
 std::shared_ptr<Statement> Parser::parseWhileStatement() {
+    Token startToken = currentToken;
     eat(TokenTypes::While);
 
     eat(TokenTypes::LeftParen);
@@ -99,20 +111,24 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
     auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
 
     DEBUG_LOG("Parsed while statement");
-    return std::make_shared<WhileStatement>(condition, body);
+    auto whileLoop = std::make_shared<WhileStatement>(condition, body);
+    whileLoop->setPosition(startToken);
+    return whileLoop;
 }
 
 
 std::shared_ptr<ReturnStatement> Parser::parseReturnStatement() {
+    Token startToken = currentToken;
     eat(TokenTypes::Return);
+    std::shared_ptr<ReturnStatement> result;
+
     if (currentToken.getType() != TokenTypes::Semicolon) {
         std::shared_ptr<Statement> value = parseExpression();
-        return std::make_shared<ReturnStatement>(value);
-        // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(value)) {
-        //     return std::make_shared<ReturnStatement>(value);
-        // } else {
-        //     console.error("Unable to determine the return type");
-        // }
+        result = std::make_shared<ReturnStatement>(value);
+    } else {
+        result = std::make_shared<ReturnStatement>();
     }
-    return std::make_shared<ReturnStatement>();
+
+    result->setPosition(startToken);
+    return result;
 }

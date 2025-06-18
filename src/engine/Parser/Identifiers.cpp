@@ -17,6 +17,8 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     std::string member = rootIdentifier;
 
     while (true) {
+        Token startToken = currentToken;
+        expr->setPosition(startToken);
         if (currentToken.getType() == TokenTypes::LeftParen) {
             std::vector<std::shared_ptr<Statement>> args = parseArguments();
             if (memberPath.empty()) {
@@ -24,19 +26,13 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             } else {
                 expr = std::make_shared<Call>(expr, memberPath.back(), args);
             }
-        }
-
-        else if (isGenericCallOrConstructor()) {
-            std::vector<std::string> typeParams = parseTypeParametersForCall();
-            std::string specializedName = generateSpecializedNameForCall(memberPath.back(), typeParams);
-            DEBUG_LOG("Generated Specialized Name: " + specializedName);
-            std::vector<std::shared_ptr<Statement>> args = parseArguments();
-            expr = std::make_shared<Call>(expr, specializedName, args);
+            continue;
         }
 
         else if (currentToken.getType() == TokenTypes::LeftBrace) {
             std::vector<std::shared_ptr<Statement>> args = parseArguments(TokenTypes::LeftBrace, TokenTypes::RightBrace, TokenTypes::Colon);
             expr = std::make_shared<ObjectConstructorStatement>(expr, memberPath.back(), "", args);
+            continue;
         }
 
         else if (currentToken.getType() == TokenTypes::Dot || currentToken.getType() == TokenTypes::ScopeResolution) {
@@ -47,6 +43,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             memberPath.push_back(nextMember);
             accessContext.push_back(nextMember);
             expr = std::make_shared<MemberAccess>(expr, member);  // Pass full path
+            continue;
         }
 
         else if (currentToken.getType() == TokenTypes::Arrow) {
@@ -55,7 +52,8 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             member = nextMember;
             eat(TokenTypes::Identifier);
             memberPath.push_back(nextMember);
-            expr = std::make_shared<ArrowAccess>(expr, member);  // Pass full path
+            expr = std::make_shared<ArrowAccess>(expr, member);
+            continue;
         }
 
         else if (currentToken.getType() == TokenTypes::LeftBracket) {
@@ -63,6 +61,16 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             auto index = parseExpression();
             eat(TokenTypes::RightBracket);
             expr = std::make_shared<IndexAccess>(expr, index);
+            continue;
+        }
+
+        else if (isGenericCallOrConstructor()) {
+            std::vector<std::string> typeParams = parseTypeParametersForCall();
+            std::string specializedName = generateSpecializedNameForCall(memberPath.back(), typeParams);
+            DEBUG_LOG("Generated Specialized Name: " + specializedName);
+            std::vector<std::shared_ptr<Statement>> args = parseArguments();
+            expr = std::make_shared<Call>(expr, specializedName, args);
+            continue;
         }
 
         else if (isAssignmentExpression(currentToken.getType())) {

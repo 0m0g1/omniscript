@@ -92,13 +92,21 @@ public:
     }
 
     // ==================== SCOPE / MODULE MANAGEMENT ====================
-    std::shared_ptr<SymbolTable<T, TypeT>> createChildScope(const std::string& name) {
+    std::shared_ptr<SymbolTable<T, TypeT>> createChildScope(const std::string& name = "") {
         return std::make_shared<SymbolTable<T, TypeT>>(this->shared_from_this(), name);
     }
 
     std::shared_ptr<SymbolTable<T, TypeT>> getParent() const { return parent_; }
 
-    std::string getName() const { return name_; }
+    std::string getName() const {
+        if (name_.empty()) {
+            if (parent_) {
+                return parent_->getName();
+            }
+            return "";
+        }
+        return name_; 
+    }
     void setName(const std::string& name) { name_ = name; }
 
     // ----- Module Registry (Global) -----

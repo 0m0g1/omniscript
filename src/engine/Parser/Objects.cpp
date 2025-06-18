@@ -75,6 +75,7 @@ std::shared_ptr<Statement> Parser::parseObject() {
 }
 
 std::shared_ptr<Statement> Parser::parseClass() {
+    Token startToken = currentToken;
     eat(TokenTypes::Class);
     std::string className = currentToken.getValue();
     eat(TokenTypes::Identifier);
@@ -193,10 +194,13 @@ std::shared_ptr<Statement> Parser::parseClass() {
         members.push_back(dtorMember);
     }    
 
-    return std::make_shared<ConstructClassPrototype>(className, parentClasses, members);
+    auto classStatement = std::make_shared<ConstructClassPrototype>(className, parentClasses, members);
+    classStatement->setPosition(startToken);
+    return classStatement;
 }
 
 std::shared_ptr<Statement> Parser::parseStruct() {
+    Token startToken = currentToken;
     eat(TokenTypes::Struct);
     std::string structName = currentToken.getValue();
     eat(TokenTypes::Identifier);
@@ -249,5 +253,7 @@ std::shared_ptr<Statement> Parser::parseStruct() {
 
     eat(TokenTypes::RightBrace);
 
-    return std::make_shared<ConstructStructPrototype>(structName, body);
+    auto structStatement = std::make_shared<ConstructStructPrototype>(structName, body);
+    structStatement->setPosition(startToken);
+    return structStatement;
 }

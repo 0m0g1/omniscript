@@ -44,7 +44,8 @@ public:
                 Omniscript::filePosition position = Omniscript::getPosition();
 
                 std::cerr << "\033[1;31m" // Bold red
-                        << "ERROR in " << position.filePath
+                        << "ERROR in " << position.filePath 
+                        << ":" << position.line << ":" << position.col << ":"
                         << " at line " << position.line
                         << ", column " << position.col << ":\033[0m\n"; // Reset color
 
@@ -54,6 +55,7 @@ public:
                 std::ofstream logFile("error_log.txt", std::ios::out | std::ios::trunc);
                 if (logFile.is_open()) {
                     logFile << "ERROR in " << position.filePath
+                            << ":" << position.line << ":" << position.col << ":"
                             << " at line " << position.line
                             << ", column " << position.col << ":\n"
                             << message << "\n";

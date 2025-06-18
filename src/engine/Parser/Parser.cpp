@@ -67,8 +67,6 @@ void Parser::initializeFunctions() {
 
 }
 
-
-// Parse a complete program
 void Parser::parseProgram() {
     DEBUG_LOG();
     DEBUG_LOG("Parsing the script");
@@ -76,7 +74,7 @@ void Parser::parseProgram() {
     DEBUG_LOG();
     
     while (currentToken.getType() != TokenTypes::EOI) {
-        statements.push_back(parseStatement()); // Parse each statement in the program
+        statements.push_back(parseStatement());
     }
     
     DEBUG_LOG();
@@ -85,10 +83,7 @@ void Parser::parseProgram() {
     DEBUG_LOG();
 }
 
-
-// Helper function to consume a token if it matches the expected type
 void Parser::eat(TokenTypes expectedType, const std::string& err) {
-    // Keep track of your position in the current file
     Omniscript::setPosition(currentToken.getLine(), currentToken.getColumn(), currentToken.getFilePath());
     if (currentToken.getType() == expectedType) {
         previousToken = currentToken;
@@ -105,6 +100,7 @@ void Parser::eat(TokenTypes expectedType, const std::string& err) {
         if (err != "") {
             errorMessage += "\n\n" + err;
         }
+        
         console.error(errorMessage);
     }
 }

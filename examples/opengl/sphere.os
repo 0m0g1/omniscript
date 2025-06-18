@@ -62,7 +62,7 @@ fn drawSphere(radius: float, stacks: int, slices: int) => void {
 
             // Color gradient by position
             glColor3f((x + 1) as float / 2, (y + 1) as float / 2, (z0 as float + radius) as float / (2 * radius));
-            glVertex3f(x * zr0 as float, y * zr0 as float, z0);
+            glVertex3f((x * zr0) as float, (y * zr0) as float, (z0 * 1 as float) as float);
 
             glColor3f((x + 1) as float / 2, (y + 1) as float / 2, (z1 as float + radius) as float / (2 * radius));
             glVertex3f(x * zr1 as float, y * zr1 as float, z1 as float);

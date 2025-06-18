@@ -17,6 +17,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
 }
 
 std::shared_ptr<Statement> Parser::parseExternFunction() {
+    Token startToken = currentToken;
     eat(TokenTypes::Extern);
 
     bool isStatic = false;
@@ -38,7 +39,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         function->libPath = libPath;
         function->isStatic = isStatic;
         function->externName = functionName;
-        
+        function->setPosition(startToken);
+
         return function;
     } else if (currentToken.getType() == TokenTypes::LeftBrace) {
         eat(TokenTypes::LeftBrace);
@@ -64,6 +66,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         eat(TokenTypes::RightBrace);
 
         auto block = std::make_shared<BlockStatement>(functions);
+        block->setPosition(startToken);
         return block;
     }
 
@@ -73,6 +76,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
 }
 
 std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
+    Token startToken = currentToken;
     eat(TokenTypes::Intrinsic);
     if (currentToken.getType() == TokenTypes::Function) {
         eat(TokenTypes::Function);
@@ -82,6 +86,7 @@ std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
     std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
     function->isIntrinsic = true;
     function->intrinsicName = functionName;
+    function->setPosition(startToken);
 
     return function;
 }
@@ -91,6 +96,8 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     parameterType paramTypes,
     std::shared_ptr<Omniscript::Type> type
 ) {
+    Token startToken = currentToken;
+
     std::string name = definedName;
     
     if (name.empty()) {
@@ -173,7 +180,9 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                     
                     monomorphizedFunctions.push_back(func);
                 }
-                return std::make_shared<BlockStatement>(monomorphizedFunctions);
+                auto block = std::make_shared<BlockStatement>(monomorphizedFunctions);
+                block->setPosition(startToken);
+                return block;
             }
         }
 
@@ -225,12 +234,16 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
             }
         }
 
-        return std::make_shared<BlockStatement>(monomorphizedFunctions);
+        auto block = std::make_shared<BlockStatement>(monomorphizedFunctions);
+        block->setPosition(startToken);
+        return block;
     }
 
     // Normal function without generics
     returnType = Omniscript::resolveType(returnDataType);
-    return std::make_shared<FunctionDeclaration>(name, parameters, body, returnType);
+    auto function = std::make_shared<FunctionDeclaration>(name, parameters, body, returnType);
+    function->setPosition(startToken);
+    return function;
 }
 
 std::string Parser::generateSpecializedNameForDecleration( 

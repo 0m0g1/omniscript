@@ -8,6 +8,7 @@
 
 
 std::shared_ptr<Statement> Parser::parseEnum() {
+    Token startToken = currentToken;
     eat(TokenTypes::Enum);
     
     bool hasLookup = false;
@@ -64,10 +65,13 @@ std::shared_ptr<Statement> Parser::parseEnum() {
 
     eat(TokenTypes::RightBrace);
     
-    return std::make_shared<EnumConstructor>(enumName, values, hasLookup, isEnumClass);
+    auto enumStatement = std::make_shared<EnumConstructor>(enumName, values, hasLookup, isEnumClass);
+    enumStatement->setPosition(startToken);
+    return enumStatement;
 }
 
 std::shared_ptr<Statement> Parser::parseNamespace() {
+    Token startToken = currentToken;
     eat(TokenTypes::Namespace);
     std::string namespaceName = currentToken.getValue();
     eat(TokenTypes::Identifier);

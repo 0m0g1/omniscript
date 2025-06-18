@@ -177,10 +177,18 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
             if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
                 type = rightType;
-                if (leftTyped) leftTyped->setType(rightType);
+                if (!Omniscript::isSame(leftType, rightType)) {
+                    left = std::make_shared<Cast>(left, rightType);
+                } else {
+                    if (leftTyped) leftTyped->setType(rightType);
+                }
             } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
                 type = leftType;
-                if (rightTyped) rightTyped->setType(leftType);
+                if (!Omniscript::isSame(rightType, leftType)) {
+                    right = std::make_shared<Cast>(right, leftType);
+                } else {
+                    if (rightTyped) rightTyped->setType(leftType);
+                }
             } else {
                 console.error("Incompatible arithmetic/bitwise types: " + leftType->toString() + " vs " + rightType->toString());
                 return nullptr;

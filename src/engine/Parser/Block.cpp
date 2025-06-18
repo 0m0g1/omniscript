@@ -8,6 +8,8 @@
 
 
 std::shared_ptr<Statement> Parser::parseBlock() {
+    Token startToken = currentToken;
+
     std::vector<std::shared_ptr<Statement>> statements;
 
     if (currentToken.getType() == TokenTypes::LeftBrace) {
@@ -38,5 +40,7 @@ std::shared_ptr<Statement> Parser::parseBlock() {
         statements.push_back(parseStatement());
     }
 
-    return std::make_shared<BlockStatement>(statements);
+    auto block = std::make_shared<BlockStatement>(statements);
+    block->setPosition(startToken);
+    return block;
 }

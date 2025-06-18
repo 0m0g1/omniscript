@@ -222,15 +222,12 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
 
                 if (matchingArg) {
                     if (auto typedArg = std::dynamic_pointer_cast<TypedStatement>(matchingArg)) {
-                        if (!typedArg->getType() || 
-                            (!Omniscript::isSameOrCastableTo(typedArg->getRootType(), param->getType()) &&
-                             !Omniscript::isSameOrCastableTo(typedArg->getType(), param->getType()))) {
-                            // Set the expected type before evaluation
-                            typedArg->setType(param->getType());
-                            typedArg->setRootType(param->getType());
-                            DEBUG_LOG("[Call] Set type for argument to match parameter '" + paramName + 
-                                     "': " + param->getType()->toString());
-                        }
+                        DEBUG_LOG("Coercing matching arg's type");
+                        std::shared_ptr<Omniscript::Type> matchingArgType = typedArg->getRootType() ? typedArg->getRootType() : typedArg->getType();
+                        typedArg->setType(param->getType());
+                        typedArg->setRootType(param->getType());
+                        DEBUG_LOG("[Call] Coerced argument to match parameter '" + paramName + 
+                                    "': " + param->getType()->toString());
                     }
                 }
             }

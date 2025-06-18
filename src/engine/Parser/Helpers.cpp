@@ -97,10 +97,11 @@ bool Parser::isGenericCallOrConstructor() {
 
 std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
     eat(TokenTypes::LeftParen);
-
+    
     std::vector<std::shared_ptr<Statement>> parameters;
-
+    
     while (currentToken.getType() != TokenTypes::RightParen && currentToken.getType() != TokenTypes::EOI) {
+        Token startToken = currentToken;
         std::string paramName;
         bool isVariadic = false;
         std::shared_ptr<Omniscript::Type> paramType;
@@ -137,6 +138,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
         parameter->isVariadic = isVariadic;
         parameter->setType(paramType);
         parameters.push_back(parameter);
+        parameter->setPosition(startToken);
 
         if (currentToken.getType() == TokenTypes::Comma) {
             eat(TokenTypes::Comma);
@@ -177,7 +179,10 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
     std::vector<std::shared_ptr<Statement>> args;
     eat(start);
 
+    int argCount = 0;
+
     while (currentToken.getType() != end && currentToken.getType() != TokenTypes::EOI) {
+        Token startToken = currentToken;
         if (currentToken.getType() == TokenTypes::Identifier) {
             std::string paramName;
             if (lexer.peekToken(1).getType() == assignOp) {
@@ -201,6 +206,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
         } else {
             break;
         }
+        args[argCount]->setPosition(startToken);
+        argCount++;
     }
 
     eat(end, "Expected '"+ getTokenTypeName(end) + "' but found '" + getTokenTypeName(currentToken.getType()) + "' at end of argument list.");
@@ -272,85 +279,101 @@ parameterType Parser::parseTypeParametersForDeclaration() {
     return typeParams;
 }
 
-
 std::vector<std::string> Parser::parseType() {
     std::vector<std::string> dataTypes;
+    int prevColumn = -1;
 
-    while (
-            currentToken.getType() == TokenTypes::Multiply ||
+    // Helper function to check for whitespace between tokens
+    auto hasWhitespace = [&](Token& token) {
+        return prevColumn != -1 && token.getColumn() > prevColumn + 1;
+    };
+
+    // Parse prefix modifiers (only if no whitespace before identifier)
+    std::vector<std::string> prefixModifiers;
+    while ((currentToken.getType() == TokenTypes::Multiply ||
             currentToken.getType() == TokenTypes::BitwiseAnd ||
-            currentToken.getType() == TokenTypes::QuestionMark
-        ) {
-
+            currentToken.getType() == TokenTypes::QuestionMark) &&
+           (dataTypes.empty() || !hasWhitespace(currentToken))) {
+        
         if (currentToken.getType() == TokenTypes::Multiply) {
             dataTypes.push_back("*");
-
         } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
-            dataTypes.push_back("&");
-            
+            dataTypes.push_back("&");   
         } else if (currentToken.getType() == TokenTypes::QuestionMark) {
             dataTypes.push_back("?");
         }
 
-    eat(currentToken.getType());
-
+        prevColumn = currentToken.getColumn();
+        eat(currentToken.getType());
     }
 
+    // Parse the main identifier (required)
     if (currentToken.getType() == TokenTypes::Identifier) {
+        // Only keep prefix modifiers if they're adjacent to the identifier
+        if (!prefixModifiers.empty() && !hasWhitespace(currentToken)) {
+            dataTypes.insert(dataTypes.end(), prefixModifiers.begin(), prefixModifiers.end());
+        }
+        prefixModifiers.clear();
+
         dataTypes.push_back(currentToken.getValue());
+        prevColumn = currentToken.getColumn();
         eat(TokenTypes::Identifier);
         
+        // Handle dotted identifiers
         while (currentToken.getType() == TokenTypes::Dot) {
             eat(TokenTypes::Dot);
+            dataTypes.push_back(".");
             dataTypes.push_back(currentToken.getValue());
+            prevColumn = currentToken.getColumn();
             eat(TokenTypes::Identifier);
         }
+    } else if (!prefixModifiers.empty()) {
+        // We had modifiers but no identifier - treat as separate tokens
+        return prefixModifiers;
     }
 
-    while (
-            currentToken.getType() == TokenTypes::Multiply ||
+    // Parse suffix modifiers (only if no whitespace)
+    while ((currentToken.getType() == TokenTypes::Multiply ||
             currentToken.getType() == TokenTypes::BitwiseAnd ||
-            currentToken.getType() == TokenTypes::BitwiseAnd ||
-            currentToken.getType() == TokenTypes::QuestionMark
-        ) {
-
+            currentToken.getType() == TokenTypes::QuestionMark) &&
+           !hasWhitespace(currentToken)) {
+        
         if (currentToken.getType() == TokenTypes::Multiply) {
             dataTypes.push_back("*");
-
         } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
-            dataTypes.push_back("&");
-
+            dataTypes.push_back("&");   
         } else if (currentToken.getType() == TokenTypes::QuestionMark) {
             dataTypes.push_back("?");
-
         }
 
+        prevColumn = currentToken.getColumn();
         eat(currentToken.getType());
-
     }
 
+    // Parse array brackets
     if (currentToken.getType() == TokenTypes::LeftBracket) {
         dataTypes.push_back("[");
+        prevColumn = currentToken.getColumn();
         eat(TokenTypes::LeftBracket);
         
         if (currentToken.getType() == TokenTypes::Identifier) {
-            dataTypes.push_back(currentToken.getValue());
+            dataTypes.push_back("[");
+            prevColumn = currentToken.getColumn();
             eat(TokenTypes::Identifier);
-
         } else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
-            dataTypes.push_back(currentToken.getValue());
+            dataTypes.push_back("]");
+            prevColumn = currentToken.getColumn();
             eat(TokenTypes::IntegerLiteral);
-
         }
 
         dataTypes.push_back("]");
+        prevColumn = currentToken.getColumn();
         eat(TokenTypes::RightBracket);
 
         if (currentToken.getType() == TokenTypes::Identifier) {
             dataTypes.push_back(currentToken.getValue());
             eat(TokenTypes::Identifier);
         }
-        
     }
 
     return dataTypes;
