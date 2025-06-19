@@ -196,12 +196,15 @@ llvm::Value* IRGenerator::createIfStatement(
         llvm::Value* condValue = codegen(conditions[i], localScope);
         if (!condValue) return nullptr;
 
-        if (condValue->getType()->isIntegerTy(32)) {
+        if (condValue->getType()->isIntegerTy()) {
+            unsigned bitWidth = condValue->getType()->getIntegerBitWidth();
             condValue = Builder->CreateICmpNE(
                 condValue,
-                llvm::ConstantInt::get(condValue->getType(), 0),
+                llvm::ConstantInt::get(condValue->getType(), 0, true),
                 "ifcond"
             );
+        } else if (!condValue->getType()->isIntegerTy(1)) {
+            condValue = Builder->CreateIsNotNull(condValue, "ifcond");
         }
 
         llvm::BasicBlock* thenBlock = llvm::BasicBlock::Create(context, "then", function);

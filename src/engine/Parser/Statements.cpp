@@ -40,6 +40,13 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
         case TokenTypes::Intrinsic:
             statement = parseIntrinsicFunction();
             break;
+        case TokenTypes::Volatile:
+            eat(TokenTypes::Volatile);
+            statement = parseAssignment();
+            if (auto assign = std::dynamic_pointer_cast<AssignVariable>(statement)) {
+                assign->isVolatile = true;
+            }
+            break;
         case TokenTypes::Function:
             statement = parseFunctionDeclaration("", {});
             break;

@@ -18,6 +18,7 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/BasicBlock.h>
 
+#include <omniscript/Core.h>
 #include <omniscript/debuggingtools/console.h>
 
 IRGenerator::IRGenerator(const std::string& mainModulePath) {
