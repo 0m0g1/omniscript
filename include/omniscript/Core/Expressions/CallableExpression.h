@@ -1,6 +1,7 @@
 #include <omniscript/Core/Expression.h>
 #include <omniscript/Core/Expressions/FunctionInputExpression.h>
 
+namespace Omniscript {
 struct Callable : public virtual Expression {
     std::string mangledName;
     std::vector<std::shared_ptr<Expression>> parameters;
@@ -49,3 +50,4 @@ struct Callable : public virtual Expression {
         return std::make_shared<Callable>(name, mangledName, clonedParams, isVarArg);
     }
 };
+}

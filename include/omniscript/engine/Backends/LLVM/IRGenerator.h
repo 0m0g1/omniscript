@@ -24,6 +24,8 @@
 #include <omniscript/Core/Expression.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
+#include <omniscript/Core/Expressions/ClassExpression.h>
+#include <omniscript/Core/Expressions/StructExpression.h>
 #include <omniscript/Core/Expressions/FunctionExpression.h>
 #include <omniscript/Core/Expressions/AssignmentExpression.h>
 #include <omniscript/Core/Expressions/FunctionInputExpression.h>

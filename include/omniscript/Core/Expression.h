@@ -653,13 +653,10 @@ struct BlockExpression : public Expression {
     }
 };
 
-
 struct AggregateExpression : public virtual Expression {
     ~AggregateExpression() = default;
     std::string toString() const override { return "Aggregate"; }
 };
-
-
 
 struct MemberExpression : public Expression {
 public:
@@ -716,7 +713,6 @@ public:
         return modifiers.toString() + (type ? type->toString() : "unknown") + " " + name + ";";
     }
 };
-
 
 struct ClassMemberExpression : public MemberExpression {
     ClassMemberExpression(

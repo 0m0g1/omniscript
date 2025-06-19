@@ -1,6 +1,7 @@
 #include <omniscript/Core/Expression.h>
 #include <omniscript/Core/Expressions/CallableExpression.h>
 
+namespace Omniscript {
 struct StructExpression : 
 public Callable,
 public AggregateExpression {
@@ -44,3 +45,4 @@ public AggregateExpression {
         );
     }
 };
+}

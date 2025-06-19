@@ -3,6 +3,9 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
+#include <omniscript/Core/Expressions/ClassExpression.h>
+#include <omniscript/Core/Expressions/StructExpression.h>
+#include <omniscript/Core/Expressions/CallableExpression.h>
 #include <omniscript/Core/Expressions/FunctionExpression.h>
 #include <omniscript/Core/Expressions/FunctionInputExpression.h>
 #include <omniscript/Core/Expressions/VariableAccessExpression.h>
