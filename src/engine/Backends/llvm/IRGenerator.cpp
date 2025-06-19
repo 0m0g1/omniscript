@@ -320,9 +320,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     // Handle VariableAssignment
-    if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(value)) {
+    if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(value)) {
         DEBUG_LOG("Assigning variable " + varAssign->variableName + " of type " + varAssign->getType()->toString());
-        return assignVariable(varAssign);
+        return assignVariable(varAssign, scope);
     }
 
     if (auto castExpr = std::dynamic_pointer_cast<Omniscript::CastExpression>(value)) {
@@ -468,7 +468,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
                 }
             } 
 
-            if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(expr)) {
+            if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(expr)) {
                 if (!varAssign->isStatic) {
                     varAssign->isGlobal = block->isGlobal;
                 }
@@ -586,7 +586,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         for (const auto& arg : call->args) {
             DEBUG_LOG(arg->toString());
 
-            if (auto arr = std::dynamic_pointer_cast<Omniscript::VariableAccessExpressionExpressionrrayExpression>(arg); arr && arr->isVariadicArray) {
+            if (auto arr = std::dynamic_pointer_cast<Omniscript::ArrayExpression>(arg); arr && arr->isVariadicArray) {
                 // If variadic, reserve space ahead (optional perf tweak)
                 args.reserve(args.size() + arr->elements.size());
 
@@ -722,7 +722,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     // Handle access expressions recursively
-    if (auto accessExpr = std::dynamic_pointer_cast<Omniscript::VariableAccessExpressionExpressionccessExpression>(value)) {
+    if (auto accessExpr = std::dynamic_pointer_cast<Omniscript::AccessExpression>(value)) {
         return handleAccessExpression(accessExpr, scope);
     }
 
@@ -865,7 +865,7 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expressio
 }
 
 llvm::Value* IRGenerator::handleAccessExpression(
-    std::shared_ptr<Omniscript::VariableAccessExpressionExpressionccessExpression> expr, 
+    std::shared_ptr<Omniscript::AccessExpression> expr, 
     SymbolTableType scope
 ) {
     // First evaluate the base expression recursively
@@ -2089,7 +2089,7 @@ llvm::Value* IRGenerator::handleMemberAccess(
 }
 
 llvm::Value* IRGenerator::handleArrowAccess(
-    std::shared_ptr<Omniscript::VariableAccessExpressionExpressionrrowAccessExpression> expr,
+    std::shared_ptr<Omniscript::ArrowAccessExpression> expr,
     llvm::Value* baseValue,
     SymbolTableType scope
 ) {
@@ -2310,9 +2310,9 @@ llvm::Value* IRGenerator::createEnum(
     const std::string& enumName,
     bool isGlobal
 ) {
-    for (size_t i = 0; i < names.size(); ++i) {
-        assignVariable(enumName + "." + names[i], values[i]->getType(), values[i], isGlobal, true);
-    }
+    // for (size_t i = 0; i < names.size(); ++i) {
+    //     assignVariable(enumName + "." + names[i], values[i]->getType(), values[i], isGlobal, true);
+    // }
     return nullptr;
 }
 
@@ -2323,39 +2323,40 @@ llvm::Value* IRGenerator::createEnumWithLookup(
     const std::string& enumName,
     bool isGlobal
 ) {
-    llvm::Type* valueType = values[0]->getType();
-    std::vector<llvm::Constant*> constValues;
-    std::vector<llvm::Constant*> nameConstants;
+    // llvm::Type* valueType = values[0]->getType();
+    // std::vector<llvm::Constant*> constValues;
+    // std::vector<llvm::Constant*> nameConstants;
 
-    for (size_t i = 0; i < values.size(); ++i) {
-        // Declare each enum value as a global/local variable
-        assignVariable(enumName + "." + names[i], valueType, values[i], isGlobal, true);
+    // for (size_t i = 0; i < values.size(); ++i) {
+    //     // Declare each enum value as a global/local variable
+    //     assignVariable(enumName + "." + names[i], valueType, values[i], isGlobal, true);
 
-        // Handle the constant value for the value array
-        if (auto* constantVal = llvm::dyn_cast<llvm::Constant>(values[i])) {
-            constValues.push_back(constantVal);
-        } else {
-            llvm::errs() << "Warning: Non-constant enum value for " << names[i] << "\n";
-            constValues.push_back(llvm::Constant::getNullValue(valueType));
-        }
+    //     // Handle the constant value for the value array
+    //     if (auto* constantVal = llvm::dyn_cast<llvm::Constant>(values[i])) {
+    //         constValues.push_back(constantVal);
+    //     } else {
+    //         llvm::errs() << "Warning: Non-constant enum value for " << names[i] << "\n";
+    //         constValues.push_back(llvm::Constant::getNullValue(valueType));
+    //     }
 
-        // Create a global string pointer for the name
-        llvm::Constant* namePtr = Builder->CreateGlobalString(names[i], enumName + "_str_" + names[i]);
-        nameConstants.push_back(namePtr);
-    }
+    //     // Create a global string pointer for the name
+    //     llvm::Constant* namePtr = Builder->CreateGlobalString(names[i], enumName + "_str_" + names[i]);
+    //     nameConstants.push_back(namePtr);
+    // }
 
-    // Create value lookup array
-    llvm::ArrayType* valueArrayType = llvm::ArrayType::get(valueType, constValues.size());
-    llvm::Constant* valueArray = llvm::ConstantArray::get(valueArrayType, constValues);
-    assignVariable(enumName + "_lookup", valueArrayType, valueArray, isGlobal, true);
+    // // Create value lookup array
+    // llvm::ArrayType* valueArrayType = llvm::ArrayType::get(valueType, constValues.size());
+    // llvm::Constant* valueArray = llvm::ConstantArray::get(valueArrayType, constValues);
+    // assignVariable(enumName + "_lookup", valueArrayType, valueArray, isGlobal, true);
 
-    // Create name (string) lookup array
-    llvm::Type* stringPtrType = nameConstants[0]->getType(); // i8*
-    llvm::ArrayType* nameArrayType = llvm::ArrayType::get(stringPtrType, nameConstants.size());
-    llvm::Constant* nameArray = llvm::ConstantArray::get(nameArrayType, nameConstants);
-    assignVariable(enumName + "_name_lookup", nameArrayType, nameArray, isGlobal, true);
+    // // Create name (string) lookup array
+    // llvm::Type* stringPtrType = nameConstants[0]->getType(); // i8*
+    // llvm::ArrayType* nameArrayType = llvm::ArrayType::get(stringPtrType, nameConstants.size());
+    // llvm::Constant* nameArray = llvm::ConstantArray::get(nameArrayType, nameConstants);
+    // assignVariable(enumName + "_name_lookup", nameArrayType, nameArray, isGlobal, true);
 
-    return valueArray; // or nullptr if you don't need to return a value
+    // return valueArray; // or nullptr if you don't need to return a value
+    return nullptr;
 }
 
 llvm::Value* IRGenerator::createEnumClass(
@@ -2364,25 +2365,26 @@ llvm::Value* IRGenerator::createEnumClass(
     const std::string& className,
     bool isGlobal
 ) {
-    llvm::LLVMContext& ctx = Builder->getContext();
-    llvm::Type* fieldType = values[0]->getType();
+    // llvm::LLVMContext& ctx = Builder->getContext();
+    // llvm::Type* fieldType = values[0]->getType();
 
-    std::vector<llvm::Type*> fieldTypes(values.size(), fieldType);
-    std::vector<llvm::Constant*> fieldValues;
+    // std::vector<llvm::Type*> fieldTypes(values.size(), fieldType);
+    // std::vector<llvm::Constant*> fieldValues;
 
-    for (auto* val : values) {
-        if (auto* c = llvm::dyn_cast<llvm::Constant>(val)) {
-            fieldValues.push_back(c);
-        } else {
-            llvm::errs() << "Warning: Non-constant value in enum class " << className << "\n";
-            fieldValues.push_back(llvm::Constant::getNullValue(fieldType));
-        }
-    }
+    // for (auto* val : values) {
+    //     if (auto* c = llvm::dyn_cast<llvm::Constant>(val)) {
+    //         fieldValues.push_back(c);
+    //     } else {
+    //         llvm::errs() << "Warning: Non-constant value in enum class " << className << "\n";
+    //         fieldValues.push_back(llvm::Constant::getNullValue(fieldType));
+    //     }
+    // }
 
-    llvm::StructType* structType = llvm::StructType::create(ctx, fieldTypes, className);
-    llvm::Constant* structConst = llvm::ConstantStruct::get(structType, fieldValues);
+    // llvm::StructType* structType = llvm::StructType::create(ctx, fieldTypes, className);
+    // llvm::Constant* structConst = llvm::ConstantStruct::get(structType, fieldValues);
 
-    return assignVariable(className, structType, structConst, isGlobal, true);
+    // return assignVariable(className, structType, structConst, isGlobal, true);
+    return nullptr;
 }
 
 llvm::Value* IRGenerator::createEnumClassWithLookup(
@@ -2391,46 +2393,47 @@ llvm::Value* IRGenerator::createEnumClassWithLookup(
     const std::string& className,
     bool isGlobal
 ) {
-    llvm::LLVMContext& ctx = Builder->getContext();
-    llvm::Type* valueType = values[0]->getType();
+    // llvm::LLVMContext& ctx = Builder->getContext();
+    // llvm::Type* valueType = values[0]->getType();
 
-    std::vector<llvm::Type*> fieldTypes(values.size(), valueType);
-    std::vector<llvm::Constant*> fieldValues;
-    std::vector<llvm::Constant*> nameConstants;
+    // std::vector<llvm::Type*> fieldTypes(values.size(), valueType);
+    // std::vector<llvm::Constant*> fieldValues;
+    // std::vector<llvm::Constant*> nameConstants;
 
-    // Step 1: Generate the enum struct values and name strings
-    for (size_t i = 0; i < values.size(); ++i) {
-        llvm::Value* val = values[i];
+    // // Step 1: Generate the enum struct values and name strings
+    // for (size_t i = 0; i < values.size(); ++i) {
+    //     llvm::Value* val = values[i];
 
-        if (auto* c = llvm::dyn_cast<llvm::Constant>(val)) {
-            fieldValues.push_back(c);
-        } else {
-            llvm::errs() << "Warning: Non-constant enum value in class " << className << "\n";
-            fieldValues.push_back(llvm::Constant::getNullValue(valueType));
-        }
+    //     if (auto* c = llvm::dyn_cast<llvm::Constant>(val)) {
+    //         fieldValues.push_back(c);
+    //     } else {
+    //         llvm::errs() << "Warning: Non-constant enum value in class " << className << "\n";
+    //         fieldValues.push_back(llvm::Constant::getNullValue(valueType));
+    //     }
 
-        // Create a global string pointer for the name
-        llvm::Constant* namePtr = Builder->CreateGlobalString(names[i], className + "_str_" + names[i]);
-        nameConstants.push_back(namePtr);
-    }
+    //     // Create a global string pointer for the name
+    //     llvm::Constant* namePtr = Builder->CreateGlobalString(names[i], className + "_str_" + names[i]);
+    //     nameConstants.push_back(namePtr);
+    // }
 
-    // Step 2: Create the struct for the enum class
-    llvm::StructType* structType = llvm::StructType::create(ctx, fieldTypes, className);
-    llvm::Constant* structConst = llvm::ConstantStruct::get(structType, fieldValues);
-    llvm::Value* enumClass = assignVariable(className, structType, structConst, isGlobal, true);
+    // // Step 2: Create the struct for the enum class
+    // llvm::StructType* structType = llvm::StructType::create(ctx, fieldTypes, className);
+    // llvm::Constant* structConst = llvm::ConstantStruct::get(structType, fieldValues);
+    // llvm::Value* enumClass = assignVariable(className, structType, structConst, isGlobal, true);
 
-    // Step 3: Create value lookup array (flat version of struct)
-    llvm::ArrayType* lookupArrayType = llvm::ArrayType::get(valueType, fieldValues.size());
-    llvm::Constant* lookupArray = llvm::ConstantArray::get(lookupArrayType, fieldValues);
-    assignVariable(className + "_lookup", lookupArrayType, lookupArray, isGlobal, true);
+    // // Step 3: Create value lookup array (flat version of struct)
+    // llvm::ArrayType* lookupArrayType = llvm::ArrayType::get(valueType, fieldValues.size());
+    // llvm::Constant* lookupArray = llvm::ConstantArray::get(lookupArrayType, fieldValues);
+    // assignVariable(className + "_lookup", lookupArrayType, lookupArray, isGlobal, true);
 
-    // Step 4: Create name lookup array
-    llvm::Type* stringPtrType = nameConstants[0]->getType(); // i8*
-    llvm::ArrayType* nameArrayType = llvm::ArrayType::get(stringPtrType, nameConstants.size());
-    llvm::Constant* nameArray = llvm::ConstantArray::get(nameArrayType, nameConstants);
-    assignVariable(className + "_name_lookup", nameArrayType, nameArray, isGlobal, true);
+    // // Step 4: Create name lookup array
+    // llvm::Type* stringPtrType = nameConstants[0]->getType(); // i8*
+    // llvm::ArrayType* nameArrayType = llvm::ArrayType::get(stringPtrType, nameConstants.size());
+    // llvm::Constant* nameArray = llvm::ConstantArray::get(nameArrayType, nameConstants);
+    // assignVariable(className + "_name_lookup", nameArrayType, nameArray, isGlobal, true);
 
-    return enumClass;
+    // return enumClass;
+    return nullptr;
 }
 
 llvm::Value* IRGenerator::getEnumValue(const std::string& enumName, const std::string& memberName) {

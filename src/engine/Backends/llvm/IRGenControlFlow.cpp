@@ -11,7 +11,7 @@ llvm::Value* IRGenerator::createForLoop(
     llvm::Value* initialValue = nullptr;
 
     if (forExpr->initializer) {
-        auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(forExpr->initializer);
+        auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(forExpr->initializer);
         if (!varAssign || varAssign->isGlobal) {
             console.error("Expected local variable assignment in for initializer.");
         }

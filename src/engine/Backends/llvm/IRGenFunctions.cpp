@@ -285,7 +285,7 @@ void IRGenerator::generateFunctionBody(
             break; // Don't emit instructions after return
         }
 
-        if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(expr)) {
+        if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(expr)) {
             if (!varAssign->isStatic) {
                 varAssign->isGlobal = false;
             }
@@ -329,16 +329,6 @@ void IRGenerator::generateFunctionBody(
 
     popScope();  // Parameters + function body scope
     DEBUG_LOG("Popped function scope");
-
-    // Verify the function for consistency
-    // if (llvm::verifyFunction(*function, &llvm::errs())) {
-    //     printIR();
-    //     printErrors();
-    //     console.error("Function verification failed: " + function->getName().str());
-    //     function->eraseFromParent();
-    // } else {
-    //     DEBUG_LOG("Function verified successfully: " + function->getName().str());
-    // }
 
     Builder->restoreIP(savedIP); 
 }

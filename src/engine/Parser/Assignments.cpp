@@ -24,6 +24,12 @@ bool Parser::isAssignmentExpression(TokenTypes tokenType) {
 std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
     Token startToken = currentToken;
 
+    bool isVolatile = false;
+    if (currentToken.getType() == TokenTypes::Volatile) {
+        isVolatile = true;
+        eat(TokenTypes::Volatile);
+    }
+
     TokenTypes variableType = TokenTypes::Let;
     std::string variableName;
     std::shared_ptr<Omniscript::Type> type = nullptr;
@@ -64,6 +70,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
 
     auto assign = std::make_shared<AssignVariable>(variableName, type, lambda);
     assign->setPosition(startToken);
+    assign->isVolatile = isVolatile;
     return assign;
 }
 

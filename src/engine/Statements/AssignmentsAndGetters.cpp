@@ -1,6 +1,7 @@
 #include <omniscript/engine/Statement.h>
 #include <omniscript/Core/Expressions/FunctionExpression.h>
 #include <omniscript/Core/Expressions/AssignmentExpression.h>
+#include <omniscript/Core/Expressions/AssignmentExpression.h>
 #include <omniscript/Core/Expressions/VariableAccessExpression.h>
 
 // ======================= Assignments and Variable Getters ======================= //
@@ -297,10 +298,11 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
         scope->setVariable(variable, result);
     }
 
-    auto assignment = Omniscript::make_expression<Omniscript::VariableAccessExpression>(variable, result, isGlobal, true);
+    auto assignment = Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result, isGlobal, true);
     assignment->isStatic = isStatic;
     assignment->isGlobal = isGlobal;
     assignment->isConstant = isConstant;
+    assignment->isVolatile = isVolatile;
     return assignment;
 }
 

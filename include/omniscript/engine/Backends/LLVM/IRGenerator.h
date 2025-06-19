@@ -204,7 +204,6 @@ public:
     
     llvm::Value* createBool(bool value);
     
-    
     llvm::Function* getOrCreateGlobalInitFunction();
     void scheduleGlobalInitialization(
         const std::string& name,
@@ -214,7 +213,7 @@ public:
     void finalizeGlobalInitializers();
     llvm::Value* assignVariable(
         std::shared_ptr<Omniscript::VariableAssignment> statement,
-        llvm::Value* value
+        SymbolTableType scope
     );
     llvm::Value* createConstant(const std::string& name, llvm::Type* type, llvm::Value* value);
     llvm::Value* reassign(const std::string& name, llvm::Value* newValue);

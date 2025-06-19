@@ -1,4 +1,4 @@
-#include <omniscript/engine/tokens.h>
+#include <omniscript/engine/Tokens.h>
 
 // Create a map from TokenTypes to string names so that you can get the name of an enum via its index
 std::unordered_map<TokenTypes, std::string> tokenTypeNames = {

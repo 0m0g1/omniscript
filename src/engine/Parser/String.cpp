@@ -1,7 +1,7 @@
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/engine/Parser.h>
-#include <omniscript/engine/tokens.h>
+#include <omniscript/engine/Tokens.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/omniscript_pch.h>

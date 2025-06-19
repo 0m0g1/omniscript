@@ -866,7 +866,8 @@ public:
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<AssignVariable>(variable, type, value->clone(), isReassign);
     }
-
+    
+    bool isVolatile = false;
 private:
     std::string variable;
     bool isReassign;

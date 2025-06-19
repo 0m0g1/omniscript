@@ -1,7 +1,7 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
 
 llvm::Value* IRGenerator::assignVariable(
-    std::shared_ptr<Omniscript::VariableAccessExpression> statement,
+    std::shared_ptr<Omniscript::VariableAssignment> statement,
     SymbolTableType scope
 ) {
     std::string name = statement->variableName;
@@ -58,7 +58,7 @@ llvm::Value* IRGenerator::assignVariable(
     }
 
     // --- Local variable ---
-    llvm::Function* function = (activeBlock ? activeBlock->getParent() : Builder->GetInsertBlock()->getParent());
+    llvm::Function* function = (Builder->GetInsertBlock()->getParent());
     llvm::BasicBlock* entryBlock = &function->getEntryBlock();
 
     // Save current insertion point

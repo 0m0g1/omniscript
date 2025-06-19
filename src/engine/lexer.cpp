@@ -7,7 +7,7 @@
 
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Lexer.h>
-#include <omniscript/engine/tokens.h>
+#include <omniscript/engine/Tokens.h>
 #include <omniscript/utils.h>
 
 // Lexer::Lexer(const std::string &source) : source(source) {}
