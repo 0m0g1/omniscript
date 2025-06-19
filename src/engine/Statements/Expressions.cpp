@@ -1,9 +1,8 @@
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
+#include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/utils.h>
 #include <omniscript/Core/Expressions/VariableAccessExpression.h>
 
 // ============================== Binary, Unary and Ternary Expressions ============================== //

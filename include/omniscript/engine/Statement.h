@@ -1,14 +1,15 @@
 #pragma once
 
-#include <omniscript/runtime/object.h>
 #include <omniscript/Core.h>
-#include <omniscript/Core/Types.h>
-#include <omniscript/Core/Expression.h>
 #include <omniscript/utils.h>
-#include <omniscript/omniscript_pch.h>
+#include <omniscript/Core/Types.h>
 #include <omniscript/engine/tokens.h>
-#include <omniscript/debuggingtools/console.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/runtime/object.h>
+#include <omniscript/Core/Expression.h>
 #include <omniscript/engine/Symboltable.h>
+#include <omniscript/debuggingtools/console.h>
+#include <omniscript/Core/Expressions/FunctionInputExpression.h>
 
 using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>;
 

@@ -876,7 +876,7 @@ llvm::Value* IRGenerator::handleAccessExpression(
         baseValue = activeScope->get(varAcc->variableName);
     } 
     // Handle nested member access in arrow access case (like std.Math->pi)
-    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpressionExpressionrrowAccessExpression>(expr)) {
+    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::ArrowAccessExpression>(expr)) {
         if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(arrowAccess->expr)) {
             // First get the base value for the member access
             llvm::Value* memberBaseValue = nullptr;
@@ -907,7 +907,7 @@ llvm::Value* IRGenerator::handleAccessExpression(
     if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(expr)) {
         return handleMemberAccess(memberAccess, baseValue, scope);
     }
-    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpressionExpressionrrowAccessExpression>(expr)) {
+    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::ArrowAccessExpression>(expr)) {
         return handleArrowAccess(arrowAccess, baseValue, scope);
     }
     else if (auto derefAccess = std::dynamic_pointer_cast<Omniscript::DereferenceExpression>(expr)) {

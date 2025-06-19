@@ -488,14 +488,12 @@ struct ReferenceExpression : public Expression {
         type = Type::createReferenceType(this->referent->type);
     }
 
-    
     explicit ReferenceExpression(const std::string& name, std::shared_ptr<Expression>* referentPtr)
         : referentName(name), referentPtr(referentPtr) {
         if (referentPtr && *referentPtr) {
             type = Type::createReferenceType((*referentPtr)->type);
         }
     }
-
     
     std::shared_ptr<Expression> getValue() const {
         if (referent) {

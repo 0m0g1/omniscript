@@ -1,9 +1,10 @@
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
+#include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/utils.h>
+#include <omniscript/Core/Expressions/ClassExpression.h>
+#include <omniscript/Core/Expressions/StructExpression.h>
 #include <omniscript/Core/Expressions/AssignmentExpression.h>
 #include <omniscript/Core/Expressions/VariableAccessExpression.h>
 
@@ -11,7 +12,7 @@
 
 void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::string memberName, SymbolTableType scope) {
     // Ensure base type is a class
-    auto aggregateExpr = std::dynamic_pointer_cast<Omniscript::VariableAccessExpressionExpressionggregateExpression>(scope->get(baseTypeName));
+    auto aggregateExpr = std::dynamic_pointer_cast<Omniscript::AggregateExpression>(scope->get(baseTypeName));
     if (aggregateExpr) {
         auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(scope->get(baseTypeName));
         auto classExpr = std::dynamic_pointer_cast<Omniscript::ClassExpression>(scope->get(baseTypeName));
@@ -314,7 +315,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType sco
         }
     }
 
-    auto result = std::make_shared<Omniscript::VariableAccessExpressionExpressionrrowAccessExpression>(
+    auto result = std::make_shared<Omniscript::ArrowAccessExpression>(
         pointerExpr,
         memberName,
         memberIndex

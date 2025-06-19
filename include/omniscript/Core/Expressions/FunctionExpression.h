@@ -1,3 +1,4 @@
+#pragma once
 #include <omniscript/Core/Expression.h>
 #include <omniscript/Core/Expressions/CallableExpression.h>
 
@@ -236,13 +237,42 @@ struct FunctionExpression : public Callable {
         targetFeatures = features; 
         return *this; 
     }
+
+    FunctionExpression& setSecurityCritical(bool value = true) { 
+        isSecurityCritical = value; 
+        
+        // When a function is security critical, we should also enable basic protections
+        if (value) {
+            stackProtectorRequired = true;
+            isSafeStack = true;
+        }
+        
+        return *this; 
+    }
+
+    FunctionExpression& setStackProtectorStrong(bool value = true) { 
+        stackProtectorStrong = value; 
+        if (value) {
+            stackProtectorRequired = true; // Strong implies basic protection
+        }
+        return *this; 
+    }
+
+    FunctionExpression& setCfi(bool value = true) { 
+        isCfi = value; 
+        return *this; 
+    }
+
+    FunctionExpression& setSafeStack(bool value = true) { 
+        isSafeStack = value; 
+        return *this; 
+    }
     
     FunctionExpression& addThrowsException(const std::string& exception) { 
         throwsExceptions.push_back(exception); 
         return *this; 
     }
     
-    // Convenience methods for common patterns
     FunctionExpression& makeExternC(const std::string& name = "") {
         return setExtern()
             .setCallingConvention(CallingConvention::CDecl)

@@ -1,3 +1,4 @@
+#pragma once
 #include <omniscript/Core/Expression.h>
 #include <omniscript/Core/Expressions/CallableExpression.h>
 

@@ -1,10 +1,11 @@
+#pragma once
 #include <omniscript/Core/Expression.h>
 
 namespace Omniscript {
-struct VariableAccess : public Expression {
+struct VariableAccessExpression : public Expression {
     // Basic variable access properties
     std::string variableName;
-    std::shared_ptr<Omniscript::Expression> value;
+    std::shared_ptr<Expression> value;
     
     // Optional/nullable type handling
     bool nullCaseHandled = false;
@@ -90,9 +91,27 @@ struct VariableAccess : public Expression {
     // Exception handling
     bool canThrowException = false;
     bool isNoexceptAccess = true;
-    
+
     // Constructor
-    explicit VariableAccess(
+    VariableAccessExpression(
+        const std::string& name, 
+        std::shared_ptr<Expression> value,
+        bool isVolatile = false,
+        bool isAtomic = false
+    ) : variableName(std::move(name)), 
+        accessType(accessType),
+        isVolatileAccess(isVolatile),
+        isAtomicAccess(isAtomic) {
+        
+        this->type = type ? type : this->type;
+        
+        // Set atomic ordering if atomic
+        if (isAtomic && atomicOrdering == AtomicOrdering::NotAtomic) {
+            atomicOrdering = AtomicOrdering::Acquire; // Default for reads
+        }
+    }
+
+    VariableAccessExpression(
         std::string name, 
         std::shared_ptr<Type> type = nullptr,
         AccessType accessType = AccessType::DirectAccess,
@@ -112,12 +131,12 @@ struct VariableAccess : public Expression {
     }
     
     // Builder pattern methods for fluent API
-    VariableAccess& setVolatile(bool value = true) { 
+    VariableAccessExpression& setVolatile(bool value = true) { 
         isVolatileAccess = value; 
         return *this; 
     }
     
-    VariableAccess& setAtomic(bool value = true) { 
+    VariableAccessExpression& setAtomic(bool value = true) { 
         isAtomicAccess = value; 
         if (value && atomicOrdering == AtomicOrdering::NotAtomic) {
             atomicOrdering = AtomicOrdering::Acquire;
@@ -125,28 +144,28 @@ struct VariableAccess : public Expression {
         return *this; 
     }
     
-    VariableAccess& setRestrict(bool value = true) { 
+    VariableAccessExpression& setRestrict(bool value = true) { 
         isRestrictAccess = value; 
         return *this; 
     }
     
-    VariableAccess& setNullable(bool value = true) { 
+    VariableAccessExpression& setNullable(bool value = true) { 
         isNullableAccess = value; 
         requiresNullCheck = value;
         return *this; 
     }
     
-    VariableAccess& setConst(bool value = true) { 
+    VariableAccessExpression& setConst(bool value = true) { 
         isConstAccess = value; 
         return *this; 
     }
     
-    VariableAccess& setMutable(bool value = true) { 
+    VariableAccessExpression& setMutable(bool value = true) { 
         isMutableAccess = value; 
         return *this; 
     }
     
-    VariableAccess& setAtomicOrdering(AtomicOrdering ordering) { 
+    VariableAccessExpression& setAtomicOrdering(AtomicOrdering ordering) { 
         atomicOrdering = ordering; 
         if (ordering != AtomicOrdering::NotAtomic) {
             isAtomicAccess = true;
@@ -154,81 +173,81 @@ struct VariableAccess : public Expression {
         return *this; 
     }
     
-    VariableAccess& setSyncScope(SyncScope scope) { 
+    VariableAccessExpression& setSyncScope(SyncScope scope) { 
         syncScope = scope; 
         return *this; 
     }
     
-    VariableAccess& setAccessType(AccessType type) { 
+    VariableAccessExpression& setAccessType(AccessType type) { 
         accessType = type; 
         return *this; 
     }
     
-    VariableAccess& setAlignment(unsigned align) { 
+    VariableAccessExpression& setAlignment(unsigned align) { 
         expectedAlignment = align; 
         assumeAligned = (align > 0);
         return *this; 
     }
     
-    VariableAccess& setCacheHint(CacheHint hint) { 
+    VariableAccessExpression& setCacheHint(CacheHint hint) { 
         cacheHint = hint; 
         return *this; 
     }
     
-    VariableAccess& setAddressSpace(unsigned space) { 
+    VariableAccessExpression& setAddressSpace(unsigned space) { 
         addressSpace = space; 
         return *this; 
     }
     
-    VariableAccess& setBoundsCheck(bool enabled) { 
+    VariableAccessExpression& setBoundsCheck(bool enabled) { 
         boundsCheckEnabled = enabled; 
         return *this; 
     }
     
-    VariableAccess& setThreadSafe(bool safe = true) { 
+    VariableAccessExpression& setThreadSafe(bool safe = true) { 
         isThreadSafe = safe; 
         return *this; 
     }
     
-    VariableAccess& setHotPath(bool hot = true) { 
+    VariableAccessExpression& setHotPath(bool hot = true) { 
         isHotPath = hot; 
         isColdPath = !hot;
         return *this; 
     }
     
-    VariableAccess& setColdPath(bool cold = true) { 
+    VariableAccessExpression& setColdPath(bool cold = true) { 
         isColdPath = cold; 
         isHotPath = !cold;
         return *this; 
     }
     
-    VariableAccess& setPrefetch(bool prefetch = true) { 
+    VariableAccessExpression& setPrefetch(bool prefetch = true) { 
         isPrefetchHint = prefetch; 
         return *this; 
     }
     
     // Convenience methods for common patterns
-    VariableAccess& makeAtomicVolatile(AtomicOrdering ordering = AtomicOrdering::Acquire) {
+    VariableAccessExpression& makeAtomicVolatile(AtomicOrdering ordering = AtomicOrdering::Acquire) {
         return setAtomic().setVolatile().setAtomicOrdering(ordering);
     }
     
-    VariableAccess& makeNullSafe() {
+    VariableAccessExpression& makeNullSafe() {
         return setNullable().setThreadSafe();
     }
     
-    VariableAccess& makeHighPerformance() {
+    VariableAccessExpression& makeHighPerformance() {
         return setHotPath().setPrefetch().setCacheHint(CacheHint::Temporal);
     }
     
-    VariableAccess& makeStreamingAccess() {
+    VariableAccessExpression& makeStreamingAccess() {
         return setCacheHint(CacheHint::Streaming).setPrefetch();
     }
     
-    VariableAccess& makePointerAccess(bool boundsCheck = true) {
+    VariableAccessExpression& makePointerAccess(bool boundsCheck = true) {
         return setAccessType(AccessType::PointerDereference).setBoundsCheck(boundsCheck);
     }
     
-    VariableAccess& makeArrayAccess(bool boundsCheck = true) {
+    VariableAccessExpression& makeArrayAccess(bool boundsCheck = true) {
         return setAccessType(AccessType::ArrayElement).setBoundsCheck(boundsCheck);
     }
     
@@ -352,7 +371,7 @@ struct VariableAccess : public Expression {
     }
     
     std::shared_ptr<Expression> clone() const override {
-        auto cloned = std::make_shared<VariableAccess>(
+        auto cloned = std::make_shared<VariableAccessExpression>(
             variableName, 
             type ? type->clone() : nullptr,
             accessType,
