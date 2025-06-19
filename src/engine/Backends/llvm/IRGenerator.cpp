@@ -285,7 +285,7 @@ void IRGenerator::optimizeModule(int level) {
     }
 }
 
-void IRGenerator::compileAllFunctionBodies(std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope) {
+void IRGenerator::compileAllFunctionBodies(SymbolTableType scope) {
     for (const auto& func : userDefinedFunctions) {
         DEBUG_LOG("Generating body for function: " + func->name + " (mangled: " + func->mangledName + ")");
         auto llvmFunc = currentModule->getFunction(func->mangledName);
@@ -304,7 +304,7 @@ void IRGenerator::compileAllFunctionBodies(std::shared_ptr<SymbolTable<std::shar
     }
 }
 
-llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope) {
+llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, SymbolTableType scope) {
     DEBUG_LOG();
     if (!value) {
         console.error("There is no value to be codegened.");
@@ -320,19 +320,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     // Handle VariableAssignment
-    if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(value)) {
+    if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(value)) {
         DEBUG_LOG("Assigning variable " + varAssign->variableName + " of type " + varAssign->getType()->toString());
-        llvm::Type* type = resolveLLVMType(varAssign->getType());
-        DEBUG_LOG("Variable '" + varAssign->variableName + "' has type '" + debugType(type) + "'.");
-        llvm::Value* value = codegen(varAssign->getValue(), scope);
-        DEBUG_LOG("Got variable '" + varAssign->variableName + "''s value.");
-        return assignVariable(
-            varAssign->variableName,
-            type,
-            value, 
-            varAssign->isGlobal,
-            varAssign->isConstant
-        );
+        return assignVariable(varAssign);
     }
 
     if (auto castExpr = std::dynamic_pointer_cast<Omniscript::CastExpression>(value)) {
@@ -392,7 +382,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return getReferenceToVariable(refValue->referentName);
     }
     
-    if (auto addressOf = std::dynamic_pointer_cast<Omniscript::AddressOfExpression>(value)) {
+    if (auto addressOf = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(value)) {
         DEBUG_LOG("Getting the address of variable " + addressOf->variableName);
         return getAddressOf(addressOf->variableName);
     }
@@ -478,7 +468,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
                 }
             } 
 
-            if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(expr)) {
+            if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(expr)) {
                 if (!varAssign->isStatic) {
                     varAssign->isGlobal = block->isGlobal;
                 }
@@ -578,7 +568,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return createTernaryExpression(cond, truthy, falsey);
     }
 
-    if (auto var = std::dynamic_pointer_cast<Omniscript::VariableAccess>(value)) {
+    if (auto var = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(value)) {
         DEBUG_LOG("Accessing variable: " + var->variableName);
         if (var->extractValue) {
             DEBUG_LOG("Extracting the value of a nullable");
@@ -596,7 +586,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         for (const auto& arg : call->args) {
             DEBUG_LOG(arg->toString());
 
-            if (auto arr = std::dynamic_pointer_cast<Omniscript::ArrayExpression>(arg); arr && arr->isVariadicArray) {
+            if (auto arr = std::dynamic_pointer_cast<Omniscript::VariableAccessExpressionExpressionrrayExpression>(arg); arr && arr->isVariadicArray) {
                 // If variadic, reserve space ahead (optional perf tweak)
                 args.reserve(args.size() + arr->elements.size());
 
@@ -732,7 +722,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     // Handle access expressions recursively
-    if (auto accessExpr = std::dynamic_pointer_cast<Omniscript::AccessExpression>(value)) {
+    if (auto accessExpr = std::dynamic_pointer_cast<Omniscript::VariableAccessExpressionExpressionccessExpression>(value)) {
         return handleAccessExpression(accessExpr, scope);
     }
 
@@ -772,7 +762,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     return nullptr;
 }
 
-llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expression> value, std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope) {
+llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expression> value, SymbolTableType scope) {
 
     // Handle 8-bit integer (int8_t)
     if (auto integer8 = std::dynamic_pointer_cast<Omniscript::Integer<int8_t>>(value)) {
@@ -875,22 +865,22 @@ llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expressio
 }
 
 llvm::Value* IRGenerator::handleAccessExpression(
-    std::shared_ptr<Omniscript::AccessExpression> expr, 
+    std::shared_ptr<Omniscript::VariableAccessExpressionExpressionccessExpression> expr, 
     SymbolTableType scope
 ) {
     // First evaluate the base expression recursively
     llvm::Value* baseValue = nullptr;
 
     // Handle variable access case
-    if (auto varAcc = std::dynamic_pointer_cast<Omniscript::VariableAccess>(expr->expr)) {
+    if (auto varAcc = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(expr->expr)) {
         baseValue = activeScope->get(varAcc->variableName);
     } 
     // Handle nested member access in arrow access case (like std.Math->pi)
-    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::ArrowAccessExpression>(expr)) {
+    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpressionExpressionrrowAccessExpression>(expr)) {
         if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(arrowAccess->expr)) {
             // First get the base value for the member access
             llvm::Value* memberBaseValue = nullptr;
-            if (auto innerVarAcc = std::dynamic_pointer_cast<Omniscript::VariableAccess>(memberAccess->expr)) {
+            if (auto innerVarAcc = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(memberAccess->expr)) {
                 DEBUG_LOG("Getting " + innerVarAcc->variableName);
                 memberBaseValue = activeScope->get(innerVarAcc->variableName);
             } else {
@@ -917,7 +907,7 @@ llvm::Value* IRGenerator::handleAccessExpression(
     if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(expr)) {
         return handleMemberAccess(memberAccess, baseValue, scope);
     }
-    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::ArrowAccessExpression>(expr)) {
+    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpressionExpressionrrowAccessExpression>(expr)) {
         return handleArrowAccess(arrowAccess, baseValue, scope);
     }
     else if (auto derefAccess = std::dynamic_pointer_cast<Omniscript::DereferenceExpression>(expr)) {
@@ -2099,7 +2089,7 @@ llvm::Value* IRGenerator::handleMemberAccess(
 }
 
 llvm::Value* IRGenerator::handleArrowAccess(
-    std::shared_ptr<Omniscript::ArrowAccessExpression> expr,
+    std::shared_ptr<Omniscript::VariableAccessExpressionExpressionrrowAccessExpression> expr,
     llvm::Value* baseValue,
     SymbolTableType scope
 ) {

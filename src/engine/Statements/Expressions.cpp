@@ -4,11 +4,10 @@
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/utils.h>
+#include <omniscript/Core/Expressions/VariableAccessExpression.h>
 
 // ============================== Binary, Unary and Ternary Expressions ============================== //
-
 std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableType scope) {
-    // Assign types
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
         stmt->setType(type);
     }
@@ -16,11 +15,6 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(falsey)) {
         stmt->setType(type);
     }
-
-    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(condition)) {
-    //     std::vector<std::string> typeStr = {"bool"};
-    //     stmt->setType(Omniscript::resolveType(typeStr));
-    // }
 
     extendContextOf(condition);
     extendContextOf(truthy);
@@ -154,7 +148,6 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         }
     }
 
-    // Infer a common type if not already set
     if (!type) {
         if (op.isComparisonOperator()) {
             type = Omniscript::resolveType({ "bool" });
@@ -217,13 +210,13 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     if (!rightValue) console.error("The right value is null");
     
     if (rightType->isNull() && leftType->isNullable()) {
-        if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccess>(leftValue)) {
+        if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(leftValue)) {
             varAccess->extractValue = false;
         }
     }
 
     if (leftType->isNull() && rightType->isNullable()) {
-        if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccess>(rightValue)) {
+        if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(rightValue)) {
             varAccess->extractValue = false;
         }
     }

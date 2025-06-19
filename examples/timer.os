@@ -17,15 +17,16 @@ for (let i = 0; i < 1000000; i++) {
 // Actual test
 let start: int64 = 0;
 let end: int64 = 0;
-let x: int64 = 0;  // Use int64 to prevent overflow
+volatile let x: int64 = 0;  // Use int64 to prevent overflow
 
 QueryPerformanceCounter(&start);
 
 for (let i = 0; i < 1000000000; i++) {
     x += i;
-    if (x == -1) {
-        printf("unlikely");
-    }
+    // Todo::fix this
+    // if (x == -1) {
+    //     printf("unlikely");
+    // }
 }
 
 QueryPerformanceCounter(&end);

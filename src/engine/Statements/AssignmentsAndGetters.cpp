@@ -1,10 +1,7 @@
-#include <omniscript/Core.h>
-#include <omniscript/utils.h>
 #include <omniscript/engine/Statement.h>
-#include <omniscript/engine/Symboltable.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/utils.h>
-
+#include <omniscript/Core/Expressions/FunctionExpression.h>
+#include <omniscript/Core/Expressions/AssignmentExpression.h>
+#include <omniscript/Core/Expressions/VariableAccessExpression.h>
 
 // ======================= Assignments and Variable Getters ======================= //
 // ============================== Getters  ============================== //
@@ -30,7 +27,7 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
             setRootType(Omniscript::Type::createPointerType(referent->getType()));
         }
 
-        return std::make_shared<Omniscript::AddressOfExpression>(mangledName, referent);
+        return std::make_shared<Omniscript::VariableAccessExpression>(mangledName, referent);
     }
 
     if (!type) {
@@ -38,7 +35,7 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
         setRootType(Omniscript::Type::createPointerType(referent->getType()));
     }
 
-    return std::make_shared<Omniscript::AddressOfExpression>(name, referent);
+    return std::make_shared<Omniscript::VariableAccessExpression>(name, referent);
 }
 
 std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType scope) {
@@ -106,7 +103,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
     if (type) {
         if (!Omniscript::isSameOrCastableTo(symbolType, type)) {
             if (symbolType->isNullable()) {
-                if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccess>(expr)) {
+                if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(expr)) {
                     if (!varAccess->extractValue) {
                         console.error("Symbol '" + resolvedName + "' is of type '" + symbolType->toString() +
                                       "', which cannot be casted to '" + type->toString() + "'.");
@@ -116,7 +113,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
         } else {
             if (type->isNullable() && !symbolType->isNullable()) {
                 // Wrap the non-nullable expression in a NullableExpression
-                auto val = std::make_shared<Omniscript::VariableAccess>(resolvedName, symbolType);
+                auto val = std::make_shared<Omniscript::VariableAccessExpression>(resolvedName, symbolType);
                 auto result = std::make_shared<Omniscript::NullableExpression>(val);
                 // By default, nullCaseHandled == false here, which is correct
                 return result;
@@ -128,7 +125,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
         setType(symbolType);
     }
 
-    auto varAccess = std::make_shared<Omniscript::VariableAccess>(resolvedName, type);
+    auto varAccess = std::make_shared<Omniscript::VariableAccessExpression>(resolvedName, type);
     varAccess->value = expr;
     return varAccess;
 }
@@ -300,7 +297,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
         scope->setVariable(variable, result);
     }
 
-    auto assignment = Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result, isGlobal, true);
+    auto assignment = Omniscript::make_expression<Omniscript::VariableAccessExpression>(variable, result, isGlobal, true);
     assignment->isStatic = isStatic;
     assignment->isGlobal = isGlobal;
     assignment->isConstant = isConstant;

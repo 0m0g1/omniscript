@@ -285,7 +285,7 @@ void IRGenerator::generateFunctionBody(
             break; // Don't emit instructions after return
         }
 
-        if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(expr)) {
+        if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(expr)) {
             if (!varAssign->isStatic) {
                 varAssign->isGlobal = false;
             }

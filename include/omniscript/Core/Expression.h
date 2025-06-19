@@ -198,7 +198,6 @@ struct TypeExpression : public Expression {
     }
 };
 
-
 struct CastExpression : public Expression {
     std::shared_ptr<Expression> targetExpr;
     std::shared_ptr<Type> castTargetType;
@@ -220,7 +219,6 @@ struct CastExpression : public Expression {
         );
     }
 };
-
 
 template <typename T>
 struct Primitive : public Expression {
@@ -271,8 +269,6 @@ struct Primitive : public Expression {
     T value;
 };
 
-
-
 template <typename T>
 class NumericExpression : public Primitive<T> {
 public:
@@ -285,7 +281,6 @@ public:
         return std::make_shared<NumericExpression<T>>(this->value);
     }
 };
-
 
 template <typename T>
 class Integer : public NumericExpression<T> {
@@ -302,7 +297,6 @@ public:
     }
 };
 
-
 template <typename T>
 class Float : public NumericExpression<T> {
 public:
@@ -317,7 +311,6 @@ public:
         return std::make_shared<Float<T>>(this->value);
     }
 };
-
 
 class BigInt : public NumericExpression<std::string> {
 public:
@@ -338,8 +331,6 @@ public:
 private:
     unsigned bitWidth;
 };
-
-
 
 struct PointerExpression : public Expression {
     std::shared_ptr<Expression> pointee;
@@ -363,7 +354,6 @@ struct PointerExpression : public Expression {
         );
     }
 };
-
 
 struct RawPointerExpression : public Expression {
     size_t address;
@@ -487,7 +477,6 @@ struct AddressOfExpression : public Expression {
     }
 };
 
-
 struct ReferenceExpression : public Expression {
     std::string referentName;
     std::shared_ptr<Expression>* referentPtr = nullptr;  
@@ -537,8 +526,6 @@ struct ReferenceExpression : public Expression {
         );
     }
 };
-
-
 
 struct ReturnExpression : public Expression {
     std::shared_ptr<Expression> value;
@@ -596,7 +583,6 @@ struct TernaryExpression : public Expression {
     std::string toString() const override {
         return "(" + condition->toString() + " ? " + truthy->toString() + " : " + falsey->toString() + ")";
     }
-
     
     std::shared_ptr<Expression> clone() const override {
         return std::make_shared<TernaryExpression>(
@@ -608,16 +594,17 @@ struct TernaryExpression : public Expression {
     }
 };
 
-
 struct UnaryExpression : public Expression {
     TokenTypes op;
     std::shared_ptr<Expression> operand;
     bool position;
 
-    UnaryExpression(TokenTypes op,
-                            std::shared_ptr<Expression> operand,
-                            std::shared_ptr<Type> resultType,
-                            bool position)
+    UnaryExpression(
+                    TokenTypes op,
+                    std::shared_ptr<Expression> operand,
+                    std::shared_ptr<Type> resultType,
+                    bool position
+                )
         : op(op), operand(std::move(operand)), position(position) {
         this->type = resultType;
     }
@@ -625,11 +612,7 @@ struct UnaryExpression : public Expression {
     std::string toString() const override {
         TokenTypes opStr = op;
         return "(unaryexpr)";
-        
-        
-        
     }
-
     
     std::shared_ptr<Expression> clone() const override {
         return std::make_shared<UnaryExpression>(
@@ -639,141 +622,6 @@ struct UnaryExpression : public Expression {
             position
         );
     }
-};
-
-
-
-struct FunctionInputExpression : public Expression {
-    bool isVariadic = false;
-    bool isConstant = false;
-    std::shared_ptr<Expression> value;
-
-    FunctionInputExpression(const std::string& name, std::shared_ptr<Type> type = nullptr, std::shared_ptr<Expression> value = nullptr, bool isConst = false) :
-    value(std::move(value)), isConstant(isConst) {
-        this->name = name;
-        this->type = std::move(type);
-    }
-    
-    std::string toString() const override { return "(FunctionInput: " + name + ", value: " + value->toString() + ")"; } 
-
-    std::shared_ptr<Expression> clone() const override {
-        auto input = std::make_shared<FunctionInputExpression>(
-            name,
-            type ? type->clone() : nullptr,
-            value ? value->clone() : nullptr,
-            isConstant
-        );
-        input->isVariadic = isVariadic;
-        return input;
-    }
-};
-
-struct Callable : public virtual Expression {
-    std::string mangledName;
-    std::vector<std::shared_ptr<Expression>> parameters;
-    bool isVarArg;
-
-    Callable(
-            const std::string& name,
-            const std::string& mangledName,
-            std::vector<std::shared_ptr<Expression>> params = {},
-            bool isVarArg = false
-        )
-        : parameters(std::move(params)), 
-            isVarArg(isVarArg) {
-        this->name = name;
-        this->mangledName = mangledName;
-    }
-
-    
-    std::vector<std::shared_ptr<FunctionInputExpression>> cloneParameters() const {
-        std::vector<std::shared_ptr<FunctionInputExpression>> clonedParams;
-        for (const auto& parameter : parameters) {
-            clonedParams.push_back(std::dynamic_pointer_cast<FunctionInputExpression>(parameter->clone()));
-        }
-        return clonedParams;
-    }
-
-    std::vector<std::shared_ptr<Expression>> getParameters() const {
-        return parameters;
-    }
-
-    std::string toString() const override {
-        std::string paramsStr;
-        for (const auto& param : parameters) {
-            if (!paramsStr.empty()) paramsStr += ", ";
-            paramsStr += param->toString();
-        }
-        return "Callable: " + name + "(" + paramsStr + ")";
-    }
-
-    
-    std::shared_ptr<Expression> clone() const override {
-        std::vector<std::shared_ptr<Expression>> clonedParams;
-        for (const auto& param : parameters) {
-            clonedParams.push_back(param ? param->clone() : nullptr);
-        }
-        return std::make_shared<Callable>(name, mangledName, clonedParams, isVarArg);
-    }
-};
-
-
-struct FunctionExpression : public Callable {
-    bool isStatic = false;
-    bool isExtern = false;
-    bool isIntrinsic = false;
-    std::string libPath;
-    std::string externName;
-    std::string intrinsicName;
-    std::vector<std::shared_ptr<Expression>> body;
-    std::shared_ptr<Type> returnType;
-    std::vector<std::shared_ptr<Type>> paramTypes;
-
-    FunctionExpression(
-                        const std::string& name, 
-                        const std::string& mangledName, 
-                        std::shared_ptr<Type> returnType,
-                        std::vector<std::shared_ptr<Expression>> body = {},
-                        std::vector<std::shared_ptr<Expression>> params = {},
-                        std::vector<std::shared_ptr<Type>> paramTypes = {},
-                        bool isVarArg = false)
-        : Callable(name, mangledName, std::move(params), isVarArg),
-            body(std::move(body)), paramTypes(paramTypes),
-            returnType(returnType) {
-        type = Type::createFunctionType(name, paramTypes, returnType, isVarArg);
-        returnType = type->getReturnType();
-    }
-
-    std::string toString() const override {
-        return "Function: " + name + " [Returns: " + (returnType ? returnType->toString() : "void") + "]";
-    }
-
-    std::shared_ptr<Type> getReturnType() {
-        return type->getReturnType();
-    }
-
-    
-    std::shared_ptr<Expression> clone() const override {
-        std::vector<std::shared_ptr<Expression>> clonedBody;
-        for (const auto& expr : body) {
-            clonedBody.push_back(expr ? expr->clone() : nullptr);
-        }
-        
-        std::vector<std::shared_ptr<Expression>> clonedParams;
-            for (const auto& param : parameters) {
-                clonedParams.push_back(param ? param->clone() : nullptr);
-            }
-            
-            return std::make_shared<FunctionExpression>(
-                name,
-                mangledName,
-                returnType ? returnType->clone() : nullptr,
-                clonedBody,
-                clonedParams,
-                paramTypes,
-                isVarArg
-            );
-        }
 };
 
 struct BlockExpression : public Expression {
@@ -811,49 +659,6 @@ struct AggregateExpression : public virtual Expression {
     std::string toString() const override { return "Aggregate"; }
 };
 
-struct StructExpression : 
-public Callable,
-public AggregateExpression {
-    std::string structName;
-    std::vector<std::string> elementNames;
-
-    StructExpression(
-        const std::string& structName,
-        const std::string& mangledName,
-        const std::vector<std::shared_ptr<Expression>>& fields = {},
-        const std::vector<std::string>& fieldNames = {},
-        bool isVarArg = false
-    )
-        : Callable(structName, mangledName, fields, isVarArg),
-          structName(structName),
-          elementNames(fieldNames)
-    {
-        
-        std::vector<std::shared_ptr<Type>> fieldTypes;
-        for (auto& f : parameters)
-            fieldTypes.push_back(f->type);
-
-        type = std::make_shared<UserDefinedType>(name);
-    }
-
-    std::string toString() const override {
-        return "Struct : " + structName;
-    }
-
-    std::shared_ptr<Expression> clone() const override {
-        std::vector<std::shared_ptr<Expression>> clonedFields;
-        for (const auto& field : parameters)
-            clonedFields.push_back(field ? field->clone() : nullptr);
-
-        return std::make_shared<StructExpression>(
-            structName,
-            mangledName,
-            clonedFields,
-            elementNames,
-            isVarArg
-        );
-    }
-};
 
 
 struct MemberExpression : public Expression {
@@ -938,7 +743,6 @@ struct ClassMemberExpression : public MemberExpression {
     }
 };
 
-
 struct ModuleMemberExpression : public MemberExpression {
 public:
     std::shared_ptr<Expression> value;
@@ -966,94 +770,6 @@ public:
         return "ModuleMember(" + name + "): " + modifiers.toString();
     }
 };
-
-
-struct ClassExpression : 
-public Callable,
-public AggregateExpression {
-    std::shared_ptr<StructExpression> structExpr;
-    std::vector<std::shared_ptr<FunctionExpression>> constructors;
-    std::shared_ptr<FunctionExpression> destructor;
-    std::vector<std::shared_ptr<ClassMemberExpression>> members;
-
-    ClassExpression(
-        const std::string& name,
-        std::shared_ptr<StructExpression> structExpr,
-        std::vector<std::shared_ptr<FunctionExpression>> constructors = {},
-        std::shared_ptr<FunctionExpression> destructor = nullptr,
-        std::vector<std::shared_ptr<ClassMemberExpression>> members = {}
-    )
-        : Callable(name, name, {}, false),  
-          structExpr(std::move(structExpr)),
-          constructors(std::move(constructors)),
-          destructor(std::move(destructor)),
-          members(std::move(members))
-    {
-        type = this->structExpr->getType(); 
-    }
-
-    std::string toString() const override {
-        std::string memberStr;
-        for (const auto& member : members) {
-            memberStr += "\n  " + member->toString();
-        }
-
-        return "Class: " + structExpr->structName +
-               " [Constructors: " + std::to_string(constructors.size()) +
-               ", Destructor: " + (destructor ? "yes" : "none") + "]" +
-               (members.empty() ? "" : "\nMembers:" + memberStr);
-    }
-
-    std::shared_ptr<FunctionExpression> resolveConstructor(const std::vector<std::shared_ptr<Expression>>& args) const {
-        for (const auto& ctor : constructors) {
-            if (ctor->getParameters().size() == args.size()) {
-                return ctor;
-            }
-        }
-        return nullptr;
-    }
-
-    std::shared_ptr<Expression> clone() const override {
-        auto clonedStruct = std::dynamic_pointer_cast<StructExpression>(structExpr->clone());
-
-        std::vector<std::shared_ptr<FunctionExpression>> clonedCtors;
-        for (const auto& ctor : constructors)
-            clonedCtors.push_back(std::dynamic_pointer_cast<FunctionExpression>(ctor->clone()));
-
-        auto clonedDtor = destructor ? std::dynamic_pointer_cast<FunctionExpression>(destructor->clone()) : nullptr;
-
-        std::vector<std::shared_ptr<ClassMemberExpression>> clonedMembers;
-        for (const auto& member : members)
-            clonedMembers.push_back(std::dynamic_pointer_cast<ClassMemberExpression>(member->clone()));
-
-        return std::make_shared<ClassExpression>(
-            name, clonedStruct, clonedCtors, clonedDtor, clonedMembers
-        );
-    }
-
-    std::shared_ptr<ClassMemberExpression> getMember(const std::string& name) {
-        for (const auto& member : members) {
-            if (member->getName() == name) {
-                return member;
-            }
-        }
-        console.error("Member '" + name + "' not found in class '" + this->getName() + "'.");
-        return nullptr;
-    }
-
-    std::string serializeMembers() const {
-        std::string result = "[\n";
-        for (const auto& member : members) {
-            result += "  { name: \"" + member->getName() + "\", ";
-            result += "type: \"" + member->getType()->toString() + "\", ";
-            result += "modifiers: \"" + member->getAccessString() + "\" },\n";
-        }
-        result += "]";
-        return result;
-    }
-};
-
-
 
 struct ModuleExpression : 
 public AggregateExpression {
@@ -1413,8 +1129,6 @@ struct EnumExpression : public Expression {
     std::unordered_map<std::string, std::shared_ptr<Expression>> expressionMap;  
 };
 
-
-
 template <typename T>
 class StringExpression : public Primitive<T> {
 public:
@@ -1425,54 +1139,6 @@ public:
     
     std::shared_ptr<Expression> clone() const override {
         return std::make_shared<StringExpression<T>>(this->value);
-    }
-};
-
-struct VariableAssignment : public Expression {
-    bool isStatic;
-    bool isConstant;
-    bool isGlobal;
-    bool isReassignment;
-    std::string variableName;
-    std::shared_ptr<Expression> assignedValue;
-
-    VariableAssignment(std::string name, std::shared_ptr<Expression> value, bool isGlobal = false, bool isReassignment = false)
-        : variableName(std::move(name)), assignedValue(std::move(value)), isGlobal(isGlobal), isReassignment(isReassignment) {
-        type = assignedValue->type;  
-    }
-
-    std::shared_ptr<Expression> getValue() const { return assignedValue; }
-    std::string toString() const override {
-        return "Assign: " + variableName + " = " + assignedValue->toString();
-    }
-    
-    std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<VariableAssignment>(
-            variableName,
-            assignedValue ? assignedValue->clone() : nullptr
-        );
-    }
-};
-
-struct VariableAccess : public Expression {
-    bool extractValue = true;
-    std::shared_ptr<Omniscript::Expression> value;
-    std::string variableName;
-
-    explicit VariableAccess(std::string name, std::shared_ptr<Type> type = nullptr) 
-        : variableName(std::move(name)) {
-            this->type = type ? type : this->type;
-        }
-
-    std::string toString() const override {
-        return "Variable: " + variableName;
-    }
-    
-    std::shared_ptr<Expression> clone() const override {
-        auto clone = std::make_shared<VariableAccess>(variableName, type ? type->clone() : nullptr);
-        clone->extractValue = extractValue;
-        clone->value = value;
-        return clone;
     }
 };
 

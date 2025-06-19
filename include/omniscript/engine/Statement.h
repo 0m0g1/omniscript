@@ -12,17 +12,14 @@
 
 using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>;
 
-// TODO: Add a formart error virtual method if needed
-class Statement { // Base class for all statements
+class Statement {
     public:
         // enum Type { // implement a statement type for each statement for speed
         //     Value,
         //     Assignment,
         //     ConstantAssignment,
         //     Return,
-
         // }
-        // virtual std::unique_ptr<Statement> clone() const = 0; // clone method
         // virtual void execute(SymbolTableType scope) = 0; //Function to execute a statement
         ~Statement() = default;
 

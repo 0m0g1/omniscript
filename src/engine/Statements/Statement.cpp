@@ -3,7 +3,7 @@
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/engine/lexer.h>
+#include <omniscript/engine/Lexer.h>
 #include <omniscript/engine/Parser.h>
 #include <omniscript/utils.h>
 // #include "Statement.h"

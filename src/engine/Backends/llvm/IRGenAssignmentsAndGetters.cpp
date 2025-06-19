@@ -1,15 +1,21 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
 
 llvm::Value* IRGenerator::assignVariable(
-    const std::string& name,
-    llvm::Type* type,
-    llvm::Value* initialValue,
-    bool isGlobal,
-    bool isConstant,
-    llvm::BasicBlock* activeBlock,
-    llvm::GlobalValue::LinkageTypes linkage
+    std::shared_ptr<Omniscript::VariableAccessExpression> statement,
+    SymbolTableType scope
 ) {
+    std::string name = statement->variableName;
+    llvm::Type* type = resolveLLVMType(statement->getType());
+    DEBUG_LOG("Variable '" + name + "' has type '" + debugType(type) + "'.");
+    llvm::Value* value = codegen(statement->getValue(), scope);
+    DEBUG_LOG("Got variable '" + varAssign->variableName + "''s value.");
+    llvm::Value* initialValue = value;
+    bool isGlobal = statement->isGlobal;
+    bool isConstant = statement->isConstant;
+    llvm::GlobalValue::LinkageTypes linkage = llvm::GlobalValue::InternalLinkage;
     llvm::Module* activeModule = currentModule;
+    bool isVolatile = statement->isVolatile;
+
     DEBUG_LOG("Creating variable: " + name + (isGlobal ? " (global)" : " (local)") + (isConstant ? " [const]" : ""));
 
     if (activeScope->exists(name)) {
@@ -22,7 +28,7 @@ llvm::Value* IRGenerator::assignVariable(
                 initialValue = Builder->CreateBitCast(initialValue, valueType, "bitcast");
             }
 
-            llvm::StoreInst* store = Builder->CreateStore(initialValue, existingVar);
+            llvm::StoreInst* store = Builder->CreateStore(initialValue, existingVar, isVolatile);
             store->setAlignment(llvm::Align(4));
         }
         return existingVar;
@@ -45,7 +51,7 @@ llvm::Value* IRGenerator::assignVariable(
 
         if (initialValue && !constInit && !isConstant) {
             DEBUG_LOG("Global variable '" + name + "' initialized with non-constant value; adding runtime store.");
-            Builder->CreateStore(initialValue, gVar);
+            Builder->CreateStore(initialValue, gVar, isVolatile);
         }
 
         return gVar;
@@ -79,7 +85,7 @@ llvm::Value* IRGenerator::assignVariable(
 
     // Store initializer
     if (initialValue) {
-        llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca);
+        llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca, isVolatile);
         store->setAlignment(llvm::Align(align));
     }
 

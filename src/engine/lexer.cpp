@@ -6,7 +6,7 @@
 // #include <iostream>
 
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/engine/lexer.h>
+#include <omniscript/engine/Lexer.h>
 #include <omniscript/engine/tokens.h>
 #include <omniscript/utils.h>
 
@@ -197,6 +197,8 @@ Token Lexer::getNextToken() {
             return Token(TokenTypes::Extern, "", line, column, sourceFilePath);
         } else if (identifier == "intrinsic") {
             return Token(TokenTypes::Intrinsic, "", line, column, sourceFilePath);
+        } else if (identifier == "volatile") {
+            return Token(TokenTypes::Volatile, "", line, column, sourceFilePath);
         } else if (identifier == "as") {
             return Token(TokenTypes::As, "", line, column, sourceFilePath);
         }
@@ -600,206 +602,204 @@ Token Lexer::getOperator(char &currentChar) {
             if (peek() == '+') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::Increment, "", line, column, sourceFilePath);
+                return Token(TokenTypes::Increment, "++", line, column, sourceFilePath);
             } else if (peek() == '=') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::PlusAssign, "", line, column, sourceFilePath);
+                return Token(TokenTypes::PlusAssign, "+=", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
-            return Token(TokenTypes::Plus, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Plus, "+", line, column, sourceFilePath);
         case '-':
             if (peek() == '>') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::Arrow, "", line, column, sourceFilePath);
+                return Token(TokenTypes::Arrow, "->", line, column, sourceFilePath);
             }
             if (peek() == '-') {
                 if (peek(2) == '>') {
                     currentPosition += 3;
                     column += 3;
-                    return Token(TokenTypes::Arrow, "", line, column, sourceFilePath);
+                    return Token(TokenTypes::Arrow, "-->", line, column, sourceFilePath);
                 }
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::Decrement, "", line, column, sourceFilePath);
+                return Token(TokenTypes::Decrement, "--", line, column, sourceFilePath);
             }
             if (peek() == '=') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::MinusAssign, "", line, column, sourceFilePath);
+                return Token(TokenTypes::MinusAssign, "-=", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
-            return Token(TokenTypes::Minus, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Minus, "-", line, column, sourceFilePath);
         case '/':
-            if (peek() == '/') {
-                
-            } else if (peek() == '=') {
+            if (peek() == '=') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::DivideAssign, "", line, column, sourceFilePath);
+                return Token(TokenTypes::DivideAssign, "/=", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
-            return Token(TokenTypes::Divide, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Divide, "/", line, column, sourceFilePath);
         case '*':
             if (peek() == '=') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::MultiplyAssign, "", line, column, sourceFilePath);
+                return Token(TokenTypes::MultiplyAssign, "*=", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
-            return Token(TokenTypes::Multiply, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Multiply, "*", line, column, sourceFilePath);
         case '%':
             currentPosition++;
             column++;
-            return Token(TokenTypes::Modulo, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Modulo, "%", line, column, sourceFilePath);
         case '&':
             if (peek() == '&') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::LogicalAnd, "", line, column, sourceFilePath);
+                return Token(TokenTypes::LogicalAnd, "&&", line, column, sourceFilePath);
             } else if (peek() == '=') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::BitwiseAndAssign, "", line, column, sourceFilePath);
+                return Token(TokenTypes::BitwiseAndAssign, "&=", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
-            return Token(TokenTypes::BitwiseAnd, "", line, column, sourceFilePath);
+            return Token(TokenTypes::BitwiseAnd, "&", line, column, sourceFilePath);
         case '|':
             if (peek() == '|') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::LogicalOr, "", line, column, sourceFilePath);
+                return Token(TokenTypes::LogicalOr, "||", line, column, sourceFilePath);
             } else if (peek() == '=') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::BitwiseOrAssign, "", line, column, sourceFilePath);
+                return Token(TokenTypes::BitwiseOrAssign, "|=", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
-            return Token(TokenTypes::BitwiseOr, "", line, column, sourceFilePath);
+            return Token(TokenTypes::BitwiseOr, "|", line, column, sourceFilePath);
         case '^':
             if (peek() == '=') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::BitwiseXorAssign, "", line, column, sourceFilePath);
+                return Token(TokenTypes::BitwiseXorAssign, "^=", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
-            return Token(TokenTypes::BitwiseXor, "", line, column, sourceFilePath);
+            return Token(TokenTypes::BitwiseXor, "^", line, column, sourceFilePath);
         case '~':
             currentPosition++;
             column++;
-            return Token(TokenTypes::Tilde, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Tilde, "~", line, column, sourceFilePath);
         case '=':
             if (peek() == '=') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::Equals, "", line, column, sourceFilePath);
+                return Token(TokenTypes::Equals, "==", line, column, sourceFilePath);
             } else if (peek() == '>') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::Arrow, "", line, column, sourceFilePath);
+                return Token(TokenTypes::Arrow, "=>", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
-            return Token(TokenTypes::Assign, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Assign, "=", line, column, sourceFilePath);
         case '(':
             currentPosition++;
             column++;
-            return Token(TokenTypes::LeftParen, "", line, column, sourceFilePath);
+            return Token(TokenTypes::LeftParen, "(", line, column, sourceFilePath);
         case ')':
             currentPosition++;
             column++;
-            return Token(TokenTypes::RightParen, "", line, column, sourceFilePath);
+            return Token(TokenTypes::RightParen, ")", line, column, sourceFilePath);
         case '{':
             currentPosition++;
             column++;
-            return Token(TokenTypes::LeftBrace, "", line, column, sourceFilePath);
+            return Token(TokenTypes::LeftBrace, "{", line, column, sourceFilePath);
         case '}':
             currentPosition++;
             column++;
-            return Token(TokenTypes::RightBrace, "", line, column, sourceFilePath);
+            return Token(TokenTypes::RightBrace, "}", line, column, sourceFilePath);
         case '[':
             currentPosition++;
             column++;
-            return Token(TokenTypes::LeftBracket, "", line, column, sourceFilePath);
+            return Token(TokenTypes::LeftBracket, "[", line, column, sourceFilePath);
         case ']':
             currentPosition++;
             column++;
-            return Token(TokenTypes::RightBracket, "", line, column, sourceFilePath);
+            return Token(TokenTypes::RightBracket, "]", line, column, sourceFilePath);
         case ';':
             currentPosition++;
             column++;
-            return Token(TokenTypes::Semicolon, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Semicolon, ";", line, column, sourceFilePath);
         case ',':
             currentPosition++;
             column++;
-            return Token(TokenTypes::Comma, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Comma, ",", line, column, sourceFilePath);
         case '.':
             if (peek() == '.' && peek(2) == '.') {
                 currentPosition += 3;
                 column += 3;
-                return Token(TokenTypes::Ellipsis, "", line, column, sourceFilePath);
+                return Token(TokenTypes::Ellipsis, "...", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
-            return Token(TokenTypes::Dot, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Dot, ".", line, column, sourceFilePath);
         case ':':
             if (peek() == ':') {
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::ScopeResolution, "", line, column, sourceFilePath);
+                return Token(TokenTypes::ScopeResolution, "::", line, column, sourceFilePath);
             }
             currentPosition++;
             column++;
-            return Token(TokenTypes::Colon, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Colon, ":", line, column, sourceFilePath);
         case '?':
             currentPosition++;
             column++;
-            return Token(TokenTypes::QuestionMark, "", line, column, sourceFilePath);
+            return Token(TokenTypes::QuestionMark, "?", line, column, sourceFilePath);
         case '!':
             if (peek() == '=') {
                 currentPosition += 2;
-                return Token(TokenTypes::NotEquals);
+                return Token(TokenTypes::NotEquals, "!=", line, column, sourceFilePath);
             }
         case '<':
             if (peek() == '<') {
                 if (peek(1) == '=') {
                     currentPosition += 3;
                     column += 3;
-                    return Token(TokenTypes::ShiftLeftAssign, "", line, column, sourceFilePath);
+                    return Token(TokenTypes::ShiftLeftAssign, "<<=", line, column, sourceFilePath);
                 }
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::ShiftLeft, "", line, column, sourceFilePath);
+                return Token(TokenTypes::ShiftLeft, "<<", line, column, sourceFilePath);
             } else if (peek() == '=') {
                 currentPosition += 2;
-                return Token(TokenTypes::LessEqual);
+                return Token(TokenTypes::LessEqual, "<=", line, column, sourceFilePath);
             } 
             currentPosition++;
-            return Token(TokenTypes::LessThan);
+            return Token(TokenTypes::LessThan, "<", line, column, sourceFilePath);
         case '>':
             if (peek() == '>') {
                 if (peek(1) == '=') {
                     currentPosition += 3;
                     column += 3;
-                    return Token(TokenTypes::ShiftRightAssign, "", line, column, sourceFilePath);
+                    return Token(TokenTypes::ShiftRightAssign, ">>=", line, column, sourceFilePath);
                 }
                 currentPosition += 2;
                 column += 2;
-                return Token(TokenTypes::ShiftRight, "", line, column, sourceFilePath);
+                return Token(TokenTypes::ShiftRight, ">>", line, column, sourceFilePath);
             } else if (peek() == '=') {
                 currentPosition += 2;
-                return Token(TokenTypes::GreaterEqual);
+                return Token(TokenTypes::GreaterEqual, ">=", line, column, sourceFilePath);
             }
             currentPosition++;
-            return Token(TokenTypes::GreaterThan);
+            return Token(TokenTypes::GreaterThan, ">", line, column, sourceFilePath);
         case '\n':
             currentPosition++;
             line++;

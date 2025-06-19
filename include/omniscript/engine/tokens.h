@@ -54,6 +54,7 @@ enum class TokenTypes {
     Module,
     Extern,
     Intrinsic,
+    Volatile,
     As,
 
     // Literals

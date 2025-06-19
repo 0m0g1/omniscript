@@ -1,14 +1,13 @@
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
+#include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/utils.h>
-
+#include <omniscript/Core/Expressions/FunctionExpression.h>
+#include <omniscript/Core/Expressions/FunctionInputExpression.h>
+#include <omniscript/Core/Expressions/VariableAccessExpression.h>
 
 // ============================== Prototypes  ============================== //
-
-
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG();
@@ -416,7 +415,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     }
                     
                     // Wrap the collected values into an array-like container
-                    auto arrayValue = std::make_shared<Omniscript::ArrayExpression>(param->getType(), collectedArgs, /* isVariadic */ true);
+                    auto arrayValue = std::make_shared<Omniscript::VariableAccessExpressionExpressionrrayExpression>(param->getType(), collectedArgs, /* isVariadic */ true);
         
                     localScope->set(paramName, arrayValue);
                     DEBUG_LOG("[Call] Bound variadic parameter '" + paramName + "' with " + std::to_string(collectedArgs.size()) + " arguments");
@@ -787,7 +786,7 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
                         if (param->isVariadic) {
                             // overide the variadics name with a static array
                             auto argsCount = std::make_shared<Omniscript::Integer<int>>(0);
-                            auto argsArray = std::make_shared<Omniscript::ArrayExpression>(param->getType());
+                            auto argsArray = std::make_shared<Omniscript::VariableAccessExpressionExpressionrrayExpression>(param->getType());
                             DEBUG_LOG("The variadic paramter's name is '" + param->getName() + "' of type '" + param->getType()->toString() + "'.");
                             localScope->set(param->getName() + "_count", argsCount);
                             localScope->set(param->getName(), argsArray);

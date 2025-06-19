@@ -4,13 +4,14 @@
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/utils.h>
+#include <omniscript/Core/Expressions/AssignmentExpression.h>
+#include <omniscript/Core/Expressions/VariableAccessExpression.h>
 
 // ============================== Accesses  ============================== //
 
-
 void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::string memberName, SymbolTableType scope) {
     // Ensure base type is a class
-    auto aggregateExpr = std::dynamic_pointer_cast<Omniscript::AggregateExpression>(scope->get(baseTypeName));
+    auto aggregateExpr = std::dynamic_pointer_cast<Omniscript::VariableAccessExpressionExpressionggregateExpression>(scope->get(baseTypeName));
     if (aggregateExpr) {
         auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(scope->get(baseTypeName));
         auto classExpr = std::dynamic_pointer_cast<Omniscript::ClassExpression>(scope->get(baseTypeName));
@@ -129,7 +130,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                 DEBUG_LOG("'" + qualifiedName + "' has type " + type->toString() + "'.");
                 
                 if (!assignmentValue) {
-                    return std::make_shared<Omniscript::VariableAccess>(qualifiedName, type);
+                    return std::make_shared<Omniscript::VariableAccessExpression>(qualifiedName, type);
                 }
     
                 std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
@@ -139,7 +140,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                     console.error("Failed to evaluate assignment expression");
                     return nullptr;
                 }
-                return std::make_shared<Omniscript::VariableAssignment>(qualifiedName, assignmentExpr);
+                return std::make_shared<Omniscript::VariableAccessExpression>(qualifiedName, assignmentExpr);
             }
             
         } else {
@@ -227,7 +228,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     std::shared_ptr<Omniscript::Expression> baseVarExpr = baseExpr;
     if (!baseVarExpr) {
         auto var = scope->get(resolvedObjectName);
-        baseVarExpr = std::make_shared<Omniscript::VariableAccess>(resolvedObjectName, var->getType());
+        baseVarExpr = std::make_shared<Omniscript::VariableAccessExpression>(resolvedObjectName, var->getType());
     }
 
     auto result = std::make_shared<Omniscript::MemberAccessExpression>(
@@ -313,7 +314,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType sco
         }
     }
 
-    auto result = std::make_shared<Omniscript::ArrowAccessExpression>(
+    auto result = std::make_shared<Omniscript::VariableAccessExpressionExpressionrrowAccessExpression>(
         pointerExpr,
         memberName,
         memberIndex
