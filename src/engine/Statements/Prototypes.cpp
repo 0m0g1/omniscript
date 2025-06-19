@@ -418,7 +418,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     }
                     
                     // Wrap the collected values into an array-like container
-                    auto arrayValue = std::make_shared<Omniscript::VariableAccessExpression>(param->getType(), collectedArgs, /* isVariadic */ true);
+                    auto arrayValue = std::make_shared<Omniscript::ArrayExpression>(param->getType(), collectedArgs, /* isVariadic */ true);
         
                     localScope->set(paramName, arrayValue);
                     DEBUG_LOG("[Call] Bound variadic parameter '" + paramName + "' with " + std::to_string(collectedArgs.size()) + " arguments");
@@ -590,11 +590,11 @@ bool Call::matchArgumentsToParameters(
             DEBUG_LOG("[Call] Found named arg: " + arg->name);
             namedArgs[arg->name] = arg;
         } else {
-            if (arg->value->getRootType()->isInvalid()) {
+            if (arg->defaultValue->getRootType()->isInvalid()) {
                 auto tempScope = scope->createChildScope("temp");
-                arg->value->rootType = arg->value->getType();
+                arg->defaultValue->rootType = arg->defaultValue->getType();
             }
-            DEBUG_LOG("[Call] Found positional arg at index: " + std::to_string(positionalArgs.size()) + " of kind '" + arg->value->getRootType()->toString() + "'.");
+            DEBUG_LOG("[Call] Found positional arg at index: " + std::to_string(positionalArgs.size()) + " of kind '" + arg->defaultValue->getRootType()->toString() + "'.");
             positionalArgs.push_back(arg);
         }
     }
@@ -612,7 +612,7 @@ bool Call::matchArgumentsToParameters(
 
             while (positionalIndex < positionalArgs.size()) {
                 auto arg = positionalArgs[positionalIndex++];
-                auto argType = (arg->value->getRootType() ? arg->value->getRootType() : arg->value->getType());
+                auto argType = (arg->defaultValue->getRootType() ? arg->defaultValue->getRootType() : arg->defaultValue->getType());
 
                 // if (!Omniscript::isSameOrCastableTo(argType, param->getType())) {
                 //     DEBUG_LOG("[Call] Type mismatch in variadic arguments for parameter: " + paramName);
@@ -639,7 +639,7 @@ bool Call::matchArgumentsToParameters(
             return false;
         }
 
-        auto matchingArgType = (matchingArg->value->getRootType()->isInvalid() ? matchingArg->value->getType() : matchingArg->value->getRootType());
+        auto matchingArgType = (matchingArg->defaultValue->getRootType()->isInvalid() ? matchingArg->defaultValue->getType() : matchingArg->defaultValue->getRootType());
         if (!Omniscript::isSameOrCastableTo(matchingArgType, param->getType())) {
             DEBUG_LOG("[Call] Type mismatch for parameter: " + paramName);
             DEBUG_LOG("[Call] Expected type: '" + param->getType()->toString() + "' type got '" );
@@ -789,7 +789,7 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
                         if (param->isVariadic) {
                             // overide the variadics name with a static array
                             auto argsCount = std::make_shared<Omniscript::Integer<int>>(0);
-                            auto argsArray = std::make_shared<Omniscript::VariableAccessExpression>(param->getType());
+                            auto argsArray = std::make_shared<Omniscript::ArrayExpression>(param->getType());
                             DEBUG_LOG("The variadic paramter's name is '" + param->getName() + "' of type '" + param->getType()->toString() + "'.");
                             localScope->set(param->getName() + "_count", argsCount);
                             localScope->set(param->getName(), argsArray);
