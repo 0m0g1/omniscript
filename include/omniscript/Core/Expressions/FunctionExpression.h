@@ -19,7 +19,8 @@ struct FunctionExpression : public Callable {
     bool isExplicit = false;
     
     // External linkage information
-    std::string libPath;
+    std::string staticLibPath;
+    std::string dynamicLibPath;
     std::string externName;
     std::string intrinsicName;
     std::string section = "";
@@ -218,8 +219,13 @@ struct FunctionExpression : public Callable {
         return *this; 
     }
     
-    FunctionExpression& setLibPath(const std::string& path) { 
-        libPath = path; 
+    FunctionExpression& setStaticLibPath(const std::string& path) { 
+        staticLibPath = path; 
+        return *this; 
+    }
+    
+    FunctionExpression& setDynamicLibPath(const std::string& path) { 
+        dynamicLibPath = path; 
         return *this; 
     }
     
@@ -506,7 +512,8 @@ struct FunctionExpression : public Callable {
         cloned->isConstexpr = isConstexpr;
         cloned->isConsteval = isConsteval;
         cloned->isExplicit = isExplicit;
-        cloned->libPath = libPath;
+        cloned->staticLibPath = staticLibPath;
+        cloned->dynamicLibPath = dynamicLibPath;
         cloned->externName = externName;
         cloned->intrinsicName = intrinsicName;
         cloned->section = section;

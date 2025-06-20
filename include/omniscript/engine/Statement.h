@@ -1051,9 +1051,10 @@ public:
     bool isExtern = false;
     bool isStatic = false;
     
-    std::string libPath;
     std::string externName;
     std::string intrinsicName;
+    std::string staticLibPath;
+    std::string dynamicLibPath;
     
     std::shared_ptr<Omniscript::Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types

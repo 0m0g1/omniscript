@@ -8,53 +8,87 @@
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
 
-std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
-    parameterType paramTypes,
-    std::shared_ptr<Omniscript::Type> type
-) {
-    return parseFunctionDeclaration("", paramTypes, type);
-}
-
 std::shared_ptr<Statement> Parser::parseExternFunction() {
     Token startToken = currentToken;
     eat(TokenTypes::Extern);
 
-    bool isStatic = false;
-
-    if (currentToken.getType() == TokenTypes::Static) {
-        eat(TokenTypes::Static);
-        isStatic = true;
+    // Parse library paths (dynamic first, then static - order doesn't matter)
+    std::string dynamicLibPath;
+    std::string staticLibPath;
+    
+    std::string firstPath = currentToken.getValue();
+    eat(TokenTypes::StringLiteral);
+    
+    if (currentToken.getType() == TokenTypes::Comma) {
+        eat(TokenTypes::Comma);
+        std::string secondPath = currentToken.getValue();
+        eat(TokenTypes::StringLiteral);
+        
+        // Classify paths by extension
+        auto classify = [](const std::string& path) {
+            if (path.ends_with(".a") || path.ends_with(".lib")) return "static";
+            if (path.ends_with(".dll") || path.ends_with(".so") || path.ends_with(".dylib")) return "dynamic";
+            return "unknown";
+        };
+        
+        std::string firstType = classify(firstPath);
+        std::string secondType = classify(secondPath);
+        
+        if (firstType == "dynamic" && secondType == "static") {
+            dynamicLibPath = firstPath;
+            staticLibPath = secondPath;
+        }
+        else if (firstType == "static" && secondType == "dynamic") {
+            dynamicLibPath = secondPath;
+            staticLibPath = firstPath;
+        }
+        else {
+            console.error("Extern declaration requires one dynamic and one static library path");
+        }
+    
+    } else {
+        if (firstPath.ends_with(".a") || firstPath.ends_with(".lib")) {
+            staticLibPath = firstPath;
+        }
+        else {
+            dynamicLibPath = firstPath;
+        }
     }
 
-    std::string libPath = currentToken.getValue();
-    eat(TokenTypes::StringLiteral);
     if (currentToken.getType() == TokenTypes::Function) {
         eat(TokenTypes::Function);
         std::string functionName = currentToken.getValue();
         eat(TokenTypes::Identifier);
-        DEBUG_LOG("Extern function's name is '" + functionName + "'.");
-        std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
+        
+        auto function = std::dynamic_pointer_cast<FunctionDeclaration>(
+            parseLambdaFunction(functionName));
+        
         function->isExtern = true;
-        function->libPath = libPath;
-        function->isStatic = isStatic;
+        function->dynamicLibPath = dynamicLibPath;
+        function->staticLibPath = staticLibPath;
         function->externName = functionName;
         function->setPosition(startToken);
 
         return function;
+    
     } else if (currentToken.getType() == TokenTypes::LeftBrace) {
         eat(TokenTypes::LeftBrace);
         std::vector<std::shared_ptr<Statement>> functions;
+        
         while (currentToken.getType() != TokenTypes::RightBrace) {
             if (currentToken.getType() == TokenTypes::Function) {
                 eat(TokenTypes::Function);
             }
+            
             std::string functionName = currentToken.getValue();
             eat(TokenTypes::Identifier);
-            DEBUG_LOG("Extern function's name is '" + functionName + "'.");
-            std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
+            
+            auto function = std::dynamic_pointer_cast<FunctionDeclaration>(
+                parseLambdaFunction(functionName));
+            
             function->isExtern = true;
-            function->libPath = libPath;
-            function->isStatic = isStatic;
+            function->dynamicLibPath = dynamicLibPath;
+            function->staticLibPath = staticLibPath;
             function->externName = functionName;
             
             functions.push_back(function);
@@ -62,15 +96,14 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                 eat(TokenTypes::Semicolon);
             }
         }
+        
         eat(TokenTypes::RightBrace);
-
         auto block = std::make_shared<BlockStatement>(functions);
         block->setPosition(startToken);
         return block;
     }
 
-    // Todo:: resolve an entire library
-    eat(TokenTypes::Function, "Expected a function or '{' after the lib path in extern declarations");
+    console.error("Expected function declaration or block after extern library path");
     return nullptr;
 }
 

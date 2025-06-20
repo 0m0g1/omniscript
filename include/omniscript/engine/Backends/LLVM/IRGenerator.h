@@ -24,6 +24,8 @@
 #include <omniscript/Core/Expression.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
+#include <omniscript/engine/EngineConfigs.h>
+#include <omniscript/debuggingtools/console.h>
 #include <omniscript/Core/Expressions/ClassExpression.h>
 #include <omniscript/Core/Expressions/StructExpression.h>
 #include <omniscript/Core/Expressions/FunctionExpression.h>
@@ -57,6 +59,7 @@ using IRGenSymbolTableType = std::shared_ptr<SymbolTable<llvm::Value*, llvm::Typ
 
 class IRGenerator {
 private:
+    Config& configs;
     IRGenSymbolTableType scope = std::make_shared<SymbolTable<llvm::Value*, llvm::Type*>>();
     IRGenSymbolTableType activeScope = scope;
     std::stack<llvm::BasicBlock*> insertionPointStack;
@@ -90,6 +93,10 @@ private:
 public:
     
     IRGenerator(const std::string& mainModulePath);
+
+    void setConfigs(Config& configs) {
+        this->configs = configs;
+    }
 
     std::unique_ptr<llvm::Module> getModule() { return std::move(Module); }
     llvm::Module* getCurrentModule() { return currentModule; }
@@ -142,6 +149,10 @@ public:
         if (activeScope->getParent()) {
             activeScope = activeScope->getParent();
         }
+    }
+
+    inline bool fileExists(const std::string& path) {
+        return !path.empty() && llvm::sys::fs::exists(llvm::Twine(path));
     }
 
     inline void addExternalResolver(const std::string& language, std::unique_ptr<ExternalFunctionResolver> resolver) {
@@ -228,15 +239,7 @@ public:
     llvm::Value* generateOpaqueDynamicVariable(const std::string& name, llvm::Value* value);
 
     llvm::Value* createFixedArray(llvm::Type* elementType, size_t arraySize, const std::vector<llvm::Value*>& elements);
-    llvm::Function* createExternFunction(
-        const std::string& name,
-        const std::string& externName,
-        const std::string& libPath,
-        llvm::Type* returnType,
-        const std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-        bool isVarArg = false,
-        bool isStatic = false
-    );
+    llvm::Function* createExternFunction(std::shared_ptr<Omniscript::FunctionExpression> func, SymbolTableType scope);
     llvm::Function* createIntrinsicFunction(
         const std::string& name,
         const std::string& intrinsicName,

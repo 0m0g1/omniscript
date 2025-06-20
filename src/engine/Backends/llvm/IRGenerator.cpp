@@ -18,9 +18,6 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/BasicBlock.h>
 
-#include <omniscript/Core.h>
-#include <omniscript/debuggingtools/console.h>
-
 IRGenerator::IRGenerator(const std::string& mainModulePath) {
     Context = std::make_unique<llvm::LLVMContext>();
     Module = std::make_unique<llvm::Module>(mainModulePath, *Context);
@@ -313,7 +310,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     if (!scope) {
         console.error("There is no scope for codegen to perform its operations in.");
     }
+
     DEBUG_LOG("Calling codegen on scope '" + scope->getName() + "' for '" + value->toString() + "'.");
+    
     llvm::Value* result = codegenPrimitive(value, scope);
 
     if (result) {
@@ -419,15 +418,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
                 llvm::Type* returnType = resolveLLVMType(func->returnType);
 
                 if (func->isExtern) {
-                    createExternFunction(
-                        func->mangledName,
-                        func->externName,
-                        func->libPath,
-                        returnType,
-                        func->parameters,
-                        func->isVarArg,
-                        func->isStatic
-                    );
+                    createExternFunction(func, scope);
                 } else if (func->isIntrinsic) {
                     std::string nameWithoutPrefix = func->intrinsicName;
                     const std::string prefix = "intrinsic_";
@@ -440,7 +431,6 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
                         returnType
                     );
                 } else {
-                    // Normal user-defined function: register only
                     registerFunction(
                         func->mangledName,
                         returnType,
@@ -453,7 +443,6 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
             }
         }
 
-        // Codegen other non-function expressions in the block
         for (const auto& expr : block->values) {
             if (std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr)) {
                 continue;
