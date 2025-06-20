@@ -19,7 +19,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
 
     scope->setName(config.filePath);
     
-    irGen = std::make_shared<IRGenerator>(config.filePath);
+    irGen = std::make_shared<IRGenerator>(config);
 
     std::vector<std::function<void()>> pendingCalls;
 

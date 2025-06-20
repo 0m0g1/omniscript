@@ -18,9 +18,10 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/BasicBlock.h>
 
-IRGenerator::IRGenerator(const std::string& mainModulePath) {
+IRGenerator::IRGenerator(const Config& configs) {
+    this->configs = configs;
     Context = std::make_unique<llvm::LLVMContext>();
-    Module = std::make_unique<llvm::Module>(mainModulePath, *Context);
+    Module = std::make_unique<llvm::Module>(configs.filePath, *Context);
     Builder = std::make_unique<llvm::IRBuilder<>>(*Context);
     initialize();
 }
@@ -283,6 +284,26 @@ void IRGenerator::optimizeModule(int level) {
     }
 }
 
+bool IRGenerator::symbolExistsInStaticLib(const std::string& libPath, const std::string& symbolName) {
+    std::string command = "llvm-nm \"" + libPath + "\" 2>&1";
+
+    std::array<char, 512> buffer;
+    std::string output;
+
+    FILE* pipe = _popen(command.c_str(), "r");
+    if (!pipe) {
+        console.error("Failed to run llvm-nm");
+    }
+
+    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+        output += buffer.data();
+    }
+
+    _pclose(pipe);
+
+    return output.find(symbolName) != std::string::npos;
+}
+
 void IRGenerator::compileAllFunctionBodies(SymbolTableType scope) {
     for (const auto& func : userDefinedFunctions) {
         DEBUG_LOG("Generating body for function: " + func->name + " (mangled: " + func->mangledName + ")");
@@ -481,15 +502,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         DEBUG_LOG("Creating an overload for function " + func->name + " with mangled name '" + func->mangledName + "'");
         llvm::Type* returnType = resolveLLVMType(func->returnType);
         if (func->isExtern) {
-            return createExternFunction(
-                func->mangledName,
-                func->externName,
-                func->libPath,
-                returnType,
-                func->parameters,
-                func->isVarArg,
-                func->isStatic
-            );
+            return createExternFunction(func, scope);
         } else if (func->isIntrinsic) {
             std::string nameWithoutPrefix = func->intrinsicName;
             const std::string prefix = "intrinsic_";

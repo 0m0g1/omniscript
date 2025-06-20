@@ -59,7 +59,7 @@ using IRGenSymbolTableType = std::shared_ptr<SymbolTable<llvm::Value*, llvm::Typ
 
 class IRGenerator {
 private:
-    Config& configs;
+    Config configs;
     IRGenSymbolTableType scope = std::make_shared<SymbolTable<llvm::Value*, llvm::Type*>>();
     IRGenSymbolTableType activeScope = scope;
     std::stack<llvm::BasicBlock*> insertionPointStack;
@@ -92,11 +92,7 @@ private:
 
 public:
     
-    IRGenerator(const std::string& mainModulePath);
-
-    void setConfigs(Config& configs) {
-        this->configs = configs;
-    }
+    IRGenerator(const Config& configs);
 
     std::unique_ptr<llvm::Module> getModule() { return std::move(Module); }
     llvm::Module* getCurrentModule() { return currentModule; }
@@ -168,7 +164,8 @@ public:
     );
 
     void importModule(const std::string& moduleName, const std::vector<std::string>& members);
-        
+    bool symbolExistsInStaticLib(const std::string& libPath, const std::string& symbolName);
+
     llvm::Value* codegen(
         std::shared_ptr<Omniscript::Expression> value,
         SymbolTableType scope

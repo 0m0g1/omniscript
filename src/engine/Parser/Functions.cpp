@@ -124,6 +124,13 @@ std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
 }
 
 std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
+    parameterType paramTypes,
+    std::shared_ptr<Omniscript::Type> type
+) {
+    return parseFunctionDeclaration("", paramTypes, type);
+}
+
+std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     const std::string& definedName,
     parameterType paramTypes,
     std::shared_ptr<Omniscript::Type> type

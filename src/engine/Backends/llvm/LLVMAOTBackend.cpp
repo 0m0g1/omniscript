@@ -62,7 +62,7 @@ void LLVMAOTBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     DEBUG_LOG("==============================");
 
     scope->setName(config.filePath);
-    irGen = std::make_shared<IRGenerator>(config.filePath);
+    irGen = std::make_shared<IRGenerator>(config);
 
     DEBUG_LOG("Evaluating statements");
     DEBUG_LOG("====================");

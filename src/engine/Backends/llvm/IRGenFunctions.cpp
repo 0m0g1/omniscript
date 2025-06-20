@@ -12,7 +12,6 @@ llvm::Function* IRGenerator::createExternFunction(
     llvm::Type* returnType = resolveLLVMType(func->returnType);
     std::vector<std::shared_ptr<Omniscript::Expression>>& params = func->parameters;
     bool isVarArg = func->isVarArg;
-    bool isStatic = func->isStatic;
 
     std::vector<llvm::Type*> paramTypes;
     for (const auto& param : params) {
@@ -20,68 +19,76 @@ llvm::Function* IRGenerator::createExternFunction(
     }
 
     llvm::FunctionType* funcType = llvm::FunctionType::get(returnType, paramTypes, isVarArg);
-
-    // std::string libPath = libPath.substr(1, libPath.length() - 2); // remove surrounding quotes
-    // bool isDynamicPath = !libPath.empty() && (libPath.front() == '"' || libPath.front() == '\'');
-    
-    // if (isDynamicPath && resolvers.find(libPath) == resolvers.end()) {
-        //     addExternalResolver(libPath, std::make_unique<DynamicLibraryResolver>(libPath));
-    // }
     llvm::Function* function = nullptr;
+
+    auto tryAddResolver = [&](const std::string& libPath, auto&& resolverFactory) -> ExternalFunctionResolver* {
+        if (resolvers.find(libPath) == resolvers.end()) {
+            try {
+                addExternalResolver(libPath, resolverFactory());
+            } catch (const std::exception& e) {
+                console.error("Failed to add resolver for " + libPath + ": " + e.what());
+                return nullptr;
+            }
+        }
+        auto it = resolvers.find(libPath);
+        return (it != resolvers.end()) ? it->second.get() : nullptr;
+    };
 
     if (configs.mode == CompileMode::JIT) {
         if (!fileExists(dynamicLibPath)) {
-            console.error("JIT compiled mode requires a valid dynamic library for function '" + name + "'.");
+            console.error("JIT mode requires a valid dynamic library for function '" + name + "'.");
             return nullptr;
         }
 
-        if (resolvers.find(dynamicLibPath) == resolvers.end()) {
-            addExternalResolver(dynamicLibPath, std::make_unique<DynamicLibraryResolver>(dynamicLibPath));
-        }
+        auto resolver = tryAddResolver(dynamicLibPath, [&]() {
+            return std::make_unique<DynamicLibraryResolver>(dynamicLibPath);
+        });
 
-        auto it = resolvers.find(dynamicLibPath);
-        if (it == resolvers.end()) {
-            console.error("No resolver found for libPath: " + dynamicLibPath);
+        if (!resolver) {
+            console.error("Failed to resolve dynamic library: " + dynamicLibPath);
             return nullptr;
         }
 
-        function = it->second->resolve(*this, externName, funcType);
+        function = resolver->resolve(*this, externName, funcType);
 
     } else { // AOT mode
-        bool usedStatic = false;
+        bool staticExists = fileExists(staticLibPath);
+        bool dynamicExists = fileExists(dynamicLibPath);
 
-        if (fileExists(staticLibPath)) {
-            if (resolvers.find(staticLibPath) == resolvers.end()) {
-                addExternalResolver(staticLibPath, std::make_unique<StaticLibraryResolver>(staticLibPath));
-            }
-
-            auto it = resolvers.find(staticLibPath);
-            if (it == resolvers.end()) {
-                console.error("No resolver found for static libPath: " + staticLibPath);
-                return nullptr;
-            }
-
-            function = it->second->resolve(*this, externName, funcType);
-            usedStatic = true;
+        if (!staticExists && !dynamicExists) {
+            console.error("AOT mode: No valid static or dynamic library found for function '" + name + "'.");
+            return nullptr;
         }
 
-        if (!usedStatic) {
-            if (!fileExists(dynamicLibPath)) {
-                console.error("Function '" + name + "' must have a valid static or dynamic lib path.");
+        if (staticExists) {
+            if (!symbolExistsInStaticLib(staticLibPath, externName)) {
+                console.error("Symbol '" + externName + "' not found in static library: " + staticLibPath);
                 return nullptr;
             }
 
-            if (resolvers.find(dynamicLibPath) == resolvers.end()) {
-                addExternalResolver(dynamicLibPath, std::make_unique<DynamicLibraryResolver>(dynamicLibPath));
-            }
+            auto resolver = tryAddResolver(staticLibPath, [&]() {
+                return std::make_unique<StaticLibraryResolver>();
+            });
 
-            auto it = resolvers.find(dynamicLibPath);
-            if (it == resolvers.end()) {
-                console.error("No resolver found for fallback dynamic libPath: " + dynamicLibPath);
+            if (!resolver) {
+                console.error("Failed to resolve static library: " + staticLibPath);
                 return nullptr;
             }
 
-            function = it->second->resolve(*this, externName, funcType);
+            function = resolver->resolve(*this, externName, funcType);
+        }
+
+        if (!function && dynamicExists) {
+            auto resolver = tryAddResolver(dynamicLibPath, [&]() {
+                return std::make_unique<DynamicLibraryResolver>(dynamicLibPath);
+            });
+
+            if (!resolver) {
+                console.error("Failed to resolve fallback dynamic library: " + dynamicLibPath);
+                return nullptr;
+            }
+
+            function = resolver->resolve(*this, externName, funcType);
         }
     }
 
@@ -91,7 +98,6 @@ llvm::Function* IRGenerator::createExternFunction(
     }
 
     activeScope->set(name, function);
-
     return function;
 }
 
