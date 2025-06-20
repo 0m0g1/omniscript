@@ -17,8 +17,8 @@ for (let i = 0; i < 1000000; i++) {
 // Benchmark
 let start: int64 = 0;
 let end: int64 = 0;
-volatile let x: int64 = 0;
-volatile let noise: int64 = 0;
+let x: int64 = 0;
+let noise: int64 = 0;
 
 QueryPerformanceCounter(&start);
 
