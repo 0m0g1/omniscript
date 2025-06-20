@@ -1,8 +1,8 @@
-let n: int32 = 0;
+// let n: int32 = 0;
 
-if (n == 0) {
-    
-}
+// if (n == 0) {
+
+// }
 
 // extern "kernel32.dll" {
 //     fn QueryPerformanceCounter(counter: int64*) => int;

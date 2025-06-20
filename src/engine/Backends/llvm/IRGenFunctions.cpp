@@ -223,7 +223,7 @@ llvm::Function* IRGenerator::createExternFunction(
     };
 
     if (configs.mode == CompileMode::JIT) {
-        if (!fileExists(dynamicLibPath)) {
+        if (!fileExists(dynamicLibPath) && dynamicLibPath != "C") {
             console.error("JIT mode requires a valid dynamic library for function '" + name + "'.");
             return nullptr;
         }
@@ -239,7 +239,7 @@ llvm::Function* IRGenerator::createExternFunction(
 
         function = resolver->resolve(*this, externName, funcType);
 
-    } else { // AOT mode
+    } else {
         bool staticExists = fileExists(staticLibPath);
         bool dynamicExists = fileExists(dynamicLibPath);
 
