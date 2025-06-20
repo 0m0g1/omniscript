@@ -1,38 +1,39 @@
 import ctypes
-import time
 
-# Use QueryPerformanceCounter via ctypes
 qpc = ctypes.windll.kernel32.QueryPerformanceCounter
 qpf = ctypes.windll.kernel32.QueryPerformanceFrequency
 
-counter = ctypes.c_int64()
-frequency = ctypes.c_int64()
+freq = ctypes.c_int64()
+qpf(ctypes.byref(freq))
 
-qpf(ctypes.byref(frequency))
-
-x = 0
-noise = 0
-
-# Optional warmup
 warmup = 0
+warmup_noise = 0
 for i in range(1_000_000):
+    if i % 1_000_000_001 == 0:
+        tmp = ctypes.c_int64()
+        qpc(ctypes.byref(tmp))
+        warmup_noise ^= tmp.value
     warmup += i
 
-qpc(ctypes.byref(counter))
-start = counter.value
+x = warmup ^ warmup_noise
+
+noise = 0
+start = ctypes.c_int64()
+qpc(ctypes.byref(start))
 
 for i in range(1_000_000_000):
-    if i & 0x27138 == 0:
-        qpc(ctypes.byref(counter))
-        noise ^= counter.value
+    if i % 1_000_000_001 == 0:
+        tmp = ctypes.c_int64()
+        qpc(ctypes.byref(tmp))
+        noise ^= tmp.value
     x += i
 
-qpc(ctypes.byref(counter))
-end = counter.value
+end = ctypes.c_int64()
+qpc(ctypes.byref(end))
 
 x ^= noise
 
-elapsed_ms = (end - start) * 1000.0 / frequency.value
+elapsed_ms = (end.value - start.value) * 1000.0 / freq.value
 print(f"Result: {x}")
 print(f"Elapsed: {elapsed_ms:.4f} ms")
 print(f"Ops/ms: {1_000_000.0 / elapsed_ms:.1f}")

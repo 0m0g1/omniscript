@@ -1,57 +1,59 @@
 package main
 
 import (
-	"fmt"
-	"syscall"
-	"unsafe"
+    "fmt"
+    "syscall"
+    "unsafe"
 )
 
 var (
-	kernel32                  = syscall.NewLazyDLL("kernel32.dll")
-	procQueryPerformanceCounter = kernel32.NewProc("QueryPerformanceCounter")
-	procQueryPerformanceFrequency = kernel32.NewProc("QueryPerformanceFrequency")
+    k32  = syscall.NewLazyDLL("kernel32.dll")
+    qpc  = k32.NewProc("QueryPerformanceCounter")
+    qpf  = k32.NewProc("QueryPerformanceFrequency")
 )
 
 func queryPerformanceCounter() int64 {
-	var counter int64
-	procQueryPerformanceCounter.Call(uintptr(unsafe.Pointer(&counter)))
-	return counter
+    var v int64
+    qpc.Call(uintptr(unsafe.Pointer(&v)))
+    return v
 }
 
 func queryPerformanceFrequency() int64 {
-	var freq int64
-	procQueryPerformanceFrequency.Call(uintptr(unsafe.Pointer(&freq)))
-	return freq
+    var v int64
+    qpf.Call(uintptr(unsafe.Pointer(&v)))
+    return v
 }
 
 func main() {
-	freq := queryPerformanceFrequency()
+    freq := queryPerformanceFrequency()
 
-	var x int64 = 0
-	var noise int64 = 0
+    warmup := int64(0)
+    warmupNoise := int64(0)
+    for i := int64(0); i < 1_000_000; i++ {
+        if i%1_000_000_001 == 0 {
+            t := queryPerformanceCounter()
+            warmupNoise ^= t
+        }
+        warmup += i
+    }
 
-	// Optional warmup
-	var warmup int64 = 0
-	for i := int64(0); i < 1_000_000; i++ {
-		warmup += i
-	}
+    noise := int64(0)
+    x := warmup ^ warmupNoise
 
-	start := queryPerformanceCounter()
+    start := queryPerformanceCounter()
+    for i := int64(0); i < 1_000_000_000; i++ {
+        if i%1_000_000_001 == 0 {
+            t := queryPerformanceCounter()
+            noise ^= t
+        }
+        x += i
+    }
+    end := queryPerformanceCounter()
 
-	for i := int64(0); i < 1_000_000_000; i++ {
-		if i&0x27138 == 0 {
-			temp := queryPerformanceCounter()
-			noise ^= temp
-		}
-		x += i
-	}
+    x ^= noise
 
-	end := queryPerformanceCounter()
-
-	x ^= noise
-
-	elapsedMs := float64(end-start) * 1000.0 / float64(freq)
-	fmt.Printf("Result: %d\n", x)
-	fmt.Printf("Elapsed: %.4f ms\n", elapsedMs)
-	fmt.Printf("Ops/ms: %.1f\n", 1_000_000.0/elapsedMs)
+    elapsedMs := float64(end-start) * 1000.0 / float64(freq)
+    fmt.Printf("Result: %d\n", x)
+    fmt.Printf("Elapsed: %.4f ms\n", elapsedMs)
+    fmt.Printf("Ops/ms: %.1f\n", 1_000_000.0/elapsedMs)
 }
