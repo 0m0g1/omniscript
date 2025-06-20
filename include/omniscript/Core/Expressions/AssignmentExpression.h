@@ -3,10 +3,10 @@
 
 namespace Omniscript {
 struct VariableAssignment : public Expression {
-    bool isStatic;
-    bool isConstant;
-    bool isGlobal;
-    bool isReassignment;
+    bool isStatic = false;
+    bool isConstant = false;
+    bool isGlobal = true;
+    bool isReassignment = false;
     bool isVolatile = false;
     std::string variableName;
     std::shared_ptr<Expression> assignedValue;
@@ -22,10 +22,16 @@ struct VariableAssignment : public Expression {
     }
     
     std::shared_ptr<Expression> clone() const override {
-        return std::make_shared<VariableAssignment>(
+        auto clone = std::make_shared<VariableAssignment>(
             variableName,
             assignedValue ? assignedValue->clone() : nullptr
         );
+        clone->isStatic = isStatic;
+        clone->isGlobal = isGlobal;
+        clone->isConstant = isConstant;
+        clone->isReassignment = isReassignment;
+        clone->isVolatile = isVolatile;
+        return clone;
     }
 };
 }

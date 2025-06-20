@@ -224,7 +224,7 @@ llvm::Function* IRGenerator::createExternFunction(
 
     if (configs.mode == CompileMode::JIT) {
         if (!fileExists(dynamicLibPath) && dynamicLibPath != "C") {
-            console.error("JIT mode requires a valid dynamic library for function '" + name + "'.");
+            console.error("'" + dynamicLibPath + "' is not a valid dynamic library for function '" + name + "'.");
             return nullptr;
         }
 
@@ -244,7 +244,11 @@ llvm::Function* IRGenerator::createExternFunction(
         bool dynamicExists = fileExists(dynamicLibPath);
 
         if (!staticExists && !dynamicExists) {
-            console.error("AOT mode: No valid static or dynamic library found for function '" + name + "'.");
+            console.error(
+                "AOT mode: No valid static or dynamic library found for function '" + name + "'.\n" +
+                "Static Library Path: '" + (staticLibPath.empty() ? "empty" : staticLibPath) + "'\n" +
+                "Dynamic Library Path: '" + (dynamicLibPath.empty() ? "empty" : dynamicLibPath) + "."
+            );
             return nullptr;
         }
 

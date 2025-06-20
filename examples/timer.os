@@ -1,4 +1,4 @@
-// let n: int32 = 0;
+volatile let n: int32 = 0;
 
 // if (n == 0) {
 
