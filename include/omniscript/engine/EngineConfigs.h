@@ -25,7 +25,7 @@ struct Config {
     bool showMetadata = false;
 
     // Optimization
-    int optimizationLevel = 2;
+    int optimizationLevel = 3;
 
     bool keepIntermediateFiles = false;
 };

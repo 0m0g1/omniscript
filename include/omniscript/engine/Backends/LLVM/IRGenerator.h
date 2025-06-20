@@ -114,7 +114,7 @@ public:
     void printAssembly(llvm::Module* module);
 
     std::string debugType(llvm::Type* type);
-    void optimizeModule(int level = 2); 
+    void optimizeModule(int level = 3); 
 
     bool isLoadedModule(const std::string& modulePath);
     bool isLoadedModuleMember(const std::string& modulePath, const std::string& memberName);
