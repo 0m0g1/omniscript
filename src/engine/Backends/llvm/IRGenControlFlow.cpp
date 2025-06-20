@@ -1,5 +1,43 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
 
+llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* expectedReturnType) {
+    llvm::Function* currentFunction = Builder->GetInsertBlock()->getParent();
+    if (!currentFunction) {
+        console.error("Return statement outside function");
+        return nullptr;
+    }
+
+    if (!Module) {
+        console.error("LLVM Module is null");
+        return nullptr;
+    }
+    
+    if (activeScope->get("va_list")) {
+        llvm::Function* vaEndFunc = llvm::Intrinsic::getOrInsertDeclaration(Module.get(), llvm::Intrinsic::vaend);
+        llvm::Value* vaListAlloca = activeScope->get("va_list");
+        Builder->CreateCall(vaEndFunc, { vaListAlloca });
+    }
+
+    if (currentFunction->getReturnType()->isVoidTy()) {
+        if (returnValue) {
+            console.error("Void function cannot return a value");
+        }
+        return Builder->CreateRetVoid();
+    }
+
+    if (!returnValue) {
+        console.error("Non-void function must return a value");
+    }
+
+    if (returnValue->getType() != expectedReturnType) {
+        console.error("Return type mismatch: expected " + 
+            debugType(expectedReturnType) + ", got " + 
+            debugType(returnValue->getType()));
+    }
+
+    return Builder->CreateRet(returnValue);
+}
+
 llvm::Value* IRGenerator::createForLoop(
     const std::shared_ptr<Omniscript::ForLoopExpression>& forExpr,
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope

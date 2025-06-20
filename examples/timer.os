@@ -1,3 +1,9 @@
+let n: int32 = 0;
+
+if (n == 0) {
+    
+}
+
 // extern "kernel32.dll" {
 //     fn QueryPerformanceCounter(counter: int64*) => int;
 //     fn QueryPerformanceFrequency(freq: int64*) => int;
@@ -20,13 +26,8 @@
 // volatile let x: int64 = 0;  // Use int64 to prevent overflow
 
 // QueryPerformanceCounter(&start);
-let n: int32 = 0;
 
-if (n == 0) {
-
-}
-
-// for (let i: int64 = 0; /*i < 1000000000*/; /*i++*/) {
+// for (let i: int64 = 0; i < 1000000000; i++) {
 //     // x += i as int64;
 //     // Todo::fix this
 //     // if (x == -1) {

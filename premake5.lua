@@ -3,7 +3,16 @@ workspace "OmniScript++"
     configurations { "Debug", "Release" }
     architecture "x64"
 
+    filter "configurations:Debug"
+        defines { "DEBUG" }
+    
+    filter "configurations:Release"
+        defines { "NDEBUG" }
+    
+    filter {}
+    
     outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
+
 
 project "Osengine"
     kind "ConsoleApp"
@@ -37,11 +46,6 @@ project "Osengine"
 
     filter { "system:windows", "toolset:not msc*" }
         buildoptions { "-mno-stack-arg-probe" }
-
-    filter "configurations:Debug"
-        defines { "DEBUG" }
-        symbols "On"
-        flags { "MultiProcessorCompile" }
 
     filter "system:windows"
         defines { "PLATFORM_WINDOWS" }

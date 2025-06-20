@@ -31,9 +31,12 @@ RESCOMP = windres
 INCLUDES += -Iinclude -Idependencies/llvm/include
 FORCE_INCLUDE +=
 ALL_CPPFLAGS += $(CPPFLAGS) -MD -MP $(DEFINES) $(INCLUDES)
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -mno-stack-arg-probe
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -m64 -std=c++23 -mno-stack-arg-probe
 ALL_RESFLAGS += $(RESFLAGS) $(DEFINES) $(INCLUDES)
 LIBS += -lLLVM-20 -lpthread -lquadmath -lucrt -lmsvcrt
 LDDEPS +=
+ALL_LDFLAGS += $(LDFLAGS) -Ldependencies/llvm/lib -L/usr/lib64 -m64 -s
 LINKCMD = $(CXX) -o "$@" $(OBJECTS) $(RESOURCES) $(ALL_LDFLAGS) $(LIBS)
 define PREBUILDCMDS
 endef
@@ -45,9 +48,6 @@ TARGETDIR = bin/Debug-windows-x86_64
 TARGET = $(TARGETDIR)/Osengine.exe
 OBJDIR = bin-int/Debug-windows-x86_64
 DEFINES += -DDEBUG -DPLATFORM_WINDOWS
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -g -mno-stack-arg-probe
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -m64 -g -std=c++23 -mno-stack-arg-probe
-ALL_LDFLAGS += $(LDFLAGS) -Ldependencies/llvm/lib -L/usr/lib64 -m64
 define POSTBUILDCMDS
 	@echo Running postbuild commands
 	powershell -Command "if (-not (Test-Path -Path 'bin/Debug-windows-x86_64')) { New-Item -ItemType Directory -Force -Path 'bin/Debug-windows-x86_64' }"
@@ -58,10 +58,7 @@ else ifeq ($(config),release)
 TARGETDIR = bin/Release-windows-x86_64
 TARGET = $(TARGETDIR)/Osengine.exe
 OBJDIR = bin-int/Release-windows-x86_64
-DEFINES += -DPLATFORM_WINDOWS
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -mno-stack-arg-probe
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -m64 -std=c++23 -mno-stack-arg-probe
-ALL_LDFLAGS += $(LDFLAGS) -Ldependencies/llvm/lib -L/usr/lib64 -m64 -s
+DEFINES += -DNDEBUG -DPLATFORM_WINDOWS
 define POSTBUILDCMDS
 	@echo Running postbuild commands
 	powershell -Command "if (-not (Test-Path -Path 'bin/Release-windows-x86_64')) { New-Item -ItemType Directory -Force -Path 'bin/Release-windows-x86_64' }"
@@ -100,6 +97,13 @@ GENERATED += $(OBJDIR)/IRGenControlFlow.o
 GENERATED += $(OBJDIR)/IRGenFunctions.o
 GENERATED += $(OBJDIR)/IRGenLiterals.o
 GENERATED += $(OBJDIR)/IRGenerator.o
+GENERATED += $(OBJDIR)/IRGeneratorAccess.o
+GENERATED += $(OBJDIR)/IRGeneratorDebuggingHelpers.o
+GENERATED += $(OBJDIR)/IRGeneratorEntities.o
+GENERATED += $(OBJDIR)/IRGeneratorExpressions.o
+GENERATED += $(OBJDIR)/IRGeneratorModules.o
+GENERATED += $(OBJDIR)/IRGeneratorObjects.o
+GENERATED += $(OBJDIR)/IRGeneratorTypes.o
 GENERATED += $(OBJDIR)/Identifiers.o
 GENERATED += $(OBJDIR)/JITBackend.o
 GENERATED += $(OBJDIR)/JITCompiler.o
@@ -139,6 +143,13 @@ OBJECTS += $(OBJDIR)/IRGenControlFlow.o
 OBJECTS += $(OBJDIR)/IRGenFunctions.o
 OBJECTS += $(OBJDIR)/IRGenLiterals.o
 OBJECTS += $(OBJDIR)/IRGenerator.o
+OBJECTS += $(OBJDIR)/IRGeneratorAccess.o
+OBJECTS += $(OBJDIR)/IRGeneratorDebuggingHelpers.o
+OBJECTS += $(OBJDIR)/IRGeneratorEntities.o
+OBJECTS += $(OBJDIR)/IRGeneratorExpressions.o
+OBJECTS += $(OBJDIR)/IRGeneratorModules.o
+OBJECTS += $(OBJDIR)/IRGeneratorObjects.o
+OBJECTS += $(OBJDIR)/IRGeneratorTypes.o
 OBJECTS += $(OBJDIR)/Identifiers.o
 OBJECTS += $(OBJDIR)/JITBackend.o
 OBJECTS += $(OBJDIR)/JITCompiler.o
@@ -246,6 +257,27 @@ $(OBJDIR)/IRGenLiterals.o: src/engine/Backends/llvm/IRGenLiterals.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/IRGenerator.o: src/engine/Backends/llvm/IRGenerator.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorAccess.o: src/engine/Backends/llvm/IRGeneratorAccess.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorDebuggingHelpers.o: src/engine/Backends/llvm/IRGeneratorDebuggingHelpers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorEntities.o: src/engine/Backends/llvm/IRGeneratorEntities.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorExpressions.o: src/engine/Backends/llvm/IRGeneratorExpressions.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorModules.o: src/engine/Backends/llvm/IRGeneratorModules.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorObjects.o: src/engine/Backends/llvm/IRGeneratorObjects.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorTypes.o: src/engine/Backends/llvm/IRGeneratorTypes.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/LLVMAOTBackend.o: src/engine/Backends/llvm/LLVMAOTBackend.cpp

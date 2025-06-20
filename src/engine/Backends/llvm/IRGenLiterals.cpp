@@ -1,5 +1,91 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
 
+llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expression> value, SymbolTableType scope) {
+    if (auto integer8 = std::dynamic_pointer_cast<Omniscript::Integer<int8_t>>(value)) {
+        return create8BitInteger(integer8->getValue());
+    
+    } else if (auto integer16 = std::dynamic_pointer_cast<Omniscript::Integer<int16_t>>(value)) {
+        return create16BitInteger(integer16->getValue());
+    
+    } else if (auto integer32 = std::dynamic_pointer_cast<Omniscript::Integer<int32_t>>(value)) {
+        return create32BitInteger(integer32->getValue());
+    
+    } else if (auto integer64 = std::dynamic_pointer_cast<Omniscript::Integer<int64_t>>(value)) {
+        return create64BitInteger(integer64->getValue());
+
+    } else if (auto unsignedInteger8 = std::dynamic_pointer_cast<Omniscript::Integer<uint8_t>>(value)) {
+        return createUnsigned8BitInteger(unsignedInteger8->getValue());
+    
+    } else if (auto unsignedInteger16 = std::dynamic_pointer_cast<Omniscript::Integer<uint16_t>>(value)) {
+        return createUnsigned16BitInteger(unsignedInteger16->getValue());
+    
+    } else if (auto unsignedInteger32 = std::dynamic_pointer_cast<Omniscript::Integer<uint32_t>>(value)) {
+        return createUnsigned32BitInteger(unsignedInteger32->getValue());
+    } else if (auto unsignedInteger64 = std::dynamic_pointer_cast<Omniscript::Integer<uint64_t>>(value)) {
+        return createUnsigned64BitInteger(unsignedInteger64->getValue());
+    } else if (auto boolean = std::dynamic_pointer_cast<Omniscript::Primitive<bool>>(value)) {
+        return createBool(boolean->getValue());
+    }
+
+    #ifdef __ARM_ARCH
+        else if (auto halfPrimitive = std::dynamic_pointer_cast<Omniscript::Float<__fp16>>(value)) {
+            return create16BitFloat(halfPrimitive->getValue());
+        }
+    #elif defined(__x86_64__) || defined(__i386__)
+        else if (auto halfPrimitive = std::dynamic_pointer_cast<Omniscript::Float<_Float16>>(value)) {
+            return create16BitFloat(halfPrimitive->getValue());
+        }
+    #endif
+
+    else if (auto floatPrimitive = std::dynamic_pointer_cast<Omniscript::Float<float>>(value)) {
+        return create32BitFloat(floatPrimitive->getValue());
+    
+    } else if (auto doublePrimitive = std::dynamic_pointer_cast<Omniscript::Float<double>>(value)) {
+        return create64BitFloat(doublePrimitive->getValue());
+    
+    } else if (auto longDoublePrimitive = std::dynamic_pointer_cast<Omniscript::Float<long double>>(value)) {
+        return create80BitFloat(longDoublePrimitive->getValue());
+    
+    } else if (auto fp128Primitive = std::dynamic_pointer_cast<Omniscript::Float<__float128>>(value)) {
+        return create128BitFloat(fp128Primitive->getValue());
+    
+    } else if (auto charPrimitive = std::dynamic_pointer_cast<Omniscript::Primitive<char>>(value)) {
+        DEBUG_LOG("Creating and int8 char from Primitive<char>");
+        return createChar(charPrimitive->getValue());
+    
+    } else if (auto stringPrimitiveUTF8 = std::dynamic_pointer_cast<Omniscript::Primitive<std::string>>(value)) {
+        DEBUG_LOG("Creating UTF-8 string from Primitive<std::string>");
+        return createUTF8String(stringPrimitiveUTF8->getValue());
+    
+    } else if (auto stringPrimitiveUTF16 = std::dynamic_pointer_cast<Omniscript::Primitive<std::u16string>>(value)) {
+        DEBUG_LOG("Creating UTF-16 string from Primitive<std::u16string>");
+        return createUTF16String(stringPrimitiveUTF16->getValue());
+    
+    } else if (auto stringPrimitiveUTF32 = std::dynamic_pointer_cast<Omniscript::Primitive<std::u32string>>(value)) {
+        DEBUG_LOG("Creating UTF-32 string from Primitive<std::u32string>");
+        return createUTF32String(stringPrimitiveUTF32->getValue());
+    
+    } else if (auto bigInt = std::dynamic_pointer_cast<Omniscript::BigInt>(value)) {
+        DEBUG_LOG("Creating a Big int");
+        return createBigInt(bigInt->getValue(), bigInt->getBitWidth());
+    
+    } else if (auto arry = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(value)) {
+        DEBUG_LOG("Creating a fixed array");
+        std::vector<llvm::Value*> elems;
+
+        for (const auto elem : arry->elements) {
+            DEBUG_LOG("Creating an array element");
+            elems.push_back(this->codegen(elem, scope));
+        }
+        
+        llvm::Type* elementType = resolveLLVMType(arry->elementType);
+
+        return createFixedArray(elementType, elems.size(), elems);
+    }
+
+    return nullptr;
+}
+
 llvm::Value* IRGenerator::createNullPointer(llvm::Type* pointeeType) {
     llvm::PointerType* ptrType = llvm::PointerType::getUnqual(pointeeType);
     return llvm::ConstantPointerNull::get(ptrType);
@@ -225,4 +311,65 @@ llvm::Value* IRGenerator::createRawPointer(uintptr_t address, llvm::Type* pointe
     
     // 3. Convert integer to pointer
     return Builder->CreateIntToPtr(addrValue, ptrTy);
+}
+
+llvm::Value* IRGenerator::createFixedArray(
+    llvm::Type* elementType,
+    size_t size,
+    const std::vector<llvm::Value*>& elements
+) {
+
+    DEBUG_LOG("Creating fixed array of size " + std::to_string(size));
+    DEBUG_LOG("Element LLVM type: " + debugType(elementType));
+
+    // Set insert point before terminator if present
+    llvm::BasicBlock* currentBlock = Builder->GetInsertBlock();
+    if (currentBlock && !currentBlock->empty() && currentBlock->back().isTerminator()) {
+        DEBUG_LOG("Found terminator in current block, inserting before it");
+        auto termIt = currentBlock->getTerminator()->getIterator();
+        Builder->SetInsertPoint(currentBlock, termIt);
+    }
+
+    const llvm::DataLayout& dataLayout = currentModule != nullptr 
+        ? currentModule->getDataLayout() 
+        : Module->getDataLayout();
+
+    unsigned elementAlign = dataLayout.getABITypeAlign(elementType).value();
+    DEBUG_LOG("Element alignment: " + std::to_string(elementAlign));
+
+    llvm::ArrayType* arrayType = llvm::ArrayType::get(elementType, size);
+    DEBUG_LOG("Array LLVM type: " + debugType(arrayType));
+
+    llvm::Value* arrayAlloc = Builder->CreateAlloca(arrayType, nullptr, "static_array");
+    DEBUG_LOG("Array allocation created");
+
+    llvm::cast<llvm::AllocaInst>(arrayAlloc)->setAlignment(llvm::Align(elementAlign));
+    DEBUG_LOG("Set alignment of allocation");
+
+    for (size_t i = 0; i < elements.size(); ++i) {
+        DEBUG_LOG("Inserting element at index " + std::to_string(i));
+
+        llvm::Value* element = elements[i];
+
+        if (element->getType() != elementType) {
+            DEBUG_LOG("Type mismatch: expected " + debugType(elementType) +
+                      ", got " + debugType(element->getType()));
+            element = Builder->CreateBitCast(element, elementType);
+            DEBUG_LOG("Bitcasted element to match element type");
+        }
+
+        llvm::Value* elementPtr = Builder->CreateGEP(
+            arrayType,
+            arrayAlloc,
+            {Builder->getInt32(0), Builder->getInt32(i)}
+        );
+        DEBUG_LOG("Computed GEP for index " + std::to_string(i));
+
+        llvm::StoreInst* store = Builder->CreateStore(element, elementPtr);
+        store->setAlignment(llvm::Align(elementAlign));
+        DEBUG_LOG("Stored element at index " + std::to_string(i));
+    }
+
+    DEBUG_LOG("Finished creating fixed array");
+    return arrayAlloc;
 }

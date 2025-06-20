@@ -265,15 +265,12 @@ public:
         std::vector<std::shared_ptr<Omniscript::Expression>>& funcBody,
         SymbolTableType scope
     );
-    llvm::AllocaInst* createEntryBlockAlloca(llvm::Function* function,llvm::Type* type, const std::string& name);
     llvm::Value* createCall(
         const std::string& callee, 
         std::vector<llvm::Value*>& args, 
         llvm::BasicBlock* activeBlock = nullptr
     );
     bool currentBlockHasTerminator() const;
-    llvm::Value* castValue(llvm::Value* val, llvm::Type* targetType);
-    std::string typeToString(llvm::Type* type);
     llvm::Value* createReturn(llvm::Value* returnValue, llvm::Type* expectedReturnType);
 
     bool isNullableStruct(llvm::Type* type);
