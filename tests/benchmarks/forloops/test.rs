@@ -1,32 +1,50 @@
-use std::hint::black_box;
-use std::time::Instant;
+#[link(name = "kernel32")]
+extern "system" {
+    fn QueryPerformanceCounter(lpPerformanceCount: *mut i64) -> i32;
+    fn QueryPerformanceFrequency(lpFrequency: *mut i64) -> i32;
+}
 
 fn main() {
-    let mut x: u64 = 0;
-    let mut noise: u64 = 0;
+    let mut freq: i64 = 0;
+    let mut start: i64 = 0;
+    let mut end: i64 = 0;
 
-    // Warmup (irregular)
-    for i in 0..1_000_000 {
-        if i % 1_000_001 == 0 {
-            noise ^= black_box(i as u64);
+    let mut warmup: i64 = 0;
+    let mut warmup_noise: i64 = 0;
+
+    unsafe {
+        QueryPerformanceFrequency(&mut freq);
+
+        for i in 0..1_000_000i64 {
+            if i % 1_000_000_001 == 0 {
+                let mut temp = 0;
+                QueryPerformanceCounter(&mut temp);
+                warmup_noise ^= temp;
+            }
+            warmup += i;
         }
-        x = black_box(x + i);
-    }
 
-    // Benchmark
-    let start = Instant::now();
+        let mut noise: i64 = 0;
+        let mut x: i64 = warmup ^ warmup_noise;
 
-    for i in 0..1_000_000_000 {
-        if i % 1000000001 == 0 {
-            noise ^= black_box(i as u64);
+        QueryPerformanceCounter(&mut start);
+
+        for i in 0..1_000_000_000i64 {
+            if i % 1_000_000_001 == 0 {
+                let mut temp = 0;
+                QueryPerformanceCounter(&mut temp);
+                noise ^= temp;
+            }
+            x += i;
         }
-        x = black_box(x + i);
+
+        QueryPerformanceCounter(&mut end);
+        x ^= noise;
+
+        let elapsed_ms = (end - start) as f64 * 1000.0 / freq as f64;
+
+        println!("Result: {}", x);
+        println!("Elapsed: {:.4} ms", elapsed_ms);
+        println!("Ops/ms: {:.1}", 1_000_000.0 / elapsed_ms);
     }
-
-    let elapsed = start.elapsed().as_secs_f64() * 1000.0;
-    x ^= noise;
-
-    println!("Result: {}", x);
-    println!("Elapsed: {:.4} ms", elapsed);
-    println!("Ops/ms: {:.1}", 1_000_000.0 / elapsed);
 }
