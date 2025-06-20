@@ -293,7 +293,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return getReferenceToVariable(refValue->referentName);
     }
     
-    if (auto addressOf = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(value)) {
+    if (auto addressOf = std::dynamic_pointer_cast<Omniscript::AddressOfExpression>(value)) {
         DEBUG_LOG("Getting the address of variable " + addressOf->variableName);
         return getAddressOf(addressOf->variableName);
     }

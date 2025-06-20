@@ -15,7 +15,13 @@ bool Parser::isAssignmentExpression(TokenTypes tokenType) {
         tokenType == TokenTypes::DivideAssign || 
         tokenType == TokenTypes::MultiplyAssign || 
         tokenType == TokenTypes::Increment || 
-        tokenType == TokenTypes::Decrement) {
+        tokenType == TokenTypes::Decrement ||
+        tokenType == TokenTypes::BitwiseXorAssign ||
+        tokenType == TokenTypes::BitwiseAndAssign ||
+        tokenType == TokenTypes::BitwiseOrAssign ||
+        tokenType == TokenTypes::ShiftLeftAssign ||
+        tokenType == TokenTypes::ShiftRightAssign  
+    ) {
         return true;
     }
     return false;
@@ -178,6 +184,21 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 case TokenTypes::MultiplyAssign:
                     value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Multiply, value);
                     break;
+                case TokenTypes::BitwiseXorAssign:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::BitwiseXor, value);
+                    break;
+                case TokenTypes::BitwiseAndAssign:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::BitwiseAnd, value);
+                    break;
+                case TokenTypes::BitwiseOrAssign:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::BitwiseOr, value);
+                    break;
+                case TokenTypes::ShiftLeftAssign:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::ShiftLeft, value);
+                    break;
+                case TokenTypes::ShiftRightAssign:
+                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::ShiftRight, value);
+                    break;  
                 default:
                     eat(TokenTypes::Assign, "Invalid assignment operator: " + getTokenTypeName(currentAssignmentOperation.getType()));
                     break;

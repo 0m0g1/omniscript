@@ -20,6 +20,32 @@ struct VariableAssignment : public Expression {
     std::string toString() const override {
         return "Assign: " + variableName + " = " + assignedValue->toString();
     }
+    std::string toDebugString() const {
+        std::ostringstream out;
+        out << "VariableAssignment Debug Info:\n";
+        out << "  variableName   : " << variableName << "\n";
+        out << "  isStatic       : " << (isStatic ? "true" : "false") << "\n";
+        out << "  isConstant     : " << (isConstant ? "true" : "false") << "\n";
+        out << "  isGlobal       : " << (isGlobal ? "true" : "false") << "\n";
+        out << "  isReassignment : " << (isReassignment ? "true" : "false") << "\n";
+        out << "  isVolatile     : " << (isVolatile ? "true" : "false") << "\n";
+
+        out << "  assignedValue  : ";
+        if (assignedValue) {
+            out << assignedValue->toString() << "\n";
+        } else {
+            out << "null\n";
+        }
+
+        out << "  type           : ";
+        if (type) {
+            out << type->toString() << "\n";
+        } else {
+            out << "null\n";
+        }
+
+        return out.str();
+    }
     
     std::shared_ptr<Expression> clone() const override {
         auto clone = std::make_shared<VariableAssignment>(

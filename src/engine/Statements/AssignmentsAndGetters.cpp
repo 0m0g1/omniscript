@@ -28,7 +28,7 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
             setRootType(Omniscript::Type::createPointerType(referent->getType()));
         }
 
-        return std::make_shared<Omniscript::VariableAccessExpression>(mangledName, referent);
+        return std::make_shared<Omniscript::AddressOfExpression>(mangledName, referent);
     }
 
     if (!type) {
@@ -36,7 +36,7 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
         setRootType(Omniscript::Type::createPointerType(referent->getType()));
     }
 
-    return std::make_shared<Omniscript::VariableAccessExpression>(name, referent);
+    return std::make_shared<Omniscript::AddressOfExpression>(name, referent);
 }
 
 std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType scope) {
@@ -128,6 +128,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
 
     auto varAccess = std::make_shared<Omniscript::VariableAccessExpression>(resolvedName, type);
     varAccess->value = expr;
+    // varAccess->isVolatileAccess;
     return varAccess;
 }
 

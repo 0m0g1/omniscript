@@ -4,11 +4,12 @@ llvm::Value* IRGenerator::assignVariable(
     std::shared_ptr<Omniscript::VariableAssignment> statement,
     SymbolTableType scope
 ) {
+    DEBUG_LOG(statement->toDebugString());
     std::string name = statement->variableName;
     llvm::Type* type = resolveLLVMType(statement->getType());
     DEBUG_LOG("Variable '" + name + "' has type '" + debugType(type) + "'.");
     llvm::Value* value = codegen(statement->getValue(), scope);
-    DEBUG_LOG("Got variable '" + varAssign->variableName + "''s value.");
+    DEBUG_LOG("Got variable '" + statement->variableName + "''s value.");
     llvm::Value* initialValue = value;
     bool isGlobal = statement->isGlobal;
     bool isConstant = statement->isConstant;

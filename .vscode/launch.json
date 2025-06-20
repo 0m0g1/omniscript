@@ -28,18 +28,17 @@
         "type": "cppdbg",
         "request": "launch",
         "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
-        "args": [
-            "examples\\timer.os",
-            "--execute",
-            "--debug",
-            "--optimization-level",
-            "-1"
-        ],
+        "args": ["examples\\timer.os", "--execute", "--debug", "--optimization-level", "-1"],
         "stopAtEntry": false,
         "cwd": "${workspaceFolder}",
         "environment": [],
         "externalConsole": false,
-        "MIMode": "gdb"
+        "MIMode": "gdb",
+        "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe",
+        "logging": {
+            "moduleLoad": true,
+            "trace": true
+        }
         },
         {
         "name": "DEBUG AOT",

@@ -1,6 +1,22 @@
 #ifndef IR_GENERATOR_H
 #define IR_GENERATOR_H
 
+#include <omniscript/Core.h>
+#include <omniscript/utils.h>
+#include <omniscript/Core/Types.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/Core/Expression.h>
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Symboltable.h>
+#include <omniscript/engine/EngineConfigs.h>
+#include <omniscript/debuggingtools/console.h>
+#include <omniscript/Core/Expressions/ClassExpression.h>
+#include <omniscript/Core/Expressions/StructExpression.h>
+#include <omniscript/Core/Expressions/FunctionExpression.h>
+#include <omniscript/Core/Expressions/AssignmentExpression.h>
+#include <omniscript/Core/Expressions/FunctionInputExpression.h>
+#include <omniscript/Core/Expressions/VariableAccessExpression.h>
+
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
@@ -17,21 +33,6 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/TargetSelect.h>
-
-#include <omniscript/utils.h>
-#include <omniscript/Core/Types.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/Core/Expression.h>
-#include <omniscript/engine/Statement.h>
-#include <omniscript/engine/Symboltable.h>
-#include <omniscript/engine/EngineConfigs.h>
-#include <omniscript/debuggingtools/console.h>
-#include <omniscript/Core/Expressions/ClassExpression.h>
-#include <omniscript/Core/Expressions/StructExpression.h>
-#include <omniscript/Core/Expressions/FunctionExpression.h>
-#include <omniscript/Core/Expressions/AssignmentExpression.h>
-#include <omniscript/Core/Expressions/FunctionInputExpression.h>
-#include <omniscript/Core/Expressions/VariableAccessExpression.h>
 
 class ExternalFunctionResolver;
 

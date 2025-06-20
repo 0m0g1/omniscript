@@ -68,12 +68,14 @@ void IRGenerator::printIR() {
 }
 
 void IRGenerator::printErrors() {
-    if (llvm::verifyModule(*Module, &llvm::errs())) {
+    std::string errorStr;
+    llvm::raw_string_ostream errorStream(errorStr);
+
+    if (llvm::verifyModule(*Module, &errorStream)) {
+        errorStream.flush();
         llvm::errs() << "Module verification for '" << Module->getModuleIdentifier() << "' failed!\n";
-    } 
-    // else {
-    //     llvm::errs() << "No errors found in '" << Module->getModuleIdentifier() << "'.\n";
-    // }
+        llvm::errs() << errorStr << "\n";
+    }
 }
 
 void IRGenerator::printErrors(llvm::Module& module) {

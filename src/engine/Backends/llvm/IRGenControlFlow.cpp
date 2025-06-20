@@ -66,7 +66,7 @@ llvm::Value* IRGenerator::createForLoop(
     llvm::BasicBlock* condBlock = llvm::BasicBlock::Create(context, "for.cond", function);
     llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context, "for.body", function);
     llvm::BasicBlock* incrementBlock = llvm::BasicBlock::Create(context, "for.inc", function);
-    llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "for.end", function);
+    llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "for.end");
 
     Builder->CreateBr(condBlock);
 
@@ -135,7 +135,9 @@ llvm::Value* IRGenerator::createForLoop(
     Builder->CreateBr(condBlock);
 
     // === After block ===
+    afterBlock->insertInto(function);
     Builder->SetInsertPoint(afterBlock);
+
     popScope();
 
     return nullptr;

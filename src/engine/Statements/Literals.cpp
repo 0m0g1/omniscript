@@ -14,8 +14,7 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
         if (typed->getRootType()) {
             DEBUG_LOG("[Cast] Casting '" + value->toString() + "' a '" + typed->getRootType()->toString() + "' to a '" + targetType->toString() + "'.");
-        }
-        else if (typed->getType()) {
+        } else if (typed->getType()) {
             DEBUG_LOG("[Cast] Casting '" + value->toString() + "' a '" + typed->getType()->toString() + "' to a '" + targetType->toString() + "'.");
         } else {
             DEBUG_LOG("[Cast] Casting a '" + value->toString() + "' to a '" + targetType->toString() + "'.");
@@ -249,8 +248,11 @@ std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type
     case Kind::Int8:
     case Kind::Int16:
     case Kind::Int32:
-    case Kind::Int64:
-        return std::make_shared<IntegerLiteral>(value); // Truncation assumed safe
+    case Kind::Int64: {
+        auto val = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
+        val->setType(targetType);
+        return val;
+    }
 
     case Kind::Half: {
         auto lit = std::make_shared<FloatLiteral>(static_cast<_Float16>(value));

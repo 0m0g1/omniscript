@@ -1,44 +1,44 @@
-// volatile let n: int32 = 0;
+extern "C:/Windows/System32/kernel32.dll" {
+    fn QueryPerformanceCounter(counter: int64*) => int;
+    fn QueryPerformanceFrequency(freq: int64*) => int;
+}
 
-// if (n == 0) {
+extern "C" fn printf(...fmt: char*) => int;
 
-// }
+let freq: int64 = 0;
+QueryPerformanceFrequency(&freq);
 
-// extern "kernel32.dll" {
-//     fn QueryPerformanceCounter(counter: int64*) => int;
-//     fn QueryPerformanceFrequency(freq: int64*) => int;
-// }
+// Optional warmup
+let warmup: int64 = 0;
+for (let i = 0; i < 1000000; i++) {
+    warmup += i;
+}
 
-// extern "C" fn printf(...fmt: char*) => int;
+// Benchmark
+let start: int64 = 0;
+let end: int64 = 0;
+volatile let x: int64 = 0;
+volatile let noise: int64 = 0;
 
-// let freq: int64 = 0;
-// QueryPerformanceFrequency(&freq);
+QueryPerformanceCounter(&start);
 
-// // Warmup run (optional but recommended)
-// // let warmup: int64 = 0;
-// // for (let i = 0; i < 1000000; i++) {
-// //     warmup += i;
-// // }
+for (let i: int64 = 0; i < 1000000000; i++) {
+    // Every 10000 iterations, add a small unpredictable value
+    if (i % 100000000 == 0) { // A rare but irregular pattern
+        let temp: int64 = 0;
+        QueryPerformanceCounter(&temp);
+        noise ^= temp;
+    }
 
-// // Actual test
-// let start: int64 = 0;
-// let end: int64 = 0;
-// volatile let x: int64 = 0;  // Use int64 to prevent overflow
+    x += i;
+}
 
-// QueryPerformanceCounter(&start);
+QueryPerformanceCounter(&end);
 
-// for (let i: int64 = 0; i < 1000000000; i++) {
-//     // x += i as int64;
-//     // Todo::fix this
-//     // if (x == -1) {
-//     //     printf("unlikely");
-//     // }
-// }
+// Combine noise into final result to prevent dead-code removal
+x ^= noise;
 
-// QueryPerformanceCounter(&end);
-
-// // Results
-// let elapsedMs = (end - start) as double * 1000.0 / freq;
-// printf("Result: %lld\n", x);  // lld for int64
-// printf("Elapsed: %.4f ms\n", elapsedMs);
-// printf("Ops/ms: %.1f\n", 1000000.0 / elapsedMs);  // Additional metric
+let elapsedMs = (end - start) as double * 1000.0 / freq;
+printf("Result: %lld\n", x);
+printf("Elapsed: %.4f ms\n", elapsedMs);
+printf("Ops/ms: %.1f\n", 1000000.0 / elapsedMs);
