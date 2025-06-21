@@ -2,6 +2,18 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Backends/llvm/LLVMAOTBackend.h>
 
+#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/PosixLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/DarwinLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/AndroidLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/WebAssemblyLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/SmartPlatformLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
+
 namespace fs = std::filesystem;
 
 LLVMAOTBackend::LLVMAOTBackend() {
@@ -37,15 +49,14 @@ LLVMAOTBackend::LLVMAOTBackend() {
     targetMachine->setGlobalISel(true);       // Enable global instruction selector
     
     scope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>();
-    linkDependencies = std::make_shared<LinkDependencies>();
 }
 
 void LLVMAOTBackend::initialize() {
     // Initialize platform-specific external function resolver
-    setupExternalResolver();
+    
 }
 
-void LLVMAOTBackend::setupExternalResolver() {
+void LLVMAOTBackend::setupExternalResolvers() {
     // Create a smart platform resolver that automatically detects the current platform
     // and sets up appropriate resolvers for C standard library, system APIs, etc.
     
@@ -56,29 +67,31 @@ void LLVMAOTBackend::setupExternalResolver() {
               PlatformInfo::getPlatformString() + " (" + PlatformInfo::getArchString() + ")");
     
     // Set up C standard library resolver (universal)
-    addExternalResolver("C", std::make_unique<CStdLibResolver>());
+    irGen->addExternalResolver("C", std::make_unique<CStdLibResolver>());
     
     // Set up platform-specific system API resolvers
     switch (platform) {
 #ifdef _WIN32
         case PlatformInfo::Platform::Windows:
-            addExternalResolver("kernel32", std::make_unique<WindowsAPIResolver>());
-            addExternalResolver("user32", std::make_unique<WindowsAPIResolver>());
-            addExternalResolver("gdi32", std::make_unique<WindowsAPIResolver>());
-            addExternalResolver("shell32", std::make_unique<WindowsAPIResolver>());
-            addExternalResolver("ntdll", std::make_unique<WindowsAPIResolver>());
+            irGen->addExternalResolver("msvcrt", std::make_unique<WindowsAPIResolver>());
+            irGen->addExternalResolver("kernel32", std::make_unique<WindowsAPIResolver>());
+            irGen->addExternalResolver("user32", std::make_unique<WindowsAPIResolver>());
+            irGen->addExternalResolver("gdi32", std::make_unique<WindowsAPIResolver>());
+            irGen->addExternalResolver("shell32", std::make_unique<WindowsAPIResolver>());
+            irGen->addExternalResolver("ntdll", std::make_unique<WindowsAPIResolver>());
             break;
 #else
         case PlatformInfo::Platform::Linux:
         case PlatformInfo::Platform::FreeBSD:
-            addExternalResolver("libc", std::make_unique<POSIXResolver>());
-            addExternalResolver("libm", std::make_unique<POSIXResolver>());
-            addExternalResolver("libdl", std::make_unique<POSIXResolver>());
-            addExternalResolver("libpthread", std::make_unique<POSIXResolver>());
+            irGen->addExternalResolver("libc", std::make_unique<POSIXResolver>());
+            irGen->addExternalResolver("libc", std::make_unique<POSIXResolver>());
+            irGen->addExternalResolver("libm", std::make_unique<POSIXResolver>());
+            irGen->addExternalResolver("libdl", std::make_unique<POSIXResolver>());
+            irGen->addExternalResolver("libpthread", std::make_unique<POSIXResolver>());
             break;
         case PlatformInfo::Platform::MacOS:
-            addExternalResolver("libSystem", std::make_unique<DarwinResolver>());
-            addExternalResolver("Foundation", std::make_unique<DarwinResolver>());
+            irGen->addExternalResolver("libSystem", std::make_unique<DarwinResolver>());
+            irGen->addExternalResolver("Foundation", std::make_unique<DarwinResolver>());
             break;
 #endif
         default:
@@ -87,10 +100,6 @@ void LLVMAOTBackend::setupExternalResolver() {
     }
     
     DEBUG_LOG("External function resolver setup completed");
-}
-
-void LLVMAOTBackend::addExternalResolver(const std::string& libraryName, std::unique_ptr<ExternalFunctionResolver> resolver) {
-    resolvers[libraryName] = std::move(resolver);
 }
 
 bool LLVMAOTBackend::isLinkerAvailable(const std::string& linker) {
@@ -112,13 +121,7 @@ void LLVMAOTBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     scope->setName(config.filePath);
     irGen = std::make_shared<IRGenerator>(config);
     
-    // Set up the external resolvers in the IR generator
-    for (auto& [name, resolver] : resolvers) {
-        irGen->addExternalResolver(name, resolver.get());
-    }
-    
-    // Set the link dependencies reference
-    irGen->setLinkDependencies(linkDependencies.get());
+    setupExternalResolvers();
 
     DEBUG_LOG("Evaluating statements");
     DEBUG_LOG("====================");
@@ -140,18 +143,27 @@ void LLVMAOTBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     if (config.entry.empty()) {
         irGen->addMainFunction();
     }
+    if (config.logFinalCode) {
+        console.log("========= Unoptimized LLVM IR =========");
+        irGen->printIR();
+    }
+
+    irGen->printErrors();
+
     irGen->optimizeModule(config.optimizationLevel);
 
-    if (config.logFinalCode) {
-        DEBUG_LOG();
+    if (config.logFinalCode && config.optimizationLevel > -1) {
+        console.log();
+        console.log("========= Optimized LLVM IR =========");
         irGen->printIR();
-        irGen->printErrors();
     }
 
     if (config.logAsm) {
         DEBUG_LOG();
         irGen->printAssembly(irGen->getModule().get());
     }
+
+    linkerDependencies = irGen->getLinkDependencies();
 
     fs::path outputPath(config.outputPath);
     fs::path objPath = outputPath.parent_path() / (outputPath.stem().string() + ".o");
@@ -236,7 +248,7 @@ void LLVMAOTBackend::emitAssemblyFile(const std::string& asmFilename) {
 
 void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::string& exeFile) {
     // Get the required libraries from the IR generator's link dependencies
-    std::vector<std::string> additionalLibs = linkerDependencies->getLinkerFlags();
+    std::vector<std::string> additionalLibs = linkerDependencies.getLinkerFlags();
     
     std::vector<std::pair<std::string, std::vector<std::string>>> linkerOptions = {
 #ifdef _WIN32

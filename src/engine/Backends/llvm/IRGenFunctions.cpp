@@ -235,7 +235,7 @@ llvm::Function* IRGenerator::createExternFunction(
     };
     
     if (configs.mode == CompileMode::JIT) {
-        if (!fileExists(dynamicLibPath) && !ExternalFunctionResolver::isSystemLibrary(name) && dynamicLibPath != "C") {
+        if (!fileExists(dynamicLibPath) && !ExternalFunctionResolver::isSystemLibrary(dynamicLibPath) && dynamicLibPath != "C") {
             console.error("'" + dynamicLibPath + "' is not a valid dynamic library for function '" + name + "'.");
             return nullptr;
         }
@@ -249,26 +249,33 @@ llvm::Function* IRGenerator::createExternFunction(
         }
         
     } else {
-        // AOT mode - enhanced static/dynamic library handling
+        // AOT mode - enhanced static/dynamic library handling with dynamic Windows API detection
         bool staticExists = !staticLibPath.empty() && fileExists(staticLibPath);
         bool dynamicExists = !dynamicLibPath.empty() && fileExists(dynamicLibPath);
 
         if (!staticExists && !dynamicExists) {
-            // Try system libraries as fallback
-            if (WindowsAPIResolver::isWindowsAPIFunction(externName)) {
-                staticLibPath = "kernel32.lib";
-                dynamicLibPath = "kernel32.dll";
-                staticExists = true;
+            // Try system libraries as fallback using dynamic detection
+            if (WindowsAPIResolver::canResolveFunction(externName)) {
+                std::string winLibrary = WindowsAPIResolver::findLibraryForFunction(externName);
+                if (!winLibrary.empty()) {
+                    staticLibPath = winLibrary + ".lib";
+                    dynamicLibPath = winLibrary + ".dll";
+                    staticExists = WindowsAPIResolver::isWindowsSystemLibrary(staticLibPath);
+                    dynamicExists = WindowsAPIResolver::isWindowsSystemLibrary(dynamicLibPath);
+                }
             } else if (CStdLibResolver::isCStdLibFunction(externName)) {
                 staticLibPath = "msvcrt.lib";
                 dynamicLibPath = "msvcrt.dll";
                 staticExists = true;
+                dynamicExists = true;
             }
         }
 
         if (staticExists) {
-            // Skip symbol existence check for system libraries
-            if (!ExternalFunctionResolver::isSystemLibrary(staticLibPath) && !symbolExistsInStaticLib(staticLibPath, externName)) {
+            // Skip symbol existence check for Windows system libraries
+            bool isWindowsSystemLib = WindowsAPIResolver::isWindowsSystemLibrary(staticLibPath);
+            if (!isWindowsSystemLib && !ExternalFunctionResolver::isSystemLibrary(staticLibPath) && 
+                !symbolExistsInStaticLib(staticLibPath, externName)) {
                 console.error("Symbol '" + externName + "' not found in static library: " + staticLibPath);
                 return nullptr;
             }
@@ -276,7 +283,7 @@ llvm::Function* IRGenerator::createExternFunction(
             auto resolver = tryAddResolver(staticLibPath, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
                 if (CStdLibResolver::isCStdLibFunction(externName)) {
                     return std::make_unique<CStdLibResolver>();
-                } else if (WindowsAPIResolver::isWindowsAPIFunction(externName)) {
+                } else if (WindowsAPIResolver::canResolveFunction(externName)) {
                     return std::make_unique<WindowsAPIResolver>();
                 } else {
                     return std::make_unique<StaticLibraryResolver>();

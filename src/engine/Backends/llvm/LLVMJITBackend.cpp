@@ -69,16 +69,18 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     irGen->finalize();
 
     if (config.logFinalCode) {
-        DEBUG_LOG("=== [ Unoptimized LLVM IR ] ===");
+        console.log("========= Optimized LLVM IR =========");
         irGen->printIR();
         DEBUG_LOG();
     }
 
     irGen->printErrors();
+
     irGen->optimizeModule(config.optimizationLevel);
 
-    if (config.logFinalCode) {
-        DEBUG_LOG("=== [ Optimized LLVM IR ] ===");
+    if (config.logFinalCode && config.optimizationLevel > -1) {
+        console.log();
+        console.log("========= Optimized LLVM IR =========");
         irGen->printIR();
         DEBUG_LOG();
     }

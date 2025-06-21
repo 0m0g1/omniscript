@@ -1,5 +1,15 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
 #include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/PosixLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/DarwinLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/AndroidLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/WebAssemblyLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/SmartPlatformLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
 
 bool ExternalFunctionResolver::isSystemLibrary(const std::string& libPath) {
     static const std::unordered_set<std::string> systemLibs = {
@@ -426,74 +436,15 @@ std::string PlatformInfo::getPlatformString() {
     }
 }
 
-// Smart resolver implementation
-SmartPlatformResolver::SmartPlatformResolver() {
-    initializePlatformResolvers();
-}
-
-void SmartPlatformResolver::initializePlatformResolvers() {
-    // Always add C standard library resolver first
-    platformResolvers_.push_back(std::make_unique<CStdLibResolver>());
-    
-    // Add platform-specific resolvers
-    switch (PlatformInfo::getCurrentPlatform()) {
-        case PlatformInfo::Windows:
-            platformResolvers_.push_back(std::make_unique<WindowsAPIResolver>());
-            break;
-            
-        case PlatformInfo::Linux:
-            platformResolvers_.push_back(std::make_unique<PosixResolver>());
-            platformResolvers_.push_back(std::make_unique<LinuxResolver>());
-            break;
-            
-        case PlatformInfo::MacOS:
-        case PlatformInfo::iOS:
-            platformResolvers_.push_back(std::make_unique<PosixResolver>());
-            platformResolvers_.push_back(std::make_unique<DarwinResolver>());
-            break;
-            
-        case PlatformInfo::Android:
-            platformResolvers_.push_back(std::make_unique<PosixResolver>());
-            platformResolvers_.push_back(std::make_unique<AndroidResolver>());
-            break;
-            
-        case PlatformInfo::WebAssembly:
-            platformResolvers_.push_back(std::make_unique<WebAssemblyResolver>());
-            break;
-            
-        case PlatformInfo::FreeBSD:
-            platformResolvers_.push_back(std::make_unique<PosixResolver>());
-            break;
-            
-        default:
-            // Fallback to POSIX for unknown Unix-like systems
-            if (PlatformInfo::isUnixLike()) {
-                platformResolvers_.push_back(std::make_unique<PosixResolver>());
-            }
-            break;
+std::string PlatformInfo::getArchString() {
+    switch (getCurrentArchitecture()) {
+        case x86: return "x86";
+        case x86_64: return "x86_64";
+        case ARM: return "ARM";
+        case ARM64: return "ARM64";
+        case MIPS: return "MIPS";
+        case RISC_V: return "RISC-V";
+        case WebAsm: return "WebAssembly";
+        default: return "Unknown";
     }
-}
-
-llvm::Function* SmartPlatformResolver::resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) {
-    // Try custom resolvers first
-    for (const auto& [pattern, resolver] : customResolvers_) {
-        if (name.find(pattern) != std::string::npos) {
-            if (auto func = resolver->resolve(generator, name, funcType)) {
-                return func;
-            }
-        }
-    }
-    
-    // Try platform resolvers
-    for (const auto& resolver : platformResolvers_) {
-        if (auto func = resolver->resolve(generator, name, funcType)) {
-            return func;
-        }
-    }
-    
-    return nullptr;
-}
-
-void SmartPlatformResolver::registerResolver(const std::string& pattern, std::unique_ptr<ExternalFunctionResolver> resolver) {
-    customResolvers_[pattern] = std::move(resolver);
 }
