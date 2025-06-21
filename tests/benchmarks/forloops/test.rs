@@ -3,6 +3,11 @@ extern "system" {
     fn QueryPerformanceCounter(lpPerformanceCount: *mut i64) -> i32;
     fn QueryPerformanceFrequency(lpFrequency: *mut i64) -> i32;
 }
+#[link(name = "kernel32")]
+extern "system" {
+    fn QueryPerformanceCounter(lpPerformanceCount: *mut i64) -> i32;
+    fn QueryPerformanceFrequency(lpFrequency: *mut i64) -> i32;
+}
 
 fn main() {
     let mut freq: i64 = 0;
