@@ -1,5 +1,5 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolver.h>
+#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 bool DarwinResolver::isFoundationFunction(const std::string& name) {
     return name.find("NS") == 0 || name.find("CF") == 0;

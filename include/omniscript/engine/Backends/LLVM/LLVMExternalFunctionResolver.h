@@ -161,29 +161,29 @@ private:
 };
 
 // Usage example for extending to new platforms:
-class CustomGameConsoleResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override {
-        // Custom game console API resolution
-        if (isGameConsoleAPI(name)) {
-            auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule());
-            // Apply console-specific attributes
-            applyConsoleAttributes(func, name);
-            return func;
-        }
-        return nullptr;
-    }
+// class CustomGameConsoleResolver : public ExternalFunctionResolver {
+// public:
+//     llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override {
+//         // Custom game console API resolution
+//         if (isGameConsoleAPI(name)) {
+//             auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule());
+//             // Apply console-specific attributes
+//             applyConsoleAttributes(func, name);
+//             return func;
+//         }
+//         return nullptr;
+//     }
     
-private:
-    bool isGameConsoleAPI(const std::string& name) {
-        // Implementation specific to your game console
-        return name.starts_with("console_") || name.starts_with("gpu_");
-    }
+// private:
+//     bool isGameConsoleAPI(const std::string& name) {
+//         // Implementation specific to your game console
+//         return name.starts_with("console_") || name.starts_with("gpu_");
+//     }
     
-    void applyConsoleAttributes(llvm::Function* func, const std::string& name) {
-        // Console-specific function attributes
-    }
-};
+//     void applyConsoleAttributes(llvm::Function* func, const std::string& name) {
+//         // Console-specific function attributes
+//     }
+// };
 
 // Easy integration example:
 /*

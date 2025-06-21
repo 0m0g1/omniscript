@@ -1,5 +1,5 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolver.h>
+#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 // WindowsAPIResolver Implementation
 llvm::Function* WindowsAPIResolver::resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) {

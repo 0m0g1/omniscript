@@ -1,5 +1,5 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolver.h>
+#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 // DynamicLibraryResolver Implementation
 DynamicLibraryResolver::DynamicLibraryResolver(const std::string& libPath) : libPath_(libPath) {
