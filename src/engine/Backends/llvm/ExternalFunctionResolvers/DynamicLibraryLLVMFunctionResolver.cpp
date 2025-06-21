@@ -1,55 +1,56 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
 #include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
 
-// DynamicLibraryResolver Implementation
-DynamicLibraryResolver::DynamicLibraryResolver(const std::string& libPath) : libPath_(libPath) {
-    std::string errMsg;
-    std::string normalizedPath = normalizePath(libPath);
-    dynLib = llvm::sys::DynamicLibrary::getPermanentLibrary(normalizedPath.c_str(), &errMsg);
+DynamicLibraryResolver::DynamicLibraryResolver(const std::string& libPath) 
+    : libPath_(normalizePath(libPath)) {
+    std::string error;
+    dynLib = llvm::sys::DynamicLibrary::getPermanentLibrary(libPath_.c_str(), &error);
     if (!dynLib.isValid()) {
-        throw std::runtime_error("Failed to load library: " + errMsg);
+        llvm::errs() << "Failed to load dynamic library " << libPath_ << ": " << error << "\n";
     }
 }
 
-llvm::Function* DynamicLibraryResolver::resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) {
-    void* symbol = dynLib.getAddressOfSymbol(name.c_str());
-    if (!symbol) return nullptr;
+llvm::Function* DynamicLibraryResolver::resolve(IRGenerator& generator, const std::string& name, 
+                                              llvm::FunctionType* funcType, LinkDependencies& deps) {
+    if (!dynLib.isValid()) {
+        return nullptr;
+    }
     
-    return llvm::Function::Create(
-        funcType,
-        llvm::Function::ExternalLinkage,
-        name,
-        generator.getCurrentModule()
+    // Check if the symbol exists in the dynamic library
+    void* symbol = dynLib.getAddressOfSymbol(name.c_str());
+    if (!symbol) {
+        return nullptr;
+    }
+    
+    // Create the function
+    llvm::Function* func = llvm::Function::Create(
+        funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
     );
+    
+    // Add library dependency
+    LinkDependencies::LibraryInfo info;
+    info.name = libPath_;
+    info.path = libPath_;
+    deps.addRequiredLibrary(libPath_, info);
+    
+    return func;
 }
 
 std::string DynamicLibraryResolver::normalizePath(const std::string& path) {
-    // Platform-specific path normalization
+    // Convert relative paths to absolute, handle platform-specific extensions
     std::string normalized = path;
     
-    switch (PlatformInfo::getCurrentPlatform()) {
-        case PlatformInfo::Windows:
-            // Ensure .dll extension
-            if (normalized.find(".dll") == std::string::npos) {
-                normalized += ".dll";
-            }
-            break;
-            
-        case PlatformInfo::MacOS:
-        case PlatformInfo::iOS:
-            // Ensure .dylib extension
-            if (normalized.find(".dylib") == std::string::npos && 
-                normalized.find(".framework") == std::string::npos) {
-                normalized += ".dylib";
-            }
-            break;
-            
-        default:
-            // Unix-like systems use .so
-            if (normalized.find(".so") == std::string::npos) {
-                normalized += ".so";
-            }
-            break;
+    // Add platform-specific extension if not present
+    PlatformInfo::Platform platform = PlatformInfo::getCurrentPlatform();
+    if (platform == PlatformInfo::Windows && normalized.find(".dll") == std::string::npos) {
+        normalized += ".dll";
+    } else if (platform == PlatformInfo::MacOS && normalized.find(".dylib") == std::string::npos && 
+               normalized.find(".so") == std::string::npos) {
+        normalized += ".dylib";
+    } else if (PlatformInfo::isUnixLike() && platform != PlatformInfo::MacOS && 
+               normalized.find(".so") == std::string::npos) {
+        normalized += ".so";
     }
     
     return normalized;

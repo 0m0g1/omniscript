@@ -5,11 +5,41 @@
 
 class IRGenerator;
 
-// Base resolver interface
+// 1. DEPENDENCY TRACKING SYSTEM
+class LinkDependencies {
+public:
+    struct LibraryInfo {
+        std::string name;
+        std::string path;           // Optional explicit path
+        std::vector<std::string> linkerFlags;
+        bool isSystemLib = false;
+        bool isRequired = false;
+    };
+    
+private:
+    std::unordered_set<std::string> requiredLibraries_;
+    std::unordered_map<std::string, LibraryInfo> libraryInfo_;
+    
+public:
+    // Called by resolvers when they successfully resolve a function
+    void addRequiredLibrary(const std::string& libName, const LibraryInfo& info);
+    
+    // Get only the libraries that are actually used
+    std::vector<std::string> getLinkerFlags() const;
+    
+    bool hasLibrary(const std::string& libName) const;
+    
+    void clear();
+};
+
+// 2. RESOLVER INTERFACE
 class ExternalFunctionResolver {
 public:
-    virtual llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) = 0;
+    virtual llvm::Function* resolve(IRGenerator& generator, const std::string& name, 
+                                  llvm::FunctionType* funcType, LinkDependencies& deps) = 0;
     virtual ~ExternalFunctionResolver() = default;
+    static bool isSystemLibrary(const std::string& libPath) ;
+
 };
 
 // Platform detection utility
@@ -45,120 +75,6 @@ public:
     static bool isApple();
 };
 
-// Universal C Standard Library Resolver
-class CStdLibResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override;
-    
-private:
-    void applyPlatformSpecificAttributes(llvm::Function* func, const std::string& name);
-    llvm::CallingConv::ID getPlatformCallingConv(const std::string& name);
-};
-
-// Windows-specific resolvers
-class WindowsAPIResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override;
-    
-private:
-    bool isKernel32Function(const std::string& name);
-    bool isUser32Function(const std::string& name);
-    bool isGdi32Function(const std::string& name);
-    std::string getRequiredDLL(const std::string& name);
-};
-
-// POSIX/Unix resolver (Linux, macOS, BSD)
-class PosixResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override;
-    
-private:
-    bool isPthreadFunction(const std::string& name);
-    bool isSocketFunction(const std::string& name);
-    bool isMathFunction(const std::string& name);
-    std::vector<std::string> getRequiredLibraries(const std::string& name);
-};
-
-// Linux-specific resolver
-class LinuxResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override;
-    
-private:
-    bool isGlibcFunction(const std::string& name);
-    bool isSystemCallWrapper(const std::string& name);
-};
-
-// macOS/iOS resolver
-class DarwinResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override;
-    
-private:
-    bool isFoundationFunction(const std::string& name);
-    bool isCoreFoundationFunction(const std::string& name);
-    bool isCocoaFunction(const std::string& name);
-    std::string getRequiredFramework(const std::string& name);
-};
-
-// Android resolver
-class AndroidResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override;
-    
-private:
-    bool isAndroidFunction(const std::string& name);
-    bool isBionicFunction(const std::string& name);
-    bool isJNIFunction(const std::string& name);
-    std::string getRequiredLibrary(const std::string& name);
-};
-
-// WebAssembly resolver
-class WebAssemblyResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override;
-    
-private:
-    bool isWASIFunction(const std::string& name);
-    bool isEmscriptenFunction(const std::string& name);
-    bool isWebAPIFunction(const std::string& name);
-    void applyWasmAttributes(llvm::Function* func, const std::string& name);
-};
-
-// Generic dynamic library resolver (cross-platform)
-class DynamicLibraryResolver : public ExternalFunctionResolver {
-public:
-    llvm::sys::DynamicLibrary dynLib;
-    DynamicLibraryResolver(const std::string& libPath);
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override;
-    
-private:
-    std::string libPath_;
-    static std::string normalizePath(const std::string& path);
-};
-
-// Generic static library resolver
-class StaticLibraryResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override;
-};
-
-// Smart resolver that automatically selects the best resolver for the platform
-class SmartPlatformResolver : public ExternalFunctionResolver {
-public:
-    SmartPlatformResolver();
-    llvm::Function* resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) override;
-    
-    // Allow manual registration of custom resolvers
-    void registerResolver(const std::string& pattern, std::unique_ptr<ExternalFunctionResolver> resolver);
-    
-private:
-    std::vector<std::unique_ptr<ExternalFunctionResolver>> platformResolvers_;
-    std::unordered_map<std::string, std::unique_ptr<ExternalFunctionResolver>> customResolvers_;
-    
-    void initializePlatformResolvers();
-    ExternalFunctionResolver* findBestResolver(const std::string& name);
-};
 
 // Usage example for extending to new platforms:
 // class CustomGameConsoleResolver : public ExternalFunctionResolver {

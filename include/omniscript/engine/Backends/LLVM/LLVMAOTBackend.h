@@ -16,9 +16,22 @@ private:
     std::shared_ptr<llvm::TargetMachine> targetMachine;
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope;
     std::string outputPath;
+    std::shared_ptr<LinkDependencies> linkerDependencies;
 
     void emitObjectFile(const std::string& objFile);
     void linkExecutable(const std::string& objFile, const std::string& exeFile);
+    std::vector<std::string> buildMSVCLinkerArgs(
+        const std::string& exeFile,
+        const std::string& objFile,
+        const std::vector<std::string>& additionalLibs,
+        const std::vector<std::string>& defaultLibs
+    );
+    std::vector<std::string> buildLinkerArgs(
+        const std::string& exeFile, 
+        const std::string& objFile,
+        const std::vector<std::string>& additionalLibs,
+        const std::vector<std::string>& defaultLibs
+    );
 
 public:
     LLVMAOTBackend();

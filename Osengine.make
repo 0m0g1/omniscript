@@ -112,6 +112,7 @@ GENERATED += $(OBJDIR)/Identifiers.o
 GENERATED += $(OBJDIR)/JITBackend.o
 GENERATED += $(OBJDIR)/JITCompiler.o
 GENERATED += $(OBJDIR)/LLVMAOTBackend.o
+GENERATED += $(OBJDIR)/LLVMExternalFunctionResolver.o
 GENERATED += $(OBJDIR)/LLVMJITBackend.o
 GENERATED += $(OBJDIR)/Lexer.o
 GENERATED += $(OBJDIR)/LinuxLLVMFunctionResolver.o
@@ -122,6 +123,7 @@ GENERATED += $(OBJDIR)/Objects.o
 GENERATED += $(OBJDIR)/Parser.o
 GENERATED += $(OBJDIR)/PosixLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/Prototypes.o
+GENERATED += $(OBJDIR)/SmartPlatformLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/Statement.o
 GENERATED += $(OBJDIR)/Statements.o
 GENERATED += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
@@ -130,7 +132,6 @@ GENERATED += $(OBJDIR)/Tokens.o
 GENERATED += $(OBJDIR)/Types.o
 GENERATED += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/WindowsApiLLVMFunctionResolver.o
-GENERATED += $(OBJDIR)/lLLVMExternalFunctionResolver.o
 GENERATED += $(OBJDIR)/main.o
 GENERATED += $(OBJDIR)/utils.o
 OBJECTS += $(OBJDIR)/Access.o
@@ -168,6 +169,7 @@ OBJECTS += $(OBJDIR)/Identifiers.o
 OBJECTS += $(OBJDIR)/JITBackend.o
 OBJECTS += $(OBJDIR)/JITCompiler.o
 OBJECTS += $(OBJDIR)/LLVMAOTBackend.o
+OBJECTS += $(OBJDIR)/LLVMExternalFunctionResolver.o
 OBJECTS += $(OBJDIR)/LLVMJITBackend.o
 OBJECTS += $(OBJDIR)/Lexer.o
 OBJECTS += $(OBJDIR)/LinuxLLVMFunctionResolver.o
@@ -178,6 +180,7 @@ OBJECTS += $(OBJDIR)/Objects.o
 OBJECTS += $(OBJDIR)/Parser.o
 OBJECTS += $(OBJDIR)/PosixLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/Prototypes.o
+OBJECTS += $(OBJDIR)/SmartPlatformLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/Statement.o
 OBJECTS += $(OBJDIR)/Statements.o
 OBJECTS += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
@@ -186,7 +189,6 @@ OBJECTS += $(OBJDIR)/Tokens.o
 OBJECTS += $(OBJDIR)/Types.o
 OBJECTS += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/WindowsApiLLVMFunctionResolver.o
-OBJECTS += $(OBJDIR)/lLLVMExternalFunctionResolver.o
 OBJECTS += $(OBJDIR)/main.o
 OBJECTS += $(OBJDIR)/utils.o
 
@@ -282,6 +284,9 @@ $(OBJDIR)/LinuxLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunction
 $(OBJDIR)/PosixLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/PosixLLVMFunctionResolver.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/SmartPlatformLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/SmartPlatformLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/StaticLibraryLLVMFunctionResolver.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
@@ -330,10 +335,10 @@ $(OBJDIR)/IRGeneratorTypes.o: src/engine/Backends/llvm/IRGeneratorTypes.cpp
 $(OBJDIR)/LLVMAOTBackend.o: src/engine/Backends/llvm/LLVMAOTBackend.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/LLVMJITBackend.o: src/engine/Backends/llvm/LLVMJITBackend.cpp
+$(OBJDIR)/LLVMExternalFunctionResolver.o: src/engine/Backends/llvm/LLVMExternalFunctionResolver.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/lLLVMExternalFunctionResolver.o: src/engine/Backends/llvm/lLLVMExternalFunctionResolver.cpp
+$(OBJDIR)/LLVMJITBackend.o: src/engine/Backends/llvm/LLVMJITBackend.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/EngineConfigs.o: src/engine/EngineConfigs.cpp

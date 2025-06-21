@@ -1,4 +1,15 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
+#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/PosixLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/DarwinLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/AndroidLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/WebAssemblyLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/SmartPlatformLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
 
 void IRGenerator::addMainFunction() {
     if (!Module) return;
@@ -222,30 +233,9 @@ llvm::Function* IRGenerator::createExternFunction(
         auto it = resolvers.find(libPath);
         return (it != resolvers.end()) ? it->second.get() : nullptr;
     };
-
-    // Special handling for Windows API functions
-    if (isWindowsAPIFunction(externName)) {
-        auto resolver = tryAddResolver("kernel32", [&]() {
-            return std::make_unique<WindowsAPIResolver>();
-        });
-        
-        if (resolver) {
-            function = resolver->resolve(*this, externName, funcType);
-        }
-    }
-    // Special handling for C standard library functions
-    else if (isCStdLibFunction(externName)) {
-        auto resolver = tryAddResolver("C", [&]() {
-            return std::make_unique<CStdLibResolver>();
-        });
-        
-        if (resolver) {
-            function = resolver->resolve(*this, externName, funcType);
-        }
-    }
-    // General library resolution
-    else if (configs.mode == CompileMode::JIT) {
-        if (!fileExists(dynamicLibPath) && dynamicLibPath != "C") {
+    
+    if (configs.mode == CompileMode::JIT) {
+        if (!fileExists(dynamicLibPath) && !ExternalFunctionResolver::isSystemLibrary(name) && dynamicLibPath != "C") {
             console.error("'" + dynamicLibPath + "' is not a valid dynamic library for function '" + name + "'.");
             return nullptr;
         }
@@ -255,8 +245,9 @@ llvm::Function* IRGenerator::createExternFunction(
         });
 
         if (resolver) {
-            function = resolver->resolve(*this, externName, funcType);
+            function = resolver->resolve(*this, externName, funcType, linkerDependencies);
         }
+        
     } else {
         // AOT mode - enhanced static/dynamic library handling
         bool staticExists = !staticLibPath.empty() && fileExists(staticLibPath);
@@ -264,11 +255,11 @@ llvm::Function* IRGenerator::createExternFunction(
 
         if (!staticExists && !dynamicExists) {
             // Try system libraries as fallback
-            if (isWindowsAPIFunction(externName)) {
+            if (WindowsAPIResolver::isWindowsAPIFunction(externName)) {
                 staticLibPath = "kernel32.lib";
                 dynamicLibPath = "kernel32.dll";
-                staticExists = true; // Assume system libs exist
-            } else if (isCStdLibFunction(externName)) {
+                staticExists = true;
+            } else if (CStdLibResolver::isCStdLibFunction(externName)) {
                 staticLibPath = "msvcrt.lib";
                 dynamicLibPath = "msvcrt.dll";
                 staticExists = true;
@@ -277,13 +268,15 @@ llvm::Function* IRGenerator::createExternFunction(
 
         if (staticExists) {
             // Skip symbol existence check for system libraries
-            if (!isSystemLibrary(staticLibPath) && !symbolExistsInStaticLib(staticLibPath, externName)) {
+            if (!ExternalFunctionResolver::isSystemLibrary(staticLibPath) && !symbolExistsInStaticLib(staticLibPath, externName)) {
                 console.error("Symbol '" + externName + "' not found in static library: " + staticLibPath);
                 return nullptr;
             }
 
             auto resolver = tryAddResolver(staticLibPath, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
-                if (isWindowsAPIFunction(externName)) {
+                if (CStdLibResolver::isCStdLibFunction(externName)) {
+                    return std::make_unique<CStdLibResolver>();
+                } else if (WindowsAPIResolver::isWindowsAPIFunction(externName)) {
                     return std::make_unique<WindowsAPIResolver>();
                 } else {
                     return std::make_unique<StaticLibraryResolver>();
@@ -291,7 +284,7 @@ llvm::Function* IRGenerator::createExternFunction(
             });
 
             if (resolver) {
-                function = resolver->resolve(*this, externName, funcType);
+                function = resolver->resolve(*this, externName, funcType, linkerDependencies);
             }
         }
 
@@ -301,7 +294,7 @@ llvm::Function* IRGenerator::createExternFunction(
             });
 
             if (resolver) {
-                function = resolver->resolve(*this, externName, funcType);
+                function = resolver->resolve(*this, externName, funcType, linkerDependencies);
             }
         }
     }
@@ -602,29 +595,4 @@ void IRGenerator::generateFunctionBody(
     DEBUG_LOG("Popped function scope");
 
     Builder->restoreIP(savedIP); 
-}
-
-bool IRGenerator::isWindowsAPIFunction(const std::string& name) {
-    static const std::unordered_set<std::string> windowsAPIs = {
-        "QueryPerformanceCounter", "QueryPerformanceFrequency",
-        "GetTickCount", "GetSystemTime", "Sleep", "GetCurrentProcess"
-    };
-    return windowsAPIs.count(name) > 0;
-}
-
-bool IRGenerator::isCStdLibFunction(const std::string& name) {
-    static const std::unordered_set<std::string> cStdLibFuncs = {
-        "printf", "scanf", "malloc", "free", "strlen", "strcpy",
-        "memcpy", "memset", "fopen", "fclose", "fread", "fwrite"
-    };
-    return cStdLibFuncs.count(name) > 0;
-}
-
-bool IRGenerator::isSystemLibrary(const std::string& libPath) {
-    static const std::unordered_set<std::string> systemLibs = {
-        "kernel32.lib", "user32.lib", "gdi32.lib", "msvcrt.lib",
-        "ntdll.lib", "advapi32.lib"
-    };
-    std::filesystem::path path(libPath);
-    return systemLibs.count(path.filename().string()) > 0;
 }

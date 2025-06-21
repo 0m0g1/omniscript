@@ -76,7 +76,9 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, llvm::Value*>> modulePublicSymbols;
     std::vector<std::pair<llvm::GlobalVariable*, llvm::Value*>> globalInitList;
 
+    // Updated resolver system
     std::unordered_map<std::string, std::unique_ptr<ExternalFunctionResolver>> resolvers;
+    LinkDependencies linkerDependencies;
 
     llvm::Value* createBigIntAVX512(const std::string& str, unsigned bitSize);
     llvm::Value* createBigIntAVX2(const std::string& str, unsigned bitSize);
@@ -90,9 +92,8 @@ private:
 
     std::vector<std::shared_ptr<Omniscript::FunctionExpression>> userDefinedFunctions;
 
-    bool isWindowsAPIFunction(const std::string& name);
-    bool isCStdLibFunction(const std::string& name);
-    bool isSystemLibrary(const std::string& libPath);
+    // Helper methods for external function resolution
+    llvm::Function* resolveExternalFunction(const std::string& name, llvm::FunctionType* funcType);
 
 public:
     
@@ -103,6 +104,9 @@ public:
     std::unique_ptr<llvm::LLVMContext> getContext() { return std::move(Context); }
     llvm::IRBuilder<>* getBuilder() { return Builder.get(); }
     
+    // Access to link dependencies for the backend
+    const LinkDependencies& getLinkDependencies() const { return linkerDependencies; }
+    LinkDependencies& getLinkDependencies() { return linkerDependencies; }
     
     bool supportsAVX512();
     bool supportsAVX2();
@@ -123,6 +127,10 @@ public:
     bool isLoadedModuleMember(const std::string& modulePath, const std::string& memberName);
     void activateModuleMembers(const std::vector<std::string>& members);
     void linkModules();
+
+    inline void addExternalResolver(const std::string& language, std::unique_ptr<ExternalFunctionResolver> resolver) {
+        resolvers[language] = std::move(resolver);
+    }
 
     inline void pushActiveBlock() {
         llvm::BasicBlock* currentBlock = Builder->GetInsertBlock();
@@ -153,10 +161,6 @@ public:
 
     inline bool fileExists(const std::string& path) {
         return !path.empty() && llvm::sys::fs::exists(llvm::Twine(path));
-    }
-
-    inline void addExternalResolver(const std::string& language, std::unique_ptr<ExternalFunctionResolver> resolver) {
-        resolvers[language] = std::move(resolver);
     }
 
     void generateModule (

@@ -1,63 +1,40 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
 
-// LinuxResolver Implementation
-llvm::Function* LinuxResolver::resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) {
+llvm::Function* LinuxResolver::resolve(IRGenerator& generator, const std::string& name, 
+                                     llvm::FunctionType* funcType, LinkDependencies& deps) {
     if (PlatformInfo::getCurrentPlatform() != PlatformInfo::Linux) {
+        return nullptr; // Only resolve on Linux
+    }
+    
+    // Check if it's a known Linux-specific function
+    if (!isGlibcFunction(name) && !isSystemCallWrapper(name)) {
         return nullptr;
     }
     
-    if (isGlibcFunction(name) || isSystemCallWrapper(name)) {
-        auto func = llvm::Function::Create(
-            funcType,
-            llvm::Function::ExternalLinkage,
-            name,
-            generator.getCurrentModule()
-        );
-        
-        func->setCallingConv(llvm::CallingConv::C);
-        return func;
-    }
+    // Create the function
+    llvm::Function* func = llvm::Function::Create(
+        funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
+    );
     
-    return nullptr;
+    // Most Linux functions are in libc (no explicit linking needed)
+    // Add specific library dependencies as needed
+    
+    return func;
 }
 
 bool LinuxResolver::isGlibcFunction(const std::string& name) {
     static const std::unordered_set<std::string> glibcFunctions = {
-        "backtrace", "backtrace_symbols", "dlopen", "dlclose", "dlsym", "dlerror",
-        "getpid", "getppid", "getuid", "getgid", "geteuid", "getegid",
-        "setuid", "setgid", "seteuid", "setegid", "fork", "execve", "waitpid"
+        "gnu_get_libc_version", "gnu_get_libc_release", "__libc_start_main",
+        "backtrace", "backtrace_symbols", "backtrace_symbols_fd"
     };
-    
     return glibcFunctions.find(name) != glibcFunctions.end();
 }
 
 bool LinuxResolver::isSystemCallWrapper(const std::string& name) {
     static const std::unordered_set<std::string> syscallWrappers = {
-        "syscall", "open", "read", "write", "lseek", "stat", "fstat",
-        "mmap", "munmap", "mprotect", "brk", "sbrk", "ioctl", "fcntl"
+        "syscall", "clone", "pivot_root", "mount", "umount", "umount2",
+        "sysinfo", "uname", "prctl", "capget", "capset", "personality"
     };
-    
     return syscallWrappers.find(name) != syscallWrappers.end();
-}
-
-// DarwinResolver Implementation
-llvm::Function* DarwinResolver::resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) {
-    if (!PlatformInfo::isApple()) {
-        return nullptr;
-    }
-    
-    if (isFoundationFunction(name) || isCoreFoundationFunction(name) || isCocoaFunction(name)) {
-        auto func = llvm::Function::Create(
-            funcType,
-            llvm::Function::ExternalLinkage,
-            name,
-            generator.getCurrentModule()
-        );
-        
-        func->setCallingConv(llvm::CallingConv::C);
-        return func;
-    }
-    
-    return nullptr;
 }

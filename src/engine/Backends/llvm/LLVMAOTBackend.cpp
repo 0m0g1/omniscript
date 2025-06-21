@@ -1,8 +1,6 @@
 #include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Backends/llvm/LLVMAOTBackend.h>
-#include <cstdlib>
-#include <filesystem>
 
 namespace fs = std::filesystem;
 
@@ -39,10 +37,60 @@ LLVMAOTBackend::LLVMAOTBackend() {
     targetMachine->setGlobalISel(true);       // Enable global instruction selector
     
     scope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>();
+    linkDependencies = std::make_shared<LinkDependencies>();
 }
 
 void LLVMAOTBackend::initialize() {
-    // Optional target machine specific initialization
+    // Initialize platform-specific external function resolver
+    setupExternalResolver();
+}
+
+void LLVMAOTBackend::setupExternalResolver() {
+    // Create a smart platform resolver that automatically detects the current platform
+    // and sets up appropriate resolvers for C standard library, system APIs, etc.
+    
+    auto platform = PlatformInfo::getCurrentPlatform();
+    auto arch = PlatformInfo::getCurrentArchitecture();
+    
+    DEBUG_LOG("Setting up external resolver for platform: " + 
+              PlatformInfo::getPlatformString() + " (" + PlatformInfo::getArchString() + ")");
+    
+    // Set up C standard library resolver (universal)
+    addExternalResolver("C", std::make_unique<CStdLibResolver>());
+    
+    // Set up platform-specific system API resolvers
+    switch (platform) {
+#ifdef _WIN32
+        case PlatformInfo::Platform::Windows:
+            addExternalResolver("kernel32", std::make_unique<WindowsAPIResolver>());
+            addExternalResolver("user32", std::make_unique<WindowsAPIResolver>());
+            addExternalResolver("gdi32", std::make_unique<WindowsAPIResolver>());
+            addExternalResolver("shell32", std::make_unique<WindowsAPIResolver>());
+            addExternalResolver("ntdll", std::make_unique<WindowsAPIResolver>());
+            break;
+#else
+        case PlatformInfo::Platform::Linux:
+        case PlatformInfo::Platform::FreeBSD:
+            addExternalResolver("libc", std::make_unique<POSIXResolver>());
+            addExternalResolver("libm", std::make_unique<POSIXResolver>());
+            addExternalResolver("libdl", std::make_unique<POSIXResolver>());
+            addExternalResolver("libpthread", std::make_unique<POSIXResolver>());
+            break;
+        case PlatformInfo::Platform::MacOS:
+            addExternalResolver("libSystem", std::make_unique<DarwinResolver>());
+            addExternalResolver("Foundation", std::make_unique<DarwinResolver>());
+            break;
+#endif
+        default:
+            DEBUG_LOG("Warning: Unknown platform, using generic resolvers only");
+            break;
+    }
+    
+    DEBUG_LOG("External function resolver setup completed");
+}
+
+void LLVMAOTBackend::addExternalResolver(const std::string& libraryName, std::unique_ptr<ExternalFunctionResolver> resolver) {
+    resolvers[libraryName] = std::move(resolver);
 }
 
 bool LLVMAOTBackend::isLinkerAvailable(const std::string& linker) {
@@ -63,6 +111,14 @@ void LLVMAOTBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
 
     scope->setName(config.filePath);
     irGen = std::make_shared<IRGenerator>(config);
+    
+    // Set up the external resolvers in the IR generator
+    for (auto& [name, resolver] : resolvers) {
+        irGen->addExternalResolver(name, resolver.get());
+    }
+    
+    // Set the link dependencies reference
+    irGen->setLinkDependencies(linkDependencies.get());
 
     DEBUG_LOG("Evaluating statements");
     DEBUG_LOG("====================");
@@ -121,7 +177,7 @@ void LLVMAOTBackend::emitToFile(const std::string& filename) {
         emitObjectFile(filename);
     } 
     else if (ext == ".s" || ext == ".asm") {
-        emitAssemblyFile(filename);  // You might want to implement this
+        emitAssemblyFile(filename);
     }
     else {
         // Default to object file but with different name
@@ -179,50 +235,27 @@ void LLVMAOTBackend::emitAssemblyFile(const std::string& asmFilename) {
 }
 
 void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::string& exeFile) {
+    // Get the required libraries from the IR generator's link dependencies
+    std::vector<std::string> additionalLibs = linkerDependencies->getLinkerFlags();
+    
     std::vector<std::pair<std::string, std::vector<std::string>>> linkerOptions = {
 #ifdef _WIN32
-        {"clang++", {
-            "-o", exeFile, 
-            objFile,
-            "-luser32",
-            "-lgdi32",
-            "-lshell32",
-            "-lkernel32",  // Add kernel32 for QueryPerformance* functions
-            "-lntdll"
-        }},
-        {"g++", {
-            "-o", exeFile,
-            objFile,
-            "-luser32",
-            "-lgdi32",
-            "-lshell32",
-            "-lkernel32",
-            "-lntdll"
-        }},
-        {"link", {  // MSVC linker as fallback
-            "/OUT:" + exeFile,
-            objFile,
-            "user32.lib",
-            "gdi32.lib", 
-            "shell32.lib",
-            "kernel32.lib",
-            "ntdll.lib"
-        }}
+        {"clang++", buildLinkerArgs(exeFile, objFile, additionalLibs, {
+            "-luser32", "-lgdi32", "-lshell32", "-lkernel32", "-lntdll"
+        })},
+        {"g++", buildLinkerArgs(exeFile, objFile, additionalLibs, {
+            "-luser32", "-lgdi32", "-lshell32", "-lkernel32", "-lntdll"
+        })},
+        {"link", buildMSVCLinkerArgs(exeFile, objFile, additionalLibs, {
+            "user32.lib", "gdi32.lib", "shell32.lib", "kernel32.lib", "ntdll.lib"
+        })}
 #else
-        {"clang++", {
-            "-o", exeFile,
-            objFile,
-            "-lm",
-            "-ldl",
-            "-lpthread"
-        }},
-        {"g++", {
-            "-o", exeFile,
-            objFile,
-            "-lm", 
-            "-ldl",
-            "-lpthread"
-        }}
+        {"clang++", buildLinkerArgs(exeFile, objFile, additionalLibs, {
+            "-lm", "-ldl", "-lpthread"
+        })},
+        {"g++", buildLinkerArgs(exeFile, objFile, additionalLibs, {
+            "-lm", "-ldl", "-lpthread"
+        })}
 #endif
     };
 
@@ -272,3 +305,49 @@ void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::strin
     DEBUG_LOG("Executable created: " + exeFile);
 }
 
+std::vector<std::string> LLVMAOTBackend::buildLinkerArgs(
+    const std::string& exeFile, 
+    const std::string& objFile,
+    const std::vector<std::string>& additionalLibs,
+    const std::vector<std::string>& defaultLibs) {
+    
+    std::vector<std::string> args = {"-o", exeFile, objFile};
+    
+    // Add additional libraries from dependency tracking
+    for (const auto& lib : additionalLibs) {
+        args.push_back(lib);
+    }
+    
+    // Add default system libraries
+    for (const auto& lib : defaultLibs) {
+        args.push_back(lib);
+    }
+    
+    return args;
+}
+
+std::vector<std::string> LLVMAOTBackend::buildMSVCLinkerArgs(
+    const std::string& exeFile,
+    const std::string& objFile,
+    const std::vector<std::string>& additionalLibs,
+    const std::vector<std::string>& defaultLibs) {
+    
+    std::vector<std::string> args = {"/OUT:" + exeFile, objFile};
+    
+    // Add additional libraries from dependency tracking
+    for (const auto& lib : additionalLibs) {
+        // Convert Unix-style flags to MSVC style if needed
+        if (lib.starts_with("-l")) {
+            args.push_back(lib.substr(2) + ".lib");
+        } else {
+            args.push_back(lib);
+        }
+    }
+    
+    // Add default system libraries
+    for (const auto& lib : defaultLibs) {
+        args.push_back(lib);
+    }
+    
+    return args;
+}

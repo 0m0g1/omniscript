@@ -1,4 +1,5 @@
 #include <omniscript/engine/Backends/llvm/IRGenerator.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
 
 #include <llvm/ADT/StringMap.h>
 #include <llvm/IR/BasicBlock.h>

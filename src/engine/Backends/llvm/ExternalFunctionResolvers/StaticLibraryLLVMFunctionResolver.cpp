@@ -1,5 +1,5 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
+
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
 
 llvm::Function* StaticLibraryResolver::resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) {
     // For static libraries, we just create the function declaration

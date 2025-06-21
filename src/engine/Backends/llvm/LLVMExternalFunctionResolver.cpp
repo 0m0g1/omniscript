@@ -1,0 +1,499 @@
+#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
+#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
+
+bool ExternalFunctionResolver::isSystemLibrary(const std::string& libPath) {
+    static const std::unordered_set<std::string> systemLibs = {
+        // Windows System Libraries (.lib for static, .dll for dynamic)
+        // Core Windows APIs
+        "kernel32.lib", "kernel32.dll",
+        "user32.lib", "user32.dll",
+        "gdi32.lib", "gdi32.dll",
+        "shell32.lib", "shell32.dll",
+        "ntdll.lib", "ntdll.dll",
+        "advapi32.lib", "advapi32.dll",
+        "ole32.lib", "ole32.dll",
+        "oleaut32.lib", "oleaut32.dll",
+        "uuid.lib",
+        "ws2_32.lib", "ws2_32.dll",
+        "winmm.lib", "winmm.dll",
+        "comctl32.lib", "comctl32.dll",
+        "comdlg32.lib", "comdlg32.dll",
+        "winspool.lib", "winspool.dll",
+        "wininet.lib", "wininet.dll",
+        "crypt32.lib", "crypt32.dll",
+        "secur32.lib", "secur32.dll",
+        "netapi32.lib", "netapi32.dll",
+        "version.lib", "version.dll",
+        "imm32.lib", "imm32.dll",
+        "psapi.lib", "psapi.dll",
+        "iphlpapi.lib", "iphlpapi.dll",
+        "setupapi.lib", "setupapi.dll",
+        "dbghelp.lib", "dbghelp.dll",
+        "imagehlp.lib", "imagehlp.dll",
+        "shlwapi.lib", "shlwapi.dll",
+        "wtsapi32.lib", "wtsapi32.dll",
+        "userenv.lib", "userenv.dll",
+        "mpr.lib", "mpr.dll",
+        "cabinet.lib", "cabinet.dll",
+        "rpcrt4.lib", "rpcrt4.dll",
+        "powrprof.lib", "powrprof.dll",
+        "dwmapi.lib", "dwmapi.dll",
+        "uxtheme.lib", "uxtheme.dll",
+        "bcrypt.lib", "bcrypt.dll",
+        "ncrypt.lib", "ncrypt.dll",
+        
+        // Windows CRT Libraries
+        "msvcrt.lib", "msvcrt.dll",
+        "ucrt.lib", "ucrtbase.dll",
+        "vcruntime.lib", "vcruntime140.dll",
+        "vcruntime140d.dll", "vcruntime140_1.dll",
+        "concrt140.lib", "concrt140.dll",
+        "msvcp140.lib", "msvcp140.dll",
+        "vcomp140.lib", "vcomp140.dll",
+        "msvcr120.lib", "msvcr120.dll",
+        "msvcp120.lib", "msvcp120.dll",
+        "msvcr110.lib", "msvcr110.dll",
+        "msvcp110.lib", "msvcp110.dll",
+        "msvcr100.lib", "msvcr100.dll",
+        "msvcp100.lib", "msvcp100.dll",
+        
+        // Windows Graphics and Media
+        "d3d9.lib", "d3d9.dll",
+        "d3d11.lib", "d3d11.dll",
+        "d3d12.lib", "d3d12.dll",
+        "dxgi.lib", "dxgi.dll",
+        "d3dcompiler.lib", "d3dcompiler_47.dll",
+        "dinput8.lib", "dinput8.dll",
+        "dsound.lib", "dsound.dll",
+        "dxguid.lib",
+        "opengl32.lib", "opengl32.dll",
+        "glu32.lib", "glu32.dll",
+        "gdi32.lib", "gdi32.dll",
+        "mf.lib", "mf.dll",
+        "mfplat.lib", "mfplat.dll",
+        "mfreadwrite.lib", "mfreadwrite.dll",
+        "mfuuid.lib",
+        "strmiids.lib",
+        "quartz.lib", "quartz.dll",
+        "wmcodecdspuuid.lib",
+        
+        // Linux System Libraries (.so for shared, .a for static)
+        // Core C libraries
+        "libc.so", "libc.so.6", "libc.a",
+        "libm.so", "libm.so.6", "libm.a",
+        "libdl.so", "libdl.so.2", "libdl.a",
+        "libpthread.so", "libpthread.so.0", "libpthread.a",
+        "librt.so", "librt.so.1", "librt.a",
+        "libresolv.so", "libresolv.so.2", "libresolv.a",
+        "libutil.so", "libutil.so.1", "libutil.a",
+        "libcrypt.so", "libcrypt.so.1", "libcrypt.a",
+        "libnsl.so", "libnsl.so.1", "libnsl.a",
+        "libz.so", "libz.so.1", "libz.a",
+        "libbz2.so", "libbz2.so.1", "libbz2.a",
+        
+        // Linux system integration
+        "libgcc_s.so", "libgcc_s.so.1",
+        "libstdc++.so", "libstdc++.so.6", "libstdc++.a",
+        "ld-linux.so", "ld-linux.so.2",
+        "ld-linux-x86-64.so", "ld-linux-x86-64.so.2",
+        "ld-linux-aarch64.so", "ld-linux-aarch64.so.1",
+        "ld-linux-armhf.so", "ld-linux-armhf.so.3",
+        
+        // Linux X11 and graphics
+        "libX11.so", "libX11.so.6", "libX11.a",
+        "libXext.so", "libXext.so.6", "libXext.a",
+        "libXrender.so", "libXrender.so.1", "libXrender.a",
+        "libXrandr.so", "libXrandr.so.2", "libXrandr.a",
+        "libXinerama.so", "libXinerama.so.1", "libXinerama.a",
+        "libXcursor.so", "libXcursor.so.1", "libXcursor.a",
+        "libXi.so", "libXi.so.6", "libXi.a",
+        "libXxf86vm.so", "libXxf86vm.so.1", "libXxf86vm.a",
+        "libGL.so", "libGL.so.1", "libGL.a",
+        "libGLU.so", "libGLU.so.1", "libGLU.a",
+        "libEGL.so", "libEGL.so.1", "libEGL.a",
+        "libGLESv2.so", "libGLESv2.so.2", "libGLESv2.a",
+        "libdrm.so", "libdrm.so.2", "libdrm.a",
+        "libgbm.so", "libgbm.so.1", "libgbm.a",
+        
+        // Linux audio
+        "libasound.so", "libasound.so.2", "libasound.a",
+        "libpulse.so", "libpulse.so.0", "libpulse.a",
+        "libpulse-simple.so", "libpulse-simple.so.0", "libpulse-simple.a",
+        "libjack.so", "libjack.so.0", "libjack.a",
+        
+        // Linux network and security
+        "libssl.so", "libssl.so.1.1", "libssl.so.3", "libssl.a",
+        "libcrypto.so", "libcrypto.so.1.1", "libcrypto.so.3", "libcrypto.a",
+        "libcurl.so", "libcurl.so.4", "libcurl.a",
+        "libssh2.so", "libssh2.so.1", "libssh2.a",
+        
+        // Linux desktop integration
+        "libgtk-3.so", "libgtk-3.so.0", "libgtk-3.a",
+        "libgdk-3.so", "libgdk-3.so.0", "libgdk-3.a",
+        "libglib-2.0.so", "libglib-2.0.so.0", "libglib-2.0.a",
+        "libgobject-2.0.so", "libgobject-2.0.so.0", "libgobject-2.0.a",
+        "libgio-2.0.so", "libgio-2.0.so.0", "libgio-2.0.a",
+        "libpango-1.0.so", "libpango-1.0.so.0", "libpango-1.0.a",
+        "libcairo.so", "libcairo.so.2", "libcairo.a",
+        "libatk-1.0.so", "libatk-1.0.so.0", "libatk-1.0.a",
+        "libgdk_pixbuf-2.0.so", "libgdk_pixbuf-2.0.so.0", "libgdk_pixbuf-2.0.a",
+        "libfontconfig.so", "libfontconfig.so.1", "libfontconfig.a",
+        "libfreetype.so", "libfreetype.so.6", "libfreetype.a",
+        "libharfbuzz.so", "libharfbuzz.so.0", "libharfbuzz.a",
+        "libpng16.so", "libpng16.so.16", "libpng16.a",
+        "libjpeg.so", "libjpeg.so.8", "libjpeg.a",
+        
+        // macOS/Darwin System Libraries (.dylib for dynamic, .a for static)
+        // Core system
+        "libSystem.dylib", "libSystem.a",
+        "libc.dylib", "libc.a",
+        "libm.dylib", "libm.a",
+        "libdl.dylib", "libdl.a",
+        "libpthread.dylib", "libpthread.a",
+        "libresolv.dylib", "libresolv.a",
+        "libutil.dylib", "libutil.a",
+        "libz.dylib", "libz.a",
+        "libbz2.dylib", "libbz2.a",
+        "libiconv.dylib", "libiconv.a",
+        "libxml2.dylib", "libxml2.a",
+        "libxslt.dylib", "libxslt.a",
+        "libsqlite3.dylib", "libsqlite3.a",
+        "libcurl.dylib", "libcurl.a",
+        "libssl.dylib", "libssl.a",
+        "libcrypto.dylib", "libcrypto.a",
+        
+        // macOS frameworks (as dylibs)
+        "CoreFoundation.dylib", "CoreFoundation.a",
+        "Foundation.dylib", "Foundation.a",
+        "AppKit.dylib", "AppKit.a",
+        "Cocoa.dylib", "Cocoa.a",
+        "Carbon.dylib", "Carbon.a",
+        "CoreServices.dylib", "CoreServices.a",
+        "CoreGraphics.dylib", "CoreGraphics.a",
+        "CoreText.dylib", "CoreText.a",
+        "CoreImage.dylib", "CoreImage.a",
+        "CoreAnimation.dylib", "CoreAnimation.a",
+        "QuartzCore.dylib", "QuartzCore.a",
+        "ImageIO.dylib", "ImageIO.a",
+        "CoreVideo.dylib", "CoreVideo.a",
+        "CoreMedia.dylib", "CoreMedia.a",
+        "AVFoundation.dylib", "AVFoundation.a",
+        "AudioToolbox.dylib", "AudioToolbox.a",
+        "AudioUnit.dylib", "AudioUnit.a",
+        "CoreAudio.dylib", "CoreAudio.a",
+        "OpenGL.dylib", "OpenGL.a",
+        "Metal.dylib", "Metal.a",
+        "MetalKit.dylib", "MetalKit.a",
+        "IOKit.dylib", "IOKit.a",
+        "Security.dylib", "Security.a",
+        "SystemConfiguration.dylib", "SystemConfiguration.a",
+        "CFNetwork.dylib", "CFNetwork.a",
+        "NetworkExtension.dylib", "NetworkExtension.a",
+        
+        // iOS specific (subset of macOS)
+        "UIKit.dylib", "UIKit.a",
+        "CoreLocation.dylib", "CoreLocation.a",
+        "CoreMotion.dylib", "CoreMotion.a",
+        "CoreBluetooth.dylib", "CoreBluetooth.a",
+        "GameKit.dylib", "GameKit.a",
+        "StoreKit.dylib", "StoreKit.a",
+        "MapKit.dylib", "MapKit.a",
+        "MessageUI.dylib", "MessageUI.a",
+        "AddressBook.dylib", "AddressBook.a",
+        "AddressBookUI.dylib", "AddressBookUI.a",
+        "EventKit.dylib", "EventKit.a",
+        "EventKitUI.dylib", "EventKitUI.a",
+        "Photos.dylib", "Photos.a",
+        "PhotosUI.dylib", "PhotosUI.a",
+        "HealthKit.dylib", "HealthKit.a",
+        "WatchKit.dylib", "WatchKit.a",
+        "CloudKit.dylib", "CloudKit.a",
+        
+        // Android System Libraries (.so)
+        "libc.so", "libm.so", "libdl.so", "liblog.so",
+        "libz.so", "libcutils.so", "libutils.so",
+        "libandroid.so", "libandroid_runtime.so",
+        "libbinder.so", "libui.so", "libgui.so",
+        "libEGL.so", "libGLESv1_CM.so", "libGLESv2.so", "libGLESv3.so",
+        "libOpenSLES.so", "libmediandk.so", "libcamera2ndk.so",
+        "libjnigraphics.so", "libaaudio.so", "libamidi.so",
+        "libneuralnetworks.so", "libvulkan.so",
+        
+        // FreeBSD System Libraries
+        "libc.so", "libc.so.7", "libc.a",
+        "libm.so", "libm.so.5", "libm.a",
+        "libpthread.so", "libpthread.so.3", "libpthread.a",
+        "librt.so", "librt.so.1", "librt.a",
+        "libutil.so", "libutil.so.9", "libutil.a",
+        "libkvm.so", "libkvm.so.7", "libkvm.a",
+        "libprocstat.so", "libprocstat.so.1", "libprocstat.a",
+        "libgeom.so", "libgeom.so.1", "libgeom.a",
+        "libjail.so", "libjail.so.1", "libjail.a",
+        "libdevstat.so", "libdevstat.so.7", "libdevstat.a",
+        "libelf.so", "libelf.so.2", "libelf.a",
+        "libdwarf.so", "libdwarf.so.3", "libdwarf.a",
+        "libexecinfo.so", "libexecinfo.so.1", "libexecinfo.a",
+        "libthr.so", "libthr.so.3", "libthr.a",
+        "libgcc_s.so", "libgcc_s.so.1",
+        "libstdc++.so", "libstdc++.so.6", "libstdc++.a",
+        "libcxxrt.so", "libcxxrt.so.1", "libcxxrt.a",
+        "libc++.so", "libc++.so.1", "libc++.a",
+        
+        // OpenBSD System Libraries
+        "libc.so", "libc.so.96", "libc.a",
+        "libm.so", "libm.so.10", "libm.a",
+        "libpthread.so", "libpthread.so.26", "libpthread.a",
+        "libutil.so", "libutil.so.13", "libutil.a",
+        "libkvm.so", "libkvm.so.18", "libkvm.a",
+        "libossaudio.so", "libossaudio.so.7", "libossaudio.a",
+        
+        // NetBSD System Libraries
+        "libc.so", "libc.so.12", "libc.a",
+        "libm.so", "libm.so.0", "libm.a",
+        "libpthread.so", "libpthread.so.1", "libpthread.a",
+        "libutil.so", "libutil.so.7", "libutil.a",
+        "libkvm.so", "libkvm.so.7", "libkvm.a",
+        "libossaudio.so", "libossaudio.so.1", "libossaudio.a",
+        
+        // WebAssembly System Libraries (WASI)
+        "libc.wasm", "libc.a",
+        "libm.wasm", "libm.a",
+        "libwasi-emulated-mman.wasm", "libwasi-emulated-mman.a",
+        "libwasi-emulated-process-clocks.wasm", "libwasi-emulated-process-clocks.a",
+        "libwasi-emulated-getpid.wasm", "libwasi-emulated-getpid.a",
+        "libwasi-emulated-signal.wasm", "libwasi-emulated-signal.a",
+        "libdl.wasm", "libdl.a",
+        "libpthread.wasm", "libpthread.a",
+        
+        // Emscripten specific
+        "libgl.js", "libgl.a",
+        "libal.js", "libal.a",
+        "libhtml5.js", "libhtml5.a",
+        "libembind.js", "libembind.a",
+        "libnodefs.js", "libnodefs.a",
+        "libproxyfs.js", "libproxyfs.a",
+        "libworkerfs.js", "libworkerfs.a",
+        "libidbfs.js", "libidbfs.a",
+        "libwebgl.js", "libwebgl.a",
+        "libwebgpu.js", "libwebgpu.a",
+        
+        // Solaris/Illumos System Libraries
+        "libc.so", "libc.so.1", "libc.a",
+        "libm.so", "libm.so.2", "libm.a",
+        "libpthread.so", "libpthread.so.1", "libpthread.a",
+        "librt.so", "librt.so.1", "librt.a",
+        "libsocket.so", "libsocket.so.1", "libsocket.a",
+        "libnsl.so", "libnsl.so.1", "libnsl.a",
+        "libdl.so", "libdl.so.1", "libdl.a",
+        "libkstat.so", "libkstat.so.1", "libkstat.a",
+        "libproc.so", "libproc.so.1", "libproc.a",
+        "libcontract.so", "libcontract.so.1", "libcontract.a",
+        "libscf.so", "libscf.so.1", "libscf.a",
+        "libnvpair.so", "libnvpair.so.1", "libnvpair.a",
+        "libzfs.so", "libzfs.so.1", "libzfs.a",
+        "libzpool.so", "libzpool.so.1", "libzpool.a",
+        
+        // Haiku System Libraries
+        "libroot.so", "libroot.a",
+        "libnetwork.so", "libnetwork.a",
+        "libbe.so", "libbe.a",
+        "libtracker.so", "libtracker.a",
+        "libtranslation.so", "libtranslation.a",
+        "libmedia.so", "libmedia.a",
+        "libgame.so", "libgame.a",
+        "libdevice.so", "libdevice.a",
+        "libmail.so", "libmail.a",
+        "libmidi.so", "libmidi.a",
+        "libmidi2.so", "libmidi2.a",
+        "libGL.so", "libGL.a",
+        "libGLU.so", "libGLU.a"
+    };
+    
+    std::filesystem::path path(libPath);
+    std::string filename = path.filename().string();
+    
+    return systemLibs.find(filename) != systemLibs.end();
+}
+
+// Implementation helpers
+void LinkDependencies::addRequiredLibrary(const std::string& libName, const LibraryInfo& info) {
+    requiredLibraries_.insert(libName);
+    if (libraryInfo_.find(libName) == libraryInfo_.end()) {
+        libraryInfo_[libName] = info;
+    }
+}
+
+std::vector<std::string> LinkDependencies::getLinkerFlags() const {
+    std::vector<std::string> flags;
+    
+    for (const auto& libName : requiredLibraries_) {
+        auto it = libraryInfo_.find(libName);
+        if (it != libraryInfo_.end()) {
+            const auto& info = it->second;
+            
+            if (!info.path.empty()) {
+                // Explicit path provided
+                flags.push_back(info.path);
+            } else if (!info.linkerFlags.empty()) {
+                // Custom linker flags
+                flags.insert(flags.end(), info.linkerFlags.begin(), info.linkerFlags.end());
+            } else {
+                // Standard library name
+                flags.push_back("-l" + libName);
+            }
+        } else {
+            // Fallback: just add -l flag
+            flags.push_back("-l" + libName);
+        }
+    }
+    
+    return flags;
+}
+
+bool LinkDependencies::hasLibrary(const std::string& libName) const {
+    return requiredLibraries_.find(libName) != requiredLibraries_.end();
+}
+
+void LinkDependencies::clear() {
+    requiredLibraries_.clear();
+    libraryInfo_.clear();
+}
+
+// Platform detection implementation
+PlatformInfo::Platform PlatformInfo::getCurrentPlatform() {
+#ifdef _WIN32
+    return Windows;
+#elif defined(__ANDROID__)
+    return Android;
+#elif defined(__APPLE__)
+    #include <TargetConditionals.h>
+    #if TARGET_OS_IPHONE
+        return iOS;
+    #else
+        return MacOS;
+    #endif
+#elif defined(__linux__)
+    return Linux;
+#elif defined(__FreeBSD__)
+    return FreeBSD;
+#elif defined(__EMSCRIPTEN__)
+    return WebAssembly;
+#else
+    return Unknown;
+#endif
+}
+
+PlatformInfo::Architecture PlatformInfo::getCurrentArchitecture() {
+#if defined(_M_X64) || defined(__x86_64__)
+    return x86_64;
+#elif defined(_M_IX86) || defined(__i386__)
+    return x86;
+#elif defined(_M_ARM64) || defined(__aarch64__)
+    return ARM64;
+#elif defined(_M_ARM) || defined(__arm__)
+    return ARM;
+#elif defined(__mips__)
+    return MIPS;
+#elif defined(__riscv)
+    return RISC_V;
+#elif defined(__EMSCRIPTEN__)
+    return WebAsm;
+#else
+    return UnknownArch;
+#endif
+}
+
+bool PlatformInfo::isUnixLike() {
+    auto platform = getCurrentPlatform();
+    return platform == Linux || platform == MacOS || platform == FreeBSD || platform == Android;
+}
+
+bool PlatformInfo::isApple() {
+    auto platform = getCurrentPlatform();
+    return platform == MacOS || platform == iOS;
+}
+
+std::string PlatformInfo::getPlatformString() {
+    switch (getCurrentPlatform()) {
+        case Windows: return "windows";
+        case Linux: return "linux";
+        case MacOS: return "macos";
+        case Android: return "android";
+        case iOS: return "ios";
+        case FreeBSD: return "freebsd";
+        case WebAssembly: return "wasm";
+        default: return "unknown";
+    }
+}
+
+// Smart resolver implementation
+SmartPlatformResolver::SmartPlatformResolver() {
+    initializePlatformResolvers();
+}
+
+void SmartPlatformResolver::initializePlatformResolvers() {
+    // Always add C standard library resolver first
+    platformResolvers_.push_back(std::make_unique<CStdLibResolver>());
+    
+    // Add platform-specific resolvers
+    switch (PlatformInfo::getCurrentPlatform()) {
+        case PlatformInfo::Windows:
+            platformResolvers_.push_back(std::make_unique<WindowsAPIResolver>());
+            break;
+            
+        case PlatformInfo::Linux:
+            platformResolvers_.push_back(std::make_unique<PosixResolver>());
+            platformResolvers_.push_back(std::make_unique<LinuxResolver>());
+            break;
+            
+        case PlatformInfo::MacOS:
+        case PlatformInfo::iOS:
+            platformResolvers_.push_back(std::make_unique<PosixResolver>());
+            platformResolvers_.push_back(std::make_unique<DarwinResolver>());
+            break;
+            
+        case PlatformInfo::Android:
+            platformResolvers_.push_back(std::make_unique<PosixResolver>());
+            platformResolvers_.push_back(std::make_unique<AndroidResolver>());
+            break;
+            
+        case PlatformInfo::WebAssembly:
+            platformResolvers_.push_back(std::make_unique<WebAssemblyResolver>());
+            break;
+            
+        case PlatformInfo::FreeBSD:
+            platformResolvers_.push_back(std::make_unique<PosixResolver>());
+            break;
+            
+        default:
+            // Fallback to POSIX for unknown Unix-like systems
+            if (PlatformInfo::isUnixLike()) {
+                platformResolvers_.push_back(std::make_unique<PosixResolver>());
+            }
+            break;
+    }
+}
+
+llvm::Function* SmartPlatformResolver::resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) {
+    // Try custom resolvers first
+    for (const auto& [pattern, resolver] : customResolvers_) {
+        if (name.find(pattern) != std::string::npos) {
+            if (auto func = resolver->resolve(generator, name, funcType)) {
+                return func;
+            }
+        }
+    }
+    
+    // Try platform resolvers
+    for (const auto& resolver : platformResolvers_) {
+        if (auto func = resolver->resolve(generator, name, funcType)) {
+            return func;
+        }
+    }
+    
+    return nullptr;
+}
+
+void SmartPlatformResolver::registerResolver(const std::string& pattern, std::unique_ptr<ExternalFunctionResolver> resolver) {
+    customResolvers_[pattern] = std::move(resolver);
+}

@@ -1,5 +1,4 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
 
 // WindowsAPIResolver Implementation
 llvm::Function* WindowsAPIResolver::resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) {
@@ -27,6 +26,10 @@ llvm::Function* WindowsAPIResolver::resolve(IRGenerator& generator, const std::s
     
     return nullptr;
 }
+
+bool WindowsAPIResolver::isWindowsAPIFunction(const std::string& name) {
+    return isKernel32Function(name) || isUser32Function(name) || isGdi32Function(name);
+}  
 
 bool WindowsAPIResolver::isKernel32Function(const std::string& name) {
     static const std::unordered_set<std::string> kernel32Functions = {
