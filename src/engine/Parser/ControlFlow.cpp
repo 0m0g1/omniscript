@@ -6,7 +6,7 @@
 #include <omniscript/engine/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 
-std::shared_ptr<ForLoop> Parser::parseForLoop() {
+std::shared_ptr<Statement> Parser::parseForLoop() {
     Token startToken = currentToken;
     eat(TokenTypes::For);
     eat(TokenTypes::LeftParen);
@@ -39,7 +39,7 @@ std::shared_ptr<ForLoop> Parser::parseForLoop() {
     return forLoop;
 }
 
-std::shared_ptr<ContinueStatement> Parser::parseContinue() {
+std::shared_ptr<Statement> Parser::parseContinue() {
     Token startToken = currentToken;
     eat(TokenTypes::Continue);
     if (currentToken.getType() != TokenTypes::Semicolon || currentToken.getType() != TokenTypes::Newline) {
@@ -51,7 +51,7 @@ std::shared_ptr<ContinueStatement> Parser::parseContinue() {
     return continueStmt;
 }
 
-std::shared_ptr<BreakStatement> Parser::parseBreak() {
+std::shared_ptr<Statement> Parser::parseBreak() {
     Token startToken = currentToken;
     eat(TokenTypes::Break);
     if (currentToken.getType() != TokenTypes::Semicolon || currentToken.getType() != TokenTypes::Newline) {
@@ -117,7 +117,7 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
 }
 
 
-std::shared_ptr<ReturnStatement> Parser::parseReturnStatement() {
+std::shared_ptr<Statement> Parser::parseReturnStatement() {
     Token startToken = currentToken;
     eat(TokenTypes::Return);
     std::shared_ptr<ReturnStatement> result;

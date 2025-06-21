@@ -2,9 +2,10 @@
 #include <omniscript/utils.h>
 #include <omniscript/engine/Parser.h>
 #include <omniscript/engine/Tokens.h>
+#include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
-#include <omniscript/omniscript_pch.h>
+#include <omniscript/engine/Statements/LiteralStatements.h>
 
 std::shared_ptr<Statement> Parser::parseExpression() {
     return parseTernaryExpression();

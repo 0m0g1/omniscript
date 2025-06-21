@@ -282,7 +282,7 @@ llvm::Function* IRGenerator::createExternFunction(
                 return nullptr;
             }
 
-            auto resolver = tryAddResolver(staticLibPath, [&]() {
+            auto resolver = tryAddResolver(staticLibPath, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
                 if (isWindowsAPIFunction(externName)) {
                     return std::make_unique<WindowsAPIResolver>();
                 } else {

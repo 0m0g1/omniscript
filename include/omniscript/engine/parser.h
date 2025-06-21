@@ -1,7 +1,6 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/lexer.h>
 #include <omniscript/engine/tokens.h>
@@ -73,12 +72,12 @@ class Parser {
 
         std::shared_ptr<Statement> parseIdentifier();          
 
-        std::shared_ptr<ForLoop> parseForLoop();               
-        std::shared_ptr<BreakStatement> parseBreak();          
-        std::shared_ptr<ContinueStatement> parseContinue();    
+        std::shared_ptr<Statement> parseForLoop();               
+        std::shared_ptr<Statement> parseBreak();          
+        std::shared_ptr<Statement> parseContinue();    
         std::shared_ptr<Statement> parseIfStatement();         
         std::shared_ptr<Statement> parseWhileStatement();      
-        std::shared_ptr<ReturnStatement> parseReturnStatement();
+        std::shared_ptr<Statement> parseReturnStatement();
         bool isAssignmentExpression(TokenTypes tokenType);
         std::shared_ptr<Statement> parseAssignment(std::shared_ptr<Statement> assignee = nullptr);          
         std::shared_ptr<Statement> parseAssignment(parameterType paramType);      
