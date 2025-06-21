@@ -296,7 +296,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType sco
     }
 
     if (type) {
-        if (Omniscript::isSameOrCastableTo(currentType, type)) {
+        if (Omniscript::Type::isSameOrCastableTo(currentType, type)) {
             setType(type);
         } else {
             console.error("Cannot cast " + currentType->toString() + " to a " + type->toString() + "'.");

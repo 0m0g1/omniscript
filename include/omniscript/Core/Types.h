@@ -397,7 +397,9 @@ public:
         const std::vector<std::shared_ptr<Type>>& baseTypes = {}
     );
     
-    
+    // Static methods
+    static bool isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to);
+    static bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to);
 
     virtual std::shared_ptr<Type> clone() const {
         return std::make_shared<Type>(*this);
@@ -862,8 +864,6 @@ public:
 
 
 std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes);
-bool isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to);
-bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to);
 
 }
 

@@ -35,16 +35,16 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
         console.error("The ternary expression has an invalid false value");
     }
 
-    if (Omniscript::isSameOrCastableTo(trueValue->getType(), falseValue->getType())) {
+    if (Omniscript::Type::isSameOrCastableTo(trueValue->getType(), falseValue->getType())) {
         type = falseValue->getType();
-    } else if (Omniscript::isSameOrCastableTo(falseValue->getType(), trueValue->getType())) {
+    } else if (Omniscript::Type::isSameOrCastableTo(falseValue->getType(), trueValue->getType())) {
         type = trueValue->getType();
     }
 
     if (type) {
-        if (!Omniscript::isSameOrCastableTo(trueValue->getType(), type)) {
+        if (!Omniscript::Type::isSameOrCastableTo(trueValue->getType(), type)) {
             console.error("The ternary expression is of type " + type->toString() + " the true value is of type " + trueValue->getType()->toString() + "'.");
-        } else if (!Omniscript::isSameOrCastableTo(falseValue->getType(), type)) {
+        } else if (!Omniscript::Type::isSameOrCastableTo(falseValue->getType(), type)) {
             console.error("The ternary expression is of type " + type->toString() + " the false value is of type " + falseValue->getType()->toString() + "'.");
         }
     }
@@ -127,7 +127,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
 
     if (type) {
         if (!op.isComparisonOperator()) {
-            if (Omniscript::isSameOrCastableTo(leftType, type)) {
+            if (Omniscript::Type::isSameOrCastableTo(leftType, type)) {
                 if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
                     leftType = type;
                     if (leftTyped) leftTyped->setType(type);
@@ -136,7 +136,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                 console.error("The left operand '" + left->toString() + "' of type '" + leftType->toString() + "' is not compatible with the binary expression's type '" + type->toString() + "'.");
             }
     
-            if (Omniscript::isSameOrCastableTo(rightType, type)) {
+            if (Omniscript::Type::isSameOrCastableTo(rightType, type)) {
                 if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
                     rightType = type;
                     if (rightTyped) rightTyped->setType(type);
@@ -150,13 +150,13 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     if (!type) {
         if (op.isComparisonOperator()) {
             type = Omniscript::resolveType({ "bool" });
-            if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
+            if (Omniscript::Type::isSameOrCastableTo(rightType, leftType)) {
                 if (leftType->isPointer()) {
                     if (rightTyped) rightTyped->setType(leftType->getPointeeType());
                 } else {
                     if (rightTyped) rightTyped->setType(leftType);
                 }
-            } else if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
+            } else if (Omniscript::Type::isSameOrCastableTo(leftType, rightType)) {
                 if (leftType->isPointer()) {
                     if (leftTyped) leftTyped->setType(rightType->getPointeeType());
                 } else {
@@ -167,16 +167,16 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                 return nullptr;
             }
         } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
-            if (Omniscript::isSameOrCastableTo(leftType, rightType)) {
+            if (Omniscript::Type::isSameOrCastableTo(leftType, rightType)) {
                 type = rightType;
-                if (!Omniscript::isSame(leftType, rightType)) {
+                if (!Omniscript::Type::isSame(leftType, rightType)) {
                     left = std::make_shared<Cast>(left, rightType);
                 } else {
                     if (leftTyped) leftTyped->setType(rightType);
                 }
-            } else if (Omniscript::isSameOrCastableTo(rightType, leftType)) {
+            } else if (Omniscript::Type::isSameOrCastableTo(rightType, leftType)) {
                 type = leftType;
-                if (!Omniscript::isSame(rightType, leftType)) {
+                if (!Omniscript::Type::isSame(rightType, leftType)) {
                     right = std::make_shared<Cast>(right, leftType);
                 } else {
                     if (rightTyped) rightTyped->setType(leftType);

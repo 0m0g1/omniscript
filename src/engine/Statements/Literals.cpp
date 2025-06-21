@@ -132,7 +132,7 @@ std::shared_ptr<Literal> PointerLiteral::castTo(std::shared_ptr<Omniscript::Type
         }
 
         // Check for compatible pointee types
-        if (Omniscript::isSameOrCastableTo(currentPointeeType, targetPointeeType)) {
+        if (Omniscript::Type::isSameOrCastableTo(currentPointeeType, targetPointeeType)) {
             return std::make_shared<PointerLiteral>(
                 address,
                 targetPointeeType);
@@ -181,7 +181,7 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
 
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Int8);
 
-    if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type)) {
+    if (!Omniscript::Type::isSameOrCastableTo(typeToCastFrom, type)) {
         console.error("The specified type is '" + type->toString() + "' but '" + std::to_string(value) + "' is an integer.");
     } else {
         if (!type->isInteger()) {
@@ -320,7 +320,7 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
         }
     }
 
-    if (!Omniscript::isSameOrCastableTo(rootType, type)) {
+    if (!Omniscript::Type::isSameOrCastableTo(rootType, type)) {
         console.error("The specified type is " + type->toString() +
                       " but '" + /* custom __float128 to string needed here */ "' is a float.");
     } else {
@@ -457,7 +457,7 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType sco
 
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Bool);
 
-    if (!Omniscript::isSameOrCastableTo(typeToCastFrom, type)) {
+    if (!Omniscript::Type::isSameOrCastableTo(typeToCastFrom, type)) {
         console.error("The specified type is " + type->toString() + " but '" + std::to_string(value) + "' is a bool.");
     } else {
         if (!type->isBool()) {
@@ -651,7 +651,7 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
 
     // auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Utf32);
 
-    if (!Omniscript::isSameOrCastableTo(rootType, type)) {
+    if (!Omniscript::Type::isSameOrCastableTo(rootType, type)) {
         console.error("The specified type is " + type->toString() + " but a UTF-8 string was given.");
     } else {
         DEBUG_LOG("Creating a '" + type->toString() + "' string literal.");
@@ -734,13 +734,13 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
         std::shared_ptr<Omniscript::Type> bestType = seenTypes[0];
         for (size_t i = 1; i < seenTypes.size(); ++i) {
             auto& currentType = seenTypes[i];
-            if (Omniscript::isSame(bestType, currentType)) {
+            if (Omniscript::Type::isSame(bestType, currentType)) {
                 continue;
             }
-            if (Omniscript::isSameOrCastableTo(currentType, bestType)) {
+            if (Omniscript::Type::isSameOrCastableTo(currentType, bestType)) {
                 // current can be casted to best -> OK
                 continue;
-            } else if (Omniscript::isSameOrCastableTo(bestType, currentType)) {
+            } else if (Omniscript::Type::isSameOrCastableTo(bestType, currentType)) {
                 // new type is better
                 bestType = currentType;
             } else {
@@ -754,9 +754,9 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
         std::vector<std::shared_ptr<Omniscript::Expression>> castedValues;
         for (const auto& val : values) {
             auto valType = val->getType();
-            if (Omniscript::isSame(valType, bestType)) {
+            if (Omniscript::Type::isSame(valType, bestType)) {
                 castedValues.push_back(val);
-            } else if (Omniscript::isSameOrCastableTo(valType, bestType)) {
+            } else if (Omniscript::Type::isSameOrCastableTo(valType, bestType)) {
                 castedValues.push_back(std::make_shared<Omniscript::CastExpression>(val, bestType));
             } else {
                 console.error("Cannot cast array element of type '" + valType->toString() +
@@ -793,9 +793,9 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
             if (!val) continue;
 
             auto actualType = val->getType();
-            if (Omniscript::isSame(actualType, expectedElementType)) {
+            if (Omniscript::Type::isSame(actualType, expectedElementType)) {
                 values.push_back(val);
-            } else if (Omniscript::isSameOrCastableTo(actualType, expectedElementType)) {
+            } else if (Omniscript::Type::isSameOrCastableTo(actualType, expectedElementType)) {
                 values.push_back(std::make_shared<Omniscript::CastExpression>(val, expectedElementType));
             } else {
                 console.error("Element " + std::to_string(n) +

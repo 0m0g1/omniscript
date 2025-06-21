@@ -392,7 +392,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                             }
                         }
         
-                        // if (!Omniscript::isSameOrCastableTo(argType, param->getType())) {
+                        // if (!Omniscript::Type::isSameOrCastableTo(argType, param->getType())) {
                         //     console.error(formatError("Type mismatch in variadic arg for parameter '" + paramName + "'"));
                         //     continue;
                         // }
@@ -447,7 +447,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     }
                 }
 
-                if (Omniscript::isSameOrCastableTo(argType, param->getType())) {
+                if (Omniscript::Type::isSameOrCastableTo(argType, param->getType())) {
                     if (!typed->getType()) {
                         typed->setType(param->getType());
                     }
@@ -614,7 +614,7 @@ bool Call::matchArgumentsToParameters(
                 auto arg = positionalArgs[positionalIndex++];
                 auto argType = (arg->defaultValue->getRootType() ? arg->defaultValue->getRootType() : arg->defaultValue->getType());
 
-                // if (!Omniscript::isSameOrCastableTo(argType, param->getType())) {
+                // if (!Omniscript::Type::isSameOrCastableTo(argType, param->getType())) {
                 //     DEBUG_LOG("[Call] Type mismatch in variadic arguments for parameter: " + paramName);
                 //     return false;
                 // }
@@ -640,7 +640,7 @@ bool Call::matchArgumentsToParameters(
         }
 
         auto matchingArgType = (matchingArg->defaultValue->getRootType()->isInvalid() ? matchingArg->defaultValue->getType() : matchingArg->defaultValue->getRootType());
-        if (!Omniscript::isSameOrCastableTo(matchingArgType, param->getType())) {
+        if (!Omniscript::Type::isSameOrCastableTo(matchingArgType, param->getType())) {
             DEBUG_LOG("[Call] Type mismatch for parameter: " + paramName);
             DEBUG_LOG("[Call] Expected type: '" + param->getType()->toString() + "' type got '" );
             DEBUG_LOG("[Call] Provided argument type: " + matchingArgType->toString());

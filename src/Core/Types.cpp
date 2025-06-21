@@ -166,6 +166,106 @@ std::shared_ptr<Type> Type::createMetaType() {
     return t;
 }
 
+bool Type::isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
+    if (!from) {
+        console.error("The type to cast from is null");
+    } else {
+        DEBUG_LOG("The type to cast from is '" + from->toString() + "' of kind '" + from->kindName() + "'.");
+    }
+
+    if (!to) {
+        console.error("The type to cast to is null");
+    } else {
+        DEBUG_LOG("The type to cast to is '" + to->toString() + "' of kind '" + to->kindName() + "'.");
+    }
+
+    if (from == to || from->kind == to->kind)
+        return true;
+
+    if (from->isVoidLike()) {
+        if (to->isPointer()) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    // todo: there might be a bug here
+    if (from->isNull() && (to->isPointer() || to->isReference()))
+        return true;
+
+    if (from->isNullable() && to->isNull())
+        return true;
+
+    if (to->isNullable()) {
+        auto nullableTo = std::dynamic_pointer_cast<NullableType>(to);
+        if (from->isNullable()) {
+            auto nullablefrom = std::dynamic_pointer_cast<NullableType>(from);
+            return isSameOrCastableTo(nullablefrom->innerType, nullableTo->innerType);
+        }
+        return isSameOrCastableTo(from, nullableTo->innerType);
+    }
+
+    if (from->isInteger() && to->isInteger()) {
+        return (from->getSize() <= to->getSize());
+    }
+
+    if (from->isInteger() && to->isFloat()) {
+        return true;
+    }
+
+    if (from->isFloat() && to->isFloat()) {
+        return from->getSize() <= to->getSize();
+    }
+
+    if (from->isFloat() && to->isInteger()) {
+        return false;
+    }
+
+    if ((from->isChar() && to->isString()) || (from->isString() && to->isChar())) {
+        return true;
+    }
+
+    if (from->isChar() && to->isChar()) {
+        return from->getBitWidth() <= to->getBitWidth();
+    }
+
+    if (from->isString() && to->isString()) {
+        return from->getBitWidth() <= to->getBitWidth();
+    }
+
+    if (from->isPointer() && to->isPointer()) {
+        return isSameOrCastableTo(from->getPointeeType(), to->getPointeeType());
+    }
+
+    auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
+    auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
+    if (fromUDT && toUDT) {
+        if (fromUDT->name == toUDT->name)
+            return true;
+
+        // Inline version of derivesFrom(toUDT->name)
+        std::vector<std::shared_ptr<UserDefinedType>> stack;
+        stack.push_back(fromUDT);
+
+        while (!stack.empty()) {
+            auto current = stack.back();
+            stack.pop_back();
+
+            for (const auto& base : current->baseTypes) {
+                auto baseUDT = std::dynamic_pointer_cast<UserDefinedType>(base);
+                if (baseUDT) {
+                    if (baseUDT->name == toUDT->name)
+                        return true;
+                    stack.push_back(baseUDT);
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 std::shared_ptr<Type> Type::createUserDefinedType(
     const std::string& name,
     Kind kind,
@@ -178,6 +278,51 @@ std::shared_ptr<Type> Type::createUserDefinedType(
     t->typeParams = typeParams;
     t->baseTypes = baseTypes;
     return t;
+}
+
+bool Type::isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
+    if (!from || !to)
+        return false;
+
+    if (from == to)
+        return true;
+
+    if (from->kind != to->kind)
+        return false;
+
+    if (from->isInteger() && to->isInteger())
+        return from->getSize() == to->getSize();
+
+    if (from->isFloat() && to->isFloat())
+        return from->getSize() == to->getSize();
+
+    if (from->isChar() && to->isChar())
+        return from->getBitWidth() == to->getBitWidth();
+
+    if (from->isString() && to->isString())
+        return from->getBitWidth() == to->getBitWidth();
+
+    if (from->isPointer() && to->isPointer())
+        return isSame(from->getPointeeType(), to->getPointeeType());
+
+    if (from->isReference() && to->isReference())
+        return isSame(from->getPointeeType(), to->getPointeeType());
+
+    if (from->isNullable() && to->isNullable()) {
+        auto fromNullable = std::dynamic_pointer_cast<NullableType>(from);
+        auto toNullable = std::dynamic_pointer_cast<NullableType>(to);
+        if (!fromNullable || !toNullable)
+            return false;
+        return isSame(fromNullable->innerType, toNullable->innerType);
+    }
+
+    auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
+    auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
+    if (fromUDT && toUDT) {
+        return fromUDT == toUDT;
+    }
+
+    return false;
 }
 
 std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
@@ -359,151 +504,6 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     }
 
     return type;
-}
-
-bool isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
-    if (!from || !to)
-        return false;
-
-    if (from == to)
-        return true;
-
-    if (from->kind != to->kind)
-        return false;
-
-    if (from->isInteger() && to->isInteger())
-        return from->getSize() == to->getSize();
-
-    if (from->isFloat() && to->isFloat())
-        return from->getSize() == to->getSize();
-
-    if (from->isChar() && to->isChar())
-        return from->getBitWidth() == to->getBitWidth();
-
-    if (from->isString() && to->isString())
-        return from->getBitWidth() == to->getBitWidth();
-
-    if (from->isPointer() && to->isPointer())
-        return isSame(from->getPointeeType(), to->getPointeeType());
-
-    if (from->isReference() && to->isReference())
-        return isSame(from->getPointeeType(), to->getPointeeType());
-
-    if (from->isNullable() && to->isNullable()) {
-        auto fromNullable = std::dynamic_pointer_cast<NullableType>(from);
-        auto toNullable = std::dynamic_pointer_cast<NullableType>(to);
-        if (!fromNullable || !toNullable)
-            return false;
-        return isSame(fromNullable->innerType, toNullable->innerType);
-    }
-
-    auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
-    auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
-    if (fromUDT && toUDT) {
-        return fromUDT == toUDT;
-    }
-
-    return false;
-}
-
-bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
-    if (!from) {
-        console.error("The type to cast from is null");
-    } else {
-        DEBUG_LOG("The type to cast from is '" + from->toString() + "' of kind '" + from->kindName() + "'.");
-    }
-
-    if (!to) {
-        console.error("The type to cast to is null");
-    } else {
-        DEBUG_LOG("The type to cast to is '" + to->toString() + "' of kind '" + to->kindName() + "'.");
-    }
-
-    if (from == to || from->kind == to->kind)
-        return true;
-
-    if (from->isVoidLike()) {
-        if (to->isPointer()) {
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    // todo: there might be a bug here
-    if (from->isNull() && (to->isPointer() || to->isReference()))
-        return true;
-
-    if (from->isNullable() && to->isNull())
-        return true;
-
-    if (to->isNullable()) {
-        auto nullableTo = std::dynamic_pointer_cast<NullableType>(to);
-        if (from->isNullable()) {
-            auto nullablefrom = std::dynamic_pointer_cast<NullableType>(from);
-            return isSameOrCastableTo(nullablefrom->innerType, nullableTo->innerType);
-        }
-        return isSameOrCastableTo(from, nullableTo->innerType);
-    }
-
-    if (from->isInteger() && to->isInteger()) {
-        return (from->getSize() <= to->getSize());
-    }
-
-    if (from->isInteger() && to->isFloat()) {
-        return true;
-    }
-
-    if (from->isFloat() && to->isFloat()) {
-        return from->getSize() <= to->getSize();
-    }
-
-    if (from->isFloat() && to->isInteger()) {
-        return false;
-    }
-
-    if ((from->isChar() && to->isString()) || (from->isString() && to->isChar())) {
-        return true;
-    }
-
-    if (from->isChar() && to->isChar()) {
-        return from->getBitWidth() <= to->getBitWidth();
-    }
-
-    if (from->isString() && to->isString()) {
-        return from->getBitWidth() <= to->getBitWidth();
-    }
-
-    if (from->isPointer() && to->isPointer()) {
-        return isSameOrCastableTo(from->getPointeeType(), to->getPointeeType());
-    }
-
-    auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
-    auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
-    if (fromUDT && toUDT) {
-        if (fromUDT->name == toUDT->name)
-            return true;
-
-        // Inline version of derivesFrom(toUDT->name)
-        std::vector<std::shared_ptr<UserDefinedType>> stack;
-        stack.push_back(fromUDT);
-
-        while (!stack.empty()) {
-            auto current = stack.back();
-            stack.pop_back();
-
-            for (const auto& base : current->baseTypes) {
-                auto baseUDT = std::dynamic_pointer_cast<UserDefinedType>(base);
-                if (baseUDT) {
-                    if (baseUDT->name == toUDT->name)
-                        return true;
-                    stack.push_back(baseUDT);
-                }
-            }
-        }
-    }
-
-    return false;
 }
 
 } 

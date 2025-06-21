@@ -22,7 +22,7 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
         auto mangledName = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(referent)->mangledName;
         DEBUG_LOG("Mangled name '" + mangledName + "'.");
 
-        // if (!Omniscript::isSameOrCastableTo(type))
+        // if (!Omniscript::Type::isSameOrCastableTo(type))
         if (!type) {
             setType(Omniscript::Type::createPointerType(referent->getType()));
             setRootType(Omniscript::Type::createPointerType(referent->getType()));
@@ -102,7 +102,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
     std::shared_ptr<Omniscript::Type> symbolType = expr->getType();
 
     if (type) {
-        if (!Omniscript::isSameOrCastableTo(symbolType, type)) {
+        if (!Omniscript::Type::isSameOrCastableTo(symbolType, type)) {
             if (symbolType->isNullable()) {
                 if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(expr)) {
                     if (!varAccess->extractValue) {
@@ -170,7 +170,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 if (!typed->getType() && !type->isInvalid()) {
                     typed->setType(type);
                     result = value->express(scope);
-                    if (!Omniscript::isSameOrCastableTo(result->type, type)) {
+                    if (!Omniscript::Type::isSameOrCastableTo(result->type, type)) {
                         console.error("Type mismatch when assigning to variable '" + name + "'.\n"
                             "Expected type: '" + type->toString() + "', but got: '" + result->type->toString() + "'.\n"
                             "The type was inferred, but the assigned value is not compatible.");
@@ -178,7 +178,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                     DEBUG_LOG("The variable's inferred type is '" + type->toString() + "'.");
                 } else {
                     result = value->express(scope);
-                    if (!Omniscript::isSameOrCastableTo(result->type, type)) {
+                    if (!Omniscript::Type::isSameOrCastableTo(result->type, type)) {
                         console.error("Type mismatch for variable '" + name + "'.\n"
                             "Expected type: '" + type->toString() + "' (or 'null'), but got: '" + result->getType()->toString() + "'.");
                     }
@@ -197,7 +197,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                     }
                     result = typed->express(scope);
                     auto resultType = result->getType();
-                    if (!Omniscript::isSameOrCastableTo(resultType, type)) {
+                    if (!Omniscript::Type::isSameOrCastableTo(resultType, type)) {
                         console.error("The rvalue of '" + variable + "' is not a '" + type->toString() + "', it is a '" + resultType->toString() + "'.");
                     }
                 } else {
@@ -288,7 +288,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
 
     if (isReassign) {
         std::shared_ptr<Omniscript::Expression> prevValue = scope->get(variable);
-        if (!Omniscript::isSameOrCastableTo(result->getType(), prevValue->getType())) {
+        if (!Omniscript::Type::isSameOrCastableTo(result->getType(), prevValue->getType())) {
             console.error("'" + variable + "' should be of type " + prevValue->getType()->toString() + "' not a '" + result->getType()->toString() + "'.");
         }
     }

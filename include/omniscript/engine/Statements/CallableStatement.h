@@ -1,6 +1,46 @@
 #pragma once
 #include <omniscript/engine/Statement.h>
 
+class ParameterStatement : 
+public NamedStatement, 
+public TypedStatement,
+public ContextAwareStatement {
+public:
+    bool isVariadic = false;
+    bool isConstant;
+    std::shared_ptr<Statement> defaultValue;
+
+    ParameterStatement(
+        std::string name,
+        std::shared_ptr<Statement> defaultValue = nullptr,
+        bool isConst = false
+    ) : defaultValue(std::move(defaultValue)), isConstant(isConst) {
+            setName(name);
+        }
+    
+    ParameterStatement(const ParameterStatement& other)
+        : NamedStatement(other), TypedStatement(other),
+          defaultValue(other.defaultValue ? other.defaultValue->clone() : nullptr) 
+    {
+        setPosition(other.getPosition());
+    }
+
+    std::string getName() const override { return name; }
+    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
+    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::string toString() const override { 
+        return "Parameter: " + (defaultValue? defaultValue->toString() : "no default value"); 
+    }
+    std::string formatError(const std::string& msg) const override {
+        return "Error in parameter '" + name + "'.\n" + msg;
+    };
+    std::shared_ptr<Statement> getDefaultValue();
+
+    std::shared_ptr<Statement> clone() const override {
+        return std::make_shared<ParameterStatement>(*this);
+    }
+};
+
 class Callable: public NamedStatement {
 public:
     std::vector<std::shared_ptr<Statement>> defaultParams;
@@ -143,46 +183,6 @@ public:
     void setInstanceName(const std::string& name) {
         this->name = name;
         instanceName = name; 
-    }
-};
-
-class ParameterStatement : 
-public NamedStatement, 
-public TypedStatement,
-public ContextAwareStatement {
-public:
-    bool isVariadic = false;
-    bool isConstant;
-    std::shared_ptr<Statement> defaultValue;
-
-    ParameterStatement(
-        std::string name,
-        std::shared_ptr<Statement> defaultValue = nullptr,
-        bool isConst = false
-    ) : defaultValue(std::move(defaultValue)), isConstant(isConst) {
-            setName(name);
-        }
-    
-    ParameterStatement(const ParameterStatement& other)
-        : NamedStatement(other), TypedStatement(other),
-          defaultValue(other.defaultValue ? other.defaultValue->clone() : nullptr) 
-    {
-        setPosition(other.getPosition());
-    }
-
-    std::string getName() const override { return name; }
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override { 
-        return "Parameter: " + (defaultValue? defaultValue->toString() : "no default value"); 
-    }
-    std::string formatError(const std::string& msg) const override {
-        return "Error in parameter '" + name + "'.\n" + msg;
-    };
-    std::shared_ptr<Statement> getDefaultValue();
-
-    std::shared_ptr<Statement> clone() const override {
-        return std::make_shared<ParameterStatement>(*this);
     }
 };
 

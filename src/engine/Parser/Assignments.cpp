@@ -3,7 +3,7 @@
 #include <omniscript/engine/Statements/FunctionStatement.h>
 #include <omniscript/engine/Statements/CallableStatement.h>
 #include <omniscript/engine/Statements/ExpressionStatements.h>
-#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
@@ -80,7 +80,6 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
 
     return assign;
 }
-
 
 std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> assignee) {
     Token startToken = currentToken;
