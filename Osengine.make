@@ -113,6 +113,7 @@ GENERATED += $(OBJDIR)/JITBackend.o
 GENERATED += $(OBJDIR)/JITCompiler.o
 GENERATED += $(OBJDIR)/LLVMAOTBackend.o
 GENERATED += $(OBJDIR)/LLVMJITBackend.o
+GENERATED += $(OBJDIR)/Lexer.o
 GENERATED += $(OBJDIR)/LinuxLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/Literals.o
 GENERATED += $(OBJDIR)/ModulesAndImports.o
@@ -125,13 +126,12 @@ GENERATED += $(OBJDIR)/Statement.o
 GENERATED += $(OBJDIR)/Statements.o
 GENERATED += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/String.o
+GENERATED += $(OBJDIR)/Tokens.o
 GENERATED += $(OBJDIR)/Types.o
 GENERATED += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/WindowsApiLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/lLLVMExternalFunctionResolver.o
-GENERATED += $(OBJDIR)/lexer.o
 GENERATED += $(OBJDIR)/main.o
-GENERATED += $(OBJDIR)/tokens.o
 GENERATED += $(OBJDIR)/utils.o
 OBJECTS += $(OBJDIR)/Access.o
 OBJECTS += $(OBJDIR)/AndriodLLVMFunctionResolver.o
@@ -169,6 +169,7 @@ OBJECTS += $(OBJDIR)/JITBackend.o
 OBJECTS += $(OBJDIR)/JITCompiler.o
 OBJECTS += $(OBJDIR)/LLVMAOTBackend.o
 OBJECTS += $(OBJDIR)/LLVMJITBackend.o
+OBJECTS += $(OBJDIR)/Lexer.o
 OBJECTS += $(OBJDIR)/LinuxLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/Literals.o
 OBJECTS += $(OBJDIR)/ModulesAndImports.o
@@ -181,13 +182,12 @@ OBJECTS += $(OBJDIR)/Statement.o
 OBJECTS += $(OBJDIR)/Statements.o
 OBJECTS += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/String.o
+OBJECTS += $(OBJDIR)/Tokens.o
 OBJECTS += $(OBJDIR)/Types.o
 OBJECTS += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/WindowsApiLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/lLLVMExternalFunctionResolver.o
-OBJECTS += $(OBJDIR)/lexer.o
 OBJECTS += $(OBJDIR)/main.o
-OBJECTS += $(OBJDIR)/tokens.o
 OBJECTS += $(OBJDIR)/utils.o
 
 # Rules
@@ -342,6 +342,9 @@ $(OBJDIR)/EngineConfigs.o: src/engine/EngineConfigs.cpp
 $(OBJDIR)/JITCompiler.o: src/engine/JITCompiler.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Lexer.o: src/engine/Lexer.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Assignments.o: src/engine/Parser/Assignments.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
@@ -408,10 +411,7 @@ $(OBJDIR)/Prototypes.o: src/engine/Statements/Prototypes.cpp
 $(OBJDIR)/Statement.o: src/engine/Statements/Statement.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/lexer.o: src/engine/lexer.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/tokens.o: src/engine/tokens.cpp
+$(OBJDIR)/Tokens.o: src/engine/Tokens.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/main.o: src/main.cpp
