@@ -1,0 +1,24 @@
+#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
+#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolver.h>
+
+// StaticLibraryResolver Implementation
+llvm::Function* StaticLibraryResolver::resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) {
+    // For static libraries, we just create the function declaration
+    // The actual linking will be handled by the linker
+    return llvm::Function::Create(
+        funcType,
+        llvm::Function::ExternalLinkage,
+        name,
+        generator.getCurrentModule()
+    );
+}
+llvm::Function* StaticLibraryResolver::resolve(IRGenerator& generator, const std::string& name, llvm::FunctionType* funcType) {
+    // For static libraries, we just create the function declaration
+    // The actual linking will be handled by the linker
+    return llvm::Function::Create(
+        funcType,
+        llvm::Function::ExternalLinkage,
+        name,
+        generator.getCurrentModule()
+    );
+}

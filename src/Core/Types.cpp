@@ -138,7 +138,7 @@ std::shared_ptr<Type> Type::createStringType(Kind stringKind) {
 std::shared_ptr<Type> Type::createFixedArrayType(std::shared_ptr<Type> elementType, size_t size) {
     auto t = std::make_shared<Type>();
     t->kind = Kind::FixedArray;
-    t->elementType = std::move(elementType);
+    t->elementType = elementType;
     t->fixedSize = size;
     return t;
 }
@@ -180,7 +180,6 @@ std::shared_ptr<Type> Type::createUserDefinedType(
     return t;
 }
 
-
 std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     if (dataTypes.empty()) {
         return Type::createPrimitiveType(Kind::Int32); // Default type
@@ -190,20 +189,6 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     int totalPointerDepth = 0;
     int totalReferenceDepth = 0;
     int nullableDepth = 0;
-
-    // Stack of arrays (outermost first)
-    std::vector<std::optional<uint64_t>> arrayStack;
-    // std::vector<Type> arrayTypeStack;
-    // Parse nested arrays like [4][3][]
-    // [5]char
-    if (index < dataTypes.size() && dataTypes[index] == "[") {
-        index += 1;
-        arrayStack.push_back(std::stoull(dataTypes[index]));
-        index += 1;
-        if (dataTypes[index] == "]") {
-            index += 1;
-        }
-    }
 
     // References
     while (index < dataTypes.size() && dataTypes[index] == "&") {
@@ -231,6 +216,38 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     }
 
     std::string baseType = dataTypes[index++];
+
+    // Stack of arrays (outermost first)
+    std::vector<std::optional<uint64_t>> arrayStack;
+    // Parse post-type array sizes like char[32][2]
+    while (index + 2 <= dataTypes.size() && dataTypes[index] == "[") {
+        index += 1;
+        if (index >= dataTypes.size()) {
+            std::cerr << "[ERROR] Expected array size after '['\n";
+            return nullptr;
+        }
+
+        std::optional<uint64_t> size;
+        if (dataTypes[index] == "]") {
+            size = std::nullopt; // support dynamic []
+        } else {
+            try {
+                size = std::stoull(dataTypes[index]);
+            } catch (...) {
+                std::cerr << "[ERROR] Invalid array size: " << dataTypes[index] << "\n";
+                return nullptr;
+            }
+            index += 1;
+        }
+
+        if (index >= dataTypes.size() || dataTypes[index] != "]") {
+            std::cerr << "[ERROR] Expected ']' after array size\n";
+            return nullptr;
+        }
+        index += 1;
+
+        arrayStack.push_back(size);
+    }
 
     // Post-type pointer depth
     while (index < dataTypes.size() && dataTypes[index] == "*") {
@@ -319,11 +336,7 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
 
    // Wrap in arrays (from innermost to outermost)
    for (auto it = arrayStack.rbegin(); it != arrayStack.rend(); ++it) {
-        if (it->has_value()) {
-            type = Type::createFixedArrayType(type, it->value());  // Fixed array
-        } else {
-            type = Type::createDynamicArrayType(type);             // Dynamic array
-        }
+        type = Type::createFixedArrayType(type, it->value());
     }
 
     // Wrap in references
@@ -493,5 +506,4 @@ bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr
     return false;
 }
 
-
-} // namespace Omniscript
+} 

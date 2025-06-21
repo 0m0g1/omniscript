@@ -356,12 +356,8 @@ std::vector<std::string> Parser::parseType() {
         prevColumn = currentToken.getColumn();
         eat(TokenTypes::LeftBracket);
         
-        if (currentToken.getType() == TokenTypes::Identifier) {
-            dataTypes.push_back("[");
-            prevColumn = currentToken.getColumn();
-            eat(TokenTypes::Identifier);
-        } else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
-            dataTypes.push_back("]");
+        if (currentToken.getType() == TokenTypes::IntegerLiteral) {
+            dataTypes.push_back(currentToken.getValue());
             prevColumn = currentToken.getColumn();
             eat(TokenTypes::IntegerLiteral);
         }
@@ -369,11 +365,6 @@ std::vector<std::string> Parser::parseType() {
         dataTypes.push_back("]");
         prevColumn = currentToken.getColumn();
         eat(TokenTypes::RightBracket);
-
-        if (currentToken.getType() == TokenTypes::Identifier) {
-            dataTypes.push_back(currentToken.getValue());
-            eat(TokenTypes::Identifier);
-        }
     }
 
     return dataTypes;

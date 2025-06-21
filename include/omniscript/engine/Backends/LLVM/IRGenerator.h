@@ -16,6 +16,7 @@
 #include <omniscript/Core/Expressions/AssignmentExpression.h>
 #include <omniscript/Core/Expressions/FunctionInputExpression.h>
 #include <omniscript/Core/Expressions/VariableAccessExpression.h>
+#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
@@ -33,8 +34,6 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/TargetSelect.h>
-
-class ExternalFunctionResolver;
 
 struct GlobalInit {
     llvm::GlobalVariable* variable;
@@ -90,6 +89,10 @@ private:
     }
 
     std::vector<std::shared_ptr<Omniscript::FunctionExpression>> userDefinedFunctions;
+
+    bool isWindowsAPIFunction(const std::string& name);
+    bool isCStdLibFunction(const std::string& name);
+    bool isSystemLibrary(const std::string& libPath);
 
 public:
     
@@ -376,81 +379,6 @@ public:
         const std::unordered_map<std::string, llvm::Value*>& members
     );
     llvm::Value* generateCast(llvm::Value* src, llvm::Type* destType);
-};
-
-class ExternalFunctionResolver {
-public:
-    virtual llvm::Function* resolve(
-        IRGenerator& generator,
-        const std::string& name,
-        llvm::FunctionType* funcType
-    ) = 0;
-
-    virtual ~ExternalFunctionResolver() = default;
-};
-
-class CStdLibResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(
-        IRGenerator& generator,
-        const std::string& name,
-        llvm::FunctionType* funcType
-    ) override {
-        return llvm::Function::Create(
-            funcType,
-            llvm::Function::ExternalLinkage,
-            name,
-            generator.getCurrentModule()
-        );
-    }
-};
-
-class DynamicLibraryResolver : public ExternalFunctionResolver {
-public:
-    llvm::sys::DynamicLibrary dynLib;
-
-    DynamicLibraryResolver(const std::string& libPath) {
-        std::string errMsg;
-        dynLib = llvm::sys::DynamicLibrary::getPermanentLibrary(libPath.c_str(), &errMsg);
-        if (!dynLib.isValid()) {
-            throw std::runtime_error("Failed to load library: " + errMsg);
-        }
-    }
-
-    llvm::Function* resolve(
-        IRGenerator& generator,
-        const std::string& name,
-        llvm::FunctionType* funcType
-    ) override {
-        void* symbol = dynLib.getAddressOfSymbol(name.c_str());
-        if (!symbol) {
-            return nullptr;
-        }
-
-        return llvm::Function::Create(
-            funcType,
-            llvm::Function::ExternalLinkage,
-            name,
-            generator.getCurrentModule()
-        );
-    }
-};
-
-
-class StaticLibraryResolver : public ExternalFunctionResolver {
-public:
-    llvm::Function* resolve(
-        IRGenerator& generator,
-        const std::string& name,
-        llvm::FunctionType* funcType
-    ) override {
-        return llvm::Function::Create(
-            funcType,
-            llvm::Function::ExternalLinkage,
-            name,
-            generator.getCurrentModule()
-        );
-    }
 };
 
 #endif

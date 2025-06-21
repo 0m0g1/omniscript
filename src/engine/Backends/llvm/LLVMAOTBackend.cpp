@@ -186,14 +186,27 @@ void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::strin
             objFile,
             "-luser32",
             "-lgdi32",
-            "-lshell32"
+            "-lshell32",
+            "-lkernel32",  // Add kernel32 for QueryPerformance* functions
+            "-lntdll"
         }},
         {"g++", {
             "-o", exeFile,
             objFile,
             "-luser32",
             "-lgdi32",
-            "-lshell32"
+            "-lshell32",
+            "-lkernel32",
+            "-lntdll"
+        }},
+        {"link", {  // MSVC linker as fallback
+            "/OUT:" + exeFile,
+            objFile,
+            "user32.lib",
+            "gdi32.lib", 
+            "shell32.lib",
+            "kernel32.lib",
+            "ntdll.lib"
         }}
 #else
         {"clang++", {
@@ -215,6 +228,7 @@ void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::strin
 
     bool linked = false;
     std::string cmd;
+    std::string lastError;
 
     for (const auto& [linker, args] : linkerOptions) {
         if (isLinkerAvailable(linker)) {
@@ -223,18 +237,30 @@ void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::strin
                 cmd += " " + arg;
             }
             DEBUG_LOG("Linking with command: " + cmd);
-            linked = true;
-            break;
+            
+            int result = std::system(cmd.c_str());
+            if (result == 0) {
+                linked = true;
+                break;
+            } else {
+                lastError = "Linker " + linker + " failed with exit code: " + std::to_string(result);
+                DEBUG_LOG(lastError);
+            }
         }
     }
 
     if (!linked) {
-        throw std::runtime_error("No suitable linker found");
-    }
-
-    int result = std::system(cmd.c_str());
-    if (result != 0) {
-        throw std::runtime_error("Linking failed with exit code: " + std::to_string(result));
+        std::string availableLinkers;
+        for (const auto& [linker, _] : linkerOptions) {
+            if (isLinkerAvailable(linker)) {
+                availableLinkers += linker + " ";
+            }
+        }
+        
+        throw std::runtime_error(
+            "Linking failed. Available linkers: " + availableLinkers + 
+            ". Last error: " + lastError
+        );
     }
 
 #ifndef _WIN32

@@ -78,12 +78,16 @@ GENERATED :=
 OBJECTS :=
 
 GENERATED += $(OBJDIR)/Access.o
+GENERATED += $(OBJDIR)/AndriodLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/Assignments.o
 GENERATED += $(OBJDIR)/AssignmentsAndGetters.o
 GENERATED += $(OBJDIR)/Block.o
+GENERATED += $(OBJDIR)/CLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/ControlFlow.o
 GENERATED += $(OBJDIR)/ControlFlow1.o
 GENERATED += $(OBJDIR)/Core.o
+GENERATED += $(OBJDIR)/DarwninLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/EngineConfigs.o
 GENERATED += $(OBJDIR)/Entities.o
 GENERATED += $(OBJDIR)/Entities1.o
@@ -109,27 +113,37 @@ GENERATED += $(OBJDIR)/JITBackend.o
 GENERATED += $(OBJDIR)/JITCompiler.o
 GENERATED += $(OBJDIR)/LLVMAOTBackend.o
 GENERATED += $(OBJDIR)/LLVMJITBackend.o
+GENERATED += $(OBJDIR)/LinuxLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/Literals.o
 GENERATED += $(OBJDIR)/ModulesAndImports.o
 GENERATED += $(OBJDIR)/ModulesAndImports1.o
 GENERATED += $(OBJDIR)/Objects.o
 GENERATED += $(OBJDIR)/Parser.o
+GENERATED += $(OBJDIR)/PosixLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/Prototypes.o
 GENERATED += $(OBJDIR)/Statement.o
 GENERATED += $(OBJDIR)/Statements.o
+GENERATED += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/String.o
 GENERATED += $(OBJDIR)/Types.o
+GENERATED += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/WindowsApiLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/lLLVMExternalFunctionResolver.o
 GENERATED += $(OBJDIR)/lexer.o
 GENERATED += $(OBJDIR)/main.o
 GENERATED += $(OBJDIR)/tokens.o
 GENERATED += $(OBJDIR)/utils.o
 OBJECTS += $(OBJDIR)/Access.o
+OBJECTS += $(OBJDIR)/AndriodLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/Assignments.o
 OBJECTS += $(OBJDIR)/AssignmentsAndGetters.o
 OBJECTS += $(OBJDIR)/Block.o
+OBJECTS += $(OBJDIR)/CLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/ControlFlow.o
 OBJECTS += $(OBJDIR)/ControlFlow1.o
 OBJECTS += $(OBJDIR)/Core.o
+OBJECTS += $(OBJDIR)/DarwninLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/EngineConfigs.o
 OBJECTS += $(OBJDIR)/Entities.o
 OBJECTS += $(OBJDIR)/Entities1.o
@@ -155,16 +169,22 @@ OBJECTS += $(OBJDIR)/JITBackend.o
 OBJECTS += $(OBJDIR)/JITCompiler.o
 OBJECTS += $(OBJDIR)/LLVMAOTBackend.o
 OBJECTS += $(OBJDIR)/LLVMJITBackend.o
+OBJECTS += $(OBJDIR)/LinuxLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/Literals.o
 OBJECTS += $(OBJDIR)/ModulesAndImports.o
 OBJECTS += $(OBJDIR)/ModulesAndImports1.o
 OBJECTS += $(OBJDIR)/Objects.o
 OBJECTS += $(OBJDIR)/Parser.o
+OBJECTS += $(OBJDIR)/PosixLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/Prototypes.o
 OBJECTS += $(OBJDIR)/Statement.o
 OBJECTS += $(OBJDIR)/Statements.o
+OBJECTS += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/String.o
 OBJECTS += $(OBJDIR)/Types.o
+OBJECTS += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/WindowsApiLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/lLLVMExternalFunctionResolver.o
 OBJECTS += $(OBJDIR)/lexer.o
 OBJECTS += $(OBJDIR)/main.o
 OBJECTS += $(OBJDIR)/tokens.o
@@ -244,6 +264,33 @@ $(OBJDIR)/Types.o: src/Core/Types.cpp
 $(OBJDIR)/JITBackend.o: src/engine/Backends/JITBackend.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/AndriodLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/AndriodLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/CLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/CLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/DarwninLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/DarwninLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/DynamicLibraryLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/LinuxLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/LinuxLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/PosixLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/PosixLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/StaticLibraryLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/StaticLibraryLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/WebAssemblyLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/WebAssemblyLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/WindowsApiLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/WindowsApiLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/IRGenAssignmentsAndGetters.o: src/engine/Backends/llvm/IRGenAssignmentsAndGetters.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
@@ -284,6 +331,9 @@ $(OBJDIR)/LLVMAOTBackend.o: src/engine/Backends/llvm/LLVMAOTBackend.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/LLVMJITBackend.o: src/engine/Backends/llvm/LLVMJITBackend.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/lLLVMExternalFunctionResolver.o: src/engine/Backends/llvm/lLLVMExternalFunctionResolver.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/EngineConfigs.o: src/engine/EngineConfigs.cpp

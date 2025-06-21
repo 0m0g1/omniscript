@@ -3,7 +3,7 @@ extern "C:/Windows/System32/kernel32.dll" {
     fn QueryPerformanceFrequency(freq: int64*) => int;
 }
 
-extern "C" fn printf(...fmt: char*) => int;
+extern "C:/Windows/System32/msvcrt.dll" fn printf(...fmt: char*) => int;
 
 let freq: int64 = 0;
 QueryPerformanceFrequency(&freq);
