@@ -1,12 +1,12 @@
+#include <omniscript/engine/Statements/EntityStatements.h>
+#include <omniscript/engine/Statements/LiteralStatements.h>
+
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
+#include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/utils.h>
 
-
-// ============================== Entities  ============================== //
 
 std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);

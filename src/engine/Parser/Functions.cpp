@@ -1,3 +1,10 @@
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/AccessStatements.h>
+#include <omniscript/engine/Statements/FunctionStatement.h>
+#include <omniscript/engine/Statements/CallableStatement.h>
+#include <omniscript/engine/Statements/LiteralStatements.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/engine/Lexer.h>
@@ -5,8 +12,8 @@
 #include <omniscript/engine/Parser.h>
 #include <omniscript/runtime/object.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
+
 
 std::shared_ptr<Statement> Parser::parseExternFunction() {
     Token startToken = currentToken;

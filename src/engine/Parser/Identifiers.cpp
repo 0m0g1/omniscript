@@ -1,10 +1,15 @@
+#include <omniscript/engine/Statements/AccessStatements.h>
+#include <omniscript/engine/Statements/CallableStatement.h>
+#include <omniscript/engine/Statements/ExpressionStatements.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
-#include <omniscript/engine/Parser.h>
 #include <omniscript/engine/Tokens.h>
+#include <omniscript/engine/Parser.h>
+#include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
-#include <omniscript/omniscript_pch.h>
 
 std::shared_ptr<Statement> Parser::parseIdentifier() {
     std::string rootIdentifier = currentToken.getValue();

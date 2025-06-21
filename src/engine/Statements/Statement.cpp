@@ -1,12 +1,10 @@
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
-#include <omniscript/engine/Statement.h>
-#include <omniscript/engine/Symboltable.h>
-#include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Lexer.h>
 #include <omniscript/engine/Parser.h>
-#include <omniscript/utils.h>
-// #include "Statement.h"
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Symboltable.h>
 
 // #include <omniscript/runtime/object.h>
 // #include <omniscript/runtime/Class.h>
@@ -19,10 +17,7 @@
 // #include <omniscript/runtime/Pointer.h>
 
 void Initializer::initialize() {
-    // std::vector<std::shared_ptr<Statement>> types = {};
-
-    // for ()
-    // auto type = std::make_shared<Omniscript::TypeExpression>();
+    
 }
 
 std::shared_ptr<Omniscript::Expression> Initializer::express(SymbolTableType scope) {

@@ -1,3 +1,9 @@
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/AccessStatements.h>
+#include <omniscript/engine/Statements/LiteralStatements.h>
+#include <omniscript/engine/Statements/ExpressionStatements.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/engine/Parser.h>
@@ -5,7 +11,8 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
-#include <omniscript/engine/Statements/LiteralStatements.h>
+
+#include <quadmath.h>
 
 std::shared_ptr<Statement> Parser::parseExpression() {
     return parseTernaryExpression();

@@ -1,10 +1,13 @@
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/LiteralStatements.h>
+
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/engine/Parser.h>
 #include <omniscript/engine/Tokens.h>
+#include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
-#include <omniscript/omniscript_pch.h>
 
 
 std::u32string Parser::parseStringLiteral() {

@@ -1,11 +1,15 @@
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/FunctionStatement.h>
+#include <omniscript/engine/Statements/ExpressionStatements.h>
+#include <omniscript/engine/Statements/ModuleAndImportStatements.h>
+
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
-#include <omniscript/engine/Statement.h>
-#include <omniscript/engine/Symboltable.h>
-#include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Lexer.h>
 #include <omniscript/engine/Parser.h>
-#include <omniscript/utils.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Symboltable.h>
 
 std::shared_ptr<Omniscript::Expression> IncludeStatement::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);

@@ -1,12 +1,14 @@
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
-#include <omniscript/runtime/object.h>
-#include <omniscript/engine/Parser.h>
 #include <omniscript/engine/Lexer.h>
+#include <omniscript/engine/Parser.h>
 #include <omniscript/engine/Tokens.h>
-#include <omniscript/engine/Statement.h>
-#include <omniscript/engine/Symboltable.h>
+#include <omniscript/runtime/object.h>
 #include <omniscript/omniscript_pch.h>
+#include <omniscript/engine/Symboltable.h>
 
 std::shared_ptr<Statement> Parser::parseInclude() {
     Token startToken = currentToken;

@@ -1,11 +1,16 @@
 #include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/AccessStatements.h>
+#include <omniscript/engine/Statements/LiteralStatements.h>
+#include <omniscript/engine/Statements/FunctionStatement.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+
+#include <omniscript/Core/Expressions/FunctionExpression.h>
 #include <omniscript/Core/Expressions/FunctionExpression.h>
 #include <omniscript/Core/Expressions/AssignmentExpression.h>
 #include <omniscript/Core/Expressions/AssignmentExpression.h>
 #include <omniscript/Core/Expressions/VariableAccessExpression.h>
 
-// ======================= Assignments and Variable Getters ======================= //
-// ============================== Getters  ============================== //
+
 std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     std::shared_ptr<Omniscript::Expression> referent = scope->getValue(name);
