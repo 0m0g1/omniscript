@@ -2,6 +2,9 @@
 #include <omniscript/engine/Statements/FunctionStatement.h>
 #include <omniscript/engine/Statements/ExpressionStatements.h>
 #include <omniscript/engine/Statements/ModuleAndImportStatements.h>
+#include <omniscript/engine/Statements/ClassConstructorStatement.h>
+#include <omniscript/engine/Statements/StructConstructorStatement.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
@@ -169,6 +172,9 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
     } else if (auto function = std::dynamic_pointer_cast<FunctionDeclaration>(statement)) {
         function->setName(context + getName() + "." + function->getName());
         return function;
+    } else if (auto structDeclr = std::dynamic_pointer_cast<ConstructStructPrototype>(statement)) {
+        structDeclr->setName(context + getName() + "." + structDeclr->getName());
+        return structDeclr;
     } else if (auto classDeclr = std::dynamic_pointer_cast<ConstructClassPrototype>(statement)) {
         classDeclr->setName(context + getName() + "." + classDeclr->getName());
         return classDeclr;

@@ -7,6 +7,7 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
 
 // Parse a single statement
 std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {

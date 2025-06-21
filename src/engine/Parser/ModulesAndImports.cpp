@@ -1,4 +1,5 @@
 #include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/ModuleAndImportStatements.h>
 #include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
 
 #include <omniscript/Core.h>

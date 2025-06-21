@@ -1,9 +1,11 @@
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Statements/FunctionStatement.h>
 #include <omniscript/engine/Statements/CallableStatement.h>
+#include <omniscript/engine/Statements/ControlFlowStatements.h>
 #include <omniscript/engine/Statements/ModuleAndImportStatements.h>
 #include <omniscript/engine/Statements/ClassConstructorStatement.h>
 #include <omniscript/engine/Statements/StructConstructorStatement.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>

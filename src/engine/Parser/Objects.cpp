@@ -1,4 +1,6 @@
 #include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/CallableStatement.h>
+#include <omniscript/engine/Statements/FunctionStatement.h>
 #include <omniscript/engine/Statements/ModuleAndImportStatements.h>
 #include <omniscript/engine/Statements/ClassConstructorStatement.h>
 #include <omniscript/engine/Statements/StructConstructorStatement.h>

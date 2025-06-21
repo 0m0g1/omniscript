@@ -6,6 +6,9 @@
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
 
+#include <omniscript/engine/Statements/ControlFlowStatements.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+
 // #include <omniscript/runtime/object.h>
 // #include <omniscript/runtime/Class.h>
 // #include <omniscript/runtime/Namespace.h>
