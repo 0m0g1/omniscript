@@ -1,3 +1,4 @@
+#pragma once
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Statements/CallableStatement.h>
 

@@ -1,14 +1,16 @@
-#include <omniscript/Core.h>
-#include <omniscript/utils.h>
-#include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
-#include <omniscript/engine/Symboltable.h>
+#include <omniscript/engine/Statements/AccessStatements.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+
 #include <omniscript/Core/Expressions/ClassExpression.h>
 #include <omniscript/Core/Expressions/StructExpression.h>
 #include <omniscript/Core/Expressions/AssignmentExpression.h>
 #include <omniscript/Core/Expressions/VariableAccessExpression.h>
 
-// ============================== Accesses  ============================== //
+#include <omniscript/Core.h>
+#include <omniscript/utils.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/engine/Symboltable.h>
 
 void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::string memberName, SymbolTableType scope) {
     // Ensure base type is a class
@@ -214,7 +216,6 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
 
     std::vector<int> memberIndexPath = { memberIndex };
 
-    // Evaluate assignment expression if present
     std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
     if (assignmentValue) {
         extendContextOf(assignmentValue);
@@ -225,8 +226,8 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
         }
     }
 
-    // Build final expression
     std::shared_ptr<Omniscript::Expression> baseVarExpr = baseExpr;
+
     if (!baseVarExpr) {
         auto var = scope->get(resolvedObjectName);
         baseVarExpr = std::make_shared<Omniscript::VariableAccessExpression>(resolvedObjectName, var->getType());
@@ -247,7 +248,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
 
 std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
-    // Evaluate the pointer expression recursively
+    
     auto pointerExpr = pointer->express(scope);
     if (!pointerExpr) {
         console.error("Failed to evaluate pointer expression for arrow access");

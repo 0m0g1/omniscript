@@ -1,3 +1,4 @@
+#pragma once
 #include <omniscript/engine/Statement.h>
 
 class Assignment : 
