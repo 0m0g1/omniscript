@@ -128,6 +128,7 @@ GENERATED += $(OBJDIR)/Statement.o
 GENERATED += $(OBJDIR)/Statements.o
 GENERATED += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/String.o
+GENERATED += $(OBJDIR)/Target_config.o
 GENERATED += $(OBJDIR)/Tokens.o
 GENERATED += $(OBJDIR)/Types.o
 GENERATED += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
@@ -185,6 +186,7 @@ OBJECTS += $(OBJDIR)/Statement.o
 OBJECTS += $(OBJDIR)/Statements.o
 OBJECTS += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/String.o
+OBJECTS += $(OBJDIR)/Target_config.o
 OBJECTS += $(OBJDIR)/Tokens.o
 OBJECTS += $(OBJDIR)/Types.o
 OBJECTS += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
@@ -258,6 +260,9 @@ $(OBJDIR)/Core.o: src/Core.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Expression.o: src/Core/Expression.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Target_config.o: src/Core/Target_config.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Types.o: src/Core/Types.cpp

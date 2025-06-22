@@ -34,6 +34,8 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/TargetSelect.h>
+#include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/Config/llvm-config.h>
 
 struct GlobalInit {
     llvm::GlobalVariable* variable;
@@ -93,7 +95,12 @@ private:
     std::vector<std::shared_ptr<Omniscript::FunctionExpression>> userDefinedFunctions;
 
     // Helper methods for external function resolution
-    llvm::Function* resolveExternalFunction(const std::string& name, llvm::FunctionType* funcType);
+    void initializeTargetFromConfig();
+    void setupModuleMetadata();
+    void setupOptimizationPipeline();
+    void setupDebugInfo();
+    void createEntryFunction();
+    void setupExternalResolvers();
 
 public:
     
@@ -103,6 +110,7 @@ public:
     llvm::Module* getCurrentModule() { return currentModule; }
     std::unique_ptr<llvm::LLVMContext> getContext() { return std::move(Context); }
     llvm::IRBuilder<>* getBuilder() { return Builder.get(); }
+    std::unique_ptr<llvm::TargetMachine> targetMachine;
     
     // Access to link dependencies for the backend
     const LinkDependencies& getLinkDependencies() const { return linkerDependencies; }

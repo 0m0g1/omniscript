@@ -43,51 +43,316 @@ bool IRGenerator::supportsAVX2() {
 }
 
 void IRGenerator::initialize() {
+    // Validate configuration first
+    std::string validationError;
+    if (!configs.validate(validationError)) {
+        llvm::errs() << "Configuration validation failed: " << validationError << "\n";
+        return;
+    }
+    
+    // Auto-configure for target if not already done
+    // This should ideally be called when configs is first set up, but safe to call again
+    const_cast<Config&>(configs).autoConfigureForTarget();
+    
     // Create context, module, builder if not yet created
     if (!Context)
         Context = std::make_unique<llvm::LLVMContext>();
-
-    if (!Module)
-        Module = std::make_unique<llvm::Module>("OmniScript", *Context);
-
+    
+    if (!Module) {
+        // Use config file path as module name, or default
+        std::string moduleName = "OmniScript";
+        if (!configs.filePath.empty()) {
+            // Extract filename without extension
+            size_t lastSlash = configs.filePath.find_last_of("/\\");
+            size_t lastDot = configs.filePath.find_last_of('.');
+            if (lastSlash != std::string::npos && lastDot != std::string::npos) {
+                moduleName = configs.filePath.substr(lastSlash + 1, lastDot - lastSlash - 1);
+            }
+        }
+        Module = std::make_unique<llvm::Module>(moduleName, *Context);
+    }
+    
     if (!Builder)
         Builder = std::make_unique<llvm::IRBuilder<>>(*Context);
+    
+    // Initialize target based on configuration
+    initializeTargetFromConfig();
+    
+    // Set up module metadata based on configuration
+    setupModuleMetadata();
+    
+    // Initialize optimization passes if needed
+    if (configs.optimization.level > 0) {
+        setupOptimizationPipeline();
+    }
+    
+    // Set up debugging information if enabled
+    if (configs.aot.generateDebugInfo || configs.diagnostics.debugMode) {
+        setupDebugInfo();
+    }
+    
+    // Create entry function based on configuration
+    createEntryFunction();
+    
+    // Set up external resolvers based on target OS
+    setupExternalResolvers();
+    
+    currentModule = Module.get();
+    
+    // Print configuration summary if verbose mode is enabled
+    if (configs.diagnostics.verbose) {
+        configs.printSummary();
+    }
+}
 
-    // Initialize target
+void IRGenerator::initializeTargetFromConfig() {
+    // Initialize target based on config
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
-
-    std::string error;
-    std::string triple = llvm::sys::getDefaultTargetTriple();
+    llvm::InitializeNativeTargetAsmParser();
     
-    // Force Windows target triple if not already set
-    #ifdef _WIN32
-        triple = "x86_64-pc-windows-msvc";
-    #endif
-
+    std::string error;
+    std::string triple = configs.getEffectiveTargetTriple();
+    
+    if (configs.diagnostics.verbose) {
+        llvm::outs() << "Using target triple: " << triple << "\n";
+    }
+    
     Module->setTargetTriple(triple);
-
+    
     const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple, error);
     if (!target) {
         llvm::errs() << "Target lookup failed: " << error << "\n";
         return;
     }
-
+    
+    // Configure target options based on security and optimization settings
     llvm::TargetOptions options;
+    
+    // Security configurations
+    if (configs.security.enableStackProtection) {
+        // options.StackProtectorLevel = 2; // Strong stack protection
+    }
+    
+    if (configs.security.enableControlFlowIntegrity) {
+        // Enable CFI-related options
+        // options.CFIntegrity = true;
+    }
+    
+    // Optimization-related target options
+    if (configs.optimization.fastMath) {
+        options.UnsafeFPMath = true;
+        options.NoInfsFPMath = true;
+        options.NoNaNsFPMath = true;
+    }
+    
+    if (configs.optimization.enableVectorization) {
+        // options.LoopVectorize = true;
+        // options.SLPVectorize = true;
+    }
+    
+    // Create target machine with configuration
+    std::string cpu = (configs.cpuFeatures == "native") ? configs.getDefaultCPU() : configs.cpuFeatures;
+    std::string features = "";
+    
+    // Build feature string from enabled features
+    if (!configs.enabledFeatures.empty()) {
+        for (const auto& feature : configs.enabledFeatures) {
+            if (!features.empty()) features += ",";
+            features += "+" + feature;
+        }
+    }
+    
+    // Add disabled features
+    for (const auto& feature : configs.disabledFeatures) {
+        if (!features.empty()) features += ",";
+        features += "-" + feature;
+    }
+    
+    // Determine relocation model
+    std::optional<llvm::Reloc::Model> relocModel = std::nullopt;
+    if (configs.security.enablePositionIndependentCode) {
+        relocModel = llvm::Reloc::PIC_;
+    }
+
+    llvm::CodeGenOptLevel optLevel = llvm::CodeGenOptLevel::None;
+    switch (configs.optimization.level) {
+        case 1: optLevel = llvm::CodeGenOptLevel::Less; break;
+        case 2: optLevel = llvm::CodeGenOptLevel::Default; break;
+        case 3: optLevel = llvm::CodeGenOptLevel::Aggressive; break;
+        default: optLevel = llvm::CodeGenOptLevel::None; break;
+    }
+    
     auto targetMachine = std::unique_ptr<llvm::TargetMachine>(
-        target->createTargetMachine(triple, "generic", "", options, std::nullopt)
+        target->createTargetMachine(triple, cpu, features, options, relocModel, 
+                                   std::nullopt, optLevel)
     );
-
+    
+    if (!targetMachine) {
+        llvm::errs() << "Failed to create target machine\n";
+        return;
+    }
+    
     Module->setDataLayout(targetMachine->createDataLayout());
+    
+    // Store target machine for later use in compilation
+    this->targetMachine = std::move(targetMachine);
+}
 
-    // Optional: Setup main or top-level function
-    llvm::FunctionType* funcType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
-    llvm::Function* topFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "__top_level__", Module.get());
-    llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", topFunc);
+void IRGenerator::setupModuleMetadata() {
+    // Add module metadata based on configuration
+    llvm::LLVMContext& ctx = *Context;
+    
+    // Add source file information
+    if (!configs.filePath.empty()) {
+        llvm::Metadata* sourceFile = llvm::MDString::get(ctx, configs.filePath);
+        Module->addModuleFlag(llvm::Module::Warning, "source.file", sourceFile);
+    }
+    
+    // Add language standard information
+    llvm::Metadata* langStd = llvm::MDString::get(ctx, configs.languageStandard);
+    Module->addModuleFlag(llvm::Module::Warning, "language.standard", langStd);
+    
+    // Add compilation mode
+    std::string modeStr = configs.isJITMode() ? "jit" : "aot";
+    llvm::Metadata* mode = llvm::MDString::get(ctx, modeStr);
+    Module->addModuleFlag(llvm::Module::Warning, "compile.mode", mode);
+    
+    // Add safety level
+    llvm::Metadata* safety = llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), static_cast<int>(configs.runtime.safetyLevel))
+    );
+    Module->addModuleFlag(llvm::Module::Warning, "safety.level", safety);
+    
+    // Add PIC flag if enabled
+    if (configs.security.enablePositionIndependentCode) {
+        llvm::Metadata* pic = llvm::ConstantAsMetadata::get(
+            llvm::ConstantInt::get(llvm::Type::getInt1Ty(ctx), 1)
+        );
+        Module->addModuleFlag(llvm::Module::Error, "PIC Level", pic);
+    }
+}
+
+void IRGenerator::setupOptimizationPipeline() {
+    // This would set up the optimization pipeline based on config
+    // Implementation depends on your optimization framework
+    // if (configs.diagnostics.logOptimizationRemarks) {
+    //     // Enable optimization remarks
+    //     Context->setDiagnosticHandlerCallBack([](const llvm::DiagnosticInfo& DI, void* Context) {
+    //         if (DI.getKind() == llvm::DK_OptimizationRemark ||
+    //             DI.getKind() == llvm::DK_OptimizationRemarkMissed ||
+    //             DI.getKind() == llvm::DK_OptimizationRemarkAnalysis) {
+    //             std::string msg;
+    //             llvm::raw_string_ostream stream(msg);
+    //             DI.print(stream);
+    //             llvm::outs() << "Optimization: " << msg << "\n";
+    //         }
+    //     }, nullptr);
+    // }
+}
+
+void IRGenerator::setupDebugInfo() {
+    // if (!configs.aot.generateDebugInfo && !configs.diagnostics.debugMode) {
+    //     return;
+    // }
+    
+    // // Create debug info builder
+    // auto debugBuilder = std::make_unique<llvm::DIBuilder>(*Module);
+    
+    // // Create compile unit
+    // std::string filename = configs.filePath.empty() ? "unknown" : configs.filePath;
+    // size_t lastSlash = filename.find_last_of("/\\");
+    // std::string directory = (lastSlash != std::string::npos) ? filename.substr(0, lastSlash) : ".";
+    // std::string file = (lastSlash != std::string::npos) ? filename.substr(lastSlash + 1) : filename;
+    
+    // auto debugCompileUnit = debugBuilder->createCompileUnit(
+    //     llvm::dwarf::DW_LANG_C,  // You might want to define your own language constant
+    //     debugBuilder->createFile(file, directory),
+    //     "OmniScript Compiler",
+    //     configs.optimization.level > 0,  // isOptimized
+    //     "",  // flags
+    //     0    // runtime version
+    // );
+}
+
+void IRGenerator::createEntryFunction() {
+    // Create entry function based on configuration
+    std::string entryName = configs.entry.empty() ? "__top_level__" : configs.entry;
+    
+    // Function signature depends on entry type
+    llvm::FunctionType* funcType;
+    if (configs.entry == "main") {
+        // Standard main function: int main(int argc, char** argv)
+        llvm::Type* intType = llvm::Type::getInt32Ty(*Context);
+        llvm::Type* charPtrType = llvm::PointerType::getUnqual(*Context);
+        llvm::Type* charPtrPtrType = llvm::PointerType::getUnqual(*Context);
+        funcType = llvm::FunctionType::get(intType, {intType, charPtrPtrType}, false);
+    } else {
+        // Default void function with no parameters
+        funcType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
+    }
+    
+    llvm::Function* entryFunc = llvm::Function::Create(
+        funcType, 
+        llvm::Function::ExternalLinkage, 
+        entryName, 
+        Module.get()
+    );
+    
+    // Set function attributes based on configuration
+    if (configs.security.enableStackProtection) {
+        entryFunc->addFnAttr(llvm::Attribute::StackProtectReq);
+    }
+    
+    if (configs.optimization.enableTailCallOptimization) {
+        // This would be set per call site, but we can prepare the function
+        entryFunc->addFnAttr(llvm::Attribute::OptimizeForSize);
+    }
+    
+    // Create entry basic block
+    llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", entryFunc);
     Builder->SetInsertPoint(entry);
+}
 
-    currentModule = Module.get();
+void IRGenerator::setupExternalResolvers() {
+    // Set up external resolvers based on target OS
+    auto targetOS = configs.resolveTargetOS();
+    
+    // Always add C standard library resolver
     addExternalResolver("C", std::make_unique<CStdLibResolver>());
+    
+    // Add OS-specific resolvers
+    // switch (targetOS) {
+    //     case TargetOS::Windows:
+    //         addExternalResolver("Win32", std::make_unique<Win32Resolver>());
+    //         break;
+    //     case TargetOS::Linux:
+    //     case TargetOS::Ubuntu:
+    //     case TargetOS::Debian:
+    //         addExternalResolver("POSIX", std::make_unique<PosixResolver>());
+    //         addExternalResolver("Linux", std::make_unique<LinuxResolver>());
+    //         break;
+    //     case TargetOS::macOS:
+    //         addExternalResolver("POSIX", std::make_unique<PosixResolver>());
+    //         addExternalResolver("Darwin", std::make_unique<DarwinResolver>());
+    //         break;
+    //     case TargetOS::WebAssembly:
+    //         addExternalResolver("WASM", std::make_unique<WasmResolver>());
+    //         break;
+    //     default:
+    //         // Use generic POSIX for unknown Unix-like systems
+    //         if (configs.isUnixLikeOS()) {
+    //             addExternalResolver("POSIX", std::make_unique<PosixResolver>());
+    //         }
+    //         break;
+    // }
+    
+    // Add plugin-based resolvers if specified
+    for (const auto& plugin : configs.plugins) {
+        // This would load and initialize plugin-based resolvers
+        // Implementation depends on your plugin system
+        // loadPluginResolver(plugin);
+    }
 }
 
 void IRGenerator::finalize() {

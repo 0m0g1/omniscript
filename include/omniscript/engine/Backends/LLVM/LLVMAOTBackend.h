@@ -11,6 +11,15 @@
 #include <llvm/TargetParser/Host.h>
 
 class LLVMAOTBackend : public AOTBackend {
+public:
+    LLVMAOTBackend();
+
+    void initialize() override;
+
+    void execute(const std::vector<std::shared_ptr<Statement>>& statements, const Config& config) override;
+
+    void emitToFile(const std::string& filename) override;
+
 private:
     std::shared_ptr<IRGenerator> irGen;
     std::shared_ptr<llvm::TargetMachine> targetMachine;
@@ -36,12 +45,25 @@ private:
     void emitAssemblyFile(const std::string& asmFilename);
     bool isLinkerAvailable(const std::string& linker);
 
-public:
-    LLVMAOTBackend();
-
-    void initialize() override;
-
-    void execute(const std::vector<std::shared_ptr<Statement>>& statements, const Config& config) override;
-
-    void emitToFile(const std::string& filename) override;
+    // Target machine configuration
+    void setupTargetMachine(const Config& config);
+    std::string buildFeatureString(const Config& config);
+    llvm::TargetOptions buildTargetOptions(const Config& config);
+    std::optional<llvm::Reloc::Model> getRelocationModel(const Config& config);
+    std::optional<llvm::CodeModel::Model> getCodeModel(const Config& config);
+    llvm::CodeGenOptLevel mapOptimizationLevel(int level);
+    void configureTargetMachineSettings(const Config& config);
+    
+    // External resolver setup with config
+    void setupExternalResolvers(const Config& config);
+    
+    // Output handling
+    void handleOutput(const Config& config);
+    std::filesystem::path getTemporaryPath(const Config& config, const std::string& extension);
+    
+    // New emission methods
+    void emitLLVMIR(const std::string& irFilename);
+    void emitBitcode(const std::string& bcFilename);
+    void createStaticLibrary(const std::string& objFile, const std::string& libFile);
+    void createSharedLibrary(const std::string& objFile, const std::string& libFile, const Config& config);
 };

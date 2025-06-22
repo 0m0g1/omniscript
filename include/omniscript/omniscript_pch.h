@@ -35,6 +35,8 @@
 #include <string>
 #include <optional>
 #include <filesystem>
+#include <thread>
+#include <regex>
 
 // System-Specific Headers
 #ifdef _WIN32
@@ -43,10 +45,9 @@
 #elif defined(__linux__) || defined(__APPLE__)
     #include <sys/resource.h>
     #include <unistd.h>
+    if defined(__APPLE__)
+        #include <sys/utsname.h>
+        #include <TargetConditionals.h>
+    #elif defined(__linux__)
+        #include <sys/utsname.h>
 #endif
-
-// Uncomment if you need them
-// #include <curl/curl.h>
-// #include <AL/al.h>
-// #include <AL/alc.h>
-// #include <AL/alext.h>

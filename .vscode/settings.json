@@ -85,6 +85,7 @@
         "xtree": "cpp",
         "xutility": "cpp",
         "filesystem": "cpp",
-        "*.inc": "cpp"
+        "*.inc": "cpp",
+        "regex": "cpp"
     }
 }
