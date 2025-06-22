@@ -289,7 +289,7 @@ llvm::Function* IRGenerator::createExternFunction(
                     // Create a resolver that knows about the specific library
                     return std::make_unique<WindowsAPIResolver>(staticLibPath);
                 } else {
-                    return std::make_unique<StaticLibraryResolver>();
+                    return std::make_unique<StaticLibraryResolver>(staticLibPath);
                 }
             });
 

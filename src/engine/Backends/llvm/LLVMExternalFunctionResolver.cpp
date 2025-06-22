@@ -325,11 +325,14 @@ bool ExternalFunctionResolver::isSystemLibrary(const std::string& libPath) {
     return systemLibs.find(filename) != systemLibs.end();
 }
 
-// Implementation helpers
 void LinkDependencies::addRequiredLibrary(const std::string& libName, const LibraryInfo& info) {
     requiredLibraries_.insert(libName);
-    if (libraryInfo_.find(libName) == libraryInfo_.end()) {
-        libraryInfo_[libName] = info;
+    libraryInfo_[libName] = info;
+}
+
+void LinkDependencies::addLibrarySearchPath(const std::string& path) {
+    if (!path.empty()) {
+        librarySearchPaths_.insert(path);
     }
 }
 
@@ -341,12 +344,12 @@ std::vector<std::string> LinkDependencies::getLinkerFlags() const {
         if (it != libraryInfo_.end()) {
             const auto& info = it->second;
             
-            if (!info.path.empty()) {
+            if (!info.linkerFlags.empty()) {
+                // Custom linker flags (includes both -L and -l)
+                flags.insert(flags.end(), info.linkerFlags.begin(), info.linkerFlags.end());
+            } else if (!info.path.empty()) {
                 // Explicit path provided
                 flags.push_back(info.path);
-            } else if (!info.linkerFlags.empty()) {
-                // Custom linker flags
-                flags.insert(flags.end(), info.linkerFlags.begin(), info.linkerFlags.end());
             } else {
                 // Standard library name
                 flags.push_back("-l" + libName);
@@ -367,6 +370,16 @@ bool LinkDependencies::hasLibrary(const std::string& libName) const {
 void LinkDependencies::clear() {
     requiredLibraries_.clear();
     libraryInfo_.clear();
+    librarySearchPaths_.clear();
+}
+
+std::vector<std::string> LinkDependencies::getRequiredLibraries() const {
+    return std::vector<std::string>(requiredLibraries_.begin(), requiredLibraries_.end());
+}
+
+const LinkDependencies::LibraryInfo* LinkDependencies::getLibraryInfo(const std::string& libName) const {
+    auto it = libraryInfo_.find(libName);
+    return (it != libraryInfo_.end()) ? &it->second : nullptr;
 }
 
 // Platform detection implementation

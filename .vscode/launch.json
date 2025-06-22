@@ -7,6 +7,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "test",
+            "request": "launch",
+            "mainClass": "test",
+            "projectName": "omniscript_6945fcca"
+        },
+        {
+            "type": "java",
             "name": "Benchmark",
             "request": "launch",
             "mainClass": "Benchmark",
