@@ -2,190 +2,14 @@
 #include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
 
 #ifdef _WIN32
-#include <windows.h>
 #include <libloaderapi.h>
-#include <shlobj.h>
 #endif
 
-// Static member initialization
-bool WindowsAPIResolver::isScanned = false;
-std::unordered_set<std::string> WindowsAPIResolver::discoveredLibraries;
-std::unordered_set<std::string> WindowsAPIResolver::availableDlls;
-std::unordered_set<std::string> WindowsAPIResolver::availableStaticLibs;
-
-void WindowsAPIResolver::scanWindowsDirectories() {
-    if (isScanned) return;
-    
-#ifdef _WIN32
-    std::vector<std::string> systemDirs = getWindowsSystemDirectories();
-    std::vector<std::string> dllExtensions = {".dll"};
-    std::vector<std::string> libExtensions = {".lib", ".a"};
-    
-    // Scan for DLLs
-    for (const std::string& dir : systemDirs) {
-        scanDirectory(dir, dllExtensions);
-    }
-    
-    // Scan for static libraries in additional directories
-    std::vector<std::string> additionalLibDirs;
-    
-    // Add Windows SDK lib directories
-    char* programFiles = nullptr;
-    size_t len = 0;
-    if (_dupenv_s(&programFiles, &len, "ProgramFiles") == 0 && programFiles) {
-        std::string sdkPath = std::string(programFiles) + "\\Windows Kits";
-        if (std::filesystem::exists(sdkPath)) {
-            for (const auto& entry : std::filesystem::recursive_directory_iterator(sdkPath)) {
-                if (entry.is_directory() && entry.path().filename() == "lib") {
-                    additionalLibDirs.push_back(entry.path().string());
-                }
-            }
-        }
-        free(programFiles);
-    }
-    
-    // Add Visual Studio lib directories
-    char* programFilesX86 = nullptr;
-    if (_dupenv_s(&programFilesX86, &len, "ProgramFiles(x86)") == 0 && programFilesX86) {
-        std::string vsPath = std::string(programFilesX86) + "\\Microsoft Visual Studio";
-        if (std::filesystem::exists(vsPath)) {
-            for (const auto& entry : std::filesystem::recursive_directory_iterator(vsPath)) {
-                if (entry.is_directory() && entry.path().filename() == "lib") {
-                    additionalLibDirs.push_back(entry.path().string());
-                }
-            }
-        }
-        free(programFilesX86);
-    }
-    
-    // Scan additional directories for static libraries
-    for (const std::string& dir : additionalLibDirs) {
-        scanDirectory(dir, libExtensions);
-    }
-    
-#endif
-    
-    isScanned = true;
+WindowsAPIResolver::WindowsAPIResolver() {
 }
 
-std::vector<std::string> WindowsAPIResolver::getWindowsSystemDirectories() {
-    std::vector<std::string> directories;
-    
-#ifdef _WIN32
-    char buffer[MAX_PATH];
-    
-    // System32 directory
-    if (GetSystemDirectoryA(buffer, MAX_PATH)) {
-        directories.push_back(std::string(buffer));
-    }
-    
-    // SysWOW64 directory (for 32-bit libraries on 64-bit systems)
-    if (GetSystemWow64DirectoryA(buffer, MAX_PATH)) {
-        directories.push_back(std::string(buffer));
-    }
-    
-    // Windows directory
-    if (GetWindowsDirectoryA(buffer, MAX_PATH)) {
-        directories.push_back(std::string(buffer));
-        directories.push_back(std::string(buffer) + "\\System");
-    }
-    
-    // Current directory (sometimes libraries are here)
-    if (GetCurrentDirectoryA(MAX_PATH, buffer)) {
-        directories.push_back(std::string(buffer));
-    }
-    
-    // PATH directories
-    char* pathEnv = nullptr;
-    size_t len = 0;
-    if (_dupenv_s(&pathEnv, &len, "PATH") == 0 && pathEnv) {
-        std::string pathStr(pathEnv);
-        size_t start = 0;
-        size_t end = pathStr.find(';');
-        
-        while (end != std::string::npos) {
-            std::string dir = pathStr.substr(start, end - start);
-            if (!dir.empty() && std::filesystem::exists(dir)) {
-                directories.push_back(dir);
-            }
-            start = end + 1;
-            end = pathStr.find(';', start);
-        }
-        
-        // Add the last directory
-        std::string lastDir = pathStr.substr(start);
-        if (!lastDir.empty() && std::filesystem::exists(lastDir)) {
-            directories.push_back(lastDir);
-        }
-        
-        free(pathEnv);
-    }
-#endif
-    
-    return directories;
-}
-
-void WindowsAPIResolver::scanDirectory(const std::string& directory, const std::vector<std::string>& extensions) {
-#ifdef _WIN32
-    try {
-        if (!std::filesystem::exists(directory)) {
-            return;
-        }
-        
-        for (const auto& entry : std::filesystem::directory_iterator(directory)) {
-            if (entry.is_regular_file()) {
-                std::string filePath = entry.path().string();
-                std::string extension = entry.path().extension().string();
-                
-                // Convert extension to lowercase for comparison
-                std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-                
-                // Check if this file has one of the desired extensions
-                for (const std::string& ext : extensions) {
-                    if (extension == ext) {
-                        std::string baseName = extractLibraryBaseName(filePath);
-                        if (!baseName.empty()) {
-                            discoveredLibraries.insert(baseName);
-                            
-                            if (ext == ".dll") {
-                                availableDlls.insert(baseName);
-                            } else if (ext == ".lib" || ext == ".a") {
-                                availableStaticLibs.insert(baseName);
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-    } catch (const std::filesystem::filesystem_error&) {
-        // Ignore directories we can't access
-    }
-#endif
-}
-
-std::string WindowsAPIResolver::extractLibraryBaseName(const std::string& filePath) {
-#ifdef _WIN32
-    std::filesystem::path path(filePath);
-    std::string filename = path.filename().string();
-    std::string stem = path.stem().string();
-    
-    // Convert to lowercase for consistency
-    std::transform(stem.begin(), stem.end(), stem.begin(), ::tolower);
-    
-    // Filter out obvious non-system libraries and temporary files
-    if (stem.empty() || 
-        stem.find("temp") != std::string::npos ||
-        stem.find("tmp") != std::string::npos ||
-        stem.find("cache") != std::string::npos ||
-        stem.size() < 3) {
-        return "";
-    }
-    
-    return stem;
-#else
-    return "";
-#endif
+WindowsAPIResolver::WindowsAPIResolver(const std::string& libraryPath) 
+    : specifiedLibraryPath(libraryPath) {
 }
 
 llvm::Function* WindowsAPIResolver::resolve(IRGenerator& generator, const std::string& name, 
@@ -194,9 +18,14 @@ llvm::Function* WindowsAPIResolver::resolve(IRGenerator& generator, const std::s
         return nullptr; // Only resolve on Windows
     }
     
-    std::string requiredLibrary = findLibraryForFunction(name);
-    if (requiredLibrary.empty()) {
-        return nullptr; // Function not found in any Windows library
+    // Determine the library name - use specified path if available, otherwise auto-detect
+    std::string libName;
+    if (!specifiedLibraryPath.empty()) {
+        // Extract library name from path
+        std::filesystem::path path(specifiedLibraryPath);
+        libName = path.stem().string(); // Remove .lib/.dll extension
+    } else {
+        libName = getRequiredLibraryForFunction(name);
     }
     
     // Create the function
@@ -204,61 +33,231 @@ llvm::Function* WindowsAPIResolver::resolve(IRGenerator& generator, const std::s
         funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
     );
     
-    // Set Windows calling convention (usually stdcall for Win32 API)
-    func->setCallingConv(llvm::CallingConv::X86_StdCall);
-    
+    // Set calling convention based on architecture
+    if (sizeof(void*) == 8) {
+        // x64 Windows uses unified calling convention
+        func->setCallingConv(llvm::CallingConv::C);
+        // func->setCallingConv(llvm::CallingConv::X86_StdCall);
+    } else {
+        // x86 Windows - most Win32 API uses stdcall
+        func->setCallingConv(llvm::CallingConv::X86_StdCall);
+    }
+
+    // Add DLL import storage class for better linking
+    // func->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
+
     // Add library dependency
     LinkDependencies::LibraryInfo info;
-    info.name = requiredLibrary + ".dll";
+    info.name = libName;
     info.isSystemLib = true;
-    deps.addRequiredLibrary(requiredLibrary + ".dll", info);
+    deps.addRequiredLibrary(libName, info);
     
     return func;
 }
 
-bool WindowsAPIResolver::isWindowsSystemLibrary(const std::string& libraryName) {
-    scanWindowsDirectories();
+std::string WindowsAPIResolver::getRequiredLibraryForFunction(const std::string& name) {
+    // Map common functions to their required libraries
+    static const std::unordered_map<std::string, std::string> functionToLibrary = {
+        // Kernel32.dll functions
+        {"GetModuleHandle", "kernel32"}, {"GetModuleHandleA", "kernel32"}, {"GetModuleHandleW", "kernel32"},
+        {"LoadLibrary", "kernel32"}, {"LoadLibraryA", "kernel32"}, {"LoadLibraryW", "kernel32"},
+        {"GetProcAddress", "kernel32"},
+        {"CreateFile", "kernel32"}, {"CreateFileA", "kernel32"}, {"CreateFileW", "kernel32"},
+        {"ReadFile", "kernel32"}, {"WriteFile", "kernel32"}, {"CloseHandle", "kernel32"},
+        {"GetSystemDirectory", "kernel32"}, {"GetSystemDirectoryA", "kernel32"}, {"GetSystemDirectoryW", "kernel32"},
+        {"GetWindowsDirectory", "kernel32"}, {"GetWindowsDirectoryA", "kernel32"}, {"GetWindowsDirectoryW", "kernel32"},
+        {"Sleep", "kernel32"}, {"GetTickCount", "kernel32"}, {"GetCurrentProcess", "kernel32"},
+        {"GetCurrentThread", "kernel32"}, {"ExitProcess", "kernel32"},
+        
+        // User32.dll functions
+        {"MessageBox", "user32"}, {"MessageBoxA", "user32"}, {"MessageBoxW", "user32"},
+        {"FindWindow", "user32"}, {"FindWindowA", "user32"}, {"FindWindowW", "user32"},
+        {"GetWindowText", "user32"}, {"GetWindowTextA", "user32"}, {"GetWindowTextW", "user32"},
+        {"ShowWindow", "user32"}, {"UpdateWindow", "user32"}, {"GetDC", "user32"}, {"ReleaseDC", "user32"},
+        
+        // GDI32.dll functions
+        {"CreateDC", "gdi32"}, {"CreateDCA", "gdi32"}, {"CreateDCW", "gdi32"},
+        {"DeleteDC", "gdi32"}, {"BitBlt", "gdi32"}, {"CreateBitmap", "gdi32"},
+        
+        // WS2_32.dll functions
+        {"WSAStartup", "ws2_32"}, {"WSACleanup", "ws2_32"}, {"socket", "ws2_32"},
+        {"connect", "ws2_32"}, {"send", "ws2_32"}, {"recv", "ws2_32"}, {"closesocket", "ws2_32"},
+        
+        // Shell32.dll functions
+        {"ShellExecute", "shell32"}, {"ShellExecuteA", "shell32"}, {"ShellExecuteW", "shell32"},
+        {"SHGetFolderPath", "shell32"}, {"SHGetFolderPathA", "shell32"}, {"SHGetFolderPathW", "shell32"},
+        
+        // Advapi32.dll functions
+        {"RegOpenKeyEx", "advapi32"}, {"RegOpenKeyExA", "advapi32"}, {"RegOpenKeyExW", "advapi32"},
+        {"RegCloseKey", "advapi32"}, {"RegQueryValueEx", "advapi32"}, {"RegQueryValueExA", "advapi32"}, {"RegQueryValueExW", "advapi32"}
+    };
     
-    // Remove common file extensions for comparison
-    std::string baseName = libraryName;
-    if (baseName.size() > 4 && baseName.substr(baseName.size() - 4) == ".dll") {
-        baseName = baseName.substr(0, baseName.size() - 4);
+    auto it = functionToLibrary.find(name);
+    if (it != functionToLibrary.end()) {
+        return it->second;
     }
-    if (baseName.size() > 4 && baseName.substr(baseName.size() - 4) == ".lib") {
-        baseName = baseName.substr(0, baseName.size() - 4);
+    
+    // Default fallback based on function prefixes
+    if (name.find("Wsa") == 0 || name.find("WSA") == 0) {
+        return "ws2_32";
+    } else if (name.find("Reg") == 0) {
+        return "advapi32";
+    } else if (name.find("Shell") == 0 || name.find("SH") == 0) {
+        return "shell32";
+    } else if (name.find("MessageBox") == 0 || name.find("FindWindow") == 0 || name.find("ShowWindow") == 0) {
+        return "user32";
+    } else if (name.find("CreateDC") == 0 || name.find("DeleteDC") == 0 || name.find("BitBlt") == 0) {
+        return "gdi32";
     }
     
-    // Convert to lowercase for comparison
-    std::transform(baseName.begin(), baseName.end(), baseName.begin(), ::tolower);
-    
-    return discoveredLibraries.find(baseName) != discoveredLibraries.end();
+    // Most common default for Windows API functions
+    return "kernel32";
 }
 
-bool WindowsAPIResolver::canResolveFunction(const std::string& functionName) {
-    return !findLibraryForFunction(functionName).empty();
+bool WindowsAPIResolver::isLikelyWindowsAPIFunction(const std::string& name) {
+    // Check if function name matches common Windows API patterns
+    static const std::vector<std::string> windowsApiPrefixes = {
+        "Get", "Set", "Create", "Delete", "Open", "Close", "Read", "Write",
+        "Find", "Load", "Free", "Query", "Reg", "Shell", "Show", "Update",
+        "Message", "Window", "File", "Handle", "Process", "Thread", "WSA"
+    };
+    
+    for (const auto& prefix : windowsApiPrefixes) {
+        if (name.find(prefix) == 0) {
+            return true;
+        }
+    }
+    
+    // Check for common Windows API suffixes
+    if (name.length() > 1) {
+        char lastChar = name.back();
+        if (lastChar == 'A' || lastChar == 'W') {
+            std::string baseName = name.substr(0, name.length() - 1);
+            for (const auto& prefix : windowsApiPrefixes) {
+                if (baseName.find(prefix) == 0) {
+                    return true;
+                }
+            }
+        }
+    }
+    
+    return false;
 }
 
-std::string WindowsAPIResolver::findLibraryForFunction(const std::string& functionName) {
-    scanWindowsDirectories();
+bool WindowsAPIResolver::isWindowsSystemLibrary(const std::string& libraryPath) {
+    if (libraryPath.empty()) {
+        return false;
+    }
     
+    std::string normalizedPath = normalizeLibraryPath(libraryPath);
+    
+    // Check if it's in a Windows system directory
 #ifdef _WIN32
-    // First try DLLs (runtime libraries)
-    for (const std::string& libName : availableDlls) {
-        if (functionExistsInLibrary(functionName, libName)) {
-            return libName;
+    char systemDir[MAX_PATH];
+    char windowsDir[MAX_PATH];
+    char sysWow64Dir[MAX_PATH];
+    
+    std::vector<std::string> systemDirs;
+    
+    if (GetSystemDirectoryA(systemDir, MAX_PATH)) {
+        systemDirs.push_back(std::string(systemDir));
+    }
+    
+    if (GetWindowsDirectoryA(windowsDir, MAX_PATH)) {
+        systemDirs.push_back(std::string(windowsDir));
+        systemDirs.push_back(std::string(windowsDir) + "\\System");
+    }
+    
+    if (GetSystemWow64DirectoryA(sysWow64Dir, MAX_PATH)) {
+        systemDirs.push_back(std::string(sysWow64Dir));
+    }
+    
+    // Check if the library path is in any system directory
+    for (const std::string& sysDir : systemDirs) {
+        std::string normalizedSysDir = sysDir;
+        std::transform(normalizedSysDir.begin(), normalizedSysDir.end(), normalizedSysDir.begin(), ::tolower);
+        
+        if (normalizedPath.find(normalizedSysDir) == 0) {
+            return true;
         }
     }
 #endif
     
-    return "";
+    // Also check by library name (for cases where user just provides "kernel32.dll")
+    std::filesystem::path path(libraryPath);
+    std::string filename = path.filename().string();
+    std::string stem = path.stem().string();
+    
+    return isWindowsSystemLibraryName(stem);
 }
 
-bool WindowsAPIResolver::functionExistsInLibrary(const std::string& functionName, const std::string& libraryName) {
+bool WindowsAPIResolver::isWindowsSystemLibraryName(const std::string& libraryName) {
+    static const std::unordered_set<std::string> windowsSystemLibs = {
+        // Core Windows libraries
+        "kernel32", "user32", "gdi32", "advapi32", "shell32", "ws2_32",
+        "ole32", "oleaut32", "comctl32", "comdlg32", "winmm", "version",
+        "imagehlp", "psapi", "netapi32", "winspool", "crypt32", "secur32",
+        "ntdll", "msvcrt", "ucrtbase", "vcruntime140", "msvcp140",
+        
+        // Graphics and multimedia
+        "opengl32", "glu32", "d3d9", "d3d11", "dxgi", "d2d1", "dwrite",
+        "wincodecs", "mf", "mfplat", "evr",
+        
+        // Network and internet
+        "wininet", "urlmon", "winhttp", "iphlpapi", "dnsapi",
+        
+        // System utilities
+        "shlwapi", "mpr", "wintrust", "cabinet", "setupapi", "cfgmgr32",
+        "powrprof", "userenv", "authz", "wtsapi32",
+        
+        // Input and HID
+        "hid", "xinput1_4", "xinput9_1_0", "dinput8",
+        
+        // Common runtime libraries
+        "msvcr120", "msvcr110", "msvcr100", "msvcr90", "msvcr80",
+        "msvcp120", "msvcp110", "msvcp100", "msvcp90", "msvcp80"
+    };
+    
+    std::string lowerName = libraryName;
+    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
+    
+    return windowsSystemLibs.find(lowerName) != windowsSystemLibs.end();
+}
+
+std::string WindowsAPIResolver::normalizeLibraryPath(const std::string& path) {
+    std::string normalized = path;
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), ::tolower);
+    
+    // Replace forward slashes with backslashes on Windows
 #ifdef _WIN32
-    std::string dllName = libraryName + ".dll";
+    std::replace(normalized.begin(), normalized.end(), '/', '\\');
+#endif
+    
+    return normalized;
+}
+
+bool WindowsAPIResolver::canResolveFunction(const std::string& functionName, const std::string& libraryPath) {
+    if (!isWindowsSystemLibrary(libraryPath)) {
+        return false;
+    }
+    
+    return functionExistsInLibrary(functionName, libraryPath);
+}
+
+bool WindowsAPIResolver::functionExistsInLibrary(const std::string& functionName, const std::string& libraryPath) {
+#ifdef _WIN32
+    // Extract just the library name from the path
+    std::filesystem::path path(libraryPath);
+    std::string libName = path.filename().string();
+    
+    // Ensure it has .dll extension
+    if (path.extension() != ".dll") {
+        std::string stem = path.stem().string();
+        libName = stem + ".dll";
+    }
     
     // Try to load the library
-    HMODULE hModule = LoadLibraryA(dllName.c_str());
+    HMODULE hModule = LoadLibraryA(libName.c_str());
     if (hModule == nullptr) {
         return false;
     }
@@ -275,17 +274,4 @@ bool WindowsAPIResolver::functionExistsInLibrary(const std::string& functionName
     // Can't check on non-Windows platforms
     return false;
 #endif
-}
-
-const std::unordered_set<std::string>& WindowsAPIResolver::getDiscoveredWindowsLibraries() {
-    scanWindowsDirectories();
-    return discoveredLibraries;
-}
-
-void WindowsAPIResolver::refreshLibraryCache() {
-    isScanned = false;
-    discoveredLibraries.clear();
-    availableDlls.clear();
-    availableStaticLibs.clear();
-    scanWindowsDirectories();
 }

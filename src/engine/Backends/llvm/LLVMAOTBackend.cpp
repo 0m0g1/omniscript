@@ -24,6 +24,11 @@ LLVMAOTBackend::LLVMAOTBackend() {
     llvm::InitializeAllAsmParsers();
 
     std::string triple = llvm::sys::getDefaultTargetTriple();
+    
+    #ifdef _WIN32
+        triple = "x86_64-pc-windows-msvc";
+    #endif
+
     std::string error;
     const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple, error);
     if (!target) {
@@ -31,22 +36,21 @@ LLVMAOTBackend::LLVMAOTBackend() {
     }
 
     llvm::TargetOptions opt;
-    auto relocModel = std::optional<llvm::Reloc::Model>(llvm::Reloc::PIC_);
     targetMachine = std::shared_ptr<llvm::TargetMachine>(
         target->createTargetMachine(
             triple, 
             "generic", 
             "", 
             opt, 
-            relocModel,
+            std::nullopt,    // Use default relocation model
             std::nullopt,
-            llvm::CodeGenOptLevel::Aggressive
+            llvm::CodeGenOptLevel::Default  // Less aggressive
         )
     );
 
-    // Add these target machine configurations
-    targetMachine->setO0WantsFastISel(true);  // Better debug at O0
-    targetMachine->setGlobalISel(true);       // Enable global instruction selector
+    // // Add these target machine configurations
+    // targetMachine->setO0WantsFastISel(true);  // Better debug at O0
+    // targetMachine->setGlobalISel(true);       // Enable global instruction selector
     
     scope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>();
 }
@@ -73,12 +77,17 @@ void LLVMAOTBackend::setupExternalResolvers() {
     switch (platform) {
 #ifdef _WIN32
         case PlatformInfo::Platform::Windows:
-            irGen->addExternalResolver("msvcrt", std::make_unique<WindowsAPIResolver>());
-            irGen->addExternalResolver("kernel32", std::make_unique<WindowsAPIResolver>());
-            irGen->addExternalResolver("user32", std::make_unique<WindowsAPIResolver>());
-            irGen->addExternalResolver("gdi32", std::make_unique<WindowsAPIResolver>());
-            irGen->addExternalResolver("shell32", std::make_unique<WindowsAPIResolver>());
-            irGen->addExternalResolver("ntdll", std::make_unique<WindowsAPIResolver>());
+            irGen->addExternalResolver("kernel32", std::make_unique<WindowsAPIResolver>("kernel32"));
+            irGen->addExternalResolver("user32",   std::make_unique<WindowsAPIResolver>("user32"));
+            irGen->addExternalResolver("gdi32",    std::make_unique<WindowsAPIResolver>("gdi32"));
+            irGen->addExternalResolver("shell32",  std::make_unique<WindowsAPIResolver>("shell32"));
+            irGen->addExternalResolver("ntdll",    std::make_unique<WindowsAPIResolver>("ntdll"));
+            irGen->addExternalResolver("msvcrt",   std::make_unique<WindowsAPIResolver>("msvcrt"));
+            #if defined(__MINGW32__) || defined(__MINGW64__)
+                irGen->addExternalResolver("C", std::make_unique<WindowsAPIResolver>("msvcrt"));
+            #elif defined(_MSC_VER)
+                irGen->addExternalResolver("C", std::make_unique<WindowsAPIResolver>("ucrt"));
+            #endif
             break;
 #else
         case PlatformInfo::Platform::Linux:

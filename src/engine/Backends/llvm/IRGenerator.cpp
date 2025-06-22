@@ -62,9 +62,7 @@ void IRGenerator::initialize() {
     
     // Force Windows target triple if not already set
     #ifdef _WIN32
-        if (triple.find("windows") == std::string::npos) {
-            triple = "x86_64-pc-windows-msvc";
-        }
+        triple = "x86_64-pc-windows-msvc";
     #endif
 
     Module->setTargetTriple(triple);

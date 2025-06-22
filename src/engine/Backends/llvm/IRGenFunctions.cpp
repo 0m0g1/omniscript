@@ -254,20 +254,22 @@ llvm::Function* IRGenerator::createExternFunction(
         bool dynamicExists = !dynamicLibPath.empty() && fileExists(dynamicLibPath);
 
         if (!staticExists && !dynamicExists) {
-            // Try system libraries as fallback using dynamic detection
-            if (WindowsAPIResolver::canResolveFunction(externName)) {
-                std::string winLibrary = WindowsAPIResolver::findLibraryForFunction(externName);
-                if (!winLibrary.empty()) {
-                    staticLibPath = winLibrary + ".lib";
-                    dynamicLibPath = winLibrary + ".dll";
-                    staticExists = WindowsAPIResolver::isWindowsSystemLibrary(staticLibPath);
-                    dynamicExists = WindowsAPIResolver::isWindowsSystemLibrary(dynamicLibPath);
-                }
-            } else if (CStdLibResolver::isCStdLibFunction(externName)) {
+            // Try common system libraries as fallback - user should provide explicit paths
+            if (CStdLibResolver::isCStdLibFunction(externName)) {
                 staticLibPath = "msvcrt.lib";
                 dynamicLibPath = "msvcrt.dll";
                 staticExists = true;
                 dynamicExists = true;
+            }
+            // For Windows API functions, try to auto-detect the library
+            else if (WindowsAPIResolver::isLikelyWindowsAPIFunction(externName)) {
+                // Get the likely library name for this function
+                std::string detectedLib = WindowsAPIResolver::getRequiredLibraryForFunction(externName);
+                staticLibPath = detectedLib + ".lib";
+                dynamicLibPath = detectedLib + ".dll";
+                staticExists = true;
+                dynamicExists = true;
+                console.info("Auto-detected Windows API function '" + externName + "' in library: " + detectedLib);
             }
         }
 
@@ -283,8 +285,9 @@ llvm::Function* IRGenerator::createExternFunction(
             auto resolver = tryAddResolver(staticLibPath, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
                 if (CStdLibResolver::isCStdLibFunction(externName)) {
                     return std::make_unique<CStdLibResolver>();
-                } else if (WindowsAPIResolver::canResolveFunction(externName)) {
-                    return std::make_unique<WindowsAPIResolver>();
+                } else if (WindowsAPIResolver::isWindowsSystemLibrary(staticLibPath)) {
+                    // Create a resolver that knows about the specific library
+                    return std::make_unique<WindowsAPIResolver>(staticLibPath);
                 } else {
                     return std::make_unique<StaticLibraryResolver>();
                 }
