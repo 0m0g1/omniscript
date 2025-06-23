@@ -2,7 +2,11 @@ extern "C" {
     fn printf(...fmt: char*) => int;
 }
 
-extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
+extern 
+"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll", 
+"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a" 
+"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a" 
+{
     fn glfwInit() => int;
     fn glfwCreateWindow(w: int, h: int, title: char*, monitor: void*, share: void*) => void*;
     fn glfwMakeContextCurrent(win: void*) => void;

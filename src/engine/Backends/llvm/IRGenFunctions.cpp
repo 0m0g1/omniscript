@@ -13,10 +13,10 @@
 
 void IRGenerator::addMainFunction() {
     if (!Module) return;
-
+    
     llvm::Function* mainFn = Module->getFunction("main");
     if (mainFn) return; // already present
-
+    
     llvm::Function* topFunc = Module->getFunction("__top_level__");
     if (!topFunc) {
         // If top-level doesn't exist, create a dummy one
@@ -26,14 +26,29 @@ void IRGenerator::addMainFunction() {
         Builder->SetInsertPoint(topEntry);
         Builder->CreateRetVoid();
     }
-
-    // Create the `main` function with `int ()` return type
-    llvm::FunctionType* mainType = llvm::FunctionType::get(llvm::Type::getInt32Ty(*Context), false);
+    
+    // Create the standard `main` function with signature: int main(int argc, char** argv)
+    llvm::Type* intType = llvm::Type::getInt32Ty(*Context);
+    llvm::Type* charPtrType = llvm::PointerType::getUnqual(*Context);
+    llvm::Type* charPtrPtrType = llvm::PointerType::getUnqual(*Context);
+    
+    llvm::FunctionType* mainType = llvm::FunctionType::get(
+        intType, 
+        {intType, charPtrPtrType}, 
+        false
+    );
+    
     mainFn = llvm::Function::Create(mainType, llvm::Function::ExternalLinkage, "main", Module.get());
+    
+    // Set parameter names for clarity
+    auto args = mainFn->arg_begin();
+    args->setName("argc");
+    (++args)->setName("argv");
+    
     llvm::BasicBlock* mainEntry = llvm::BasicBlock::Create(*Context, "entry", mainFn);
     Builder->SetInsertPoint(mainEntry);
-
-    // Call __top_level__()
+    
+    // Call __top_level__() (ignoring argc/argv for now)
     Builder->CreateCall(topFunc);
     Builder->CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), 0));
 }

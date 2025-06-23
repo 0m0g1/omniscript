@@ -127,7 +127,7 @@ struct RuntimeConfig {
     GCStrategy gcStrategy = GCStrategy::RefCounting;
     size_t heapSize = 64 * 1024 * 1024; // 64MB default
     size_t stackSize = 8 * 1024 * 1024;  // 8MB default
-    SafetyLevel safetyLevel = SafetyLevel::Standard;
+    SafetyLevel safetyLevel = SafetyLevel::Unsafe;
     bool enableParallelGC = true;
     int gcThreads = 0; // 0 = auto
     bool enableConcurrentGC = false;
@@ -204,7 +204,7 @@ struct Config {
     // === Core Configuration ===
     std::string filePath;
     std::string outputPath = "a.out";
-    std::string entry = "main"; // Function to call when starting
+    std::string entry; // Function to call when starting
     CompileMode mode = CompileMode::JIT;
     
     // === Target Configuration (using TargetInfo enums) ===

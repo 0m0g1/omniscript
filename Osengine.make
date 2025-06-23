@@ -31,12 +31,9 @@ RESCOMP = windres
 INCLUDES += -Iinclude -Idependencies/llvm/include
 FORCE_INCLUDE +=
 ALL_CPPFLAGS += $(CPPFLAGS) -MD -MP $(DEFINES) $(INCLUDES)
-ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -mno-stack-arg-probe
-ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -m64 -std=c++23 -mno-stack-arg-probe
 ALL_RESFLAGS += $(RESFLAGS) $(DEFINES) $(INCLUDES)
 LIBS += -lLLVM-20 -lpthread -lquadmath -lucrt -lmsvcrt
 LDDEPS +=
-ALL_LDFLAGS += $(LDFLAGS) -Ldependencies/llvm/lib -L/usr/lib64 -m64 -s
 LINKCMD = $(CXX) -o "$@" $(OBJECTS) $(RESOURCES) $(ALL_LDFLAGS) $(LIBS)
 define PREBUILDCMDS
 endef
@@ -48,6 +45,9 @@ TARGETDIR = bin/Debug-windows-x86_64
 TARGET = $(TARGETDIR)/Osengine.exe
 OBJDIR = bin-int/Debug-windows-x86_64
 DEFINES += -DDEBUG -DPLATFORM_WINDOWS
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -O0 -g -mno-stack-arg-probe
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -m64 -O0 -g -std=c++23 -mno-stack-arg-probe
+ALL_LDFLAGS += $(LDFLAGS) -Ldependencies/llvm/lib -L/usr/lib64 -m64
 define POSTBUILDCMDS
 	@echo Running postbuild commands
 	powershell -Command "if (-not (Test-Path -Path 'bin/Debug-windows-x86_64')) { New-Item -ItemType Directory -Force -Path 'bin/Debug-windows-x86_64' }"
@@ -59,6 +59,9 @@ TARGETDIR = bin/Release-windows-x86_64
 TARGET = $(TARGETDIR)/Osengine.exe
 OBJDIR = bin-int/Release-windows-x86_64
 DEFINES += -DNDEBUG -DPLATFORM_WINDOWS
+ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -O2 -mno-stack-arg-probe
+ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -m64 -O2 -std=c++23 -mno-stack-arg-probe
+ALL_LDFLAGS += $(LDFLAGS) -Ldependencies/llvm/lib -L/usr/lib64 -m64 -s
 define POSTBUILDCMDS
 	@echo Running postbuild commands
 	powershell -Command "if (-not (Test-Path -Path 'bin/Release-windows-x86_64')) { New-Item -ItemType Directory -Force -Path 'bin/Release-windows-x86_64' }"

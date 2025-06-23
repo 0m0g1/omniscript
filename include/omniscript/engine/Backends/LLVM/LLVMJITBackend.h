@@ -45,6 +45,7 @@ private:
     // Execution helpers
     llvm::Expected<llvm::orc::ExecutorAddr> lookupFunction(const std::string& name);
     void executeFunction(const std::string& functionName, const Config& config);
+    bool hasMainFunction();
     
 public:
     LLVMJITBackend();

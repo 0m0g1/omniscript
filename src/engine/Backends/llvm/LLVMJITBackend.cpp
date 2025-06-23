@@ -5,10 +5,6 @@
 
 // Implementation
 LLVMJITBackend::LLVMJITBackend() {
-    llvm::InitializeNativeTarget();
-    llvm::InitializeNativeTargetAsmPrinter();
-    llvm::InitializeNativeTargetAsmParser();
-    
     scope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>();
 }
 
@@ -17,6 +13,7 @@ void LLVMJITBackend::initialize() {
 }
 
 void LLVMJITBackend::setupJITEngine(const Config& config) {
+    DEBUG_LOG("Setting up the JIT engine");
     // Validate JIT configuration
     if (config.isCrossCompilation()) {
         throw std::runtime_error("JIT compilation is not supported for cross-compilation targets");
@@ -99,9 +96,29 @@ llvm::Expected<llvm::orc::JITTargetMachineBuilder> LLVMJITBackend::createTargetM
     
     builder.setOptions(opt);
     
-    // Set CPU features if specified
-    if (config.cpuFeatures != "native") {
-        builder.setCPU(config.cpuFeatures);
+    // Fix: Always resolve CPU name using IRGenerator's function
+    // Get the target triple from the builder
+    std::string targetTriple = builder.getTargetTriple().str();
+    
+    // Use IRGenerator's resolveCPUName function
+    std::string resolvedCPU = irGen->resolveCPUName(targetTriple);
+    builder.setCPU(resolvedCPU);
+    
+    // Optional: Also set features if you have a buildFeatureString function
+    std::string features = irGen->buildFeatureString(targetTriple);
+    if (!features.empty()) {
+        // Parse comma-separated features into vector
+        std::vector<std::string> featureVec;
+        std::stringstream ss(features);
+        std::string feature;
+        while (std::getline(ss, feature, ',')) {
+            if (!feature.empty()) {
+                featureVec.push_back(feature);
+            }
+        }
+        if (!featureVec.empty()) {
+            builder.addFeatures(featureVec);
+        }
     }
     
     return std::move(builder);
@@ -232,11 +249,11 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         config.printSummary();
     }
     
-    // Setup JIT engine with config
-    setupJITEngine(config);
-    
     scope->setName(config.filePath);
     irGen = std::make_shared<IRGenerator>(config);
+
+    // Setup JIT engine with config
+    setupJITEngine(config);
     
     setupExternalResolvers(config);
     
@@ -258,13 +275,6 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     irGen->finalizeGlobalInitializers();
     irGen->finalize();
     
-    // Add entry point
-    if (config.entry.empty()) {
-        irGen->addMainFunction();
-    } else {
-        DEBUG_LOG("Using custom entry point: " + config.entry);
-    }
-    
     if (config.diagnostics.logFinalCode) {
         console.log("========= JIT LLVM IR =========");
         irGen->printIR();
@@ -282,6 +292,24 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         }
     }
     
+    // Determine entry point BEFORE moving module to JIT
+    // Priority: 1. config.entry, 2. main function, 3. __top_level__
+    std::string entryPoint;
+    
+    if (!config.entry.empty()) {
+        entryPoint = config.entry;
+        DEBUG_LOG("Using configured entry point: " + entryPoint);
+    } else {
+        // Check if there's a main function with correct signature
+        if (hasMainFunction()) {
+            entryPoint = "main";
+            DEBUG_LOG("Found main function with correct signature");
+        } else {
+            entryPoint = "__top_level__";
+            DEBUG_LOG("Using default entry point: __top_level__");
+        }
+    }
+    
     // Add module to JIT
     auto module = irGen->getModule();
     auto tsm = llvm::orc::ThreadSafeModule(std::move(module), irGen->getContext());
@@ -292,8 +320,42 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     }
     
     // Execute the entry point
-    std::string entryPoint = config.entry.empty() ? "main" : config.entry;
     executeFunction(entryPoint, config);
+}
+
+bool LLVMJITBackend::hasMainFunction() {
+    // Check the module through IRGenerator before it's moved
+    auto module = irGen->getCurrentModule(); // Assume this returns raw pointer without moving
+    if (!module) return false;
+    
+    // Look for main function
+    auto mainFunc = module->getFunction("main");
+    if (!mainFunc) return false;
+    
+    // Check if it has the correct signature: int main(int, char**)
+    auto funcType = mainFunc->getFunctionType();
+    
+    // Should return int (i32)
+    if (!funcType->getReturnType()->isIntegerTy(32)) {
+        return false;
+    }
+    
+    // Should have exactly 2 parameters
+    if (funcType->getNumParams() != 2) {
+        return false;
+    }
+    
+    // First parameter should be int (i32)
+    if (!funcType->getParamType(0)->isIntegerTy(32)) {
+        return false;
+    }
+    
+    // Second parameter should be char** (pointer type)
+    if (!funcType->getParamType(1)->isPointerTy()) {
+        return false;
+    }
+    
+    return true;
 }
 
 void LLVMJITBackend::executeFunction(const std::string& functionName, const Config& config) {

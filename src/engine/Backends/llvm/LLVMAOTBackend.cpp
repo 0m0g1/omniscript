@@ -16,13 +16,7 @@
 
 namespace fs = std::filesystem;
 
-LLVMAOTBackend::LLVMAOTBackend() {
-    llvm::InitializeAllTargetInfos();
-    llvm::InitializeAllTargets();
-    llvm::InitializeAllTargetMCs();
-    llvm::InitializeAllAsmPrinters();
-    llvm::InitializeAllAsmParsers();
-    
+LLVMAOTBackend::LLVMAOTBackend() {    
     scope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>();
 }
 
@@ -33,11 +27,11 @@ void LLVMAOTBackend::initialize() {
 void LLVMAOTBackend::setupTargetMachine(const Config& config) {
     
     std::string targetTriple = config.getEffectiveTargetTriple();
-    std::string cpu = (config.cpuFeatures == "native" && !config.isCrossCompilation()) ? 
-                      "native" : config.getDefaultCPU();
+    std::string cpu = irGen->resolveCPUName((config.cpuFeatures == "native" && !config.isCrossCompilation()) ? 
+                      "native" : config.getDefaultCPU());
     
     
-    std::string features = buildFeatureString(config);
+    std::string features = irGen->buildFeatureString(targetTriple);
     
     DEBUG_LOG("Target triple: " + targetTriple);
     DEBUG_LOG("CPU: " + cpu);
@@ -49,9 +43,10 @@ void LLVMAOTBackend::setupTargetMachine(const Config& config) {
         throw std::runtime_error("Target lookup failed for '" + targetTriple + "': " + error);
     }
 
-    llvm::TargetOptions opt = buildTargetOptions(config);
+    llvm::TargetOptions opt;// = buildTargetOptions(config);
     
-    std::optional<llvm::Reloc::Model> relocModel = getRelocationModel(config);
+    // std::optional<llvm::Reloc::Model> relocModel = getRelocationModel(config);
+    auto relocModel = std::optional<llvm::Reloc::Model>(llvm::Reloc::PIC_);
     
     std::optional<llvm::CodeModel::Model> codeModel = getCodeModel(config);
     
@@ -64,7 +59,9 @@ void LLVMAOTBackend::setupTargetMachine(const Config& config) {
             features,
             opt,
             relocModel,
-            codeModel,
+            // std::nullopt,
+            // codeModel,
+            std::nullopt,
             optLevel
         )
     );
@@ -74,34 +71,6 @@ void LLVMAOTBackend::setupTargetMachine(const Config& config) {
     }
     
     configureTargetMachineSettings(config);
-}
-
-std::string LLVMAOTBackend::buildFeatureString(const Config& config) {
-    std::vector<std::string> features;
-    
-    for (const auto& feature : config.enabledFeatures) {
-        if (config.supportsFeature(feature)) {
-            features.push_back("+" + feature);
-        } else {
-            DEBUG_LOG("Warning: Feature '" + feature + "' not supported on target architecture");
-        }
-    }
-    
-    for (const auto& feature : config.disabledFeatures) {
-        features.push_back("-" + feature);
-    }
-    
-    if (config.security.enableStackProtection) {
-        features.push_back("+sse"); 
-    }
-    
-    std::string result;
-    for (size_t i = 0; i < features.size(); ++i) {
-        if (i > 0) result += ",";
-        result += features[i];
-    }
-    
-    return result;
 }
 
 llvm::TargetOptions LLVMAOTBackend::buildTargetOptions(const Config& config) {
@@ -171,7 +140,8 @@ void LLVMAOTBackend::configureTargetMachineSettings(const Config& config) {
     
     
     if (config.diagnostics.debugMode) {
-        targetMachine->setO0WantsFastISel(true);
+        // creates an error unable to translate function call always
+        // targetMachine->setO0WantsFastISel(true);
     }
 }
 
@@ -265,11 +235,10 @@ void LLVMAOTBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         config.printSummary();
     }
 
-    
-    setupTargetMachine(config);
-    
     scope->setName(config.filePath);
     irGen = std::make_shared<IRGenerator>(config);
+    
+    setupTargetMachine(config);
     
     setupExternalResolvers(config);
 

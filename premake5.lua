@@ -1,18 +1,28 @@
--- Premake script for OmniScript++
 workspace "OmniScript++"
     configurations { "Debug", "Release" }
     architecture "x64"
 
-    filter "configurations:Debug"
-        defines { "DEBUG" }
-    
-    filter "configurations:Release"
-        defines { "NDEBUG" }
-    
-    filter {}
-    
     outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
+    filter "configurations:Debug"
+        defines { "DEBUG" }
+        symbols "On"
+        optimize "Off"
+
+    filter "configurations:Release"
+        defines { "NDEBUG" }
+        optimize "On"
+
+    filter { "configurations:Debug", "system:not windows", "toolset:gcc or clang" }
+        buildoptions { "-fsanitize=address", "-fno-omit-frame-pointer" }
+        linkoptions  { "-fsanitize=address" }
+
+    filter { "configurations:Debug", "system:windows", "toolset:clang" }
+        buildoptions { "-fsanitize=address", "-fno-omit-frame-pointer" }
+        linkoptions  { "-fsanitize=address" }
+
+
+    filter {}
 
 project "Osengine"
     kind "ConsoleApp"
@@ -21,18 +31,14 @@ project "Osengine"
     targetdir ("bin/" .. outputdir)
     objdir ("bin-int/" .. outputdir)
 
-    files {
-        "src/**.cpp"
-    }
+    files { "src/**.cpp" }
 
     includedirs {
         "include",
         "dependencies/llvm/include"
     }
-    
-    libdirs {
-        "dependencies/llvm/lib"
-    }
+
+    libdirs { "dependencies/llvm/lib" }
 
     links {
         "LLVM-20",
@@ -40,7 +46,6 @@ project "Osengine"
         "quadmath"
     }
 
-    -- Disable stack probes for Windows
     filter { "system:windows", "toolset:msc*" }
         buildoptions { "/mno-stack-arg-probe" }
 
@@ -51,11 +56,8 @@ project "Osengine"
         defines { "PLATFORM_WINDOWS" }
         systemversion "latest"
 
-        -- Link against required MSVC runtime libs to fix __chkstk_ms
         links {
-            -- "legacy_stdio_definitions",
             "ucrt",
-            -- "vcruntime",
             "msvcrt"
         }
 

@@ -1,3 +1,4 @@
+#include <omniscript/Core/CPUFeatureDetector.h>
 #include <omniscript/engine/Backends/llvm/IRGenerator.h>
 #include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
 
@@ -43,6 +44,7 @@ bool IRGenerator::supportsAVX2() {
 }
 
 void IRGenerator::initialize() {
+    DEBUG_LOG("Initializing The IR Generator");
     // Validate configuration first
     std::string validationError;
     if (!configs.validate(validationError)) {
@@ -106,11 +108,17 @@ void IRGenerator::initialize() {
 }
 
 void IRGenerator::initializeTargetFromConfig() {
+    DEBUG_LOG("Initializing The target from the configurations");
     // Initialize target based on config
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     llvm::InitializeNativeTargetAsmParser();
-    
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmPrinters();
+    llvm::InitializeAllAsmParsers();
+
     std::string error;
     std::string triple = configs.getEffectiveTargetTriple();
     
@@ -146,27 +154,15 @@ void IRGenerator::initializeTargetFromConfig() {
         options.NoNaNsFPMath = true;
     }
     
-    if (configs.optimization.enableVectorization) {
-        // options.LoopVectorize = true;
-        // options.SLPVectorize = true;
-    }
+    // Use TargetInfo to resolve CPU and features properly
+    std::string cpu = resolveCPUName(triple);
+    std::string features = buildFeatureString(triple);
     
-    // Create target machine with configuration
-    std::string cpu = (configs.cpuFeatures == "native") ? configs.getDefaultCPU() : configs.cpuFeatures;
-    std::string features = "";
-    
-    // Build feature string from enabled features
-    if (!configs.enabledFeatures.empty()) {
-        for (const auto& feature : configs.enabledFeatures) {
-            if (!features.empty()) features += ",";
-            features += "+" + feature;
+    if (configs.diagnostics.verbose) {
+        llvm::outs() << "Using CPU: " << cpu << "\n";
+        if (!features.empty()) {
+            llvm::outs() << "Using features: " << features << "\n";
         }
-    }
-    
-    // Add disabled features
-    for (const auto& feature : configs.disabledFeatures) {
-        if (!features.empty()) features += ",";
-        features += "-" + feature;
     }
     
     // Determine relocation model
@@ -183,14 +179,27 @@ void IRGenerator::initializeTargetFromConfig() {
         default: optLevel = llvm::CodeGenOptLevel::None; break;
     }
     
+    // Validate target triple compatibility before creating target machine
+    if (!validateTargetTripleCompatibility(triple, cpu)) {
+        llvm::errs() << "Target triple and CPU are incompatible\n";
+        return;
+    }
+    
     auto targetMachine = std::unique_ptr<llvm::TargetMachine>(
         target->createTargetMachine(triple, cpu, features, options, relocModel, 
                                    std::nullopt, optLevel)
     );
     
     if (!targetMachine) {
-        llvm::errs() << "Failed to create target machine\n";
+        llvm::errs() << "Failed to create target machine for triple: " << triple 
+                     << ", CPU: " << cpu << ", features: " << features << "\n";
         return;
+    }
+    
+    // Verify the target machine supports the requested architecture
+    if (configs.diagnostics.verbose) {
+        llvm::outs() << "Target machine created successfully\n";
+        llvm::outs() << "Data layout: " << targetMachine->createDataLayout().getStringRepresentation() << "\n";
     }
     
     Module->setDataLayout(targetMachine->createDataLayout());
@@ -199,7 +208,161 @@ void IRGenerator::initializeTargetFromConfig() {
     this->targetMachine = std::move(targetMachine);
 }
 
+// Use TargetInfo utilities to resolve CPU name properly
+std::string IRGenerator::resolveCPUName(const std::string& triple) {
+    if (configs.cpuFeatures == "native") {
+        // Use LLVM's host CPU detection for native
+        std::string hostCPU = llvm::sys::getHostCPUName().str();
+        if (!hostCPU.empty() && hostCPU != "generic") {
+            return hostCPU;
+        }
+        
+        // Fallback to TargetInfo's default CPU for detected architecture
+        TargetInfo::TargetTriple parsedTriple = TargetInfo::TargetTriple::parse(triple);
+        TargetArch arch = getTargetArchFromTriple(parsedTriple);
+        return TargetInfo::getDefaultCPUForArch(arch);
+    } else if (!configs.cpuFeatures.empty()) {
+        return configs.cpuFeatures;
+    } else {
+        // Use TargetInfo to get default CPU for the architecture
+        TargetInfo::TargetTriple parsedTriple = TargetInfo::TargetTriple::parse(triple);
+        TargetArch arch = getTargetArchFromTriple(parsedTriple);
+        return TargetInfo::getDefaultCPUForArch(arch);
+    }
+}
+
+// Build feature string using TargetInfo and user configuration
+std::string IRGenerator::buildFeatureString(const std::string& triple) {
+    DEBUG_LOG("Building the features string");
+    std::string features;
+    
+    // Add explicitly enabled features
+    for (const auto& feature : configs.enabledFeatures) {
+        if (!features.empty()) features += ",";
+        features += "+" + feature;
+    }
+    
+    // Add explicitly disabled features
+    for (const auto& feature : configs.disabledFeatures) {
+        if (!features.empty()) features += ",";
+        features += "-" + feature;
+    }
+    
+    // Add host features only if CPU is native and no features specified manually
+    if (configs.cpuFeatures == "native" && 
+        configs.enabledFeatures.empty() && 
+        configs.disabledFeatures.empty()) {
+        
+        try {
+            // Use the integrated feature detection with target validation
+            auto hostFeatures = FeatureDetector::getFeaturesForTarget(configs.targetArch);
+            
+            for (const auto& feature : hostFeatures) {
+                if (feature.second) { // Feature is enabled and valid for target
+                    const std::string& featureName = feature.first;
+                    if (!features.empty()) features += ",";
+                    features += "+" + featureName;
+                }
+            }
+            
+        } catch (const std::exception& e) {
+            DEBUG_LOG("Feature detection failed: " + std::string(e.what()));
+            // Fall back to safe defaults or empty features
+        } catch (...) {
+            DEBUG_LOG("Feature detection failed with unknown error");
+            // Fall back to safe defaults or empty features
+        }
+        
+        DEBUG_LOG("Done getting the features");
+    }
+    
+    return features;
+}
+
+// Convert LLVM triple to TargetInfo TargetArch enum
+TargetArch IRGenerator::getTargetArchFromTriple(const TargetInfo::TargetTriple& triple) {
+    std::string arch = triple.arch;
+    std::transform(arch.begin(), arch.end(), arch.begin(), ::tolower);
+    
+    if (arch == "x86_64" || arch == "x86-64" || arch == "amd64") {
+        return TargetArch::X86_64;
+    } else if (arch == "aarch64" || arch == "arm64") {
+        return TargetArch::ARM64;
+    } else if (arch == "i386" || arch == "i486" || arch == "i586" || arch == "i686") {
+        return TargetArch::X86_32;
+    } else if (arch == "arm" || arch == "armv6" || arch == "armv7") {
+        return TargetArch::ARM32;
+    } else if (arch == "riscv64") {
+        return TargetArch::RISCV64;
+    } else if (arch == "wasm32") {
+        return TargetArch::WASM32;
+    } else if (arch == "wasm64") {
+        return TargetArch::WASM64;
+    } else {
+        return TargetArch::Auto; // Will auto-detect
+    }
+}
+
+// Validate target triple compatibility using TargetInfo
+bool IRGenerator::validateTargetTripleCompatibility(const std::string& triple, const std::string& cpu) {
+    // First, use TargetInfo to validate the triple format
+    if (!TargetInfo::isValidTriple(triple)) {
+        llvm::errs() << "Invalid target triple format: " << triple << "\n";
+        return false;
+    }
+    
+    // Parse and normalize the triple
+    TargetInfo::TargetTriple normalized = TargetInfo::normalizeTriple(triple);
+    TargetArch arch = getTargetArchFromTriple(normalized);
+    
+    // Check architecture-specific constraints
+    if (arch == TargetArch::X86_64) {
+        // For x86_64 targets, ensure we're not using 32-bit only CPUs
+        static const std::unordered_set<std::string> incompatibleCPUs = {
+            "i386", "i486", "i586"
+        };
+        
+        if (incompatibleCPUs.find(cpu) != incompatibleCPUs.end()) {
+            llvm::errs() << "Warning: CPU '" << cpu 
+                         << "' may not support 64-bit mode for triple '" << triple << "'\n";
+            return false;
+        }
+    }
+    
+    // Additional validation using TargetInfo
+    TargetInfo::ArchitectureInfo archInfo = TargetInfo::getArchitectureInfo(arch);
+    
+    // Check if the triple requests 64-bit but architecture doesn't support it
+    bool tripleIs64Bit = (normalized.arch.find("64") != std::string::npos);
+    if (tripleIs64Bit && !archInfo.is64Bit) {
+        llvm::errs() << "Target triple requests 64-bit but architecture '" 
+                     << archInfo.name << "' doesn't support it\n";
+        return false;
+    }
+    
+    // Check if the triple requests 32-bit but we're on 64-bit only arch
+    bool tripleIs32Bit = (normalized.arch.find("32") != std::string::npos || 
+                         normalized.arch == "i386" || normalized.arch == "arm");
+    if (tripleIs32Bit && archInfo.is64Bit && archInfo.name == "arm64") {
+        // ARM64 can run ARM32, so this is OK
+    } else if (tripleIs32Bit && archInfo.is64Bit && archInfo.name != "x86_64") {
+        llvm::errs() << "Target triple requests 32-bit but architecture '" 
+                     << archInfo.name << "' is 64-bit only\n";
+        return false;
+    }
+    
+    if (configs.diagnostics.verbose) {
+        llvm::outs() << "Target validation passed:\n";
+        llvm::outs() << "  Normalized triple: " << normalized.toString() << "\n";
+        llvm::outs() << "  Architecture: " << archInfo.name << " (" << archInfo.pointerSize << "-byte pointers)\n";
+        llvm::outs() << "  CPU: " << cpu << "\n";
+    }
+    
+    return true;
+}
+
 void IRGenerator::setupModuleMetadata() {
+    DEBUG_LOG("Setting up the module's metadata");
     // Add module metadata based on configuration
     llvm::LLVMContext& ctx = *Context;
     
@@ -234,6 +397,7 @@ void IRGenerator::setupModuleMetadata() {
 }
 
 void IRGenerator::setupOptimizationPipeline() {
+    DEBUG_LOG("setting up optimization pipeline, (does nothing for now)");
     // This would set up the optimization pipeline based on config
     // Implementation depends on your optimization framework
     // if (configs.diagnostics.logOptimizationRemarks) {
@@ -252,6 +416,7 @@ void IRGenerator::setupOptimizationPipeline() {
 }
 
 void IRGenerator::setupDebugInfo() {
+    DEBUG_LOG("Setting up debugging info, (does nothing for now)");
     // if (!configs.aot.generateDebugInfo && !configs.diagnostics.debugMode) {
     //     return;
     // }
@@ -276,37 +441,29 @@ void IRGenerator::setupDebugInfo() {
 }
 
 void IRGenerator::createEntryFunction() {
-    // Create entry function based on configuration
-    std::string entryName = configs.entry.empty() ? "__top_level__" : configs.entry;
-    
-    // Function signature depends on entry type
-    llvm::FunctionType* funcType;
-    if (configs.entry == "main") {
-        // Standard main function: int main(int argc, char** argv)
-        llvm::Type* intType = llvm::Type::getInt32Ty(*Context);
-        llvm::Type* charPtrType = llvm::PointerType::getUnqual(*Context);
-        llvm::Type* charPtrPtrType = llvm::PointerType::getUnqual(*Context);
-        funcType = llvm::FunctionType::get(intType, {intType, charPtrPtrType}, false);
-    } else {
-        // Default void function with no parameters
-        funcType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
-    }
+    DEBUG_LOG("creating the entry function '__top_level'.");
+    // Always create __top_level__ as the entry point
+    llvm::FunctionType* funcType = llvm::FunctionType::get(
+        llvm::Type::getVoidTy(*Context), 
+        false  // no parameters
+    );
     
     llvm::Function* entryFunc = llvm::Function::Create(
-        funcType, 
-        llvm::Function::ExternalLinkage, 
-        entryName, 
+        funcType,
+        llvm::Function::ExternalLinkage,
+        "__top_level__",
         Module.get()
     );
     
     // Set function attributes based on configuration
-    if (configs.security.enableStackProtection) {
-        entryFunc->addFnAttr(llvm::Attribute::StackProtectReq);
+    if (configs.mode != CompileMode::JIT) {
+        if (configs.security.enableStackProtection) {
+            // entryFunc->addFnAttr(llvm::Attribute::StackProtectReq);
+        }
     }
     
-    if (configs.optimization.enableTailCallOptimization) {
-        // This would be set per call site, but we can prepare the function
-        entryFunc->addFnAttr(llvm::Attribute::OptimizeForSize);
+     if (configs.optimization.level == 0) {
+        entryFunc->addFnAttr(llvm::Attribute::OptimizeForSize);     
     }
     
     // Create entry basic block
@@ -315,6 +472,7 @@ void IRGenerator::createEntryFunction() {
 }
 
 void IRGenerator::setupExternalResolvers() {
+    DEBUG_LOG("Setting up the external resolvers");
     // Set up external resolvers based on target OS
     auto targetOS = configs.resolveTargetOS();
     
@@ -430,12 +588,8 @@ void IRGenerator::optimizeModule(int level) {
     }
 
     // Run pipeline
-     try {
-        mpm.run(*Module, mam);
-    } catch (const std::exception& ex) {
-        console.error("Exception during optimization: " + std::string(ex.what()));
-        throw;
-    }
+     
+    mpm.run(*Module, mam);
 }
 
 bool IRGenerator::symbolExistsInStaticLib(const std::string& libPath, const std::string& symbolName) {

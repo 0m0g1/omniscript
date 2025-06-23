@@ -47,7 +47,6 @@ private:
 
     // Target machine configuration
     void setupTargetMachine(const Config& config);
-    std::string buildFeatureString(const Config& config);
     llvm::TargetOptions buildTargetOptions(const Config& config);
     std::optional<llvm::Reloc::Model> getRelocationModel(const Config& config);
     std::optional<llvm::CodeModel::Model> getCodeModel(const Config& config);

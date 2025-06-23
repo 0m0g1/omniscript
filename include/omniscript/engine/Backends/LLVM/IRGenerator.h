@@ -102,6 +102,8 @@ private:
     void createEntryFunction();
     void setupExternalResolvers();
 
+    mutable std::mutex features_mutex;
+
 public:
     
     IRGenerator(const Config& configs);
@@ -115,6 +117,12 @@ public:
     // Access to link dependencies for the backend
     const LinkDependencies& getLinkDependencies() const { return linkerDependencies; }
     LinkDependencies& getLinkDependencies() { return linkerDependencies; }
+
+    // Helper methods for target configuration using TargetInfo
+    std::string resolveCPUName(const std::string& triple);
+    std::string buildFeatureString(const std::string& triple);
+    TargetArch getTargetArchFromTriple(const TargetInfo::TargetTriple& triple);
+    bool validateTargetTripleCompatibility(const std::string& triple, const std::string& cpu);
     
     bool supportsAVX512();
     bool supportsAVX2();

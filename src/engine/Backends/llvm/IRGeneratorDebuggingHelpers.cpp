@@ -4,11 +4,6 @@
 
 void IRGenerator::printAssembly(llvm::Module* module) {
     // Initialize targets
-    llvm::InitializeAllTargetInfos();
-    llvm::InitializeAllTargets();
-    llvm::InitializeAllTargetMCs();
-    llvm::InitializeAllAsmPrinters();
-
     auto targetTriple = llvm::sys::getDefaultTargetTriple();
     std::string error;
     const llvm::Target* target = llvm::TargetRegistry::lookupTarget(targetTriple, error);
