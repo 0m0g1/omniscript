@@ -11,6 +11,37 @@
 #include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
 #include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
 
+void IRGenerator::createEntryFunction() {
+    DEBUG_LOG("creating the entry function '__top_level'.");
+    // Always create __top_level__ as the entry point
+    llvm::FunctionType* funcType = llvm::FunctionType::get(
+        llvm::Type::getVoidTy(*Context), 
+        false  // no parameters
+    );
+    
+    llvm::Function* entryFunc = llvm::Function::Create(
+        funcType,
+        llvm::Function::ExternalLinkage,
+        "__top_level__",
+        Module.get()
+    );
+    
+    // Set function attributes based on configuration
+    if (configs.mode != CompileMode::JIT) {
+        if (configs.security.enableStackProtection) {
+            // entryFunc->addFnAttr(llvm::Attribute::StackProtectReq);
+        }
+    }
+    
+     if (configs.optimization.level == 0) {
+        entryFunc->addFnAttr(llvm::Attribute::OptimizeForSize);     
+    }
+    
+    // Create entry basic block
+    llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", entryFunc);
+    Builder->SetInsertPoint(entry);
+}
+
 void IRGenerator::addMainFunction() {
     if (!Module) return;
     
@@ -29,9 +60,10 @@ void IRGenerator::addMainFunction() {
     
     // Create the standard `main` function with signature: int main(int argc, char** argv)
     llvm::Type* intType = llvm::Type::getInt32Ty(*Context);
-    llvm::Type* charPtrType = llvm::PointerType::getUnqual(*Context);
-    llvm::Type* charPtrPtrType = llvm::PointerType::getUnqual(*Context);
-    
+    llvm::Type* charType = llvm::Type::getInt8Ty(*Context);
+    llvm::Type* charPtrType = llvm::PointerType::getUnqual(charType);
+    llvm::Type* charPtrPtrType = llvm::PointerType::getUnqual(charPtrType);
+
     llvm::FunctionType* mainType = llvm::FunctionType::get(
         intType, 
         {intType, charPtrPtrType}, 

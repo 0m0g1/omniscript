@@ -82,3 +82,28 @@ void IRGenerator::printErrors(llvm::Module& module) {
     //     llvm::errs() << "No errors found in: '" << module.getModuleIdentifier() << "'.\n";
     // }
 }
+
+void IRGenerator::setupDebugInfo() {
+    DEBUG_LOG("Setting up debugging info, (does nothing for now)");
+    // if (!configs.aot.generateDebugInfo && !configs.diagnostics.debugMode) {
+    //     return;
+    // }
+    
+    // // Create debug info builder
+    // auto debugBuilder = std::make_unique<llvm::DIBuilder>(*Module);
+    
+    // // Create compile unit
+    // std::string filename = configs.filePath.empty() ? "unknown" : configs.filePath;
+    // size_t lastSlash = filename.find_last_of("/\\");
+    // std::string directory = (lastSlash != std::string::npos) ? filename.substr(0, lastSlash) : ".";
+    // std::string file = (lastSlash != std::string::npos) ? filename.substr(lastSlash + 1) : filename;
+    
+    // auto debugCompileUnit = debugBuilder->createCompileUnit(
+    //     llvm::dwarf::DW_LANG_C,  // You might want to define your own language constant
+    //     debugBuilder->createFile(file, directory),
+    //     "OmniScript Compiler",
+    //     configs.optimization.level > 0,  // isOptimized
+    //     "",  // flags
+    //     0    // runtime version
+    // );
+}

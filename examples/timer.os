@@ -3,53 +3,69 @@ extern "C:/Windows/System32/kernel32.dll" {
     fn QueryPerformanceFrequency(freq: int64*) => int;
 }
 
-extern "C:/Windows/System32/msvcrt.dll" fn printf(...fmt: char*) => int;
+extern "C:/Windows/System32/msvcrt.dll"
+fn printf(...fmt: char*) => int;
 
-let freq: int64 = 0;
-QueryPerformanceFrequency(&freq);
+function main(argc: int, argv: char**) => i32 {
+    let freq: int64 = 0;
+    QueryPerformanceFrequency(&freq);
 
-// Optional warmup
-let warmup: int64 = 0;
-let warmupNoise: int64 = 0;
-
-for (let i = 0; i < 1000000; i++) {
-    if (i % 1000000001 == 0) { // A rare but irregular pattern
-        let temp: int64 = 0;
-        QueryPerformanceCounter(&temp);
-        warmupNoise ^= temp;
-    }
-    warmup += i;
-}
-
-let noise: int64 = 0;
-// Benchmark
-let start: int64 = 0;
-let end: int64 = 0;
-let x: int64 = warmup ^ warmupNoise;
-
-QueryPerformanceCounter(&start);
-
-for (let i: int64 = 0; i < 1000000000; i++) {
-    // Every 10000 iterations, add a small unpredictable value
-    if (i % 1000000001 == 0) { // A rare but irregular pattern
-        let temp: int64 = 0;
-        QueryPerformanceCounter(&temp);
-        noise ^= temp;
+    // Warmup
+    let warmup: double = 0.0;
+    let warmupNoise: double = 0.0;
+    for (let i: int64 = 0; i < 1000000; i++) {
+        if (i % 1000000001 == 0) {
+            let temp: int64 = 0;
+            QueryPerformanceCounter(&temp);
+            warmupNoise = warmupNoise + (temp as double);
+        }
+        warmup = warmup + (i as double);
     }
 
-    x += i;
+    // Floating-point constants
+    const a: double = 0.5;
+    const b: double = 3.141593;   // π
+    const c: double = 2.718282;   // e
+
+    let x: double = warmup + warmupNoise;
+    let noise: double = 0.0;
+
+    let start: int64 = 0;
+    let end: int64 = 0;
+
+    QueryPerformanceCounter(&start);
+
+    for (let i: int64 = 1; i < 1000000000; i++) {
+        if (i % 1000000001 == 0) {
+            let temp: int64 = 0;
+            QueryPerformanceCounter(&temp);
+            noise = noise + (temp as double);
+        }
+
+        let fi: double = i as double;
+
+        let mul1: double = fi * a;
+        let div1: double = b / fi;
+        let left: double = mul1 + div1;
+
+        let div2: double = fi / c;
+        let mul2: double = a * b;
+        let right: double = div2 + mul2;
+
+        let result: double = left - right;
+        x = x + result;
+    }
+
+    QueryPerformanceCounter(&end);
+
+    let elapsedMs: double = (end - start) as double * 1000.0 / freq as double;
+
+    printf("Result: %.0f\n", x + noise);  // Rounded float result
+    printf("Elapsed: %.4f ms\n", elapsedMs);
+    printf("Ops/ms: %.1f\n", 1000000000.0 / elapsedMs);
+
+    return 0;
 }
-
-QueryPerformanceCounter(&end);
-
-// Combine noise into final result to prevent dead-code removal
-x ^= noise;
-
-let elapsedMs = (end - start) as double * 1000.0 / freq;
-printf("Result: %lld\n", x);
-printf("Elapsed: %.4f ms\n", elapsedMs);
-printf("Ops/ms: %.1f\n", 1000000.0 / elapsedMs);
-
 
 // extern "C:/Windows/System32/kernel32.dll" {
 //     fn QueryPerformanceCounter(counter: int64*) => int;

@@ -302,7 +302,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     } else {
         // Check if there's a main function with correct signature
         if (hasMainFunction()) {
-            entryPoint = "main";
+            entryPoint = "__main";
             DEBUG_LOG("Found main function with correct signature");
         } else {
             entryPoint = "__top_level__";
@@ -324,39 +324,29 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
 }
 
 bool LLVMJITBackend::hasMainFunction() {
-    // Check the module through IRGenerator before it's moved
-    auto module = irGen->getCurrentModule(); // Assume this returns raw pointer without moving
+    auto module = irGen->getCurrentModule();
     if (!module) return false;
-    
-    // Look for main function
-    auto mainFunc = module->getFunction("main");
+
+    auto mainFunc = module->getFunction("__main");
     if (!mainFunc) return false;
-    
-    // Check if it has the correct signature: int main(int, char**)
+
     auto funcType = mainFunc->getFunctionType();
-    
-    // Should return int (i32)
-    if (!funcType->getReturnType()->isIntegerTy(32)) {
-        return false;
+
+    // Must return i32
+    if (!funcType->getReturnType()->isIntegerTy(32)) return false;
+
+    // Accept either: int main() or int main(int, char**)
+    unsigned numParams = funcType->getNumParams();
+    if (numParams == 0) {
+        return true;
+    } else if (numParams == 2) {
+        return funcType->getParamType(0)->isIntegerTy(32) &&
+               funcType->getParamType(1)->isPointerTy();
     }
-    
-    // Should have exactly 2 parameters
-    if (funcType->getNumParams() != 2) {
-        return false;
-    }
-    
-    // First parameter should be int (i32)
-    if (!funcType->getParamType(0)->isIntegerTy(32)) {
-        return false;
-    }
-    
-    // Second parameter should be char** (pointer type)
-    if (!funcType->getParamType(1)->isPointerTy()) {
-        return false;
-    }
-    
-    return true;
+
+    return false;
 }
+
 
 void LLVMJITBackend::executeFunction(const std::string& functionName, const Config& config) {
     auto symbol = jit->lookup(functionName);
