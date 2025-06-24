@@ -1,4 +1,3 @@
-#include <omniscript/Core/CPUFeatures.h>
 #include <omniscript/engine/Backends/llvm/IRGenerator.h>
 #include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
 
@@ -11,17 +10,12 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/MC/TargetRegistry.h>
-#include <llvm/Passes/PassBuilder.h>
-#include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/Support/Alignment.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/TargetParser/Host.h>
 #include <llvm/Linker/Linker.h>
-#include <llvm/Transforms/Vectorize/LoopVectorize.h>
-#include <llvm/Transforms/Vectorize/SLPVectorizer.h>
-
 
 IRGenerator::IRGenerator(const Config& configs) {
     this->configs = configs;

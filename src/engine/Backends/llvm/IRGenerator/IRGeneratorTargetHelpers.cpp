@@ -1,4 +1,5 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Core/CPUFeatures.h>
 
 bool IRGenerator::supportsAVX512() {
     // llvm::StringMap<bool> Features;

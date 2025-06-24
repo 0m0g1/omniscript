@@ -1,5 +1,8 @@
 #include <omniscript/engine/Backends/LLVM/IRGenerator.h>
 
+#include <llvm/Passes/PassBuilder.h>
+#include <llvm/Passes/StandardInstrumentations.h>
+
 void IRGenerator::setupOptimizationPipeline() {
     DEBUG_LOG("setting up optimization pipeline, (does nothing for now)");
     // This would set up the optimization pipeline based on config
@@ -27,12 +30,6 @@ void IRGenerator::optimizeModule(int level) {
 
     if (!Module) {
         console.error("Module is null before optimization");
-        return;
-    }
-
-    DEBUG_LOG("Running module verification before optimization...");
-    if (llvm::verifyModule(*Module, &llvm::errs())) {
-        console.error("Module verification failed before optimization");
         return;
     }
 
