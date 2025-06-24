@@ -11,13 +11,31 @@ enum class CompileMode {
 };
 
 enum class OutputFormat {
-    Executable,  // Final executable
-    StaticLib,   // Static library (.a/.lib)
-    SharedLib,   // Shared library (.so/.dll/.dylib)
-    ObjectFile,  // Object file (.o/.obj)
-    Assembly,    // Assembly source
-    LLVM_IR,     // LLVM intermediate representation
-    Bitcode      // LLVM bitcode
+    Executable,      // Final executable
+    StaticLib,       // Static library (.a/.lib)
+    SharedLib,       // Shared library (.so/.dll/.dylib)
+    ObjectFile,      // Object file (.o/.obj)
+    Assembly,        // Assembly source (.s/.asm)
+    LLVM_IR,         // LLVM intermediate representation (.ll)
+    Bitcode,         // LLVM bitcode (.bc)
+    
+    // Additional useful formats
+    MachineCode,     // Raw machine code (binary)
+    Relocatable,     // Relocatable object (similar to ObjectFile but explicit)
+    Archive,         // Archive file (alternative name for StaticLib)
+    ModuleFile,      // LLVM module file
+    TextualIR,       // Human-readable LLVM IR (same as LLVM_IR but explicit)
+    BinaryIR,        // Binary LLVM IR (same as Bitcode but explicit)
+    PrecompiledHeader, // Precompiled header (.pch/.gch)
+    
+    // Platform-specific formats
+    WebAssembly,     // WebAssembly module (.wasm)
+    PTX,             // NVIDIA PTX assembly (for CUDA)
+    SPIR_V,          // SPIR-V for OpenCL/Vulkan
+    
+    // Debug formats
+    DebugInfo,       // Debug information file (.dSYM/.pdb)
+    SymbolTable      // Symbol table file
 };
 
 enum class JITEngine {

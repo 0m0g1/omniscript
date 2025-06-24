@@ -64,7 +64,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     DEBUG_LOG();
 
     DEBUG_LOG("Left expression: " + (left ? left->toString() : "null"));
-    DEBUG_LOG("The operation is '" + getTokenTypeName(op.getType()) + "'.");
+    DEBUG_LOG("The operation is '" + op.getValue() + "'.");
     DEBUG_LOG("Right expression: " + (right ? right->toString() : "null"));
     if (type) {
         DEBUG_LOG("The binary expression's type is '" + type->toString() + "'.");
@@ -229,7 +229,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     DEBUG_LOG("The left value is: " + leftValue->toString());
     DEBUG_LOG("The right value is: " + rightValue->toString());
 
-    return std::make_shared<Omniscript::BinaryExpression>(leftValue, op.getType(), rightValue, type);
+    return std::make_shared<Omniscript::BinaryExpression>(leftValue, op, rightValue, type);
 }
 
 bool BinaryExpression::hasSideEffects() {

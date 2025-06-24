@@ -181,8 +181,66 @@ namespace TargetInfo {
         #endif
     }
 
+    // New function to detect appropriate vendor based on OS and context
+    inline std::string detectHostVendor(TargetOS os) {
+        switch (os) {
+            case TargetOS::Windows:
+                #ifdef _MSC_VER
+                    return "pc";  // Microsoft compiler typically uses "pc"
+                #else
+                    return "w64";  // MinGW uses w64
+                #endif
+            case TargetOS::MacOS:
+            case TargetOS::iOS:
+                return "apple";
+            case TargetOS::Linux:
+                return "pc";  // Most Linux distributions use "pc"
+            case TargetOS::Android:
+                return "linux";  // Android uses "linux" as vendor
+            case TargetOS::FreeBSD:
+                return "unknown";  // FreeBSD commonly uses "unknown"
+            case TargetOS::WebAssembly:
+                return "unknown";
+            default:
+                return "unknown";
+        }
+    }
+
+    // New function to detect appropriate environment
+    inline std::string detectHostEnvironment(TargetOS os, TargetArch arch) {
+        switch (os) {
+            case TargetOS::Windows:
+                #ifdef _MSC_VER
+                    return "msvc";
+                #elif defined(__MINGW32__) || defined(__MINGW64__)
+                    return "gnu";
+                #else
+                    return "msvc";  // Default to msvc on Windows
+                #endif
+            case TargetOS::Linux:
+                return "gnu";
+            case TargetOS::Android:
+                return "android";
+            case TargetOS::MacOS:
+                return "macho";  // or could be empty
+            case TargetOS::iOS:
+                return "macho";
+            case TargetOS::FreeBSD:
+                return "";  // Usually empty
+            case TargetOS::WebAssembly:
+                return "";
+            default:
+                return "";
+        }
+    }
+
     inline std::string detectHostTriple() {
-        return generateTriple(detectHostArchitecture(), detectHostOS());
+        auto arch = detectHostArchitecture();
+        auto os = detectHostOS();
+        std::string vendor = detectHostVendor(os);
+        std::string environment = detectHostEnvironment(os, arch);
+        
+        return generateTriple(arch, os, vendor, environment);
     }
 
     // Architecture info lookup
@@ -339,10 +397,158 @@ namespace TargetInfo {
     inline std::string generateTriple(TargetArch arch, TargetOS os, const std::string& vendor, const std::string& environment) {
         TargetTriple triple;
         triple.arch = getLLVMArchName(arch);
-        triple.vendor = vendor.empty() ? "unknown" : vendor;
+        
+        // Use smart vendor detection if empty
+        if (vendor.empty()) {
+            triple.vendor = detectHostVendor(os);
+        } else {
+            triple.vendor = vendor;
+        }
+        
         triple.os = getLLVMOSName(os);
-        triple.environment = environment;
+        
+        // Use smart environment detection if empty
+        if (environment.empty()) {
+            triple.environment = detectHostEnvironment(os, arch);
+        } else {
+            triple.environment = environment;
+        }
+        
         return triple.toString();
+    }
+
+    inline std::string normalizeArchName(const std::string& arch) {
+        std::string lowerArch = arch;
+        std::transform(lowerArch.begin(), lowerArch.end(), lowerArch.begin(), ::tolower);
+        
+        if (lowerArch == "x86-64" || lowerArch == "amd64" || lowerArch == "x64") {
+            return "x86_64";
+        } else if (lowerArch == "arm64") {
+            return "aarch64";
+        } else if (lowerArch == "i386" || lowerArch == "i486" || lowerArch == "i586" || lowerArch == "i686") {
+            return "i386";
+        } else if (lowerArch == "armv6" || lowerArch == "armv7") {
+            return "arm";
+        } else if (lowerArch == "wasm") {
+            return "wasm32";
+        }
+        return lowerArch;
+    }
+
+    inline std::string normalizeVendorName(const std::string& vendor) {
+        std::string lowerVendor = vendor;
+        std::transform(lowerVendor.begin(), lowerVendor.end(), lowerVendor.begin(), ::tolower);
+        
+        if (lowerVendor == "microsoft" || lowerVendor == "ms") {
+            return "pc";
+        }
+        return lowerVendor;
+    }
+
+    inline std::string normalizeOSName(const std::string& os) {
+        std::string lowerOS = os;
+        std::transform(lowerOS.begin(), lowerOS.end(), lowerOS.begin(), ::tolower);
+        
+        if (lowerOS == "macos" || lowerOS == "osx") {
+            return "darwin";
+        } else if (lowerOS == "win32" || lowerOS == "mingw32" || lowerOS == "cygwin") {
+            return "windows";
+        }
+        return lowerOS;
+    }
+
+    inline std::string normalizeEnvironmentName(const std::string& env) {
+        std::string lowerEnv = env;
+        std::transform(lowerEnv.begin(), lowerEnv.end(), lowerEnv.begin(), ::tolower);
+        return lowerEnv;
+    }
+
+    // Helper function to identify known OS names
+    inline bool isKnownOS(const std::string& name) {
+        static const std::unordered_set<std::string> knownOSs = {
+            "linux", "windows", "win32", "darwin", "macos", "freebsd", 
+            "android", "ios", "wasm", "emscripten", "none", "elf"
+        };
+        
+        std::string lowerName = name;
+        std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
+        
+        return knownOSs.find(lowerName) != knownOSs.end();
+    }
+
+    // Enhanced triple parsing with better error handling
+    inline TargetTriple TargetTriple::parse(const std::string& triple) {
+        TargetTriple result;
+        
+        if (triple.empty()) {
+            return result;
+        }
+        
+        // Split by dashes, but be careful about edge cases
+        std::vector<std::string> parts;
+        std::stringstream ss(triple);
+        std::string part;
+        
+        while (std::getline(ss, part, '-')) {
+            if (!part.empty()) {
+                parts.push_back(part);
+            }
+        }
+        
+        if (parts.empty()) {
+            return result;
+        }
+        
+        // More intelligent parsing based on known patterns
+        if (parts.size() == 1) {
+            // Just architecture
+            result.arch = parts[0];
+        } else if (parts.size() == 2) {
+            // Could be arch-os or arch-vendor
+            result.arch = parts[0];
+            
+            // Check if second part looks like an OS
+            if (isKnownOS(parts[1])) {
+                result.os = parts[1];
+                result.vendor = "unknown";
+            } else {
+                result.vendor = parts[1];
+            }
+        } else if (parts.size() == 3) {
+            result.arch = parts[0];
+            result.vendor = parts[1];
+            result.os = parts[2];
+        } else if (parts.size() >= 4) {
+            result.arch = parts[0];
+            result.vendor = parts[1];
+            result.os = parts[2];
+            result.environment = parts[3];
+            
+            // Handle cases with more than 4 parts by joining the rest
+            for (size_t i = 4; i < parts.size(); ++i) {
+                result.environment += "-" + parts[i];
+            }
+        }
+        
+        return result;
+    }
+
+    inline std::string inferEnvironment(const std::string& os, const std::string& vendor) {
+        if (os == "windows") {
+            if (vendor == "pc") {
+                return "msvc";
+            } else if (vendor == "w64") {
+                return "gnu";
+            }
+            return "msvc";  // Default for Windows
+        } else if (os == "linux") {
+            return "gnu";
+        } else if (os == "android") {
+            return "android";
+        } else if (os == "darwin") {
+            return "";  // macOS typically doesn't specify environment
+        }
+        return "";
     }
 
     inline bool isValidTriple(const std::string& triple) {
@@ -350,142 +556,107 @@ namespace TargetInfo {
             return false;
         }
         
-        // Parse the triple
         TargetTriple parsed = TargetTriple::parse(triple);
         
-        // Check if architecture is valid
+        // Architecture must be present and valid
+        if (parsed.arch.empty()) {
+            return false;
+        }
+        
         static const std::unordered_set<std::string> validArchs = {
             "x86_64", "x86-64", "amd64", "x64",
             "aarch64", "arm64",
             "i386", "i486", "i586", "i686", "x86",
-            "arm", "armv6", "armv7",
-            "riscv64",
-            "wasm32", "wasm64", "wasm"
+            "arm", "armv6", "armv7", "armv8",
+            "riscv64", "riscv32",
+            "wasm32", "wasm64", "wasm",
+            "mips", "mips64", "mipsel", "mips64el",
+            "powerpc", "powerpc64", "ppc", "ppc64",
+            "sparc", "sparc64", "sparcv9"
         };
         
-        if (parsed.arch.empty() || validArchs.find(parsed.arch) == validArchs.end()) {
+        std::string normalizedArch = normalizeArchName(parsed.arch);
+        bool validArch = false;
+        for (const auto& arch : validArchs) {
+            if (normalizedArch == normalizeArchName(arch)) {
+                validArch = true;
+                break;
+            }
+        }
+        
+        if (!validArch) {
             return false;
         }
         
-        // Check if OS is valid (if specified)
+        // Validate OS if present
         if (!parsed.os.empty()) {
             static const std::unordered_set<std::string> validOSs = {
-                "linux", "windows", "darwin", "macos", "freebsd", 
-                "android", "ios", "wasm", "unknown"
+                "linux", "windows", "win32", "darwin", "macos", "freebsd", 
+                "android", "ios", "wasm", "emscripten", "none", "elf",
+                "netbsd", "openbsd", "solaris", "haiku"
             };
             
-            if (validOSs.find(parsed.os) == validOSs.end()) {
+            std::string normalizedOS = normalizeOSName(parsed.os);
+            if (validOSs.find(normalizedOS) == validOSs.end()) {
                 return false;
             }
         }
         
-        // Check vendor (if specified) - most common vendors
-        if (!parsed.vendor.empty()) {
-            static const std::unordered_set<std::string> validVendors = {
-                "unknown", "pc", "apple", "microsoft", "gnu", "android", "none"
-            };
-            
-            if (validVendors.find(parsed.vendor) == validVendors.end()) {
-                return false;
-            }
-        }
-        
-        // Basic format validation - should not have more than 4 parts
+        // Basic format validation
         size_t dashCount = std::count(triple.begin(), triple.end(), '-');
-        if (dashCount > 3) {
+        if (dashCount > 4) {  // Allow up to 4 dashes for complex environments
             return false;
         }
         
         return true;
     }
 
+    inline std::string getCanonicalTriple(TargetArch arch, TargetOS os) {
+        std::string vendor = detectHostVendor(os);
+        std::string environment = detectHostEnvironment(os, arch);
+        return generateTriple(arch, os, vendor, environment);
+    }
+
+    inline std::string getCanonicalHostTriple() {
+        auto arch = detectHostArchitecture();
+        auto os = detectHostOS();
+        return getCanonicalTriple(arch, os);
+    }
+
     inline TargetTriple normalizeTriple(const std::string& triple) {
         TargetTriple parsed = TargetTriple::parse(triple);
         TargetTriple normalized;
         
-        // Normalize architecture names
-        std::string arch = parsed.arch;
-        std::transform(arch.begin(), arch.end(), arch.begin(), ::tolower);
+        // Normalize architecture
+        normalized.arch = normalizeArchName(parsed.arch);
         
-        if (arch == "x86-64" || arch == "amd64" || arch == "x64") {
-            normalized.arch = "x86_64";
-        } else if (arch == "aarch64") {
-            normalized.arch = "aarch64";
-        } else if (arch == "arm64") {
-            normalized.arch = "aarch64";  // Normalize arm64 to aarch64
-        } else if (arch == "i386" || arch == "i486" || arch == "i586" || arch == "i686") {
-            normalized.arch = "i386";
-        } else if (arch == "armv6" || arch == "armv7") {
-            normalized.arch = "arm";
-        } else if (arch == "wasm") {
-            normalized.arch = "wasm32";  // Default wasm to wasm32
-        } else {
-            normalized.arch = arch;  // Keep as-is if no normalization needed
-        }
-        
-        // Normalize vendor
-        if (parsed.vendor.empty() || parsed.vendor == "pc") {
-            normalized.vendor = "unknown";
-        } else {
-            normalized.vendor = parsed.vendor;
-        }
-        
-        // Normalize OS names
-        std::string os = parsed.os;
-        std::transform(os.begin(), os.end(), os.begin(), ::tolower);
-        
-        if (os == "darwin" || os == "macos") {
-            normalized.os = "darwin";
-        } else if (os == "win32" || os == "mingw32" || os == "cygwin") {
-            normalized.os = "windows";
-        } else if (os.empty()) {
-            normalized.os = "unknown";
-        } else {
-            normalized.os = os;
-        }
-        
-        // Normalize environment
-        if (parsed.environment.empty()) {
-            // Set default environment based on OS
-            if (normalized.os == "linux") {
-                normalized.environment = "gnu";
-            } else if (normalized.os == "windows") {
-                normalized.environment = "msvc";
+        // Normalize vendor with smarter defaults
+        if (parsed.vendor.empty()) {
+            // Infer vendor from OS if not specified
+            if (parsed.os == "darwin" || parsed.os == "macos" || parsed.os == "ios") {
+                normalized.vendor = "apple";
+            } else if (parsed.os == "windows" || parsed.os == "win32") {
+                normalized.vendor = "pc";
+            } else if (parsed.os == "linux") {
+                normalized.vendor = "pc";
             } else {
-                normalized.environment = "";
+                normalized.vendor = "unknown";
             }
         } else {
-            normalized.environment = parsed.environment;
+            normalized.vendor = normalizeVendorName(parsed.vendor);
+        }
+        
+        // Normalize OS
+        normalized.os = normalizeOSName(parsed.os);
+        
+        // Normalize environment with smarter defaults
+        if (parsed.environment.empty()) {
+            normalized.environment = inferEnvironment(normalized.os, normalized.vendor);
+        } else {
+            normalized.environment = normalizeEnvironmentName(parsed.environment);
         }
         
         return normalized;
-    }
-
-    inline TargetTriple TargetTriple::parse(const std::string& triple) {
-        TargetTriple result;
-        std::vector<std::string> parts;
-        std::string current;
-        
-        for (char c : triple) {
-            if (c == '-') {
-                if (!current.empty()) {
-                    parts.push_back(current);
-                    current.clear();
-                }
-            } else {
-                current += c;
-            }
-        }
-        if (!current.empty()) {
-            parts.push_back(current);
-        }
-        
-        if (parts.size() >= 1) result.arch = parts[0];
-        if (parts.size() >= 2) result.vendor = parts[1];
-        if (parts.size() >= 3) result.os = parts[2];
-        if (parts.size() >= 4) result.environment = parts[3];
-        
-        return result;
     }
 
     // Cross-compilation utilities

@@ -18,7 +18,7 @@ public:
 
     void execute(const std::vector<std::shared_ptr<Statement>>& statements, const Config& config) override;
 
-    void emitToFile(const std::string& filename) override;
+    void emitToFile(const Config& confige) override;
 
 private:
     std::shared_ptr<IRGenerator> irGen;
@@ -57,7 +57,6 @@ private:
     void setupExternalResolvers(const Config& config);
     
     // Output handling
-    void handleOutput(const Config& config);
     std::filesystem::path getTemporaryPath(const Config& config, const std::string& extension);
     
     // New emission methods
@@ -65,4 +64,12 @@ private:
     void emitBitcode(const std::string& bcFilename);
     void createStaticLibrary(const std::string& objFile, const std::string& libFile);
     void createSharedLibrary(const std::string& objFile, const std::string& libFile, const Config& config);
+    void emitMachineCode(const std::string& mcFilename);
+    void emitModuleFile(const std::string& modFilename);
+    void emitPrecompiledHeader(const std::string& pchFilename);
+    void emitWebAssembly(const std::string& wasmFilename);
+    void emitPTX(const std::string& ptxFilename);
+    void emitSPIRV(const std::string& spirvFilename);
+    void emitDebugInfo(const std::string& debugFilename);
+    void emitSymbolTable(const std::string& symFilename);
 };

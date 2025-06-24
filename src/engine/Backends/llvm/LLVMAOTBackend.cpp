@@ -16,7 +16,7 @@
 
 namespace fs = std::filesystem;
 
-LLVMAOTBackend::LLVMAOTBackend() {    
+LLVMAOTBackend::LLVMAOTBackend() {
     scope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>();
 }
 
@@ -292,10 +292,22 @@ void LLVMAOTBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     linkerDependencies = irGen->getLinkDependencies();
 
     
-    handleOutput(config);
+    emitToFile(config);
 }
 
-void LLVMAOTBackend::handleOutput(const Config& config) {
+fs::path LLVMAOTBackend::getTemporaryPath(const Config& config, const std::string& extension) {
+    fs::path basePath;
+    
+    if (!config.tempDirectory.empty()) {
+        basePath = fs::path(config.tempDirectory);
+    } else {
+        basePath = fs::path(config.outputPath).parent_path();
+    }
+    
+    return basePath / (fs::path(config.outputPath).stem().string() + extension);
+}
+
+void LLVMAOTBackend::emitToFile(const Config& config) {
     fs::path outputPath(config.outputPath);
     
     switch (config.aot.outputFormat) {
@@ -310,7 +322,8 @@ void LLVMAOTBackend::handleOutput(const Config& config) {
             break;
         }
         
-        case OutputFormat::ObjectFile: {
+        case OutputFormat::ObjectFile:
+        case OutputFormat::Relocatable: {
             emitObjectFile(config.outputPath);
             break;
         }
@@ -320,17 +333,20 @@ void LLVMAOTBackend::handleOutput(const Config& config) {
             break;
         }
         
-        case OutputFormat::LLVM_IR: {
+        case OutputFormat::LLVM_IR:
+        case OutputFormat::TextualIR: {
             emitLLVMIR(config.outputPath);
             break;
         }
         
-        case OutputFormat::Bitcode: {
+        case OutputFormat::Bitcode:
+        case OutputFormat::BinaryIR: {
             emitBitcode(config.outputPath);
             break;
         }
         
-        case OutputFormat::StaticLib: {
+        case OutputFormat::StaticLib:
+        case OutputFormat::Archive: {
             fs::path objPath = getTemporaryPath(config, ".o");
             emitObjectFile(objPath.string());
             createStaticLibrary(objPath.string(), config.outputPath);
@@ -351,40 +367,50 @@ void LLVMAOTBackend::handleOutput(const Config& config) {
             }
             break;
         }
-    }
-}
-
-fs::path LLVMAOTBackend::getTemporaryPath(const Config& config, const std::string& extension) {
-    fs::path basePath;
-    
-    if (!config.tempDirectory.empty()) {
-        basePath = fs::path(config.tempDirectory);
-    } else {
-        basePath = fs::path(config.outputPath).parent_path();
-    }
-    
-    return basePath / (fs::path(config.outputPath).stem().string() + extension);
-}
-
-void LLVMAOTBackend::emitToFile(const std::string& filename) {
-    fs::path path(filename);
-    std::string ext = path.extension().string();
-    
-    if (ext == ".o" || ext == ".obj") {
-        emitObjectFile(filename);
-    } 
-    else if (ext == ".s" || ext == ".asm") {
-        emitAssemblyFile(filename);
-    }
-    else if (ext == ".ll") {
-        emitLLVMIR(filename);
-    }
-    else if (ext == ".bc") {
-        emitBitcode(filename);
-    }
-    else {
-        fs::path objPath = path.parent_path() / (path.stem().string() + ".o");
-        emitObjectFile(objPath.string());
+        
+        // New format handlers
+        case OutputFormat::MachineCode: {
+            emitMachineCode(config.outputPath);
+            break;
+        }
+        
+        case OutputFormat::ModuleFile: {
+            emitModuleFile(config.outputPath);
+            break;
+        }
+        
+        case OutputFormat::PrecompiledHeader: {
+            emitPrecompiledHeader(config.outputPath);
+            break;
+        }
+        
+        case OutputFormat::WebAssembly: {
+            emitWebAssembly(config.outputPath);
+            break;
+        }
+        
+        case OutputFormat::PTX: {
+            emitPTX(config.outputPath);
+            break;
+        }
+        
+        case OutputFormat::SPIR_V: {
+            emitSPIRV(config.outputPath);
+            break;
+        }
+        
+        case OutputFormat::DebugInfo: {
+            emitDebugInfo(config.outputPath);
+            break;
+        }
+        
+        case OutputFormat::SymbolTable: {
+            emitSymbolTable(config.outputPath);
+            break;
+        }
+        
+        default:
+            throw std::runtime_error("Unsupported output format");
     }
 }
 
@@ -526,6 +552,290 @@ void LLVMAOTBackend::createSharedLibrary(const std::string& objFile, const std::
     }
     
     DEBUG_LOG("Shared library created: " + libFile);
+}
+
+void LLVMAOTBackend::emitMachineCode(const std::string& mcFilename) {
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(mcFilename, ec, llvm::sys::fs::OF_None);
+    if (ec) {
+        throw std::runtime_error("Failed to open machine code output file: " + ec.message());
+    }
+
+    auto module = irGen->getModule();
+    module->setTargetTriple(targetMachine->getTargetTriple().str());
+    module->setDataLayout(targetMachine->createDataLayout());
+
+    llvm::legacy::PassManager pass;
+    auto fileType = llvm::CodeGenFileType::ObjectFile; // Machine code is embedded in object format
+
+    if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, fileType)) {
+        throw std::runtime_error("TargetMachine can't emit machine code.");
+    }
+
+    pass.run(*module);
+    dest.flush();
+
+    DEBUG_LOG("Machine code emitted to: " + mcFilename);
+}
+
+void LLVMAOTBackend::emitModuleFile(const std::string& modFilename) {
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(modFilename, ec, llvm::sys::fs::OF_Text);
+    if (ec) {
+        throw std::runtime_error("Failed to open module output file: " + ec.message());
+    }
+
+    auto module = irGen->getModule();
+    // Emit module in a structured format with metadata
+    dest << "; Module: " << module->getName() << "\n";
+    dest << "; Target: " << module->getTargetTriple() << "\n";
+    dest << "; Data Layout: " << module->getDataLayoutStr() << "\n\n";
+    
+    module->print(dest, nullptr);
+    dest.flush();
+
+    DEBUG_LOG("Module file emitted to: " + modFilename);
+}
+
+void LLVMAOTBackend::emitPrecompiledHeader(const std::string& pchFilename) {
+    // Note: This is a simplified implementation - real PCH emission would require
+    // integration with frontend (Clang) to generate actual precompiled headers
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(pchFilename, ec, llvm::sys::fs::OF_None);
+    if (ec) {
+        throw std::runtime_error("Failed to open precompiled header output file: " + ec.message());
+    }
+
+    auto module = irGen->getModule();
+    // Emit as bitcode for now - in a real implementation this would be frontend-specific
+    llvm::WriteBitcodeToFile(*module, dest);
+    dest.flush();
+
+    DEBUG_LOG("Precompiled header emitted to: " + pchFilename);
+}
+
+void LLVMAOTBackend::emitWebAssembly(const std::string& wasmFilename) {
+    // WebAssembly emission requires specific target configuration
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(wasmFilename, ec, llvm::sys::fs::OF_None);
+    if (ec) {
+        throw std::runtime_error("Failed to open WebAssembly output file: " + ec.message());
+    }
+
+    auto module = irGen->getModule();
+    
+    // Set WebAssembly target triple and data layout
+    std::string wasmTriple = "wasm32-unknown-unknown";
+    module->setTargetTriple(wasmTriple);
+    
+    // Create WebAssembly target machine if current target doesn't match
+    std::string error;
+    auto target = llvm::TargetRegistry::lookupTarget(wasmTriple, error);
+    if (!target) {
+        throw std::runtime_error("WebAssembly target not available: " + error);
+    }
+    
+    auto wasmTargetMachine = std::unique_ptr<llvm::TargetMachine>(
+        target->createTargetMachine(wasmTriple, "", "", {}, {}));
+    
+    if (!wasmTargetMachine) {
+        throw std::runtime_error("Failed to create WebAssembly target machine");
+    }
+    
+    module->setDataLayout(wasmTargetMachine->createDataLayout());
+
+    llvm::legacy::PassManager pass;
+    auto fileType = llvm::CodeGenFileType::ObjectFile;
+
+    if (wasmTargetMachine->addPassesToEmitFile(pass, dest, nullptr, fileType)) {
+        throw std::runtime_error("TargetMachine can't emit WebAssembly file.");
+    }
+
+    pass.run(*module);
+    dest.flush();
+
+    DEBUG_LOG("WebAssembly file emitted to: " + wasmFilename);
+}
+
+void LLVMAOTBackend::emitPTX(const std::string& ptxFilename) {
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(ptxFilename, ec, llvm::sys::fs::OF_Text);
+    if (ec) {
+        throw std::runtime_error("Failed to open PTX output file: " + ec.message());
+    }
+
+    auto module = irGen->getModule();
+    
+    // Set NVPTX target triple
+    std::string ptxTriple = "nvptx64-nvidia-cuda";
+    module->setTargetTriple(ptxTriple);
+    
+    // Create NVPTX target machine
+    std::string error;
+    auto target = llvm::TargetRegistry::lookupTarget(ptxTriple, error);
+    if (!target) {
+        throw std::runtime_error("NVPTX target not available: " + error);
+    }
+    
+    auto ptxTargetMachine = std::unique_ptr<llvm::TargetMachine>(
+        target->createTargetMachine(ptxTriple, "", "", {}, {}));
+    
+    if (!ptxTargetMachine) {
+        throw std::runtime_error("Failed to create NVPTX target machine");
+    }
+    
+    module->setDataLayout(ptxTargetMachine->createDataLayout());
+
+    llvm::legacy::PassManager pass;
+    auto fileType = llvm::CodeGenFileType::AssemblyFile; // PTX is assembly-like
+
+    if (ptxTargetMachine->addPassesToEmitFile(pass, dest, nullptr, fileType)) {
+        throw std::runtime_error("TargetMachine can't emit PTX file.");
+    }
+
+    pass.run(*module);
+    dest.flush();
+
+    DEBUG_LOG("PTX file emitted to: " + ptxFilename);
+}
+
+void LLVMAOTBackend::emitSPIRV(const std::string& spirvFilename) {
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(spirvFilename, ec, llvm::sys::fs::OF_None);
+    if (ec) {
+        throw std::runtime_error("Failed to open SPIR-V output file: " + ec.message());
+    }
+
+    auto module = irGen->getModule();
+    
+    // Set SPIR-V target triple
+    std::string spirvTriple = "spir64-unknown-unknown";
+    module->setTargetTriple(spirvTriple);
+    
+    // Create SPIR target machine
+    std::string error;
+    auto target = llvm::TargetRegistry::lookupTarget(spirvTriple, error);
+    if (!target) {
+        throw std::runtime_error("SPIR target not available: " + error);
+    }
+    
+    auto spirvTargetMachine = std::unique_ptr<llvm::TargetMachine>(
+        target->createTargetMachine(spirvTriple, "", "", {}, {}));
+    
+    if (!spirvTargetMachine) {
+        throw std::runtime_error("Failed to create SPIR target machine");
+    }
+    
+    module->setDataLayout(spirvTargetMachine->createDataLayout());
+
+    llvm::legacy::PassManager pass;
+    auto fileType = llvm::CodeGenFileType::ObjectFile;
+
+    if (spirvTargetMachine->addPassesToEmitFile(pass, dest, nullptr, fileType)) {
+        throw std::runtime_error("TargetMachine can't emit SPIR-V file.");
+    }
+
+    pass.run(*module);
+    dest.flush();
+
+    DEBUG_LOG("SPIR-V file emitted to: " + spirvFilename);
+}
+
+void LLVMAOTBackend::emitDebugInfo(const std::string& debugFilename) {
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(debugFilename, ec, llvm::sys::fs::OF_Text);
+    if (ec) {
+        throw std::runtime_error("Failed to open debug info output file: " + ec.message());
+    }
+
+    auto module = irGen->getModule();
+    
+    // Extract debug information from the module
+    dest << "; Debug Information for Module: " << module->getName() << "\n\n";
+    
+    // Iterate through debug info metadata
+    llvm::NamedMDNode* compileUnits = module->getNamedMetadata("llvm.dbg.cu");
+    if (compileUnits) {
+        dest << "; Compile Units:\n";
+        for (unsigned i = 0; i < compileUnits->getNumOperands(); ++i) {
+            auto* cu = compileUnits->getOperand(i);
+            if (cu) {
+                cu->print(dest);
+                dest << "\n";
+            }
+        }
+    }
+    
+    // Print all named metadata that contains debug info
+    for (auto& namedMD : module->named_metadata()) {
+        if (namedMD.getName().starts_with("llvm.dbg")) {
+            dest << "; " << namedMD.getName() << ":\n";
+            namedMD.print(dest);
+            dest << "\n";
+        }
+    }
+    
+    dest.flush();
+    DEBUG_LOG("Debug info emitted to: " + debugFilename);
+}
+
+void LLVMAOTBackend::emitSymbolTable(const std::string& symFilename) {
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(symFilename, ec, llvm::sys::fs::OF_Text);
+    if (ec) {
+        throw std::runtime_error("Failed to open symbol table output file: " + ec.message());
+    }
+
+    auto module = irGen->getModule();
+    
+    dest << "# Symbol Table for Module: " << module->getName() << "\n\n";
+    
+    // Global variables
+    dest << "## Global Variables:\n";
+    for (auto& global : module->globals()) {
+        dest << "GLOBAL: " << global.getName();
+        if (global.hasInitializer()) {
+            dest << " (initialized)";
+        }
+        dest << " - Type: ";
+        global.getType()->print(dest);
+        dest << "\n";
+    }
+    
+    // Functions
+    dest << "\n## Functions:\n";
+    for (auto& func : module->functions()) {
+        dest << "FUNCTION: " << func.getName();
+        if (func.isDeclaration()) {
+            dest << " (declaration)";
+        }
+        dest << " - Type: ";
+        func.getType()->print(dest);
+        dest << "\n";
+        
+        // Function arguments
+        if (!func.arg_empty()) {
+            dest << "  Arguments:\n";
+            for (auto& arg : func.args()) {
+                dest << "    " << arg.getName() << " - Type: ";
+                arg.getType()->print(dest);
+                dest << "\n";
+            }
+        }
+    }
+    
+    // Aliases
+    dest << "\n## Aliases:\n";
+    for (auto& alias : module->aliases()) {
+        dest << "ALIAS: " << alias.getName() << " -> ";
+        if (auto* aliasee = alias.getAliasee()) {
+            dest << aliasee->getName();
+        }
+        dest << "\n";
+    }
+    
+    dest.flush();
+    DEBUG_LOG("Symbol table emitted to: " + symFilename);
 }
 
 void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::string& exeFile) {

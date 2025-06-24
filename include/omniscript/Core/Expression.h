@@ -542,16 +542,16 @@ struct ReturnExpression : public Expression {
 struct BinaryExpression : public Expression {
     std::shared_ptr<Expression> left;
     std::shared_ptr<Expression> right;
-    TokenTypes op;
+    Token op;
 
-    BinaryExpression(std::shared_ptr<Expression> lhs, TokenTypes op, std::shared_ptr<Expression> rhs, std::shared_ptr<Type> resultType)
+    BinaryExpression(std::shared_ptr<Expression> lhs, Token op, std::shared_ptr<Expression> rhs, std::shared_ptr<Type> resultType)
         : left(std::move(lhs)), right(std::move(rhs)), op(std::move(op)) {
         this->type = resultType;
     }
 
     std::string toString() const override {
         
-        return "(" + left->toString() + " op " + right->toString() + ")";
+        return "(" + left->toString() + " " + op.getValue() + " " + right->toString() + ")";
         
     }
     
@@ -593,23 +593,26 @@ struct TernaryExpression : public Expression {
 };
 
 struct UnaryExpression : public Expression {
-    TokenTypes op;
+    Token op;
     std::shared_ptr<Expression> operand;
-    bool position;
+    bool isPrefix;
 
     UnaryExpression(
-                    TokenTypes op,
+                    Token op,
                     std::shared_ptr<Expression> operand,
                     std::shared_ptr<Type> resultType,
-                    bool position
+                    bool isPrefix
                 )
-        : op(op), operand(std::move(operand)), position(position) {
+        : op(op), operand(std::move(operand)), isPrefix(isPrefix) {
         this->type = resultType;
     }
 
     std::string toString() const override {
-        TokenTypes opStr = op;
-        return "(unaryexpr)";
+        Token opStr = op;
+        if (isPrefix) {
+            return  "(" + op.getValue() + (operand ? operand->toString() : "nulloperand") + ")";
+        }
+        return  "(" + (operand ? operand->toString() : "nulloperand") + op.getValue() + ")";
     }
     
     std::shared_ptr<Expression> clone() const override {
@@ -617,7 +620,7 @@ struct UnaryExpression : public Expression {
             op,
             operand ? operand->clone() : nullptr,
             type ? type->clone() : nullptr,
-            position
+            isPrefix
         );
     }
 };

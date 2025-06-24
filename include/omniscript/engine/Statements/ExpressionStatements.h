@@ -5,31 +5,13 @@ class UnaryExpression : public TypedStatement, public Expression {
 public:
     enum class Position { Prefix, Postfix };
 
-    UnaryExpression(TokenTypes op, std::shared_ptr<Statement> operand, Position pos = Position::Prefix)
+    UnaryExpression(Token op, std::shared_ptr<Statement> operand, Position pos = Position::Prefix)
         : op(op), operand(operand), position(pos) {
-        // Validate that this is a valid unary operator
-        if (getOperatorString(op) == "?") {
-            console.error("Invalid unary operator");
-        }
-    }
 
-    // Get operator as a string (only for unary operators)
-    static std::string getOperatorString(TokenTypes op) {
-        switch (op) {
-            case TokenTypes::Plus: return "+";
-            case TokenTypes::Minus: return "-";
-            case TokenTypes::LogicalNot: return "!";
-            case TokenTypes::Tilde: return "~";
-            case TokenTypes::Increment: return "++";
-            case TokenTypes::Decrement: return "--";
-            case TokenTypes::Multiply: return "*";
-            case TokenTypes::BitwiseAnd: return "&";
-            default: return "?";
-        }
     }
 
     // Accessors
-    TokenTypes getOperator() const { return op; }
+    Token getOperator() const { return op; }
     std::shared_ptr<Statement> getOperand() const { return operand; }
     Position getPosition() const { return position; }
 
@@ -37,7 +19,7 @@ public:
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
     std::string toString() const override {
-        std::string opStr = getOperatorString(op);
+        std::string opStr = op.getValue();
         std::string operandStr = operand ? operand->toString() : "<null>";
 
         if (position == Position::Prefix) {
@@ -55,7 +37,7 @@ public:
     }
 
 private:
-    TokenTypes op;
+    Token op;
     std::shared_ptr<Statement> operand;
     Position position;  // For ++/-- to distinguish prefix/postfix
 };

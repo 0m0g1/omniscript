@@ -1,4 +1,4 @@
-#include <omniscript/Core/CPUFeatureDetector.h>
+#include <omniscript/Core/CPUFeatures.h>
 #include <omniscript/engine/Backends/llvm/IRGenerator.h>
 #include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
 
@@ -152,6 +152,9 @@ void IRGenerator::initializeTargetFromConfig() {
         options.UnsafeFPMath = true;
         options.NoInfsFPMath = true;
         options.NoNaNsFPMath = true;
+        llvm::FastMathFlags fmf;
+        fmf.setFast(); // enables Unsafe, NoNaNs, NoInfs, NoSignedZeros, etc.
+        Builder->setFastMathFlags(fmf);
     }
     
     // Use TargetInfo to resolve CPU and features properly
@@ -253,25 +256,17 @@ std::string IRGenerator::buildFeatureString(const std::string& triple) {
         configs.enabledFeatures.empty() && 
         configs.disabledFeatures.empty()) {
         
-        try {
-            // Use the integrated feature detection with target validation
-            auto hostFeatures = FeatureDetector::getFeaturesForTarget(configs.targetArch);
-            
-            for (const auto& feature : hostFeatures) {
-                if (feature.second) { // Feature is enabled and valid for target
-                    const std::string& featureName = feature.first;
-                    if (!features.empty()) features += ",";
-                    features += "+" + featureName;
-                }
+        // Use the integrated feature detection with target validation
+        auto hostFeatures = CPUFeatures::getHostCPUFeatures();
+        
+        for (const auto& feature : hostFeatures) {
+            if (feature.second) { // Feature is enabled and valid for target
+                const std::string& featureName = feature.first;
+                if (!features.empty()) features += ",";
+                features += "+" + featureName;
             }
-            
-        } catch (const std::exception& e) {
-            DEBUG_LOG("Feature detection failed: " + std::string(e.what()));
-            // Fall back to safe defaults or empty features
-        } catch (...) {
-            DEBUG_LOG("Feature detection failed with unknown error");
-            // Fall back to safe defaults or empty features
         }
+            
         
         DEBUG_LOG("Done getting the features");
     }
@@ -853,11 +848,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         if (!operandVal) {
             console.error("The operand value is invalid");
         }
-        return createUnaryExpression(operandVal, unary->op, unary->position);
+        return createUnaryExpression(operandVal, unary->op.getType(), unary->isPrefix);
     }
 
     if (auto binary = std::dynamic_pointer_cast<Omniscript::BinaryExpression>(value)) {
-        DEBUG_LOG("Creating a binary expression");
+        DEBUG_LOG("Creating a binary expression: " + binary->left->toString() + " " + binary->op.getValue() + " " + binary->right->toString());
         llvm::Value* lhs = codegen(binary->left, scope);
         llvm::Value* rhs = codegen(binary->right, scope);
         DEBUG_LOG("lhs type: '" + debugType(lhs->getType()) + "' rhs type: '" + debugType(rhs->getType()) + "'.");
@@ -867,7 +862,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         if (!rhs) {
             console.error("The rhs value is invalid");
         }
-        return createBinaryExpression(lhs, binary->op, rhs);
+        return createBinaryExpression(lhs, binary->op.getType(), rhs);
     }
 
     if (auto ternary = std::dynamic_pointer_cast<Omniscript::TernaryExpression>(value)) {

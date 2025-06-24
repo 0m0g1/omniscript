@@ -8,5 +8,5 @@ public:
     virtual ~AOTBackend() = default;
 
     /// Emit to an object file or intermediate representation
-    virtual void emitToFile(const std::string& filename) = 0;
+    virtual void emitToFile(const Config& config) = 0;
 };
