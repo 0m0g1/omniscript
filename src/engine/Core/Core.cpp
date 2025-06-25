@@ -1,5 +1,5 @@
 // core.cpp
-#include <omniscript/Core.h>
+#include <omniscript/engine/Core.h>
 
 namespace Omniscript {
 

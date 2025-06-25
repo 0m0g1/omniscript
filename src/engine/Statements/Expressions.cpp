@@ -4,12 +4,12 @@
 #include <omniscript/engine/Statements/ExpressionStatements.h>
 #include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
 
-#include <omniscript/Core.h>
+#include <omniscript/engine/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>
 #include <omniscript/engine/Symboltable.h>
-#include <omniscript/Core/Expressions/VariableAccessExpression.h>
+#include <omniscript/engine/Core/Expressions/VariableAccessExpression.h>
 
 // ============================== Binary, Unary and Ternary Expressions ============================== //
 std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableType scope) {

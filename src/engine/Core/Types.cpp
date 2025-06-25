@@ -1,6 +1,6 @@
-#include <omniscript/Core.h>
-#include <omniscript/Core/Types.h>
-#include <omniscript/Core/Expression.h>
+#include <omniscript/engine/Core.h>
+#include <omniscript/engine/Core/Types.h>
+#include <omniscript/engine/Core/Expression.h>
 #include <omniscript/omniscript_pch.h>
 
 namespace Omniscript {

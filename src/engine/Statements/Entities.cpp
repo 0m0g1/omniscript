@@ -1,7 +1,7 @@
 #include <omniscript/engine/Statements/EntityStatements.h>
 #include <omniscript/engine/Statements/LiteralStatements.h>
 
-#include <omniscript/Core.h>
+#include <omniscript/engine/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Statement.h>

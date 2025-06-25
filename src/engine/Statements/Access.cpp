@@ -2,12 +2,12 @@
 #include <omniscript/engine/Statements/AccessStatements.h>
 #include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
 
-#include <omniscript/Core/Expressions/ClassExpression.h>
-#include <omniscript/Core/Expressions/StructExpression.h>
-#include <omniscript/Core/Expressions/AssignmentExpression.h>
-#include <omniscript/Core/Expressions/VariableAccessExpression.h>
+#include <omniscript/engine/Core/Expressions/ClassExpression.h>
+#include <omniscript/engine/Core/Expressions/StructExpression.h>
+#include <omniscript/engine/Core/Expressions/AssignmentExpression.h>
+#include <omniscript/engine/Core/Expressions/VariableAccessExpression.h>
 
-#include <omniscript/Core.h>
+#include <omniscript/engine/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/engine/Symboltable.h>

@@ -2,7 +2,7 @@
 #include <omniscript/engine/Statements/ModuleAndImportStatements.h>
 #include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
 
-#include <omniscript/Core.h>
+#include <omniscript/engine/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/engine/Lexer.h>
 #include <omniscript/engine/Parser.h>

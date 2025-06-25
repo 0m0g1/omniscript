@@ -1,4 +1,4 @@
-#include <omniscript/Core.h>
+#include <omniscript/engine/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/engine/Parser.h>
 #include <omniscript/engine/Tokens.h>
