@@ -3,10 +3,10 @@
 #define VALUE_H
 
 #include <omniscript/tokens.h>
-#include <omniscript/Core/Core.h>
+#include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/debuggingtools/console.h>
-#include <omniscript/Core/Target_config.h>
+#include <omniscript/Target_config.h>
 
 namespace Omniscript {
 

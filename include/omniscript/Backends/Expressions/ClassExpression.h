@@ -1,8 +1,8 @@
 #pragma once
-#include <omniscript/Core/Expression.h>
-#include <omniscript/Core/Expressions/StructExpression.h>
-#include <omniscript/Core/Expressions/CallableExpression.h>
-#include <omniscript/Core/Expressions/FunctionExpression.h>
+#include <omniscript/Expression.h>
+#include <omniscript/Expressions/StructExpression.h>
+#include <omniscript/Expressions/CallableExpression.h>
+#include <omniscript/Expressions/FunctionExpression.h>
 
 namespace Omniscript {
 struct ClassExpression : 

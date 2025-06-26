@@ -3,7 +3,7 @@
 #include <omniscript/Statements/ControlFlowStatements.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
-#include <omniscript/Core/Core.h>
+#include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>

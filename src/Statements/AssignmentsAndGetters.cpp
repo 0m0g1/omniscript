@@ -4,11 +4,11 @@
 #include <omniscript/Statements/FunctionStatement.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
-#include <omniscript/Core/Expressions/FunctionExpression.h>
-#include <omniscript/Core/Expressions/FunctionExpression.h>
-#include <omniscript/Core/Expressions/AssignmentExpression.h>
-#include <omniscript/Core/Expressions/AssignmentExpression.h>
-#include <omniscript/Core/Expressions/VariableAccessExpression.h>
+#include <omniscript/Expressions/FunctionExpression.h>
+#include <omniscript/Expressions/FunctionExpression.h>
+#include <omniscript/Expressions/AssignmentExpression.h>
+#include <omniscript/Expressions/AssignmentExpression.h>
+#include <omniscript/Expressions/VariableAccessExpression.h>
 
 
 std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope) {

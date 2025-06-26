@@ -1,21 +1,21 @@
 #ifndef IR_GENERATOR_H
 #define IR_GENERATOR_H
 
-#include <omniscript/Core/Core.h>
+#include <omniscript/Core.h>
 #include <omniscript/utils.h>
-#include <omniscript/Core/Types.h>
+#include <omniscript/Types.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Core/Expression.h>
+#include <omniscript/Expression.h>
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/EngineConfigs.h>
 #include <omniscript/debuggingtools/console.h>
-#include <omniscript/Core/Expressions/ClassExpression.h>
-#include <omniscript/Core/Expressions/StructExpression.h>
-#include <omniscript/Core/Expressions/FunctionExpression.h>
-#include <omniscript/Core/Expressions/AssignmentExpression.h>
-#include <omniscript/Core/Expressions/FunctionInputExpression.h>
-#include <omniscript/Core/Expressions/VariableAccessExpression.h>
+#include <omniscript/Expressions/ClassExpression.h>
+#include <omniscript/Expressions/StructExpression.h>
+#include <omniscript/Expressions/FunctionExpression.h>
+#include <omniscript/Expressions/AssignmentExpression.h>
+#include <omniscript/Expressions/FunctionInputExpression.h>
+#include <omniscript/Expressions/VariableAccessExpression.h>
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 #include <llvm/IR/Module.h>

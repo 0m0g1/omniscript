@@ -1,6 +1,6 @@
 #pragma once
-#include <omniscript/Core/Expression.h>
-#include <omniscript/Core/Expressions/FunctionInputExpression.h>
+#include <omniscript/Expression.h>
+#include <omniscript/Expressions/FunctionInputExpression.h>
 
 namespace Omniscript {
 struct Callable : public virtual Expression {

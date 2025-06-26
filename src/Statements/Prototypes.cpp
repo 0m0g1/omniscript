@@ -7,17 +7,17 @@
 #include <omniscript/Statements/StructConstructorStatement.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
-#include <omniscript/Core/Core.h>
+#include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
-#include <omniscript/Core/Expressions/ClassExpression.h>
-#include <omniscript/Core/Expressions/StructExpression.h>
-#include <omniscript/Core/Expressions/CallableExpression.h>
-#include <omniscript/Core/Expressions/FunctionExpression.h>
-#include <omniscript/Core/Expressions/FunctionInputExpression.h>
-#include <omniscript/Core/Expressions/VariableAccessExpression.h>
+#include <omniscript/Expressions/ClassExpression.h>
+#include <omniscript/Expressions/StructExpression.h>
+#include <omniscript/Expressions/CallableExpression.h>
+#include <omniscript/Expressions/FunctionExpression.h>
+#include <omniscript/Expressions/FunctionInputExpression.h>
+#include <omniscript/Expressions/VariableAccessExpression.h>
 
 // ============================== Prototypes  ============================== //
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {

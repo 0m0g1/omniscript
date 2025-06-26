@@ -1,4 +1,4 @@
-#include <omniscript/Core/Core.h>
+#include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>

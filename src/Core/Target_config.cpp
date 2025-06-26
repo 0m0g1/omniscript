@@ -1,1 +1,1 @@
-#include <omniscript/Core/Target_config.h>
+#include <omniscript/Target_config.h>

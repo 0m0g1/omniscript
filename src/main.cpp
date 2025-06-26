@@ -3,7 +3,7 @@
 #include <omniscript/Parser.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statement.h>
-#include <omniscript/Core/Target_config.h>
+#include <omniscript/Target_config.h>
 #include <omniscript/JITCompiler.h>
 #include <omniscript/EngineConfigs.h>
 #include <omniscript/Backends/JITBackend.h>

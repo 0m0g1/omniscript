@@ -1,6 +1,6 @@
 #pragma once
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Core/Target_config.h>
+#include <omniscript/Target_config.h>
 
 enum class CompileMode {
     None,

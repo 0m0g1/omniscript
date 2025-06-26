@@ -2,7 +2,7 @@
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/LiteralStatements.h>
 
-#include <omniscript/Core/Core.h>
+#include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>

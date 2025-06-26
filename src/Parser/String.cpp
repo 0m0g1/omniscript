@@ -1,7 +1,7 @@
 #include <omniscript/Statement.h>
 #include <omniscript/Statements/LiteralStatements.h>
 
-#include <omniscript/Core/Core.h>
+#include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Parser.h>
 #include <omniscript/Tokens.h>

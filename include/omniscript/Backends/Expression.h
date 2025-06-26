@@ -3,10 +3,10 @@
 #define Expression_H
 
 #include <omniscript/tokens.h>
-#include <omniscript/Core/Core.h>
+#include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/debuggingtools/console.h>
-#include <omniscript/Core/Types.h>
+#include <omniscript/Types.h>
 
 struct MemberModifiers {
     // Access modifiers

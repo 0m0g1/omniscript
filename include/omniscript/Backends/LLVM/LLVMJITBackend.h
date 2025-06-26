@@ -1,6 +1,6 @@
 #pragma once
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Core/Target_config.h>
+#include <omniscript/Target_config.h>
 #include <omniscript/Backends/JITBackend.h>
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>

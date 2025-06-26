@@ -4,7 +4,7 @@
 #include <omniscript/Statements/ExpressionStatements.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
-#include <omniscript/Core/Core.h>
+#include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Parser.h>
 #include <omniscript/Tokens.h>

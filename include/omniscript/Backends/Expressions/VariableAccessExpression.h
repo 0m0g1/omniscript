@@ -1,5 +1,5 @@
 #pragma once
-#include <omniscript/Core/Expression.h>
+#include <omniscript/Expression.h>
 
 namespace Omniscript {
 struct VariableAccessExpression : public Expression {

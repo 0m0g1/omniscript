@@ -1,4 +1,4 @@
-#include <omniscript/Core/Core.h>
+#include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Backends/llvm/IRGenerator.h>
 #include <omniscript/Backends/llvm/LLVMJITBackend.h>
