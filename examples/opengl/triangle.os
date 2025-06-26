@@ -2,14 +2,16 @@ extern "C" {
     fn printf(...fmt: char*) => int;
 }
 
-extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
-    fn glfwInit() => int;
-    fn glfwCreateWindow(width: int, height: int, title: char*, monitor: void*, share: void*) => void*;
-    fn glfwMakeContextCurrent(window: void*) => void;
-    fn glfwWindowShouldClose(window: void*) => int;
-    fn glfwPollEvents() => void;
-    fn glfwSwapBuffers(window: void*) => void;
-    fn glfwTerminate() => void;
+extern 
+"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll",
+"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a" {
+        fn glfwInit() => int;
+        fn glfwCreateWindow(width: int, height: int, title: char*, monitor: void*, share: void*) => void*;
+        fn glfwMakeContextCurrent(window: void*) => void;
+        fn glfwWindowShouldClose(window: void*) => int;
+        fn glfwPollEvents() => void;
+        fn glfwSwapBuffers(window: void*) => void;
+        fn glfwTerminate() => void;
 }
 
 extern "C:/Windows/System32/opengl32.dll" {

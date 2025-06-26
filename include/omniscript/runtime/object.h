@@ -2,7 +2,7 @@
 // #define Object_H
 
 // #include <omniscript/omniscript_pch.h>
-// #include <omniscript/engine/Symboltable.h>
+// #include <omniscript/Symboltable.h>
 
 // /*
 // * @author 0m0g1

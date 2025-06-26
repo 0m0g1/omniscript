@@ -1,7 +1,7 @@
 // #ifndef Context2D_H
 // #define Context2D_H
 
-// #include <omniscript/engine/Symboltable.h>
+// #include <omniscript/Symboltable.h>
 // #include <omniscript/threadsafequeue.h>
 // #include <omniscript/runtime/graphics/RenderingContext.h>
 

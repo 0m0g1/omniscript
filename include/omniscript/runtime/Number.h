@@ -1,5 +1,5 @@
 // #pragma once
-// #include <omniscript/engine/Statement.h>
+// #include <omniscript/Statement.h>
 // #include <omniscript/runtime/object.h>
 // #include <omniscript/runtime/Pointer.h>
 // #include <omniscript/omniscript_pch.h>

@@ -1,4 +1,4 @@
-#include <omniscript/Core.h>
+#include <omniscript/Core/Core.h>
 #include <omniscript/Core/Types.h>
 #include <omniscript/Core/Expression.h>
 #include <omniscript/omniscript_pch.h>
@@ -138,7 +138,7 @@ std::shared_ptr<Type> Type::createStringType(Kind stringKind) {
 std::shared_ptr<Type> Type::createFixedArrayType(std::shared_ptr<Type> elementType, size_t size) {
     auto t = std::make_shared<Type>();
     t->kind = Kind::FixedArray;
-    t->elementType = std::move(elementType);
+    t->elementType = elementType;
     t->fixedSize = size;
     return t;
 }
@@ -166,234 +166,7 @@ std::shared_ptr<Type> Type::createMetaType() {
     return t;
 }
 
-std::shared_ptr<Type> Type::createUserDefinedType(
-    const std::string& name,
-    Kind kind,
-    const std::vector<std::shared_ptr<Type>>& paramTypes,
-    const std::vector<std::shared_ptr<Type>>& typeParams,
-    const std::vector<std::shared_ptr<Type>>& baseTypes
-) {
-    auto t = std::make_shared<UserDefinedType>(name, kind);
-    t->paramTypes = paramTypes;
-    t->typeParams = typeParams;
-    t->baseTypes = baseTypes;
-    return t;
-}
-
-
-std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
-    if (dataTypes.empty()) {
-        return Type::createPrimitiveType(Kind::Int32); // Default type
-    }
-
-    size_t index = 0;
-    int totalPointerDepth = 0;
-    int totalReferenceDepth = 0;
-    int nullableDepth = 0;
-
-    // Stack of arrays (outermost first)
-    std::vector<std::optional<uint64_t>> arrayStack;
-    // std::vector<Type> arrayTypeStack;
-    // Parse nested arrays like [4][3][]
-    // [5]char
-    if (index < dataTypes.size() && dataTypes[index] == "[") {
-        index += 1;
-        arrayStack.push_back(std::stoull(dataTypes[index]));
-        index += 1;
-        if (dataTypes[index] == "]") {
-            index += 1;
-        }
-    }
-
-    // References
-    while (index < dataTypes.size() && dataTypes[index] == "&") {
-        totalReferenceDepth++;
-        index++;
-    }
-
-    // Pointers
-    while (index < dataTypes.size() && dataTypes[index] == "*") {
-        totalPointerDepth++;
-        index++;
-    }
-
-    // Nulltypes
-    while (index < dataTypes.size() && dataTypes[index] == "?") {
-        nullableDepth++;
-        index++;
-    }
-
-
-    // Base type
-    if (index >= dataTypes.size()) {
-        std::cerr << "[ERROR] No base type found after modifiers!" << std::endl;
-        return nullptr;
-    }
-
-    std::string baseType = dataTypes[index++];
-
-    // Post-type pointer depth
-    while (index < dataTypes.size() && dataTypes[index] == "*") {
-        totalPointerDepth++;
-        index++;
-    }
-
-    // Post-type reference depth
-    while (index < dataTypes.size() && dataTypes[index] == "&") {
-        totalReferenceDepth++;
-        index++;
-    }
-
-    // Post-type Nullable depth
-    while (index < dataTypes.size() && dataTypes[index] == "?") {
-        nullableDepth++;
-        index++;
-    }
-
-    std::shared_ptr<Type> type;
-
-    if (!type) {
-        DEBUG_LOG("Resolving base type: " + baseType);
-    
-        // Signed integers
-        if (baseType == "int" || baseType == "i32" || baseType == "int32") type = Type::createPrimitiveType(Kind::Int32);
-        else if (baseType == "int8" || baseType == "i8") type = Type::createPrimitiveType(Kind::Int8);
-        else if (baseType == "int16" || baseType == "i16") type = Type::createPrimitiveType(Kind::Int16);
-        else if (baseType == "int64" || baseType == "i64") type = Type::createPrimitiveType(Kind::Int64);
-        else if (baseType == "int128" || baseType == "i128") type = Type::createPrimitiveType(Kind::Int128);
-        else if (baseType == "int256" || baseType == "i256") type = Type::createPrimitiveType(Kind::Int256);
-        else if (baseType == "int512" || baseType == "i512") type = Type::createPrimitiveType(Kind::Int512);
-        else if (baseType == "int1024" || baseType == "i1024") type = Type::createPrimitiveType(Kind::Int1024);
-        else if (baseType == "BigInt") type = Type::createPrimitiveType(Kind::BigInt);
-    
-        // Unsigned integers
-        else if (baseType == "usize" || baseType == "size_t") type = Type::createPrimitiveType(Kind::Size_t);
-        else if (baseType == "uint" || baseType == "u32" || baseType == "uint32") type = Type::createPrimitiveType(Kind::UInt32);
-        else if (baseType == "uint8" || baseType == "u8") type = Type::createPrimitiveType(Kind::UInt8);
-        else if (baseType == "uint16" || baseType == "u16") type = Type::createPrimitiveType(Kind::UInt16);
-        else if (baseType == "uint64" || baseType == "u64") type = Type::createPrimitiveType(Kind::UInt64);
-        else if (baseType == "uint128" || baseType == "u128") type = Type::createPrimitiveType(Kind::UInt128);
-        else if (baseType == "uint256" || baseType == "u256") type = Type::createPrimitiveType(Kind::UInt256);
-        else if (baseType == "uint512" || baseType == "u512") type = Type::createPrimitiveType(Kind::UInt512);
-        else if (baseType == "uint1024" || baseType == "u1024") type = Type::createPrimitiveType(Kind::UInt1024);
-    
-        // Other primitives
-        else if (baseType == "bool") type = Type::createPrimitiveType(Kind::Bool);
-        else if (baseType == "char") type = Type::createPrimitiveType(Kind::Char);
-        else if (baseType == "char16") type = Type::createPrimitiveType(Kind::Char16);
-        else if (baseType == "char32") type = Type::createPrimitiveType(Kind::Char32);
-        else if (baseType == "void") type = Type::createPrimitiveType(Kind::Void);
-    
-        // Floating point
-        else if (baseType == "half" || baseType == "f16") type = Type::createPrimitiveType(Kind::Half);
-        else if (baseType == "float" || baseType == "f32") type = Type::createPrimitiveType(Kind::Float);
-        else if (baseType == "double" || baseType == "f64") type = Type::createPrimitiveType(Kind::Double);
-        else if (baseType == "f80" || baseType == "x86_fp80" || baseType == "x86_80bit" || baseType == "x87_FP80" || baseType == "Intel_FP80") type = Type::createPrimitiveType(Kind::X86_FP80);
-        else if (baseType == "fp128" || baseType == "f128" || baseType == "long_double") type = Type::createPrimitiveType(Kind::FP128);
-        else if (baseType == "ppc_fp128" || baseType == "PPC_double_extended" || baseType == "PPC_F128" || baseType == "PPC_Quad") type = Type::createPrimitiveType(Kind::PPC_FP128);
-
-    
-        // Strings / UTF
-        // else if (baseType == "string" || baseType == "str" || baseType == "utf8") {
-        //     type = Type::createPrimitiveType(Kind::Char);
-        //     totalPointerDepth++;
-        // }
-        // else if (baseType == "utf16") {
-        //     type = Type::createPrimitiveType(Kind::Utf16);
-        //     totalPointerDepth++;
-        // }
-        // else if (baseType == "utf32") {
-        //     type = Type::createPrimitiveType(Kind::Utf32);
-        //     totalPointerDepth++;
-        // }
-
-        else {
-            if (dataTypes.size() == 1) {
-                return Type::createGenericType(baseType);
-            }
-            DEBUG_LOG("Type: '" + baseType + "' is not resolved yet");
-            type = Type::createUnresolved(dataTypes);
-        }
-    }
-    
-
-   // Wrap in arrays (from innermost to outermost)
-   for (auto it = arrayStack.rbegin(); it != arrayStack.rend(); ++it) {
-        if (it->has_value()) {
-            type = Type::createFixedArrayType(type, it->value());  // Fixed array
-        } else {
-            type = Type::createDynamicArrayType(type);             // Dynamic array
-        }
-    }
-
-    // Wrap in references
-    for (int i = 0; i < totalReferenceDepth; ++i) {
-        type = Type::createReferenceType(type);
-    }
-
-    // Wrap in pointers
-    for (int i = 0; i < totalPointerDepth; ++i) {
-        type = Type::createPointerType(type);
-    }
-
-    for (int i = 0; i < nullableDepth; ++i) {
-        type = Type::createNullableType(type);
-        // if (type->isPointer()) {
-        //     type = Type::createNullPointerType(type);
-        // } else {
-            // type = Type::createNullableType(type);
-        // }
-    }
-
-    return type;
-}
-
-bool isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
-    if (!from || !to)
-        return false;
-
-    if (from == to)
-        return true;
-
-    if (from->kind != to->kind)
-        return false;
-
-    if (from->isInteger() && to->isInteger())
-        return from->getSize() == to->getSize();
-
-    if (from->isFloat() && to->isFloat())
-        return from->getSize() == to->getSize();
-
-    if (from->isChar() && to->isChar())
-        return from->getBitWidth() == to->getBitWidth();
-
-    if (from->isString() && to->isString())
-        return from->getBitWidth() == to->getBitWidth();
-
-    if (from->isPointer() && to->isPointer())
-        return isSame(from->getPointeeType(), to->getPointeeType());
-
-    if (from->isReference() && to->isReference())
-        return isSame(from->getPointeeType(), to->getPointeeType());
-
-    if (from->isNullable() && to->isNullable()) {
-        auto fromNullable = std::dynamic_pointer_cast<NullableType>(from);
-        auto toNullable = std::dynamic_pointer_cast<NullableType>(to);
-        if (!fromNullable || !toNullable)
-            return false;
-        return isSame(fromNullable->innerType, toNullable->innerType);
-    }
-
-    auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
-    auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
-    if (fromUDT && toUDT) {
-        return fromUDT == toUDT;
-    }
-
-    return false;
-}
-
-bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
+bool Type::isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
     if (!from) {
         console.error("The type to cast from is null");
     } else {
@@ -493,5 +266,244 @@ bool isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr
     return false;
 }
 
+std::shared_ptr<Type> Type::createUserDefinedType(
+    const std::string& name,
+    Kind kind,
+    const std::vector<std::shared_ptr<Type>>& paramTypes,
+    const std::vector<std::shared_ptr<Type>>& typeParams,
+    const std::vector<std::shared_ptr<Type>>& baseTypes
+) {
+    auto t = std::make_shared<UserDefinedType>(name, kind);
+    t->paramTypes = paramTypes;
+    t->typeParams = typeParams;
+    t->baseTypes = baseTypes;
+    return t;
+}
 
-} // namespace Omniscript
+bool Type::isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
+    if (!from || !to)
+        return false;
+
+    if (from == to)
+        return true;
+
+    if (from->kind != to->kind)
+        return false;
+
+    if (from->isInteger() && to->isInteger())
+        return from->getSize() == to->getSize();
+
+    if (from->isFloat() && to->isFloat())
+        return from->getSize() == to->getSize();
+
+    if (from->isChar() && to->isChar())
+        return from->getBitWidth() == to->getBitWidth();
+
+    if (from->isString() && to->isString())
+        return from->getBitWidth() == to->getBitWidth();
+
+    if (from->isPointer() && to->isPointer())
+        return isSame(from->getPointeeType(), to->getPointeeType());
+
+    if (from->isReference() && to->isReference())
+        return isSame(from->getPointeeType(), to->getPointeeType());
+
+    if (from->isNullable() && to->isNullable()) {
+        auto fromNullable = std::dynamic_pointer_cast<NullableType>(from);
+        auto toNullable = std::dynamic_pointer_cast<NullableType>(to);
+        if (!fromNullable || !toNullable)
+            return false;
+        return isSame(fromNullable->innerType, toNullable->innerType);
+    }
+
+    auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
+    auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
+    if (fromUDT && toUDT) {
+        return fromUDT == toUDT;
+    }
+
+    return false;
+}
+
+std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
+    if (dataTypes.empty()) {
+        return Type::createPrimitiveType(Kind::Int32); // Default type
+    }
+
+    size_t index = 0;
+    int totalPointerDepth = 0;
+    int totalReferenceDepth = 0;
+    int nullableDepth = 0;
+
+    // References
+    while (index < dataTypes.size() && dataTypes[index] == "&") {
+        totalReferenceDepth++;
+        index++;
+    }
+
+    // Pointers
+    while (index < dataTypes.size() && dataTypes[index] == "*") {
+        totalPointerDepth++;
+        index++;
+    }
+
+    // Nulltypes
+    while (index < dataTypes.size() && dataTypes[index] == "?") {
+        nullableDepth++;
+        index++;
+    }
+
+
+    // Base type
+    if (index >= dataTypes.size()) {
+        std::cerr << "[ERROR] No base type found after modifiers!" << std::endl;
+        return nullptr;
+    }
+
+    std::string baseType = dataTypes[index++];
+
+    // Stack of arrays (outermost first)
+    std::vector<std::optional<uint64_t>> arrayStack;
+    // Parse post-type array sizes like char[32][2]
+    while (index + 2 <= dataTypes.size() && dataTypes[index] == "[") {
+        index += 1;
+        if (index >= dataTypes.size()) {
+            std::cerr << "[ERROR] Expected array size after '['\n";
+            return nullptr;
+        }
+
+        std::optional<uint64_t> size;
+        if (dataTypes[index] == "]") {
+            size = std::nullopt; // support dynamic []
+        } else {
+            try {
+                size = std::stoull(dataTypes[index]);
+            } catch (...) {
+                std::cerr << "[ERROR] Invalid array size: " << dataTypes[index] << "\n";
+                return nullptr;
+            }
+            index += 1;
+        }
+
+        if (index >= dataTypes.size() || dataTypes[index] != "]") {
+            std::cerr << "[ERROR] Expected ']' after array size\n";
+            return nullptr;
+        }
+        index += 1;
+
+        arrayStack.push_back(size);
+    }
+
+    // Post-type pointer depth
+    while (index < dataTypes.size() && dataTypes[index] == "*") {
+        totalPointerDepth++;
+        index++;
+    }
+
+    // Post-type reference depth
+    while (index < dataTypes.size() && dataTypes[index] == "&") {
+        totalReferenceDepth++;
+        index++;
+    }
+
+    // Post-type Nullable depth
+    while (index < dataTypes.size() && dataTypes[index] == "?") {
+        nullableDepth++;
+        index++;
+    }
+
+    std::shared_ptr<Type> type;
+
+    if (!type) {
+        DEBUG_LOG("Resolving base type: " + baseType);
+    
+        // Signed integers
+        if (baseType == "int" || baseType == "i32" || baseType == "int32") type = Type::createPrimitiveType(Kind::Int32);
+        else if (baseType == "int8" || baseType == "i8") type = Type::createPrimitiveType(Kind::Int8);
+        else if (baseType == "int16" || baseType == "i16") type = Type::createPrimitiveType(Kind::Int16);
+        else if (baseType == "int64" || baseType == "i64") type = Type::createPrimitiveType(Kind::Int64);
+        else if (baseType == "int128" || baseType == "i128") type = Type::createPrimitiveType(Kind::Int128);
+        else if (baseType == "int256" || baseType == "i256") type = Type::createPrimitiveType(Kind::Int256);
+        else if (baseType == "int512" || baseType == "i512") type = Type::createPrimitiveType(Kind::Int512);
+        else if (baseType == "int1024" || baseType == "i1024") type = Type::createPrimitiveType(Kind::Int1024);
+        else if (baseType == "BigInt") type = Type::createPrimitiveType(Kind::BigInt);
+    
+        // Unsigned integers
+        else if (baseType == "usize" || baseType == "size_t") type = Type::createPrimitiveType(Kind::Size_t);
+        else if (baseType == "uint" || baseType == "u32" || baseType == "uint32") type = Type::createPrimitiveType(Kind::UInt32);
+        else if (baseType == "uint8" || baseType == "u8") type = Type::createPrimitiveType(Kind::UInt8);
+        else if (baseType == "uint16" || baseType == "u16") type = Type::createPrimitiveType(Kind::UInt16);
+        else if (baseType == "uint64" || baseType == "u64") type = Type::createPrimitiveType(Kind::UInt64);
+        else if (baseType == "uint128" || baseType == "u128") type = Type::createPrimitiveType(Kind::UInt128);
+        else if (baseType == "uint256" || baseType == "u256") type = Type::createPrimitiveType(Kind::UInt256);
+        else if (baseType == "uint512" || baseType == "u512") type = Type::createPrimitiveType(Kind::UInt512);
+        else if (baseType == "uint1024" || baseType == "u1024") type = Type::createPrimitiveType(Kind::UInt1024);
+    
+        // Other primitives
+        else if (baseType == "bool") type = Type::createPrimitiveType(Kind::Bool);
+        else if (baseType == "char") type = Type::createPrimitiveType(Kind::Char);
+        else if (baseType == "char16") type = Type::createPrimitiveType(Kind::Char16);
+        else if (baseType == "char32") type = Type::createPrimitiveType(Kind::Char32);
+        else if (baseType == "void") type = Type::createPrimitiveType(Kind::Void);
+    
+        // Floating point
+        else if (baseType == "half" || baseType == "f16") type = Type::createPrimitiveType(Kind::Half);
+        else if (baseType == "float" || baseType == "f32") type = Type::createPrimitiveType(Kind::Float);
+        else if (baseType == "double" || baseType == "f64") type = Type::createPrimitiveType(Kind::Double);
+        else if (baseType == "f80" || baseType == "x86_fp80" || baseType == "x86_80bit" || baseType == "x87_FP80" || baseType == "Intel_FP80") type = Type::createPrimitiveType(Kind::X86_FP80);
+        else if (baseType == "fp128" || baseType == "f128" || baseType == "long_double") type = Type::createPrimitiveType(Kind::FP128);
+        else if (baseType == "ppc_fp128" || baseType == "PPC_double_extended" || baseType == "PPC_F128" || baseType == "PPC_Quad") type = Type::createPrimitiveType(Kind::PPC_FP128);
+
+    
+        // Strings / UTF
+        // else if (baseType == "string" || baseType == "str" || baseType == "utf8") {
+        //     type = Type::createPrimitiveType(Kind::Char);
+        //     totalPointerDepth++;
+        // }
+        // else if (baseType == "utf16") {
+        //     type = Type::createPrimitiveType(Kind::Utf16);
+        //     totalPointerDepth++;
+        // }
+        // else if (baseType == "utf32") {
+        //     type = Type::createPrimitiveType(Kind::Utf32);
+        //     totalPointerDepth++;
+        // }
+
+        else {
+            if (dataTypes.size() == 1) {
+                return Type::createGenericType(baseType);
+            }
+            DEBUG_LOG("Type: '" + baseType + "' is not resolved yet");
+            type = Type::createUnresolved(dataTypes);
+        }
+    }
+    
+
+   // Wrap in arrays (from innermost to outermost)
+   for (auto it = arrayStack.rbegin(); it != arrayStack.rend(); ++it) {
+        type = Type::createFixedArrayType(type, it->value());
+    }
+
+    // Wrap in references
+    for (int i = 0; i < totalReferenceDepth; ++i) {
+        type = Type::createReferenceType(type);
+    }
+
+    // Wrap in pointers
+    for (int i = 0; i < totalPointerDepth; ++i) {
+        type = Type::createPointerType(type);
+    }
+
+    for (int i = 0; i < nullableDepth; ++i) {
+        type = Type::createNullableType(type);
+        // if (type->isPointer()) {
+        //     type = Type::createNullPointerType(type);
+        // } else {
+            // type = Type::createNullableType(type);
+        // }
+    }
+
+    return type;
+}
+
+} 

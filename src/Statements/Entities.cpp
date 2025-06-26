@@ -1,0 +1,25 @@
+#include <omniscript/Statements/EntityStatements.h>
+#include <omniscript/Statements/LiteralStatements.h>
+
+#include <omniscript/Core/Core.h>
+#include <omniscript/utils.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/Statement.h>
+#include <omniscript/Symboltable.h>
+
+
+std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    return std::make_shared<IntegerLiteral>(valueIndex)->express(scope);
+}
+
+std::shared_ptr<Omniscript::Expression> EnumConstructor::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    auto expr = std::make_shared<Omniscript::EnumExpression>(name, hasLookup, isEnumClass);
+    
+    for (const auto& val : values) {
+        expr->addEntry(val->getIndex(), val->getName(), val->express(scope));
+    }
+
+    return expr;
+}
