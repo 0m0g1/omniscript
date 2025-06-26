@@ -449,8 +449,8 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
 
     return nullptr;
 =======
-#include <omniscript/engine/Backends/llvm/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
+#include <omniscript/Backends/llvm/IRGenerator.h>
+#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
 
 #include <llvm/ADT/StringMap.h>
 #include <llvm/IR/BasicBlock.h>

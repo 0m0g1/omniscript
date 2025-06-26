@@ -1,4 +1,4 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Backends/LLVM/IRGenerator.h>
 
 void IRGenerator::finalize() {
     // Find the top-level function

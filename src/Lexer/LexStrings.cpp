@@ -4,8 +4,8 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 =======
-#include <omniscript/engine/Lexer.h>
-#include <omniscript/engine/Tokens.h>
+#include <omniscript/Lexer.h>
+#include <omniscript/Tokens.h>
 >>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/Lexer/LexStrings.cpp
 #include <omniscript/utils.h>
 

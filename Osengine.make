@@ -82,15 +82,20 @@ OBJECTS :=
 
 GENERATED += $(OBJDIR)/Access.o
 GENERATED += $(OBJDIR)/AndriodLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/AndriodLLVMFunctionResolver1.o
 GENERATED += $(OBJDIR)/Assignments.o
 GENERATED += $(OBJDIR)/AssignmentsAndGetters.o
 GENERATED += $(OBJDIR)/Block.o
 GENERATED += $(OBJDIR)/CLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/CLLVMFunctionResolver1.o
 GENERATED += $(OBJDIR)/ControlFlow.o
 GENERATED += $(OBJDIR)/ControlFlow1.o
 GENERATED += $(OBJDIR)/Core.o
+GENERATED += $(OBJDIR)/Core1.o
 GENERATED += $(OBJDIR)/DarwninLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/DarwninLLVMFunctionResolver1.o
 GENERATED += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver1.o
 GENERATED += $(OBJDIR)/EngineConfigs.o
 GENERATED += $(OBJDIR)/Entities.o
 GENERATED += $(OBJDIR)/Entities1.o
@@ -100,60 +105,90 @@ GENERATED += $(OBJDIR)/Expressions.o
 GENERATED += $(OBJDIR)/Functions.o
 GENERATED += $(OBJDIR)/Helpers.o
 GENERATED += $(OBJDIR)/IRGenAssignmentsAndGetters.o
+GENERATED += $(OBJDIR)/IRGenAssignmentsAndGetters1.o
 GENERATED += $(OBJDIR)/IRGenControlFlow.o
+GENERATED += $(OBJDIR)/IRGenControlFlow1.o
 GENERATED += $(OBJDIR)/IRGenFunctions.o
+GENERATED += $(OBJDIR)/IRGenFunctions1.o
 GENERATED += $(OBJDIR)/IRGenLiterals.o
+GENERATED += $(OBJDIR)/IRGenLiterals1.o
 GENERATED += $(OBJDIR)/IRGenerator.o
 GENERATED += $(OBJDIR)/IRGeneratorAccess.o
+GENERATED += $(OBJDIR)/IRGeneratorAccess1.o
 GENERATED += $(OBJDIR)/IRGeneratorCodegen.o
+GENERATED += $(OBJDIR)/IRGeneratorCodegen1.o
 GENERATED += $(OBJDIR)/IRGeneratorDebuggingHelpers.o
+GENERATED += $(OBJDIR)/IRGeneratorDebuggingHelpers1.o
 GENERATED += $(OBJDIR)/IRGeneratorEntities.o
+GENERATED += $(OBJDIR)/IRGeneratorEntities1.o
 GENERATED += $(OBJDIR)/IRGeneratorExpressions.o
+GENERATED += $(OBJDIR)/IRGeneratorExpressions1.o
 GENERATED += $(OBJDIR)/IRGeneratorInitializersAndFinalizers.o
+GENERATED += $(OBJDIR)/IRGeneratorInitializersAndFinalizers1.o
 GENERATED += $(OBJDIR)/IRGeneratorModules.o
+GENERATED += $(OBJDIR)/IRGeneratorModules1.o
 GENERATED += $(OBJDIR)/IRGeneratorObjects.o
+GENERATED += $(OBJDIR)/IRGeneratorObjects1.o
 GENERATED += $(OBJDIR)/IRGeneratorOptimizers.o
+GENERATED += $(OBJDIR)/IRGeneratorOptimizers1.o
 GENERATED += $(OBJDIR)/IRGeneratorOptionalHelpers.o
+GENERATED += $(OBJDIR)/IRGeneratorOptionalHelpers1.o
 GENERATED += $(OBJDIR)/IRGeneratorTargetHelpers.o
+GENERATED += $(OBJDIR)/IRGeneratorTargetHelpers1.o
 GENERATED += $(OBJDIR)/IRGeneratorTypes.o
+GENERATED += $(OBJDIR)/IRGeneratorTypes1.o
 GENERATED += $(OBJDIR)/Identifiers.o
 GENERATED += $(OBJDIR)/JITBackend.o
-GENERATED += $(OBJDIR)/JITCompiler.o
 GENERATED += $(OBJDIR)/LLVMAOTBackend.o
 GENERATED += $(OBJDIR)/LLVMExternalFunctionResolver.o
+GENERATED += $(OBJDIR)/LLVMExternalFunctionResolver1.o
 GENERATED += $(OBJDIR)/LLVMJITBackend.o
+GENERATED += $(OBJDIR)/LexLiterals.o
+GENERATED += $(OBJDIR)/LexNumbers.o
+GENERATED += $(OBJDIR)/LexOperators.o
+GENERATED += $(OBJDIR)/LexStrings.o
 GENERATED += $(OBJDIR)/Lexer.o
 GENERATED += $(OBJDIR)/LinuxLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/LinuxLLVMFunctionResolver1.o
 GENERATED += $(OBJDIR)/Literals.o
 GENERATED += $(OBJDIR)/ModulesAndImports.o
 GENERATED += $(OBJDIR)/ModulesAndImports1.o
 GENERATED += $(OBJDIR)/Objects.o
 GENERATED += $(OBJDIR)/Parser.o
 GENERATED += $(OBJDIR)/PosixLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/PosixLLVMFunctionResolver1.o
 GENERATED += $(OBJDIR)/Prototypes.o
 GENERATED += $(OBJDIR)/SmartPlatformLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/SmartPlatformLLVMFunctionResolver1.o
 GENERATED += $(OBJDIR)/Statement.o
 GENERATED += $(OBJDIR)/Statements.o
 GENERATED += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/StaticLibraryLLVMFunctionResolver1.o
 GENERATED += $(OBJDIR)/String.o
 GENERATED += $(OBJDIR)/Target_config.o
+GENERATED += $(OBJDIR)/Target_config1.o
 GENERATED += $(OBJDIR)/Tokens.o
-GENERATED += $(OBJDIR)/Types.o
 GENERATED += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/WebAssemblyLLVMFunctionResolver1.o
 GENERATED += $(OBJDIR)/WindowsApiLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/WindowsApiLLVMFunctionResolver1.o
 GENERATED += $(OBJDIR)/main.o
-GENERATED += $(OBJDIR)/utils.o
 OBJECTS += $(OBJDIR)/Access.o
 OBJECTS += $(OBJDIR)/AndriodLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/AndriodLLVMFunctionResolver1.o
 OBJECTS += $(OBJDIR)/Assignments.o
 OBJECTS += $(OBJDIR)/AssignmentsAndGetters.o
 OBJECTS += $(OBJDIR)/Block.o
 OBJECTS += $(OBJDIR)/CLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/CLLVMFunctionResolver1.o
 OBJECTS += $(OBJDIR)/ControlFlow.o
 OBJECTS += $(OBJDIR)/ControlFlow1.o
 OBJECTS += $(OBJDIR)/Core.o
+OBJECTS += $(OBJDIR)/Core1.o
 OBJECTS += $(OBJDIR)/DarwninLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/DarwninLLVMFunctionResolver1.o
 OBJECTS += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver1.o
 OBJECTS += $(OBJDIR)/EngineConfigs.o
 OBJECTS += $(OBJDIR)/Entities.o
 OBJECTS += $(OBJDIR)/Entities1.o
@@ -163,49 +198,74 @@ OBJECTS += $(OBJDIR)/Expressions.o
 OBJECTS += $(OBJDIR)/Functions.o
 OBJECTS += $(OBJDIR)/Helpers.o
 OBJECTS += $(OBJDIR)/IRGenAssignmentsAndGetters.o
+OBJECTS += $(OBJDIR)/IRGenAssignmentsAndGetters1.o
 OBJECTS += $(OBJDIR)/IRGenControlFlow.o
+OBJECTS += $(OBJDIR)/IRGenControlFlow1.o
 OBJECTS += $(OBJDIR)/IRGenFunctions.o
+OBJECTS += $(OBJDIR)/IRGenFunctions1.o
 OBJECTS += $(OBJDIR)/IRGenLiterals.o
+OBJECTS += $(OBJDIR)/IRGenLiterals1.o
 OBJECTS += $(OBJDIR)/IRGenerator.o
 OBJECTS += $(OBJDIR)/IRGeneratorAccess.o
+OBJECTS += $(OBJDIR)/IRGeneratorAccess1.o
 OBJECTS += $(OBJDIR)/IRGeneratorCodegen.o
+OBJECTS += $(OBJDIR)/IRGeneratorCodegen1.o
 OBJECTS += $(OBJDIR)/IRGeneratorDebuggingHelpers.o
+OBJECTS += $(OBJDIR)/IRGeneratorDebuggingHelpers1.o
 OBJECTS += $(OBJDIR)/IRGeneratorEntities.o
+OBJECTS += $(OBJDIR)/IRGeneratorEntities1.o
 OBJECTS += $(OBJDIR)/IRGeneratorExpressions.o
+OBJECTS += $(OBJDIR)/IRGeneratorExpressions1.o
 OBJECTS += $(OBJDIR)/IRGeneratorInitializersAndFinalizers.o
+OBJECTS += $(OBJDIR)/IRGeneratorInitializersAndFinalizers1.o
 OBJECTS += $(OBJDIR)/IRGeneratorModules.o
+OBJECTS += $(OBJDIR)/IRGeneratorModules1.o
 OBJECTS += $(OBJDIR)/IRGeneratorObjects.o
+OBJECTS += $(OBJDIR)/IRGeneratorObjects1.o
 OBJECTS += $(OBJDIR)/IRGeneratorOptimizers.o
+OBJECTS += $(OBJDIR)/IRGeneratorOptimizers1.o
 OBJECTS += $(OBJDIR)/IRGeneratorOptionalHelpers.o
+OBJECTS += $(OBJDIR)/IRGeneratorOptionalHelpers1.o
 OBJECTS += $(OBJDIR)/IRGeneratorTargetHelpers.o
+OBJECTS += $(OBJDIR)/IRGeneratorTargetHelpers1.o
 OBJECTS += $(OBJDIR)/IRGeneratorTypes.o
+OBJECTS += $(OBJDIR)/IRGeneratorTypes1.o
 OBJECTS += $(OBJDIR)/Identifiers.o
 OBJECTS += $(OBJDIR)/JITBackend.o
-OBJECTS += $(OBJDIR)/JITCompiler.o
 OBJECTS += $(OBJDIR)/LLVMAOTBackend.o
 OBJECTS += $(OBJDIR)/LLVMExternalFunctionResolver.o
+OBJECTS += $(OBJDIR)/LLVMExternalFunctionResolver1.o
 OBJECTS += $(OBJDIR)/LLVMJITBackend.o
+OBJECTS += $(OBJDIR)/LexLiterals.o
+OBJECTS += $(OBJDIR)/LexNumbers.o
+OBJECTS += $(OBJDIR)/LexOperators.o
+OBJECTS += $(OBJDIR)/LexStrings.o
 OBJECTS += $(OBJDIR)/Lexer.o
 OBJECTS += $(OBJDIR)/LinuxLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/LinuxLLVMFunctionResolver1.o
 OBJECTS += $(OBJDIR)/Literals.o
 OBJECTS += $(OBJDIR)/ModulesAndImports.o
 OBJECTS += $(OBJDIR)/ModulesAndImports1.o
 OBJECTS += $(OBJDIR)/Objects.o
 OBJECTS += $(OBJDIR)/Parser.o
 OBJECTS += $(OBJDIR)/PosixLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/PosixLLVMFunctionResolver1.o
 OBJECTS += $(OBJDIR)/Prototypes.o
 OBJECTS += $(OBJDIR)/SmartPlatformLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/SmartPlatformLLVMFunctionResolver1.o
 OBJECTS += $(OBJDIR)/Statement.o
 OBJECTS += $(OBJDIR)/Statements.o
 OBJECTS += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/StaticLibraryLLVMFunctionResolver1.o
 OBJECTS += $(OBJDIR)/String.o
 OBJECTS += $(OBJDIR)/Target_config.o
+OBJECTS += $(OBJDIR)/Target_config1.o
 OBJECTS += $(OBJDIR)/Tokens.o
-OBJECTS += $(OBJDIR)/Types.o
 OBJECTS += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/WebAssemblyLLVMFunctionResolver1.o
 OBJECTS += $(OBJDIR)/WindowsApiLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/WindowsApiLLVMFunctionResolver1.o
 OBJECTS += $(OBJDIR)/main.o
-OBJECTS += $(OBJDIR)/utils.o
 
 # Rules
 # #############################################
@@ -269,7 +329,184 @@ endif
 # File Rules
 # #############################################
 
+$(OBJDIR)/JITBackend.o: src/Backends/JITBackend.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/AndriodLLVMFunctionResolver.o: src/Backends/llvm/ExternalFunctionResolvers/AndriodLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/CLLVMFunctionResolver.o: src/Backends/llvm/ExternalFunctionResolvers/CLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/DarwninLLVMFunctionResolver.o: src/Backends/llvm/ExternalFunctionResolvers/DarwninLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o: src/Backends/llvm/ExternalFunctionResolvers/DynamicLibraryLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/LinuxLLVMFunctionResolver.o: src/Backends/llvm/ExternalFunctionResolvers/LinuxLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/PosixLLVMFunctionResolver.o: src/Backends/llvm/ExternalFunctionResolvers/PosixLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/SmartPlatformLLVMFunctionResolver.o: src/Backends/llvm/ExternalFunctionResolvers/SmartPlatformLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/StaticLibraryLLVMFunctionResolver.o: src/Backends/llvm/ExternalFunctionResolvers/StaticLibraryLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/WebAssemblyLLVMFunctionResolver.o: src/Backends/llvm/ExternalFunctionResolvers/WebAssemblyLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/WindowsApiLLVMFunctionResolver.o: src/Backends/llvm/ExternalFunctionResolvers/WindowsApiLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenerator.o: src/Backends/llvm/IRGenerator.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/AndriodLLVMFunctionResolver1.o: src/Backends/llvm/IRGenerator/ExternalFunctionResolvers/AndriodLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/CLLVMFunctionResolver1.o: src/Backends/llvm/IRGenerator/ExternalFunctionResolvers/CLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/DarwninLLVMFunctionResolver1.o: src/Backends/llvm/IRGenerator/ExternalFunctionResolvers/DarwninLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/DynamicLibraryLLVMFunctionResolver1.o: src/Backends/llvm/IRGenerator/ExternalFunctionResolvers/DynamicLibraryLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/LinuxLLVMFunctionResolver1.o: src/Backends/llvm/IRGenerator/ExternalFunctionResolvers/LinuxLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/PosixLLVMFunctionResolver1.o: src/Backends/llvm/IRGenerator/ExternalFunctionResolvers/PosixLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/SmartPlatformLLVMFunctionResolver1.o: src/Backends/llvm/IRGenerator/ExternalFunctionResolvers/SmartPlatformLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/StaticLibraryLLVMFunctionResolver1.o: src/Backends/llvm/IRGenerator/ExternalFunctionResolvers/StaticLibraryLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/WebAssemblyLLVMFunctionResolver1.o: src/Backends/llvm/IRGenerator/ExternalFunctionResolvers/WebAssemblyLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/WindowsApiLLVMFunctionResolver1.o: src/Backends/llvm/IRGenerator/ExternalFunctionResolvers/WindowsApiLLVMFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenAssignmentsAndGetters.o: src/Backends/llvm/IRGenerator/IRGenAssignmentsAndGetters.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenControlFlow.o: src/Backends/llvm/IRGenerator/IRGenControlFlow.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenFunctions.o: src/Backends/llvm/IRGenerator/IRGenFunctions.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenLiterals.o: src/Backends/llvm/IRGenerator/IRGenLiterals.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenAssignmentsAndGetters1.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGenAssignmentsAndGetters.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenControlFlow1.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGenControlFlow.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenFunctions1.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGenFunctions.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGenLiterals1.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGenLiterals.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorAccess.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorAccess.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorCodegen.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorCodegen.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorDebuggingHelpers.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorDebuggingHelpers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorEntities.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorEntities.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorExpressions.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorExpressions.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorInitializersAndFinalizers.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorInitializersAndFinalizers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorModules.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorModules.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorObjects.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorObjects.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorOptimizers.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorOptimizers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorOptionalHelpers.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorOptionalHelpers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorTargetHelpers.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorTargetHelpers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorTypes.o: src/Backends/llvm/IRGenerator/IRGenerator/IRGeneratorTypes.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorAccess1.o: src/Backends/llvm/IRGenerator/IRGeneratorAccess.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorCodegen1.o: src/Backends/llvm/IRGenerator/IRGeneratorCodegen.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorDebuggingHelpers1.o: src/Backends/llvm/IRGenerator/IRGeneratorDebuggingHelpers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorEntities1.o: src/Backends/llvm/IRGenerator/IRGeneratorEntities.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorExpressions1.o: src/Backends/llvm/IRGenerator/IRGeneratorExpressions.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorInitializersAndFinalizers1.o: src/Backends/llvm/IRGenerator/IRGeneratorInitializersAndFinalizers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorModules1.o: src/Backends/llvm/IRGenerator/IRGeneratorModules.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorObjects1.o: src/Backends/llvm/IRGenerator/IRGeneratorObjects.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorOptimizers1.o: src/Backends/llvm/IRGenerator/IRGeneratorOptimizers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorOptionalHelpers1.o: src/Backends/llvm/IRGenerator/IRGeneratorOptionalHelpers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorTargetHelpers1.o: src/Backends/llvm/IRGenerator/IRGeneratorTargetHelpers.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IRGeneratorTypes1.o: src/Backends/llvm/IRGenerator/IRGeneratorTypes.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/LLVMExternalFunctionResolver.o: src/Backends/llvm/IRGenerator/LLVMExternalFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/LLVMAOTBackend.o: src/Backends/llvm/LLVMAOTBackend.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/LLVMExternalFunctionResolver1.o: src/Backends/llvm/LLVMExternalFunctionResolver.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/LLVMJITBackend.o: src/Backends/llvm/LLVMJITBackend.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Core.o: src/Core.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Core1.o: src/Core/Core.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Expression.o: src/Core/Expression.cpp
@@ -278,184 +515,97 @@ $(OBJDIR)/Expression.o: src/Core/Expression.cpp
 $(OBJDIR)/Target_config.o: src/Core/Target_config.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Types.o: src/Core/Types.cpp
+$(OBJDIR)/EngineConfigs.o: src/EngineConfigs.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/JITBackend.o: src/engine/Backends/JITBackend.cpp
+$(OBJDIR)/LexLiterals.o: src/Lexer/LexLiterals.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/AndriodLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/AndriodLLVMFunctionResolver.cpp
+$(OBJDIR)/LexNumbers.o: src/Lexer/LexNumbers.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/CLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/CLLVMFunctionResolver.cpp
+$(OBJDIR)/LexOperators.o: src/Lexer/LexOperators.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/DarwninLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/DarwninLLVMFunctionResolver.cpp
+$(OBJDIR)/LexStrings.o: src/Lexer/LexStrings.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/DynamicLibraryLLVMFunctionResolver.cpp
+$(OBJDIR)/Lexer.o: src/Lexer/Lexer.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/LinuxLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/LinuxLLVMFunctionResolver.cpp
+$(OBJDIR)/Assignments.o: src/Parser/Assignments.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/PosixLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/PosixLLVMFunctionResolver.cpp
+$(OBJDIR)/Block.o: src/Parser/Block.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/SmartPlatformLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/SmartPlatformLLVMFunctionResolver.cpp
+$(OBJDIR)/ControlFlow.o: src/Parser/ControlFlow.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/StaticLibraryLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/StaticLibraryLLVMFunctionResolver.cpp
+$(OBJDIR)/Entities.o: src/Parser/Entities.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/WebAssemblyLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/WebAssemblyLLVMFunctionResolver.cpp
+$(OBJDIR)/Expression1.o: src/Parser/Expression.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/WindowsApiLLVMFunctionResolver.o: src/engine/Backends/llvm/ExternalFunctionResolvers/WindowsApiLLVMFunctionResolver.cpp
+$(OBJDIR)/Functions.o: src/Parser/Functions.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGenerator.o: src/engine/Backends/llvm/IRGenerator.cpp
+$(OBJDIR)/Helpers.o: src/Parser/Helpers.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGenAssignmentsAndGetters.o: src/engine/Backends/llvm/IRGenerator/IRGenAssignmentsAndGetters.cpp
+$(OBJDIR)/Identifiers.o: src/Parser/Identifiers.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGenControlFlow.o: src/engine/Backends/llvm/IRGenerator/IRGenControlFlow.cpp
+$(OBJDIR)/ModulesAndImports.o: src/Parser/ModulesAndImports.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGenFunctions.o: src/engine/Backends/llvm/IRGenerator/IRGenFunctions.cpp
+$(OBJDIR)/Objects.o: src/Parser/Objects.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGenLiterals.o: src/engine/Backends/llvm/IRGenerator/IRGenLiterals.cpp
+$(OBJDIR)/Parser.o: src/Parser/Parser.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorAccess.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorAccess.cpp
+$(OBJDIR)/Statements.o: src/Parser/Statements.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorCodegen.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorCodegen.cpp
+$(OBJDIR)/String.o: src/Parser/String.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorDebuggingHelpers.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorDebuggingHelpers.cpp
+$(OBJDIR)/Access.o: src/Statements/Access.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorEntities.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorEntities.cpp
+$(OBJDIR)/AssignmentsAndGetters.o: src/Statements/AssignmentsAndGetters.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorExpressions.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorExpressions.cpp
+$(OBJDIR)/ControlFlow1.o: src/Statements/ControlFlow.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorInitializersAndFinalizers.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorInitializersAndFinalizers.cpp
+$(OBJDIR)/Entities1.o: src/Statements/Entities.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorModules.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorModules.cpp
+$(OBJDIR)/Expressions.o: src/Statements/Expressions.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorObjects.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorObjects.cpp
+$(OBJDIR)/Literals.o: src/Statements/Literals.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorOptimizers.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorOptimizers.cpp
+$(OBJDIR)/ModulesAndImports1.o: src/Statements/ModulesAndImports.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorOptionalHelpers.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorOptionalHelpers.cpp
+$(OBJDIR)/Prototypes.o: src/Statements/Prototypes.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorTargetHelpers.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorTargetHelpers.cpp
+$(OBJDIR)/Statement.o: src/Statements/Statement.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/IRGeneratorTypes.o: src/engine/Backends/llvm/IRGenerator/IRGeneratorTypes.cpp
+$(OBJDIR)/Target_config1.o: src/Target_config.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/LLVMAOTBackend.o: src/engine/Backends/llvm/LLVMAOTBackend.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/LLVMExternalFunctionResolver.o: src/engine/Backends/llvm/LLVMExternalFunctionResolver.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/LLVMJITBackend.o: src/engine/Backends/llvm/LLVMJITBackend.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/EngineConfigs.o: src/engine/EngineConfigs.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/JITCompiler.o: src/engine/JITCompiler.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Lexer.o: src/engine/Lexer.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Assignments.o: src/engine/Parser/Assignments.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Block.o: src/engine/Parser/Block.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/ControlFlow.o: src/engine/Parser/ControlFlow.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Entities.o: src/engine/Parser/Entities.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Expression1.o: src/engine/Parser/Expression.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Functions.o: src/engine/Parser/Functions.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Helpers.o: src/engine/Parser/Helpers.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Identifiers.o: src/engine/Parser/Identifiers.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/ModulesAndImports.o: src/engine/Parser/ModulesAndImports.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Objects.o: src/engine/Parser/Objects.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Parser.o: src/engine/Parser/Parser.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Statements.o: src/engine/Parser/Statements.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/String.o: src/engine/Parser/String.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Access.o: src/engine/Statements/Access.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/AssignmentsAndGetters.o: src/engine/Statements/AssignmentsAndGetters.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/ControlFlow1.o: src/engine/Statements/ControlFlow.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Entities1.o: src/engine/Statements/Entities.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Expressions.o: src/engine/Statements/Expressions.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Literals.o: src/engine/Statements/Literals.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/ModulesAndImports1.o: src/engine/Statements/ModulesAndImports.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Prototypes.o: src/engine/Statements/Prototypes.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Statement.o: src/engine/Statements/Statement.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Tokens.o: src/engine/Tokens.cpp
+$(OBJDIR)/Tokens.o: src/Tokens.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/main.o: src/main.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/utils.o: src/utils.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 

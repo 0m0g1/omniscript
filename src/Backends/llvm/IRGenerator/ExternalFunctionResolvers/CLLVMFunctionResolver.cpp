@@ -1,6 +1,6 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
-#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
+#include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
+#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
 
 llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::string& name, 
                                        llvm::FunctionType* funcType, LinkDependencies& deps) {

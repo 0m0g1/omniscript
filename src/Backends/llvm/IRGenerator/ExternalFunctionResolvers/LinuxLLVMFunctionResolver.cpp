@@ -1,5 +1,5 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
+#include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
 
 llvm::Function* LinuxResolver::resolve(IRGenerator& generator, const std::string& name, 
                                      llvm::FunctionType* funcType, LinkDependencies& deps) {

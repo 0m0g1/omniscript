@@ -1,5 +1,5 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
+#include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
 
 StaticLibraryResolver::StaticLibraryResolver() = default;
 

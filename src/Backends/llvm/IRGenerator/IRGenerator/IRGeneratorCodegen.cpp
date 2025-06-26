@@ -1,4 +1,4 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Backends/LLVM/IRGenerator.h>
 
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, SymbolTableType scope) {
     DEBUG_LOG();

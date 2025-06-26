@@ -1,5 +1,5 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/PosixLLVMResolver.h>
+#include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/PosixLLVMResolver.h>
 
 llvm::Function* PosixResolver::resolve(IRGenerator& generator, const std::string& name, 
                                      llvm::FunctionType* funcType, LinkDependencies& deps) {

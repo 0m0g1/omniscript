@@ -1,4 +1,4 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Backends/LLVM/IRGenerator.h>
 
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/StandardInstrumentations.h>

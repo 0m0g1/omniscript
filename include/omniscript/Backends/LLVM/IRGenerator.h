@@ -19,20 +19,20 @@
 #include <omniscript/Expressions/VariableAccessExpression.h>
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 =======
-#include <omniscript/Core/Types.h>
+#include <omniscript/Types.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Core/Expression.h>
-#include <omniscript/engine/Statement.h>
-#include <omniscript/engine/Symboltable.h>
-#include <omniscript/engine/EngineConfigs.h>
+#include <omniscript/Expression.h>
+#include <omniscript/Statement.h>
+#include <omniscript/Symboltable.h>
+#include <omniscript/EngineConfigs.h>
 #include <omniscript/debuggingtools/console.h>
-#include <omniscript/Core/Expressions/ClassExpression.h>
-#include <omniscript/Core/Expressions/StructExpression.h>
-#include <omniscript/Core/Expressions/FunctionExpression.h>
-#include <omniscript/Core/Expressions/AssignmentExpression.h>
-#include <omniscript/Core/Expressions/FunctionInputExpression.h>
-#include <omniscript/Core/Expressions/VariableAccessExpression.h>
-#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
+#include <omniscript/Expressions/ClassExpression.h>
+#include <omniscript/Expressions/StructExpression.h>
+#include <omniscript/Expressions/FunctionExpression.h>
+#include <omniscript/Expressions/AssignmentExpression.h>
+#include <omniscript/Expressions/FunctionInputExpression.h>
+#include <omniscript/Expressions/VariableAccessExpression.h>
+#include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 >>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:include/omniscript/engine/Backends/LLVM/IRGenerator.h
 
 #include <llvm/IR/Module.h>

@@ -11,13 +11,13 @@
 #include <omniscript/Backends/llvm/LLVMJITBackend.h>
 #include <omniscript/Backends/llvm/LLVMAOTBackend.h>
 =======
-#include <omniscript/engine/Statement.h>
-#include <omniscript/engine/Core/Target_config.h>
-#include <omniscript/engine/JITCompiler.h>
-#include <omniscript/engine/EngineConfigs.h>
-#include <omniscript/engine/Backends/JITBackend.h>
-#include <omniscript/engine/Backends/llvm/LLVMJITBackend.h>
-#include <omniscript/engine/Backends/llvm/LLVMAOTBackend.h>
+#include <omniscript/Statement.h>
+#include <omniscript/Target_config.h>
+#include <omniscript/JITCompiler.h>
+#include <omniscript/EngineConfigs.h>
+#include <omniscript/Backends/JITBackend.h>
+#include <omniscript/Backends/llvm/LLVMJITBackend.h>
+#include <omniscript/Backends/llvm/LLVMAOTBackend.h>
 >>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/main.cpp
 
 class Compiler {

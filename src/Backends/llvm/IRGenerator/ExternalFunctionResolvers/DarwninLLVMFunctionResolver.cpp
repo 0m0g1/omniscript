@@ -1,6 +1,6 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
-#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/DarwinLLVMResolver.h>
+#include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
+#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DarwinLLVMResolver.h>
 
 llvm::Function* DarwinResolver::resolve(IRGenerator& generator, const std::string& name, 
                                       llvm::FunctionType* funcType, LinkDependencies& deps) {
