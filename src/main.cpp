@@ -4,7 +4,6 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statement.h>
 #include <omniscript/Target_config.h>
-#include <omniscript/JITCompiler.h>
 #include <omniscript/EngineConfigs.h>
 #include <omniscript/Backends/JITBackend.h>
 #include <omniscript/Backends/llvm/LLVMJITBackend.h>
@@ -1058,8 +1057,7 @@ public:
             
             auto backend = std::make_shared<LLVMJITBackend>();
             backend->initialize();
-            JITCompiler jit(backend);
-            jit.execute(statements, config);
+            backend->execute(statements, config);
         }
     }
 };
