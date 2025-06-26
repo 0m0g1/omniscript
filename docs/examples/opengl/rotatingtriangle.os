@@ -1,5 +1,7 @@
 extern "C" {
     fn printf(...fmt: char*) => int;
+    fn sinf(x: float) => float;
+    fn fabsf(x: float) => float;
 }
 
 extern 
@@ -27,6 +29,7 @@ extern
     fn glViewport(x: int, y: int, width: int, height: int) => void;
     fn glMatrixMode(mode: uint) => void;
     fn glOrtho(left: double, right: double, bottom: double, top: double, near: double, far: double) => void;
+    fn glRotatef(angle: float, x: float, y: float, z: float) => void;
 }
 
 const GL_COLOR_BUFFER_BIT = 0x00004000;
@@ -54,29 +57,28 @@ glLoadIdentity();
 glOrtho(-1, 1, -1, 1, -1, 1);
 glMatrixMode(GL_MODELVIEW);
 
+let angle = 0.0;
+let t: float = 0.0;
+
 while (glfwWindowShouldClose(window) == 0) {
-    glClearColor(0.1, 0.1, 0.1, 0.1);
+    t += 0.01;
+
+    glClearColor(0.1, 0.1, 0.1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
     glLoadIdentity();
 
+    glRotatef(angle, 0.0, 0.0, 1.0); // Rotate around Z-axis
+    angle += 1.0;
+
     glBegin(GL_TRIANGLES);
-
-    // Top vertex - Red
-    glColor3f(1.0, 0.0, 0.0);
-    glVertex2f(0.0, 0.5);
-
-    // Bottom-left vertex - Green
-    glColor3f(0.0, 1.0, 0.0);
-    glVertex2f(-0.5, -0.5);
-
-    // Bottom-right vertex - Blue
-    glColor3f(0.0, 0.0, 1.0);
-    glVertex2f(0.5, -0.5);
-
+    glColor3f(fabsf(sinf(t)), 0.0, 0.0); glVertex2f(0.0, 0.5);
+    glColor3f(0.0, absf(sinf(t + 2.1)), 0.0); glVertex2f(-0.5, -0.5);
+    glColor3f(0.0, 0.0, fabsf(sinf(t + 4.2))); glVertex2f(0.5, -0.5);
     glEnd();
 
     glfwSwapBuffers(window);
     glfwPollEvents();
 }
+
 
 glfwTerminate();
