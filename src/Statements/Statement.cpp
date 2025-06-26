@@ -1,4 +1,4 @@
-#include <omniscript/Core.h>
+#include <omniscript/engine/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>
@@ -20,6 +20,7 @@
 // #include <omniscript/runtime/Pointer.h>
 
 void Initializer::initialize() {
+    
     
 }
 
