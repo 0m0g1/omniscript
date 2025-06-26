@@ -1,3 +1,4 @@
+<<<<<<< HEAD:src/Parser/ModulesAndImports.cpp
 #include <omniscript/Statement.h>
 #include <omniscript/Statements/ModuleAndImportStatements.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
@@ -10,6 +11,20 @@
 #include <omniscript/runtime/object.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
+=======
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/ModuleAndImportStatements.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+
+#include <omniscript/engine/Core.h>
+#include <omniscript/utils.h>
+#include <omniscript/engine/Lexer.h>
+#include <omniscript/engine/Parser.h>
+#include <omniscript/engine/Tokens.h>
+#include <omniscript/runtime/object.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/engine/Symboltable.h>
+>>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/Parser/ModulesAndImports.cpp
 
 std::shared_ptr<Statement> Parser::parseInclude() {
     Token startToken = currentToken;

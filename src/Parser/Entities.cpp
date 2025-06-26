@@ -1,3 +1,4 @@
+<<<<<<< HEAD:src/Parser/Entities.cpp
 #include <omniscript/Statement.h>
 #include <omniscript/Statements/EntityStatements.h>
 #include <omniscript/Statements/LiteralStatements.h>
@@ -10,6 +11,20 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
+=======
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/EntityStatements.h>
+#include <omniscript/engine/Statements/LiteralStatements.h>
+#include <omniscript/engine/Statements/ExpressionStatements.h>
+
+#include <omniscript/engine/Core.h>
+#include <omniscript/utils.h>
+#include <omniscript/engine/Parser.h>
+#include <omniscript/engine/Tokens.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Symboltable.h>
+>>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/Parser/Entities.cpp
 
 
 std::shared_ptr<Statement> Parser::parseEnum() {

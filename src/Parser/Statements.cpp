@@ -1,13 +1,19 @@
-#include <omniscript/Core.h>
+#include <omniscript/engine/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/Parser.h>
 #include <omniscript/runtime/object.h>
 #include <omniscript/omniscript_pch.h>
+<<<<<<< HEAD:src/Parser/Statements.cpp
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
+=======
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Symboltable.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+>>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/Parser/Statements.cpp
 
 // Parse a single statement
 std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {

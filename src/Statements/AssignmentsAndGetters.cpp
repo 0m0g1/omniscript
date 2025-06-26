@@ -1,3 +1,4 @@
+<<<<<<< HEAD:src/Statements/AssignmentsAndGetters.cpp
 #include <omniscript/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/LiteralStatements.h>
@@ -9,6 +10,19 @@
 #include <omniscript/Expressions/AssignmentExpression.h>
 #include <omniscript/Expressions/AssignmentExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
+=======
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/AccessStatements.h>
+#include <omniscript/engine/Statements/LiteralStatements.h>
+#include <omniscript/engine/Statements/FunctionStatement.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+
+#include <omniscript/engine/Core/Expressions/FunctionExpression.h>
+#include <omniscript/engine/Core/Expressions/FunctionExpression.h>
+#include <omniscript/engine/Core/Expressions/AssignmentExpression.h>
+#include <omniscript/engine/Core/Expressions/AssignmentExpression.h>
+#include <omniscript/engine/Core/Expressions/VariableAccessExpression.h>
+>>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/Statements/AssignmentsAndGetters.cpp
 
 
 std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope) {

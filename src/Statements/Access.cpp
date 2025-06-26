@@ -1,3 +1,4 @@
+<<<<<<< HEAD:src/Statements/Access.cpp
 #include <omniscript/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
@@ -11,6 +12,21 @@
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
+=======
+#include <omniscript/engine/Statement.h>
+#include <omniscript/engine/Statements/AccessStatements.h>
+#include <omniscript/engine/Statements/AssignmentAndGetterStatements.h>
+
+#include <omniscript/engine/Core/Expressions/ClassExpression.h>
+#include <omniscript/engine/Core/Expressions/StructExpression.h>
+#include <omniscript/engine/Core/Expressions/AssignmentExpression.h>
+#include <omniscript/engine/Core/Expressions/VariableAccessExpression.h>
+
+#include <omniscript/engine/Core.h>
+#include <omniscript/utils.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/engine/Symboltable.h>
+>>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/Statements/Access.cpp
 
 void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::string memberName, SymbolTableType scope) {
     // Ensure base type is a class
