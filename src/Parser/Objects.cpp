@@ -1,4 +1,3 @@
-<<<<<<< HEAD:src/Parser/Objects.cpp
 #include <omniscript/Statement.h>
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/FunctionStatement.h>
@@ -13,22 +12,6 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
-=======
-#include <omniscript/Statement.h>
-#include <omniscript/Statements/CallableStatement.h>
-#include <omniscript/Statements/FunctionStatement.h>
-#include <omniscript/Statements/ModuleAndImportStatements.h>
-#include <omniscript/Statements/ClassConstructorStatement.h>
-#include <omniscript/Statements/StructConstructorStatement.h>
-
-#include <omniscript/Core.h>
-#include <omniscript/utils.h>
-#include <omniscript/Parser.h>
-#include <omniscript/Tokens.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/Statement.h>
-#include <omniscript/Symboltable.h>
->>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/Parser/Objects.cpp
 
 
 std::shared_ptr<Statement> Parser::parseObject() {

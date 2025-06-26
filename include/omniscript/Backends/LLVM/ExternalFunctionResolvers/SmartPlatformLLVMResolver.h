@@ -1,9 +1,5 @@
 #pragma once
-<<<<<<< HEAD:include/omniscript/Backends/LLVM/ExternalFunctionResolvers/SmartPlatformLLVMResolver.h
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
-=======
-#include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
->>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:include/omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/SmartPlatformLLVMResolver.h
 
 // Smart resolver that automatically selects the best resolver for the platform
 class SmartPlatformResolver : public ExternalFunctionResolver {

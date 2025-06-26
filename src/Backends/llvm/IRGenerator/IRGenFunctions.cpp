@@ -1,4 +1,3 @@
-<<<<<<<< HEAD:src/Backends/llvm/IRGenerator/IRGenFunctions.cpp
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
@@ -11,20 +10,6 @@
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/SmartPlatformLLVMResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
-========
-#include <omniscript/Backends/LLVM/IRGenerator.h>
-#include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/PosixLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DarwinLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/AndroidLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/WebAssemblyLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/SmartPlatformLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
->>>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/Backends/llvm/IRGenerator/IRGenerator/IRGenFunctions.cpp
 
 void IRGenerator::createEntryFunction() {
     DEBUG_LOG("creating the entry function '__top_level'.");

@@ -2,7 +2,6 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>
 #include <omniscript/omniscript_pch.h>
-<<<<<<< HEAD:src/main.cpp
 #include <omniscript/Statement.h>
 #include <omniscript/Target_config.h>
 #include <omniscript/JITCompiler.h>
@@ -10,15 +9,6 @@
 #include <omniscript/Backends/JITBackend.h>
 #include <omniscript/Backends/llvm/LLVMJITBackend.h>
 #include <omniscript/Backends/llvm/LLVMAOTBackend.h>
-=======
-#include <omniscript/Statement.h>
-#include <omniscript/Target_config.h>
-#include <omniscript/JITCompiler.h>
-#include <omniscript/EngineConfigs.h>
-#include <omniscript/Backends/JITBackend.h>
-#include <omniscript/Backends/llvm/LLVMJITBackend.h>
-#include <omniscript/Backends/llvm/LLVMAOTBackend.h>
->>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/main.cpp
 
 class Compiler {
 public:

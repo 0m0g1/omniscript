@@ -1,4 +1,3 @@
-<<<<<<< HEAD:src/Parser/Expression.cpp
 #include <omniscript/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/LiteralStatements.h>
@@ -12,21 +11,6 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
-=======
-#include <omniscript/Statement.h>
-#include <omniscript/Statements/AccessStatements.h>
-#include <omniscript/Statements/LiteralStatements.h>
-#include <omniscript/Statements/ExpressionStatements.h>
-#include <omniscript/Statements/AssignmentAndGetterStatements.h>
-
-#include <omniscript/Core.h>
-#include <omniscript/utils.h>
-#include <omniscript/Parser.h>
-#include <omniscript/Tokens.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/Statement.h>
-#include <omniscript/Symboltable.h>
->>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/Parser/Expression.cpp
 
 #include <quadmath.h>
 

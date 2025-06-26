@@ -1,4 +1,3 @@
-<<<<<<< HEAD:src/Statements/ControlFlow.cpp
 #include <omniscript/Statement.h>
 #include <omniscript/Statements/ExpressionStatements.h>
 #include <omniscript/Statements/ControlFlowStatements.h>
@@ -7,16 +6,6 @@
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Symboltable.h>
-=======
-#include <omniscript/Statement.h>
-#include <omniscript/Statements/ExpressionStatements.h>
-#include <omniscript/Statements/ControlFlowStatements.h>
-#include <omniscript/Statements/AssignmentAndGetterStatements.h>
-
-#include <omniscript/Core.h>
-#include <omniscript/utils.h>
-#include <omniscript/Symboltable.h>
->>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/Statements/ControlFlow.cpp
 #include <omniscript/omniscript_pch.h>
 
 // ============================== Control flow statements  ============================== //

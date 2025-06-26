@@ -1,4 +1,3 @@
-<<<<<<< HEAD:src/Parser/Identifiers.cpp
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/ExpressionStatements.h>
@@ -11,20 +10,6 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
-=======
-#include <omniscript/Statements/AccessStatements.h>
-#include <omniscript/Statements/CallableStatement.h>
-#include <omniscript/Statements/ExpressionStatements.h>
-#include <omniscript/Statements/AssignmentAndGetterStatements.h>
-
-#include <omniscript/Core.h>
-#include <omniscript/utils.h>
-#include <omniscript/Tokens.h>
-#include <omniscript/Parser.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/Statement.h>
-#include <omniscript/Symboltable.h>
->>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:src/engine/Parser/Identifiers.cpp
 
 std::shared_ptr<Statement> Parser::parseIdentifier() {
     std::string rootIdentifier = currentToken.getValue();

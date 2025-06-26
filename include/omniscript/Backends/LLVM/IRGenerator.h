@@ -3,7 +3,6 @@
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
-<<<<<<< HEAD:include/omniscript/Backends/LLVM/IRGenerator.h
 #include <omniscript/Types.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Expression.h>
@@ -18,22 +17,6 @@
 #include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
-=======
-#include <omniscript/Types.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/Expression.h>
-#include <omniscript/Statement.h>
-#include <omniscript/Symboltable.h>
-#include <omniscript/EngineConfigs.h>
-#include <omniscript/debuggingtools/console.h>
-#include <omniscript/Expressions/ClassExpression.h>
-#include <omniscript/Expressions/StructExpression.h>
-#include <omniscript/Expressions/FunctionExpression.h>
-#include <omniscript/Expressions/AssignmentExpression.h>
-#include <omniscript/Expressions/FunctionInputExpression.h>
-#include <omniscript/Expressions/VariableAccessExpression.h>
-#include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
->>>>>>> 7ccebff50dd27e70cffd4d578dcb358f4c9e1613:include/omniscript/engine/Backends/LLVM/IRGenerator.h
 
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
