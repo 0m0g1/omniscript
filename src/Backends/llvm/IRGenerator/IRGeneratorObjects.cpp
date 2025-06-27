@@ -255,6 +255,10 @@ llvm::Value* IRGenerator::generateCast(llvm::Value* src, llvm::Type* destType) {
     }
 
     if (srcType->isPointerTy() && destType->isPointerTy()) {
+        if (srcType->getPointerAddressSpace() != destType->getPointerAddressSpace()) {
+            console.error("Pointer cast across address spaces is invalid.");
+            return nullptr;
+        }
         return Builder->CreateBitCast(src, destType, "ptrcast");
     }
 

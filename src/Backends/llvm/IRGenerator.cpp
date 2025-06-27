@@ -197,7 +197,11 @@ void IRGenerator::finalizeGlobalInitializers() {
     // Emit all initializers
     for (auto& init : globalInitializers) {
         if (init.value->getType() != init.variable->getValueType()) {
-            init.value = Builder->CreateBitCast(init.value, init.variable->getValueType());
+            init.value = generateCast(init.value, init.variable->getValueType());
+            if (!init.value) {
+                console.error("Failed to cast global initializer value.");
+                continue;
+            }
         }
         Builder->CreateStore(init.value, init.variable);
     }

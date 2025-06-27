@@ -354,8 +354,8 @@ llvm::Value* IRGenerator::createFixedArray(
         if (element->getType() != elementType) {
             DEBUG_LOG("Type mismatch: expected " + debugType(elementType) +
                       ", got " + debugType(element->getType()));
-            element = Builder->CreateBitCast(element, elementType);
-            DEBUG_LOG("Bitcasted element to match element type");
+            element = generateCast(element, elementType);
+            DEBUG_LOG("Casted element to match element type");
         }
 
         llvm::Value* elementPtr = Builder->CreateGEP(

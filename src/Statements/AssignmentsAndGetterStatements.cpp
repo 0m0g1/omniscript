@@ -98,6 +98,13 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
     }
 
     if (!expr) {
+        // Todo: work with function pointers
+        expr = scope->getOverloads(name)[0];
+        auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr);
+        resolvedName = func->mangledName;
+    }
+
+    if (!expr) {
         console.error("Symbol '" + name + "' could not be resolved in scope '" + scope->getName() + "'.");
         return nullptr;
     }

@@ -26,12 +26,16 @@ llvm::Value* IRGenerator::assignVariable(
         if (initialValue && !isConstant) {
             llvm::Type* valueType = type;
             if (initialValue->getType() != valueType) {
-                initialValue = Builder->CreateBitCast(initialValue, valueType, "bitcast");
+                initialValue = generateCast(initialValue, valueType);
+                if (!initialValue) {
+                    console.error("Failed to cast value when reassigning '" + name + "'");
+                    return nullptr;
+                }
             }
-
             llvm::StoreInst* store = Builder->CreateStore(initialValue, existingVar, isVolatile);
             store->setAlignment(llvm::Align(4));
         }
+        
         return existingVar;
     }
 
@@ -86,6 +90,13 @@ llvm::Value* IRGenerator::assignVariable(
 
     // Store initializer
     if (initialValue) {
+        if (initialValue->getType() != type) {
+            initialValue = generateCast(initialValue, type);
+            if (!initialValue) {
+                console.error("Failed to cast initializer for variable '" + name + "'");
+                return nullptr;
+            }
+        }
         llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca, isVolatile);
         store->setAlignment(llvm::Align(align));
     }

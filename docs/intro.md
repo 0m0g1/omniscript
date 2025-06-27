@@ -1,155 +1,102 @@
-# OmniScript Documentation
+# OS Programming Language
 
-## Introduction
-OmniScript is a high-level, JavaScript-like programming language that supports both high-level and low-level capabilities. It is designed to be compiled using LLVM and supports cross-platform functionality, including mobile, desktop, and embedded systems.
+⚠️ **Early Development Notice**  
+This project is in **early development** and not ready for general use. APIs and behavior are subject to change without notice.
 
-OmniScript is an object-oriented language where everything, including functions, is treated as objects with built-in methods. This documentation covers the core features of OmniScript, including its syntax, libraries, and usage.
+**OS** (formerly OmniScript) is a modern systems programming language designed for performance and safety. It combines the control of C++ with modern language features and a clean syntax.
 
-## Table of Contents
-- [OmniScript Documentation](#omniscript-documentation)
-  - [Introduction](#introduction)
-  - [Table of Contents](#table-of-contents)
-  - [Getting Started](#getting-started)
-    - [Prerequisites](#prerequisites)
-    - [Installation](#installation)
-  - [Language Syntax](#language-syntax)
-    - [Variables and Constants](#variables-and-constants)
+## Key Features
 
-## Getting Started
-To start using OmniScript, you need to install the compiler and set up the development environment. 
+- **Strong static typing** with type inference
+- **Memory safety** with explicit memory management
+- **Zero-cost abstractions**
+- **C interoperability** through extern declarations
+- **Object-oriented programming** with classes and structs
+- **Generic programming** with templates
+- **Cross-platform** compilation targeting multiple architectures
+
+## Quick Start
 
 ### Prerequisites
-- LLVM (via MSYS2 or other setups)
-- A compatible editor (e.g., Visual Studio Code)
-- A basic understanding of C++ (for building the compiler)
 
-### Installation
-1. Clone the OmniScript repository from GitHub.
-2. Follow the instructions for setting up the build environment.
-3. Run the compiler using the command:
-    ```bash
-    ./build_omniscript.sh
-    ```
+- No external downloads required
+- All necessary tools (`make.exe` and `premake5.exe`) are included in the `scripts` folder
 
-## Language Syntax
+### Build Instructions
 
-### Variables and Constants
-OmniScript supports both mutable and immutable variables. Variables are declared using the `let` keyword, while constants are declared with the `const` keyword.
+1. **Generate Makefiles:**
+   ```bash
+   ./scripts/premake/premake5.exe gmake2
+   ```
 
-```omn
-let myVariable = 10;   // Mutable variable
-const PI = 3.14159;    // Immutable constant
-Control Flow
-If Statements
-omn
-Copy code
-if (x > 0) {
-    console.log("Positive");
-} else {
-    console.log("Non-positive");
-}
-For Loops
-OmniScript supports the traditional for loop syntax:
+2. **Clean Build (if needed):**
+   ```bash
+   make clean
+   ```
 
-omn
-Copy code
-for (let i = 0; i < 10; i++) {
-    console.log(i);
-}
-While Loops
-omn
-Copy code
-while (x < 10) {
-    x++;
-}
-Functions
-Functions are first-class objects in OmniScript. They can be defined and called just like any other object. Functions are declared using the function keyword:
+3. **Compile:**
+   ```bash
+   # Debug mode
+   make config=debug
+   
+   # Release mode
+   make config=release
+   ```
 
-omn
-Copy code
-function add(a, b) {
-    return a + b;
-}
-Functions can also be stored as objects:
+### Running Programs
 
-omn
-Copy code
-let add = function(a, b) {
-    return a + b;
-};
-console.log(add(2, 3)); // Output: 5
-Classes and Objects
-OmniScript allows the creation of objects and classes similar to JavaScript's class syntax.
+```bash
+# Debug mode
+.\bin\Debug-windows-x86_64\Osengine.exe .\examples\types.os --execute --debug
 
-omn
-Copy code
-class Person {
-    constructor(name) {
-        this.name = name;
-    }
+# Release mode
+.\bin\Release-windows-x86_64\Osengine.exe .\examples\types.os --execute
+```
 
-    greet() {
-        console.log("Hello, " + this.name);
-    }
+> **Note:** Output folder format: `bin/{config}-{system}-{arch}`
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md)
+- [Language Syntax](docs/syntax.md)
+- [Data Types](docs/types.md)
+- [Functions](docs/functions.md)
+- [Control Flow](docs/control-flow.md)
+- [Object-Oriented Programming](docs/oop.md)
+- [Memory Management](docs/memory.md)
+- [External Function Interface](docs/ffi.md)
+- [Build System](docs/build-system.md)
+- [Examples](docs/examples.md)
+
+## IDE Support
+
+Install the [OmniScript Language Server](https://github.com/0m0g1/omniscript-language-server) for syntax highlighting and IntelliSense in VSCode.
+
+In VSCode, run: `Developer: Install Extension from Location` and select the downloaded folder.
+
+## Hello World Example
+
+```os
+extern "C" {
+    fn printf(fmt: char*, ...) => int;
 }
 
-let person = new Person("Alice");
-person.greet(); // Output: Hello, Alice
-Error Handling
-OmniScript supports basic try-catch error handling:
-
-omn
-Copy code
-try {
-    let result = riskyFunction();
-} catch (error) {
-    console.log("An error occurred: " + error.message);
+function main() => i32 {
+    printf("Hello, OS!\n");
+    return 0;
 }
-Standard Library
-Console
-OmniScript includes a set of console methods that emulate JavaScript's console API:
+```
 
-omn
-Copy code
-console.log("This is a log message.");
-console.error("This is an error message.");
-console.warn("This is a warning message.");
-Math
-The Math object provides common mathematical functions:
+## Contributing
 
-omn
-Copy code
-let result = Math.max(10, 20); // Returns 20
-let rounded = Math.round(3.14); // Returns 3
-String
-The String object provides methods for manipulating strings:
+Feedback, ideas, and discussion are very welcome! This language is in active development, and community input helps shape its future.
 
-omn
-Copy code
-let str = "Hello, world!";
-let upper = str.toUpperCase();  // "HELLO, WORLD!"
-let substring = str.substring(0, 5);  // "Hello"
-Compilation and Running
-To compile and run OmniScript code:
+## Links
 
-Write your OmniScript code in a .os file.
-Compile the code using the OmniScript compiler.
-Run the resulting executable on your target platform.
-Example Compilation Command:
-bash
-Copy code
-omniscript --compile myscript.os --output myscript.exe
-Example Code
-Hello World
-omn
-Copy code
-console.log("Hello, OmniScript!");
-Simple Function Example
-omn
-Copy code
-function multiply(a, b) {
-    return a * b;
-}
+- [Temporary Documentation](https://github.com/0m0g1/omniscript/blob/main/docs/temp.md)
+- [Language Server](https://github.com/0m0g1/omniscript-language-server)
+- [Main Repository](https://github.com/0m0g1/omniscript)
 
-let result = multiply(4, 5);
-console.log(result);  // Output: 20
+## License
+
+[License information to be added]

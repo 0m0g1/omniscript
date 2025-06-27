@@ -76,7 +76,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             llvm::Type* pointeeType;
             pointeeType = resolveLLVMType(pointer->getPointeeType());
             pointerDepth = pointer->getPointerDepth();
-            return llvm::PointerType::get(pointeeType, pointerDepth);
+            return llvm::PointerType::get(pointeeType, 0);
         }
 
         if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerType>(type)) {
