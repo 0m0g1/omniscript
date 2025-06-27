@@ -1,84 +1,86 @@
 extern "C" {
-    fn printf(...fmt: char*) => int;
+    fn fabs(x: float) => float;
     fn sinf(x: float) => float;
-    fn fabsf(x: float) => float;
+    fn printf(...fmt: char*) => int;
 }
 
-extern 
-"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll",
-"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a" {
-        fn glfwInit() => int;
-        fn glfwCreateWindow(width: int, height: int, title: char*, monitor: void*, share: void*) => void*;
-        fn glfwMakeContextCurrent(window: void*) => void;
-        fn glfwWindowShouldClose(window: void*) => int;
-        fn glfwPollEvents() => void;
-        fn glfwSwapBuffers(window: void*) => void;
-        fn glfwTerminate() => void;
-}
+printf("%.2f", sinf(10.0));
 
-extern 
-"C:/Windows/System32/opengl32.dll",
-"C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/OpenGL32.lib" {
-    fn glClearColor(r: float, g: float, b: float, a: float) => void;
-    fn glClear(mask: uint) => void;
-    fn glBegin(mode: uint) => void;
-    fn glEnd() => void;
-    fn glVertex2f(x: float, y: float) => void;
-    fn glColor3f(r: float, g: float, b: float) => void;
-    fn glLoadIdentity() => void;
-    fn glViewport(x: int, y: int, width: int, height: int) => void;
-    fn glMatrixMode(mode: uint) => void;
-    fn glOrtho(left: double, right: double, bottom: double, top: double, near: double, far: double) => void;
-    fn glRotatef(angle: float, x: float, y: float, z: float) => void;
-}
+// extern 
+// "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll",
+// "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a" {
+//         fn glfwInit() => int;
+//         fn glfwCreateWindow(width: int, height: int, title: char*, monitor: void*, share: void*) => void*;
+//         fn glfwMakeContextCurrent(window: void*) => void;
+//         fn glfwWindowShouldClose(window: void*) => int;
+//         fn glfwPollEvents() => void;
+//         fn glfwSwapBuffers(window: void*) => void;
+//         fn glfwTerminate() => void;
+// }
 
-const GL_COLOR_BUFFER_BIT = 0x00004000;
-const GL_PROJECTION = 0x1701;
-const GL_MODELVIEW = 0x1700;
-const GL_TRIANGLES = 0x0004;
+// extern 
+// "C:/Windows/System32/opengl32.dll",
+// "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/OpenGL32.lib" {
+//     fn glClearColor(r: float, g: float, b: float, a: float) => void;
+//     fn glClear(mask: uint) => void;
+//     fn glBegin(mode: uint) => void;
+//     fn glEnd() => void;
+//     fn glVertex2f(x: float, y: float) => void;
+//     fn glColor3f(r: float, g: float, b: float) => void;
+//     fn glLoadIdentity() => void;
+//     fn glViewport(x: int, y: int, width: int, height: int) => void;
+//     fn glMatrixMode(mode: uint) => void;
+//     fn glOrtho(left: double, right: double, bottom: double, top: double, near: double, far: double) => void;
+//     fn glRotatef(angle: float, x: float, y: float, z: float) => void;
+// }
 
-if (glfwInit() == 0) {
-    printf("Failed to initialize GLFW\n");
-    return;
-}
+// const GL_COLOR_BUFFER_BIT = 0x00004000;
+// const GL_PROJECTION = 0x1701;
+// const GL_MODELVIEW = 0x1700;
+// const GL_TRIANGLES = 0x0004;
 
-let window = glfwCreateWindow(800, 600, "OS Hello Triangle", nullptr, nullptr);
-if (window == nullptr) {
-    printf("Failed to create window\n");
-    glfwTerminate();
-    return;
-}
+// if (glfwInit() == 0) {
+//     printf("Failed to initialize GLFW\n");
+//     return;
+// }
 
-glfwMakeContextCurrent(window);
+// let window = glfwCreateWindow(800, 600, "OS Hello Triangle", nullptr, nullptr);
+// if (window == nullptr) {
+//     printf("Failed to create window\n");
+//     glfwTerminate();
+//     return;
+// }
 
-glViewport(0, 0, 800, 600);
-glMatrixMode(GL_PROJECTION);
-glLoadIdentity();
-glOrtho(-1, 1, -1, 1, -1, 1);
-glMatrixMode(GL_MODELVIEW);
+// glfwMakeContextCurrent(window);
 
-let angle = 0.0;
-let t: float = 0.0;
+// glViewport(0, 0, 800, 600);
+// glMatrixMode(GL_PROJECTION);
+// glLoadIdentity();
+// glOrtho(-1, 1, -1, 1, -1, 1);
+// glMatrixMode(GL_MODELVIEW);
 
-while (glfwWindowShouldClose(window) == 0) {
-    t += 0.01;
+// let angle = 0.0;
+// let t: float = 0.0;
 
-    glClearColor(0.1, 0.1, 0.1, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glLoadIdentity();
+// while (glfwWindowShouldClose(window) == 0) {
+//     t += 0.01;
 
-    glRotatef(angle, 0.0, 0.0, 1.0); // Rotate around Z-axis
-    angle += 1.0;
+//     glClearColor(0.1, 0.1, 0.1, 1.0);
+//     glClear(GL_COLOR_BUFFER_BIT);
+//     glLoadIdentity();
 
-    glBegin(GL_TRIANGLES);
-    glColor3f(fabsf(sinf(t)), 0.0, 0.0); glVertex2f(0.0, 0.5);
-    glColor3f(0.0, absf(sinf(t + 2.1)), 0.0); glVertex2f(-0.5, -0.5);
-    glColor3f(0.0, 0.0, fabsf(sinf(t + 4.2))); glVertex2f(0.5, -0.5);
-    glEnd();
+//     glRotatef(angle, 0.0, 0.0, 1.0); // Rotate around Z-axis
+//     angle += 1.0;
 
-    glfwSwapBuffers(window);
-    glfwPollEvents();
-}
+//     glBegin(GL_TRIANGLES);
+//     glColor3f(fabs(sinf(t)), 0.0, 0.0); glVertex2f(0.0, 0.5);
+//     glColor3f(0.0, fabs(sinf(t + 2.1)), 0.0); glVertex2f(-0.5, -0.5);
+//     glColor3f(0.0, 0.0, fabs(sinf(t + 4.2))); glVertex2f(0.5, -0.5);
+//     glEnd();
+
+//     glfwSwapBuffers(window);
+//     glfwPollEvents();
+// }
 
 
-glfwTerminate();
+// glfwTerminate();

@@ -10,5 +10,6 @@ public:
     
 private:
     void applyPlatformSpecificAttributes(llvm::Function* func, const std::string& name);
+    static bool symbolExistsInLibrary(const std::string& libPath, const std::string& symbolName); 
     llvm::CallingConv::ID getPlatformCallingConv(const std::string& name);
 };

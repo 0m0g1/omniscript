@@ -102,6 +102,24 @@ void IRGenerator::setupExternalResolvers() {
     }
 }
 
+bool IRGenerator::symbolExistsInDLL(const std::string& dllPath, const std::string& symbolName) {
+    std::string command = "objdump -T \"" + dllPath + "\" 2>&1";
+    std::array<char, 512> buffer;
+    std::string output;
+    
+    FILE* pipe = _popen(command.c_str(), "r");
+    if (!pipe) {
+        console.error("Failed to run objdump");
+        return false;
+    }
+    
+    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+        output += buffer.data();
+    }
+    _pclose(pipe);
+    
+    return output.find(symbolName) != std::string::npos;
+}
 
 bool IRGenerator::symbolExistsInStaticLib(const std::string& libPath, const std::string& symbolName) {
     std::string command = "llvm-nm \"" + libPath + "\" 2>&1";

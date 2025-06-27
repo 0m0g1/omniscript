@@ -1,39 +1,56 @@
-#include <omniscript/engine/Backends/LLVM/IRGenerator.h>
-#include <omniscript/engine/Backends/LLVM/LLVMExternalFunctionResolver.h>
-#include <omniscript/engine/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
+#include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
+#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
 
-llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::string& name, 
-                                       llvm::FunctionType* funcType, LinkDependencies& deps) {
-    static const std::unordered_map<std::string, std::string> functionToLibrary = {
-        // Math functions
-        {"sin", "m"}, {"cos", "m"}, {"tan", "m"}, {"sqrt", "m"}, {"pow", "m"},
-        {"exp", "m"}, {"log", "m"}, {"floor", "m"}, {"ceil", "m"}, {"fabs", "m"},
-        {"asin", "m"}, {"acos", "m"}, {"atan", "m"}, {"atan2", "m"}, {"sinh", "m"},
-        {"cosh", "m"}, {"tanh", "m"}, {"log10", "m"}, {"ldexp", "m"}, {"frexp", "m"},
-        
-        // Threading
-        {"pthread_create", "pthread"}, {"pthread_join", "pthread"}, 
-        {"pthread_mutex_init", "pthread"}, {"pthread_mutex_lock", "pthread"},
-        {"pthread_mutex_unlock", "pthread"}, {"pthread_mutex_destroy", "pthread"},
-        {"pthread_cond_init", "pthread"}, {"pthread_cond_wait", "pthread"},
-        {"pthread_cond_signal", "pthread"}, {"pthread_cond_broadcast", "pthread"},
-        
-        // Dynamic loading
-        {"dlopen", "dl"}, {"dlsym", "dl"}, {"dlclose", "dl"}, {"dlerror", "dl"},
-        
-        // Standard C functions (usually in libc, no explicit linking needed on most systems)
-        {"printf", ""}, {"scanf", ""}, {"malloc", ""}, {"free", ""}, {"calloc", ""},
-        {"realloc", ""}, {"strlen", ""}, {"strcpy", ""}, {"strcmp", ""}, {"strcat", ""},
-        {"memcpy", ""}, {"memset", ""}, {"memcmp", ""}, {"exit", ""}, {"abort", ""},
-        {"getenv", ""}, {"system", ""}, {"time", ""}, {"clock", ""}, {"rand", ""},
-        {"srand", ""}, {"qsort", ""}, {"bsearch", ""}, {"atoi", ""}, {"atof", ""},
-        {"strtol", ""}, {"strtod", ""}, {"fopen", ""}, {"fclose", ""}, {"fread", ""},
-        {"fwrite", ""}, {"fseek", ""}, {"ftell", ""}, {"rewind", ""}, {"fflush", ""},
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <dlfcn.h>
+#endif
+
+llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::string& name,
+                                        llvm::FunctionType* funcType, LinkDependencies& deps) {
+    
+    // Define libraries to check in order of priority
+    static const std::vector<std::pair<std::string, std::string>> librariesToCheck = {
+#ifdef _WIN32
+        {"msvcrt.dll", ""},           // Main C runtime (no link flag needed)
+        {"ucrtbase.dll", ""},         // Universal C Runtime
+        {"kernel32.dll", "kernel32"}, // Windows API
+        {"user32.dll", "user32"},     // Windows User API
+#else
+        {"libc.so.6", ""},            // Main C library (no link flag needed)
+        {"/lib/x86_64-linux-gnu/libc.so.6", ""},
+        {"/lib64/libc.so.6", ""},
+        {"libm.so.6", "m"},           // Math library
+        {"/lib/x86_64-linux-gnu/libm.so.6", "m"},
+        {"libpthread.so.0", "pthread"}, // Threading library
+        {"/lib/x86_64-linux-gnu/libpthread.so.0", "pthread"},
+        {"libdl.so.2", "dl"},         // Dynamic loading
+        {"/lib/x86_64-linux-gnu/libdl.so.2", "dl"},
+#ifdef __APPLE__
+        {"/usr/lib/libSystem.dylib", ""},
+        {"/usr/lib/libc.dylib", ""},
+        {"/usr/lib/libm.dylib", "m"},
+#endif
+#endif
     };
     
-    auto it = functionToLibrary.find(name);
-    if (it == functionToLibrary.end()) {
-        return nullptr; // Not a known C standard library function
+    std::string foundLibrary = "";
+    bool symbolFound = false;
+    
+    // Check each library for the symbol
+    for (const auto& [libPath, linkName] : librariesToCheck) {
+        if (symbolExistsInLibrary(libPath, name)) {
+            foundLibrary = linkName;
+            symbolFound = true;
+            break;
+        }
+    }
+    
+    // If not found in any library, return nullptr
+    if (!symbolFound) {
+        return nullptr;
     }
     
     // Create the function
@@ -45,22 +62,126 @@ llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::stri
     applyPlatformSpecificAttributes(func, name);
     
     // Add library dependency if needed
-    if (!it->second.empty()) {
+    if (!foundLibrary.empty()) {
         LinkDependencies::LibraryInfo info;
-        info.name = it->second;
+        info.name = foundLibrary;
         info.isSystemLib = true;
-        deps.addRequiredLibrary(it->second, info);
+        deps.addRequiredLibrary(foundLibrary, info);
     }
     
     return func;
 }
 
+// Helper function to check if symbol exists in a library
+bool CStdLibResolver::symbolExistsInLibrary(const std::string& libPath, const std::string& symbolName) {
+#ifdef _WIN32
+    HMODULE hModule = LoadLibraryA(libPath.c_str());
+    if (!hModule) {
+        return false;
+    }
+    
+    FARPROC proc = GetProcAddress(hModule, symbolName.c_str());
+    FreeLibrary(hModule);
+    
+    return proc != nullptr;
+    
+#else
+    void* handle = dlopen(libPath.c_str(), RTLD_LAZY | RTLD_NOLOAD);
+    if (!handle) {
+        handle = dlopen(libPath.c_str(), RTLD_LAZY);
+    }
+    if (!handle) {
+        return false;
+    }
+    
+    void* symbol = dlsym(handle, symbolName.c_str());
+    dlclose(handle);
+    
+    return symbol != nullptr;
+#endif
+}
+
 bool CStdLibResolver::isCStdLibFunction(const std::string& name) {
-    static const std::unordered_set<std::string> cStdLibFuncs = {
-        "printf", "scanf", "malloc", "free", "strlen", "strcpy",
-        "memcpy", "memset", "fopen", "fclose", "fread", "fwrite"
+    // Windows
+#ifdef _WIN32
+    std::vector<std::string> windowsLibs = {
+        "msvcrt.dll",      // Main C runtime
+        "ucrtbase.dll",    // Universal C Runtime (Windows 10+)
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll"
     };
-    return cStdLibFuncs.count(name) > 0;
+    
+    for (const auto& lib : windowsLibs) {
+        HMODULE hModule = LoadLibraryA(lib.c_str());
+        if (hModule) {
+            FARPROC proc = GetProcAddress(hModule, name.c_str());
+            FreeLibrary(hModule);
+            if (proc != nullptr) {
+                return true;
+            }
+        }
+    }
+
+// Linux
+#elif __linux__
+    std::vector<std::string> linuxLibs = {
+        "libc.so.6",       // Main C library
+        "/lib/x86_64-linux-gnu/libc.so.6",
+        "/lib64/libc.so.6",
+        "/usr/lib/libc.so.6"
+    };
+    
+    for (const auto& lib : linuxLibs) {
+        void* handle = dlopen(lib.c_str(), RTLD_LAZY | RTLD_NOLOAD);
+        if (!handle) {
+            handle = dlopen(lib.c_str(), RTLD_LAZY);
+        }
+        if (handle) {
+            void* symbol = dlsym(handle, name.c_str());
+            dlclose(handle);
+            if (symbol != nullptr) {
+                return true;
+            }
+        }
+    }
+
+// macOS
+#elif __APPLE__
+    std::vector<std::string> macLibs = {
+        "/usr/lib/libSystem.dylib",     // Main system library
+        "/usr/lib/libc.dylib",
+        "libSystem.B.dylib"
+    };
+    
+    for (const auto& lib : macLibs) {
+        void* handle = dlopen(lib.c_str(), RTLD_LAZY | RTLD_NOLOAD);
+        if (!handle) {
+            handle = dlopen(lib.c_str(), RTLD_LAZY);
+        }
+        if (handle) {
+            void* symbol = dlsym(handle, name.c_str());
+            dlclose(handle);
+            if (symbol != nullptr) {
+                return true;
+            }
+        }
+    }
+
+// Other Unix-like systems
+#else
+    void* handle = dlopen(nullptr, RTLD_LAZY); // Check current process
+    if (handle) {
+        void* symbol = dlsym(handle, name.c_str());
+        dlclose(handle);
+        if (symbol != nullptr) {
+            return true;
+        }
+    }
+#endif
+
+    return false;
 }
 
 void CStdLibResolver::applyPlatformSpecificAttributes(llvm::Function* func, const std::string& name) {

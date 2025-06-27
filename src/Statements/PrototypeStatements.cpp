@@ -24,6 +24,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG();
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
+    std::string evaluatedCallee = callee;
     std::string targetName = named ? named->getName() : instanceName;
     DEBUG_LOG("The callee is '" + callee + "' target name is '" + targetName + "' and instance name is '" + instanceName + "'.");
    
@@ -87,7 +88,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         }
 
         if (contextualObj) {
-            callee = contextualName;
+            evaluatedCallee = contextualName;
             obj = contextualObj;
         }
 
@@ -121,7 +122,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                     baseTypeName = baseTypeName.substr(0, baseTypeName.size() - moduleTypeSuffix.size());
                 }
 
-                callee = baseTypeName + "." + callee;
+                evaluatedCallee = baseTypeName + "." + callee;
 
                 if (!isModuleType) {
                     auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? targetName : instanceName));
@@ -137,7 +138,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             }
         } else if (isFromAssignment) {
             std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
-            auto methodCall = std::make_shared<Call>(assignmentExpr, callee, args);
+            auto methodCall = std::make_shared<Call>(assignmentExpr, evaluatedCallee, args);
             auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
             if (isFromConstantAssignment) {
                 stmt->markAsConstant();
@@ -147,7 +148,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     }
     
     
-    DEBUG_LOG("[Call] Evaluating call to '" + callee + "'");
+    DEBUG_LOG("[Call] Evaluating call to '" + evaluatedCallee + "'");
     if (!instanceName.empty()) {
         DEBUG_LOG("For " + instanceName);
     }
@@ -265,7 +266,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         
             if (matchArgumentsToParameters(evaluatedArgs, inputParams, scope)) {
                 DEBUG_LOG("[Call] ✅ Matched overload: using mangled name '" + funcExpr->mangledName + "'");
-                callee = funcExpr->mangledName;
+                evaluatedCallee = funcExpr->mangledName;
                 called = funcExpr;
                 DEBUG_LOG("[Call] Called is now " + called->toString());
                 break;
@@ -283,7 +284,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         return nullptr;
     }
 
-    DEBUG_LOG("[Call] Found callee '" + callee + "' of type '" + 
+    DEBUG_LOG("[Call] Found callee '" + evaluatedCallee + "' of type '" + 
               (called->getType() ? called->getType()->toString() : "null") + "'");
     
     auto calledFunc = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(called);
@@ -301,14 +302,14 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         DEBUG_LOG("[Call] Cloned " + std::to_string(parameters.size()) + " parameters");
     } else {
         DEBUG_LOG("[Call] ERROR: Callee is not callable");
-        console.error(formatError("'" + callee + "' is not callable; it is of kind '" + 
+        console.error(formatError("'" + evaluatedCallee + "' is not callable; it is of kind '" + 
                       (called->getType() ? called->getType()->toString() : "null") + "'."));
         return nullptr;
     }
 
     // Create a local scope
-    DEBUG_LOG("[Call] Creating local scope for call to '" + callee + "'");
-    auto localScope = scope->createChildScope("call_" + callee);
+    DEBUG_LOG("[Call] Creating local scope for call to '" + evaluatedCallee + "'");
+    auto localScope = scope->createChildScope("call_" + evaluatedCallee);
     DEBUG_LOG("[Call] Created local scope with " + std::to_string(parameters.size()) + " parameters");
 
     std::unordered_set<std::string> providedParams;
@@ -337,7 +338,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             }
             if (!found) {
                 DEBUG_LOG("[Call] ERROR: Unknown parameter '" + paramName + "'");
-                console.error(formatError("Unknown parameter '" + paramName + "' for callable '" + callee + "'"));
+                console.error(formatError("Unknown parameter '" + paramName + "' for callable '" + evaluatedCallee + "'"));
                 continue;
             }
 
@@ -509,12 +510,12 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     }
 
     if (std::dynamic_pointer_cast<Omniscript::FunctionExpression>(called)) {
-        DEBUG_LOG("[Call] Returning CallExpression for '" + callee + "' with " + std::to_string(finalArgs.size()) + " args");
-        return std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
+        DEBUG_LOG("[Call] Returning CallExpression for '" + evaluatedCallee + "' with " + std::to_string(finalArgs.size()) + " args");
+        return std::make_shared<Omniscript::CallExpression>(evaluatedCallee, finalArgs, type);
     }
 
     std::vector<std::shared_ptr<Omniscript::MemberExpression>> instanceMembers;
-    auto instanceConstructor = std::make_shared<Omniscript::CallExpression>(callee, instanceName, finalArgs);
+    auto instanceConstructor = std::make_shared<Omniscript::CallExpression>(evaluatedCallee, instanceName, finalArgs);
     for (const auto& param : parameters) {
         auto instanceMember = std::make_shared<Omniscript::MemberExpression>(
             param->getName(),

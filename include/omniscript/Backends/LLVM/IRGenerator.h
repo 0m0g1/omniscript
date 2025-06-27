@@ -188,7 +188,8 @@ public:
     );
 
     void importModule(const std::string& moduleName, const std::vector<std::string>& members);
-    bool symbolExistsInStaticLib(const std::string& libPath, const std::string& symbolName);
+    static bool symbolExistsInDLL(const std::string& dllPath, const std::string& symbolName);
+    static bool symbolExistsInStaticLib(const std::string& libPath, const std::string& symbolName);
 
     llvm::Value* codegen(
         std::shared_ptr<Omniscript::Expression> value,
