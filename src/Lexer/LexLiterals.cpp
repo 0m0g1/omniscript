@@ -173,6 +173,8 @@ Token Lexer::getNextToken() {
             return Token(TokenTypes::Volatile, "", line, column, sourceFilePath);
         } else if (identifier == "as") {
             return Token(TokenTypes::As, "", line, column, sourceFilePath);
+        } else if (identifier == "type" && peek() == ' ') {
+            return Token(TokenTypes::Type, "", line, column, sourceFilePath);
         }
 
         // Otherwise treat it as an identifier token

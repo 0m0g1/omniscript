@@ -56,7 +56,8 @@ enum class TokenTypes {
     Intrinsic,
     Volatile,
     As,
-
+    Type,
+    
     // Literals
     Identifier,             // To identify Variable and function names
     Character,

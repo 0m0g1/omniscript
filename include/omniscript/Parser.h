@@ -130,6 +130,8 @@ class Parser {
         std::shared_ptr<Statement> term();                    
         std::shared_ptr<Statement> factor();                  
         std::shared_ptr<Statement> parseAs();                  
+        std::shared_ptr<Statement> parseTypeDeclaration();                  
+        std::shared_ptr<Statement> parseUsingAlias();                  
 
         void eat(TokenTypes expectedType, const std::string& errorMessage = ""); 
 };

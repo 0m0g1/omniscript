@@ -1,5 +1,6 @@
 #pragma once
 #include <omniscript/Statement.h>
+#include <omniscript/Target_config.h>
 #include <omniscript/Statements/CallableStatement.h>
 
 class FunctionDeclaration : 
@@ -18,8 +19,34 @@ public:
     
     std::string externName;
     std::string intrinsicName;
-    std::string staticLibPath;
-    std::string dynamicLibPath;
+    
+    // Cross-platform library paths
+    struct LibraryPaths {
+        std::string windowsDynamic;    // .dll
+        std::string windowsStatic;     // .lib/.a
+        std::string linuxShared;       // .so
+        std::string linuxStatic;       // .a
+        std::string macosShared;       // .dylib
+        std::string macosStatic;       // .a
+        std::string genericDynamic;    // fallback dynamic
+        std::string genericStatic;     // fallback static
+    };
+    
+    LibraryPaths libraryPaths;
+    
+    // Legacy support - these will delegate to libraryPaths
+    std::string getStaticLibPath() const { 
+        return libraryPaths.genericStatic; 
+    }
+    std::string getDynamicLibPath() const { 
+        return libraryPaths.genericDynamic; 
+    }
+    void setStaticLibPath(const std::string& path) { 
+        libraryPaths.genericStatic = path; 
+    }
+    void setDynamicLibPath(const std::string& path) { 
+        libraryPaths.genericDynamic = path; 
+    }
     
     std::shared_ptr<Omniscript::Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
@@ -65,8 +92,11 @@ public:
         }
 
         std::shared_ptr<BlockStatement> clonedBody = body ? std::dynamic_pointer_cast<BlockStatement>(body->clone()) : nullptr;
-
-        return std::make_shared<FunctionDeclaration>(name, clonedParameters, clonedBody, returnType);
+        
+        auto cloned = std::make_shared<FunctionDeclaration>(name, clonedParameters, clonedBody, returnType);
+        cloned->libraryPaths = libraryPaths; // Copy library paths
+        return cloned;
     }
 };
+
     

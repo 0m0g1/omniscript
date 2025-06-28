@@ -44,6 +44,8 @@ std::unordered_map<TokenTypes, std::string> tokenTypeNames = {
     {TokenTypes::Intrinsic, "Intrinsic"},
     {TokenTypes::Volatile, "Volatile"},
     {TokenTypes::As, "As"},
+    {TokenTypes::Type, "Type"},
+    {TokenTypes::Using, "Using"},
     {TokenTypes::Nullptr, "Nullptr"},
     {TokenTypes::Null, "Null"},
     {TokenTypes::Enum, "Enum"},

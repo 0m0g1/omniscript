@@ -60,48 +60,6 @@ void IRGenerator::setupModuleMetadata() {
     }
 }
 
-void IRGenerator::setupExternalResolvers() {
-    DEBUG_LOG("Setting up the external resolvers");
-    // Set up external resolvers based on target OS
-    auto targetOS = configs.resolveTargetOS();
-    
-    // Always add C standard library resolver
-    addExternalResolver("C", std::make_unique<CStdLibResolver>());
-    
-    // Add OS-specific resolvers
-    // switch (targetOS) {
-    //     case TargetOS::Windows:
-    //         addExternalResolver("Win32", std::make_unique<Win32Resolver>());
-    //         break;
-    //     case TargetOS::Linux:
-    //     case TargetOS::Ubuntu:
-    //     case TargetOS::Debian:
-    //         addExternalResolver("POSIX", std::make_unique<PosixResolver>());
-    //         addExternalResolver("Linux", std::make_unique<LinuxResolver>());
-    //         break;
-    //     case TargetOS::macOS:
-    //         addExternalResolver("POSIX", std::make_unique<PosixResolver>());
-    //         addExternalResolver("Darwin", std::make_unique<DarwinResolver>());
-    //         break;
-    //     case TargetOS::WebAssembly:
-    //         addExternalResolver("WASM", std::make_unique<WasmResolver>());
-    //         break;
-    //     default:
-    //         // Use generic POSIX for unknown Unix-like systems
-    //         if (configs.isUnixLikeOS()) {
-    //             addExternalResolver("POSIX", std::make_unique<PosixResolver>());
-    //         }
-    //         break;
-    // }
-    
-    // Add plugin-based resolvers if specified
-    for (const auto& plugin : configs.plugins) {
-        // This would load and initialize plugin-based resolvers
-        // Implementation depends on your plugin system
-        // loadPluginResolver(plugin);
-    }
-}
-
 bool IRGenerator::symbolExistsInDLL(const std::string& dllPath, const std::string& symbolName) {
     std::string command = "objdump -T \"" + dllPath + "\" 2>&1";
     std::array<char, 512> buffer;

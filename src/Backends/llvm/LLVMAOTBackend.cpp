@@ -2,18 +2,6 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Backends/llvm/LLVMAOTBackend.h>
 
-#include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/PosixLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DarwinLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/AndroidLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/WebAssemblyLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/SmartPlatformLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
-#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
-
 namespace fs = std::filesystem;
 
 LLVMAOTBackend::LLVMAOTBackend() {
@@ -146,67 +134,7 @@ void LLVMAOTBackend::configureTargetMachineSettings(const Config& config) {
 }
 
 void LLVMAOTBackend::setupExternalResolvers(const Config& config) {
-    auto targetOS = config.resolveTargetOS();
-    auto targetArch = config.resolveTargetArch();
     
-    DEBUG_LOG("Setting up external resolver for target: " + 
-              config.getTargetSummary());
-    
-    
-    irGen->addExternalResolver("C", std::make_unique<CStdLibResolver>());
-    
-    
-    switch (targetOS) {
-        case TargetOS::Windows:
-            irGen->addExternalResolver("kernel32", std::make_unique<WindowsAPIResolver>("kernel32"));
-            irGen->addExternalResolver("user32",   std::make_unique<WindowsAPIResolver>("user32"));
-            irGen->addExternalResolver("gdi32",    std::make_unique<WindowsAPIResolver>("gdi32"));
-            irGen->addExternalResolver("shell32",  std::make_unique<WindowsAPIResolver>("shell32"));
-            irGen->addExternalResolver("ntdll",    std::make_unique<WindowsAPIResolver>("ntdll"));
-            irGen->addExternalResolver("msvcrt",   std::make_unique<WindowsAPIResolver>("msvcrt"));
-            break;
-            
-        case TargetOS::Linux:
-        case TargetOS::FreeBSD:
-            irGen->addExternalResolver("libc", std::make_unique<PosixResolver>());
-            irGen->addExternalResolver("libm", std::make_unique<PosixResolver>());
-            irGen->addExternalResolver("libdl", std::make_unique<PosixResolver>());
-            irGen->addExternalResolver("libpthread", std::make_unique<PosixResolver>());
-            break;
-            
-        case TargetOS::MacOS:
-        case TargetOS::iOS:
-            irGen->addExternalResolver("libSystem", std::make_unique<DarwinResolver>());
-            irGen->addExternalResolver("Foundation", std::make_unique<DarwinResolver>());
-            break;
-            
-        case TargetOS::Android:
-            irGen->addExternalResolver("libc", std::make_unique<AndroidResolver>());
-            irGen->addExternalResolver("libm", std::make_unique<AndroidResolver>());
-            break;
-            
-        case TargetOS::WebAssembly:
-            irGen->addExternalResolver("wasm", std::make_unique<WebAssemblyResolver>());
-            break;
-            
-        default:
-            DEBUG_LOG("Warning: Unknown target OS, using generic resolvers only");
-            break;
-    }
-    
-    
-    for (const auto& libPath : config.aot.libraryPaths) {
-        irGen->addExternalResolver("static_lib", 
-            std::make_unique<StaticLibraryResolver>(libPath));
-    }
-    
-    
-    for (const auto& lib : config.aot.libraries) {
-        irGen->addExternalResolver("dynamic_lib", 
-            std::make_unique<DynamicLibraryResolver>(lib));
-    }
-    
-    DEBUG_LOG("External function resolver setup completed");
 }
 
 bool LLVMAOTBackend::isLinkerAvailable(const std::string& linker) {

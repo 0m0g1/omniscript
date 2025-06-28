@@ -117,6 +117,12 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
         case TokenTypes::Class:
             statement = parseClass();
             break;
+        case TokenTypes::Type:
+            statement = parseTypeDeclaration();
+            break;
+        case TokenTypes::Using:
+            statement = parseUsingAlias();
+            break;
         case TokenTypes::LessThan: {
             if (lexer.peekToken(1).getType() == TokenTypes::Identifier) {
                 parameterType paramTypes = parseTypeParametersForDeclaration();

@@ -471,20 +471,23 @@ public:
 class UnresolvedType : public Type {
 public:
     std::vector<std::string> dataTypes;
+    std::string joinedTypeString;
 
     UnresolvedType(const std::vector<std::string>& dataTypes)
-    : Type(Kind::Unresolved), dataTypes(dataTypes) {}
+        : Type(Kind::Unresolved), dataTypes(dataTypes)
+    {
+        // Join dataTypes into a single string with no separator
+        joinedTypeString.reserve(64); // Optional optimization
+        for (const auto& s : dataTypes) {
+            joinedTypeString += s;
+        }
+    }
 
-    // Inheritance check (for multiple inheritance)
-    // bool derivesFrom(const std::string& baseName) const {
-    //     for (const auto& base : baseTypes) {
-    //         if (base->name == baseName || base->derivesFrom(baseName)) {
-    //             return true;
-    //         }
-    //     }
-    //     return false;
-    // }
+    const std::string& getTypeString() const {
+        return joinedTypeString;
+    }
 };
+
 
 class UserDefinedType : public Type {
 public:
@@ -843,7 +846,6 @@ public:
     }
 };
 
-
 class GenericType : public Type {
 public:
     std::string name;
@@ -864,6 +866,7 @@ public:
 
 
 std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes);
+std::shared_ptr<Type> resolveFunctionType(const std::vector<std::string>& dataTypes, size_t& index);
 
 }
 

@@ -130,14 +130,15 @@ GENERATED += $(OBJDIR)/ParseHelpers.o
 GENERATED += $(OBJDIR)/ParseIdentifiers.o
 GENERATED += $(OBJDIR)/ParseModulesAndImports.o
 GENERATED += $(OBJDIR)/ParseObjects.o
+GENERATED += $(OBJDIR)/ParseStatements.o
+GENERATED += $(OBJDIR)/ParseStrings.o
+GENERATED += $(OBJDIR)/ParseTypes.o
 GENERATED += $(OBJDIR)/Parser.o
 GENERATED += $(OBJDIR)/PosixLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/PrototypeStatements.o
 GENERATED += $(OBJDIR)/SmartPlatformLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/Statement.o
-GENERATED += $(OBJDIR)/Statements.o
 GENERATED += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
-GENERATED += $(OBJDIR)/String.o
 GENERATED += $(OBJDIR)/Target_config.o
 GENERATED += $(OBJDIR)/Tokens.o
 GENERATED += $(OBJDIR)/Types.o
@@ -195,14 +196,15 @@ OBJECTS += $(OBJDIR)/ParseHelpers.o
 OBJECTS += $(OBJDIR)/ParseIdentifiers.o
 OBJECTS += $(OBJDIR)/ParseModulesAndImports.o
 OBJECTS += $(OBJDIR)/ParseObjects.o
+OBJECTS += $(OBJDIR)/ParseStatements.o
+OBJECTS += $(OBJDIR)/ParseStrings.o
+OBJECTS += $(OBJDIR)/ParseTypes.o
 OBJECTS += $(OBJDIR)/Parser.o
 OBJECTS += $(OBJDIR)/PosixLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/PrototypeStatements.o
 OBJECTS += $(OBJDIR)/SmartPlatformLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/Statement.o
-OBJECTS += $(OBJDIR)/Statements.o
 OBJECTS += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
-OBJECTS += $(OBJDIR)/String.o
 OBJECTS += $(OBJDIR)/Target_config.o
 OBJECTS += $(OBJDIR)/Tokens.o
 OBJECTS += $(OBJDIR)/Types.o
@@ -417,13 +419,16 @@ $(OBJDIR)/ParseModulesAndImports.o: src/Parser/ParseModulesAndImports.cpp
 $(OBJDIR)/ParseObjects.o: src/Parser/ParseObjects.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/ParseStatements.o: src/Parser/ParseStatements.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/ParseStrings.o: src/Parser/ParseStrings.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/ParseTypes.o: src/Parser/ParseTypes.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Parser.o: src/Parser/Parser.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/Statements.o: src/Parser/Statements.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/String.o: src/Parser/String.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/AccessStatements.o: src/Statements/AccessStatements.cpp

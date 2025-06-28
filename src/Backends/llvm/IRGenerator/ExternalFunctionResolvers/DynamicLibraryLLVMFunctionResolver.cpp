@@ -20,6 +20,7 @@ llvm::Function* DynamicLibraryResolver::resolve(IRGenerator& generator, const st
     // Check if the symbol exists in the dynamic library
     void* symbol = dynLib.getAddressOfSymbol(name.c_str());
     if (!symbol) {
+        console.error("Symbol '" + name + "' does not exist in the library '" + libPath_ + "'.");
         return nullptr;
     }
     

@@ -41,6 +41,8 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
     }
 
     if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(type)) {
+        DEBUG_LOG("Resolving function type: " + funcType->toString());
+        
         llvm::Type* returnType = resolveLLVMType(funcType->returnType);
         if (!returnType) {
             console.error("[ERROR] Failed to resolve function return type: " + funcType->getReturnType()->toString());
@@ -58,7 +60,12 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         }
 
         // Create the LLVM function type with vararg info
-        return llvm::FunctionType::get(returnType, paramTypes, funcType->isVarArg);
+        llvm::FunctionType* llvmFuncType = llvm::FunctionType::get(returnType, paramTypes, funcType->isVarArg);
+        
+        // For function pointer variables (like OpenGL function pointers), return a pointer to the function type
+        // This is what you'd use for: type GLCLEAR = fn(mask: uint) => void;
+        // The variable GLCLEAR would be of type "pointer to function"
+        return llvm::PointerType::get(llvmFuncType, 0);
     }
 
     // If the type is an array, resolve the base type first.
@@ -95,6 +102,12 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
     llvm::Type* llvmType = nullptr;
 
     switch (type->getKind()) {
+        case Omniscript::Kind::Function:
+            // This case shouldn't be reached directly since we handle FunctionType above,
+            // but included for completeness
+            console.error("[ERROR] Function kind encountered without FunctionType cast");
+            return nullptr;
+            
         case Omniscript::Kind::Int8:
             DEBUG_LOG("Generating LLVM type: Int8");
             llvmType = llvm::Type::getInt8Ty(context);

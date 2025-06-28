@@ -19,8 +19,15 @@ struct FunctionExpression : public Callable {
     bool isExplicit = false;
     
     // External linkage information
-    std::string staticLibPath;
-    std::string dynamicLibPath;
+    std::string windowsDynamic;    // .dll
+    std::string windowsStatic;     // .lib/.a
+    std::string linuxShared;       // .so
+    std::string linuxStatic;       // .a
+    std::string macosShared;       // .dylib
+    std::string macosStatic;       // .a
+    std::string genericDynamic;    // fallback dynamic
+    std::string genericStatic;     // fallback static
+        
     std::string externName;
     std::string intrinsicName;
     std::string section = "";
@@ -220,12 +227,12 @@ struct FunctionExpression : public Callable {
     }
     
     FunctionExpression& setStaticLibPath(const std::string& path) { 
-        staticLibPath = path; 
+        genericStatic = path; 
         return *this; 
     }
     
     FunctionExpression& setDynamicLibPath(const std::string& path) { 
-        dynamicLibPath = path; 
+        genericDynamic = path; 
         return *this; 
     }
     
@@ -512,8 +519,14 @@ struct FunctionExpression : public Callable {
         cloned->isConstexpr = isConstexpr;
         cloned->isConsteval = isConsteval;
         cloned->isExplicit = isExplicit;
-        cloned->staticLibPath = staticLibPath;
-        cloned->dynamicLibPath = dynamicLibPath;
+        cloned->windowsDynamic = windowsDynamic;    
+        cloned->windowsStatic = windowsStatic;
+        cloned->linuxShared = linuxShared;
+        cloned->linuxStatic = linuxStatic;
+        cloned->macosShared = macosShared;
+        cloned->macosStatic = macosStatic;
+        cloned->genericDynamic = genericDynamic;
+        cloned->genericStatic = genericStatic;
         cloned->externName = externName;
         cloned->intrinsicName = intrinsicName;
         cloned->section = section;

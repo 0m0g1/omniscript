@@ -1,9 +1,9 @@
-extern "C:/Windows/System32/kernel32.dll" {
+extern "kernel32" {
     fn QueryPerformanceCounter(counter: int64*) => int;
     fn QueryPerformanceFrequency(freq: int64*) => int;
 }
 
-extern "C:/Windows/System32/msvcrt.dll" fn printf(...fmt: char*) => int;
+extern "C" fn printf(...fmt: char*) => int;
 
 let freq: int64 = 0;
 QueryPerformanceFrequency(&freq);

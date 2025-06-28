@@ -253,8 +253,53 @@ llvm::Function* IRGenerator::createExternFunction(
     
     std::string& name = func->mangledName;
     std::string& externName = func->externName;
-    std::string& staticLibPath = func->staticLibPath;
-    std::string& dynamicLibPath = func->dynamicLibPath;
+    
+    // Resolve platform-specific library paths
+    auto targetOS = configs.resolveTargetOS();
+    std::string genericStatic;
+    std::string genericDynamic;
+    
+    // Select appropriate library paths based on target OS and compilation mode
+    switch (targetOS) {
+        case TargetOS::Windows:
+            genericStatic = !func->windowsStatic.empty() ? func->windowsStatic : func->genericStatic;
+            genericDynamic = !func->windowsDynamic.empty() ? func->windowsDynamic : func->genericDynamic;
+            break;
+            
+        case TargetOS::Linux:
+        case TargetOS::FreeBSD:
+        case TargetOS::Android:
+            genericStatic = !func->linuxStatic.empty() ? func->linuxStatic : func->genericStatic;
+            genericDynamic = !func->linuxShared.empty() ? func->linuxShared : func->genericDynamic;
+            break;
+            
+        case TargetOS::MacOS:
+        case TargetOS::iOS:
+            genericStatic = !func->macosStatic.empty() ? func->macosStatic : func->genericStatic;
+            genericDynamic = !func->macosShared.empty() ? func->macosShared : func->genericDynamic;
+            break;
+            
+        case TargetOS::WebAssembly:
+            // WebAssembly typically uses static linking or imports
+            genericStatic = func->genericStatic;
+            genericDynamic = func->genericDynamic;
+            break;
+            
+        default:
+            // Fallback to generic paths
+            genericStatic = func->genericStatic;
+            genericDynamic = func->genericDynamic;
+            break;
+    }
+    
+    // Fallback to legacy fields if platform-specific ones are empty
+    if (genericStatic.empty() && !func->genericStatic.empty()) {
+        genericStatic = func->genericStatic;
+    }
+    if (genericDynamic.empty() && !func->genericDynamic.empty()) {
+        genericDynamic = func->genericDynamic;
+    }
+    
     llvm::Type* returnType = resolveLLVMType(func->returnType);
     std::vector<std::shared_ptr<Omniscript::Expression>>& params = func->parameters;
     bool isVarArg = func->isVarArg;
@@ -282,13 +327,14 @@ llvm::Function* IRGenerator::createExternFunction(
     };
     
     if (configs.mode == CompileMode::JIT) {
-        if (!fileExists(dynamicLibPath) && !ExternalFunctionResolver::isSystemLibrary(dynamicLibPath) && dynamicLibPath != "C") {
-            console.error("'" + dynamicLibPath + "' is not a valid dynamic library for function '" + name + "'.");
+        if (!fileExists(genericDynamic) && (resolvers.find(genericDynamic) == resolvers.end()) && genericDynamic != "C") {
+            console.error("Dynamic library '" + genericDynamic + "' for function '" + name + "' was not found.\n" +
+                            "Try using the full library path.");
             return nullptr;
         }
 
-        auto resolver = tryAddResolver(dynamicLibPath, [&]() {
-            return std::make_unique<DynamicLibraryResolver>(dynamicLibPath);
+        auto resolver = tryAddResolver(genericDynamic, [&]() {
+            return std::make_unique<DynamicLibraryResolver>(genericDynamic);
         });
 
         if (resolver) {
@@ -297,23 +343,28 @@ llvm::Function* IRGenerator::createExternFunction(
         
     } else {
         // AOT mode - enhanced static/dynamic library handling with dynamic Windows API detection
-        bool staticExists = !staticLibPath.empty() && fileExists(staticLibPath);
-        bool dynamicExists = !dynamicLibPath.empty() && fileExists(dynamicLibPath);
+        bool staticExists = !genericStatic.empty() && fileExists(genericStatic);
+        bool dynamicExists = !genericDynamic.empty() && fileExists(genericDynamic);
 
         if (!staticExists && !dynamicExists) {
             // Try common system libraries as fallback - user should provide explicit paths
             if (CStdLibResolver::isCStdLibFunction(externName)) {
-                staticLibPath = "msvcrt.lib";
-                dynamicLibPath = "msvcrt.dll";
+                if (targetOS == TargetOS::Windows) {
+                    genericStatic = "msvcrt.lib";
+                    genericDynamic = "msvcrt.dll";
+                } else {
+                    genericStatic = "libc.a";
+                    genericDynamic = "libc.so";
+                }
                 staticExists = true;
                 dynamicExists = true;
             }
             // For Windows API functions, try to auto-detect the library
-            else if (WindowsAPIResolver::isLikelyWindowsAPIFunction(externName)) {
+            else if (targetOS == TargetOS::Windows && WindowsAPIResolver::isLikelyWindowsAPIFunction(externName)) {
                 // Get the likely library name for this function
                 std::string detectedLib = WindowsAPIResolver::getRequiredLibraryForFunction(externName);
-                staticLibPath = detectedLib + ".lib";
-                dynamicLibPath = detectedLib + ".dll";
+                genericStatic = detectedLib + ".lib";
+                genericDynamic = detectedLib + ".dll";
                 staticExists = true;
                 dynamicExists = true;
                 console.info("Auto-detected Windows API function '" + externName + "' in library: " + detectedLib);
@@ -322,21 +373,22 @@ llvm::Function* IRGenerator::createExternFunction(
 
         if (staticExists) {
             // Skip symbol existence check for Windows system libraries
-            bool isWindowsSystemLib = WindowsAPIResolver::isWindowsSystemLibrary(staticLibPath);
-            if (!isWindowsSystemLib && !ExternalFunctionResolver::isSystemLibrary(staticLibPath) && 
-                !symbolExistsInStaticLib(staticLibPath, externName)) {
-                console.error("Symbol '" + externName + "' not found in static library: " + staticLibPath);
+            bool isWindowsSystemLib = (targetOS == TargetOS::Windows) && 
+                                     WindowsAPIResolver::isWindowsSystemLibrary(genericStatic);
+            if (!isWindowsSystemLib && !ExternalFunctionResolver::isSystemLibrary(genericStatic) && 
+                !symbolExistsInStaticLib(genericStatic, externName)) {
+                console.error("Symbol '" + externName + "' not found in static library: " + genericStatic);
                 return nullptr;
             }
 
-            auto resolver = tryAddResolver(staticLibPath, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
+            auto resolver = tryAddResolver(genericStatic, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
                 if (CStdLibResolver::isCStdLibFunction(externName)) {
                     return std::make_unique<CStdLibResolver>();
-                } else if (WindowsAPIResolver::isWindowsSystemLibrary(staticLibPath)) {
+                } else if (targetOS == TargetOS::Windows && WindowsAPIResolver::isWindowsSystemLibrary(genericStatic)) {
                     // Create a resolver that knows about the specific library
-                    return std::make_unique<WindowsAPIResolver>(staticLibPath);
+                    return std::make_unique<WindowsAPIResolver>(genericStatic);
                 } else {
-                    return std::make_unique<StaticLibraryResolver>(staticLibPath);
+                    return std::make_unique<StaticLibraryResolver>(genericStatic);
                 }
             });
 
@@ -346,8 +398,20 @@ llvm::Function* IRGenerator::createExternFunction(
         }
 
         if (!function && dynamicExists) {
-            auto resolver = tryAddResolver(dynamicLibPath, [&]() {
-                return std::make_unique<DynamicLibraryResolver>(dynamicLibPath);
+            auto resolver = tryAddResolver(genericDynamic, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
+                switch (targetOS) {
+                    case TargetOS::Windows:
+                        return std::make_unique<DynamicLibraryResolver>(genericDynamic);
+                    case TargetOS::Linux:
+                    case TargetOS::FreeBSD:
+                    case TargetOS::Android:
+                        return std::make_unique<DynamicLibraryResolver>(genericDynamic);
+                    case TargetOS::MacOS:
+                    case TargetOS::iOS:
+                        return std::make_unique<DynamicLibraryResolver>(genericDynamic);
+                    default:
+                        return std::make_unique<DynamicLibraryResolver>(genericDynamic);
+                }
             });
 
             if (resolver) {
@@ -357,7 +421,9 @@ llvm::Function* IRGenerator::createExternFunction(
     }
 
     if (!function) {
-        console.error("Failed to resolve external function: " + externName);
+        console.error("Failed to resolve external function: " + externName + 
+                     " (searched in static: '" + genericStatic + 
+                     "', dynamic: '" + genericDynamic + "')");
         return nullptr;
     }
 

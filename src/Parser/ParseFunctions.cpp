@@ -19,98 +19,145 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
     Token startToken = currentToken;
     eat(TokenTypes::Extern);
 
-    // Parse library paths (dynamic first, then static - order doesn't matter)
-    std::string dynamicLibPath;
-    std::string staticLibPath;
-    
-    std::string firstPath = currentToken.getValue();
+    FunctionDeclaration::LibraryPaths libraryPaths;
+    std::vector<std::string> paths;
+
+    // Parse first path
+    paths.push_back(currentToken.getValue());
     eat(TokenTypes::StringLiteral);
-    
-    if (currentToken.getType() == TokenTypes::Comma) {
+
+    // Parse additional paths
+    while (currentToken.getType() == TokenTypes::Comma) {
         eat(TokenTypes::Comma);
-        std::string secondPath = currentToken.getValue();
+        paths.push_back(currentToken.getValue());
         eat(TokenTypes::StringLiteral);
-        
-        // Classify paths by extension
-        auto classify = [](const std::string& path) {
-            if (path.ends_with(".a") || path.ends_with(".lib")) return "static";
-            if (path.ends_with(".dll") || path.ends_with(".so") || path.ends_with(".dylib")) return "dynamic";
-            return "unknown";
-        };
-        
-        std::string firstType = classify(firstPath);
-        std::string secondType = classify(secondPath);
-        
-        if (firstType == "dynamic" && secondType == "static") {
-            dynamicLibPath = firstPath;
-            staticLibPath = secondPath;
+    }
+
+    // Classify and assign paths
+    auto classifyPath = [](const std::string& path) -> std::pair<std::string, std::string> {
+        std::string lowerPath = path;
+        std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), ::tolower);
+
+        std::string libType = "unknown";
+        if (lowerPath.ends_with(".dll")) libType = "dynamic";
+        else if (lowerPath.ends_with(".so")) libType = "shared";
+        else if (lowerPath.ends_with(".dylib")) libType = "dylib";
+        else if (lowerPath.ends_with(".a") || lowerPath.ends_with(".lib")) libType = "static";
+        else libType = "extensionless"; // Accept "kernel32", "glfw", etc.
+
+        std::string platform = "generic";
+        if (lowerPath.find("win") != std::string::npos || 
+            lowerPath.find("mingw") != std::string::npos ||
+            lowerPath.find("windows") != std::string::npos ||
+            lowerPath.ends_with(".dll") || lowerPath == "kernel32" || lowerPath == "user32") {
+            platform = "windows";
         }
-        else if (firstType == "static" && secondType == "dynamic") {
-            dynamicLibPath = secondPath;
-            staticLibPath = firstPath;
+        else if (lowerPath.find("linux") != std::string::npos ||
+                 lowerPath.find("unix") != std::string::npos ||
+                 lowerPath.ends_with(".so") || lowerPath == "glfw" || lowerPath == "x11") {
+            platform = "linux";
         }
-        else {
-            console.error("Extern declaration requires one dynamic and one static library path");
+        else if (lowerPath.find("mac") != std::string::npos ||
+                 lowerPath.find("darwin") != std::string::npos ||
+                 lowerPath.find("osx") != std::string::npos ||
+                 lowerPath.ends_with(".dylib")) {
+            platform = "macos";
         }
-    
-    } else {
-        if (firstPath.ends_with(".a") || firstPath.ends_with(".lib")) {
-            staticLibPath = firstPath;
+
+        return {platform, libType};
+    };
+
+    for (const auto& path : paths) {
+        auto [platform, libType] = classifyPath(path);
+
+        if (libType == "extensionless") {
+            if (libraryPaths.genericDynamic.empty()) {
+                libraryPaths.genericDynamic = path;
+            }
+        } else if (platform == "windows") {
+            if (libType == "dynamic") {
+                if (libraryPaths.windowsDynamic.empty()) libraryPaths.windowsDynamic = path;
+            } else if (libType == "static") {
+                if (libraryPaths.windowsStatic.empty()) libraryPaths.windowsStatic = path;
+            }
+        } else if (platform == "linux") {
+            if (libType == "shared") {
+                if (libraryPaths.linuxShared.empty()) libraryPaths.linuxShared = path;
+            } else if (libType == "static") {
+                if (libraryPaths.linuxStatic.empty()) libraryPaths.linuxStatic = path;
+            }
+        } else if (platform == "macos") {
+            if (libType == "dylib") {
+                if (libraryPaths.macosShared.empty()) libraryPaths.macosShared = path;
+            } else if (libType == "static") {
+                if (libraryPaths.macosStatic.empty()) libraryPaths.macosStatic = path;
+            }
+        } else {
+            if ((libType == "dynamic" || libType == "shared" || libType == "dylib" || libType == "extensionless")
+                && libraryPaths.genericDynamic.empty()) {
+                libraryPaths.genericDynamic = path;
+            }
+            if (libType == "static" && libraryPaths.genericStatic.empty()) {
+                libraryPaths.genericStatic = path;
+            }
         }
-        else {
-            dynamicLibPath = firstPath;
-        }
+    }
+
+    if (libraryPaths.genericDynamic.empty() && libraryPaths.genericStatic.empty() &&
+        libraryPaths.windowsDynamic.empty() && libraryPaths.windowsStatic.empty() &&
+        libraryPaths.linuxShared.empty() && libraryPaths.linuxStatic.empty() &&
+        libraryPaths.macosShared.empty() && libraryPaths.macosStatic.empty()) {
+        console.error("No valid library paths found in extern declaration");
+        return nullptr;
     }
 
     if (currentToken.getType() == TokenTypes::Function) {
         eat(TokenTypes::Function);
         std::string functionName = currentToken.getValue();
         eat(TokenTypes::Identifier);
-        
+
         auto function = std::dynamic_pointer_cast<FunctionDeclaration>(
             parseLambdaFunction(functionName));
         
         function->isExtern = true;
-        function->dynamicLibPath = dynamicLibPath;
-        function->staticLibPath = staticLibPath;
+        function->libraryPaths = libraryPaths;
         function->externName = functionName;
         function->setPosition(startToken);
 
         return function;
-    
+
     } else if (currentToken.getType() == TokenTypes::LeftBrace) {
         eat(TokenTypes::LeftBrace);
         std::vector<std::shared_ptr<Statement>> functions;
-        
+
         while (currentToken.getType() != TokenTypes::RightBrace) {
             if (currentToken.getType() == TokenTypes::Function) {
                 eat(TokenTypes::Function);
             }
-            
+
             std::string functionName = currentToken.getValue();
             eat(TokenTypes::Identifier);
-            
+
             auto function = std::dynamic_pointer_cast<FunctionDeclaration>(
                 parseLambdaFunction(functionName));
             
             function->isExtern = true;
-            function->dynamicLibPath = dynamicLibPath;
-            function->staticLibPath = staticLibPath;
+            function->libraryPaths = libraryPaths;
             function->externName = functionName;
-            
+
             functions.push_back(function);
             if (currentToken.getType() == TokenTypes::Semicolon) {
                 eat(TokenTypes::Semicolon);
             }
         }
-        
+
         eat(TokenTypes::RightBrace);
         auto block = std::make_shared<BlockStatement>(functions);
         block->setPosition(startToken);
         return block;
     }
 
-    console.error("Expected function declaration or block after extern library path");
+    console.error("Expected function declaration or block after extern library paths");
     return nullptr;
 }
 

@@ -769,8 +769,14 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
     DEBUG_LOG("[Function] Creating FunctionValue");
     auto functionVal = std::make_shared<Omniscript::FunctionExpression>(name, mangledName, returnType, functionBody, argValues, paramTypes, isVarArg);
     functionVal->mangledName = mangledName;
-    functionVal->staticLibPath = staticLibPath;
-    functionVal->dynamicLibPath = dynamicLibPath;
+    functionVal->windowsDynamic = libraryPaths.windowsDynamic;
+    functionVal->windowsStatic = libraryPaths.windowsStatic;
+    functionVal->linuxShared = libraryPaths.linuxShared;
+    functionVal->linuxStatic = libraryPaths.linuxStatic;
+    functionVal->macosShared = libraryPaths.macosShared;
+    functionVal->macosStatic = libraryPaths.macosStatic;
+    functionVal->genericDynamic = libraryPaths.genericDynamic;
+    functionVal->genericStatic = libraryPaths.genericStatic;
     functionVal->isExtern = isExtern;
     functionVal->externName = externName;
     functionVal->isIntrinsic = isIntrinsic;
