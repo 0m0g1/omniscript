@@ -53,7 +53,10 @@ type GLBUFFERDATA = fn(target: uint, size: int, data: void*, usage: uint) => voi
 // Vertex Array functions
 type GLGENVERTEXARRAYS = fn(n: int, arrays: uint*) => void;
 type GLBINDVERTEXARRAY = fn(array: uint) => void;
-type GLVERTEXATTRIBPOINTER = fn(index: uint, size: int, type: uint, normalized: uchar, stride: int, pointer: void*) => void;
+//todo:: fix type aliasing in function pointer types
+// type uchar = uint8;
+// type GLVERTEXATTRIBPOINTER = fn(index: uint, size: int, type: uint, normalized: uchar, stride: int, pointer: void*) => void;
+type GLVERTEXATTRIBPOINTER = fn(index: uint, size: int, type: uint, normalized: uint8, stride: int, pointer: void*) => void;
 type GLENABLEVERTEXATTRIBARRAY = fn(index: uint) => void;
 
 // Shader functions
@@ -77,30 +80,30 @@ type GLDELETEPROGRAM = fn(program: uint) => void;
 type GLDRAWARRAYS = fn(mode: uint, first: int, count: int) => void;
 
 // Function pointers
-var glClear: GLCLEAR;
-var glClearColor: GLCLEARCOLOR;
-var glViewport: GLVIEWPORT;
-var glGenBuffers: GLGENBUFFERS;
-var glBindBuffer: GLBINDBUFFER;
-var glBufferData: GLBUFFERDATA;
-var glGenVertexArrays: GLGENVERTEXARRAYS;
-var glBindVertexArray: GLBINDVERTEXARRAY;
-var glVertexAttribPointer: GLVERTEXATTRIBPOINTER;
-var glEnableVertexAttribArray: GLENABLEVERTEXATTRIBARRAY;
-var glCreateShader: GLCREATESHADER;
-var glShaderSource: GLSHADERSOURCE;
-var glCompileShader: GLCOMPILESHADER;
-var glGetShaderiv: GLGETSHADERIV;
-var glGetShaderInfoLog: GLGETSHADERINFOLOG;
-var glDeleteShader: GLDELETESHADER;
-var glCreateProgram: GLCREATEPROGRAM;
-var glAttachShader: GLATTACHSHADER;
-var glLinkProgram: GLLINKPROGRAM;
-var glGetProgramiv: GLGETPROGRAMIV;
-var glGetProgramInfoLog: GLGETPROGRAMINFOLOG;
-var glUseProgram: GLUSEPROGRAM;
-var glDeleteProgram: GLDELETEPROGRAM;
-var glDrawArrays: GLDRAWARRAYS;
+let glClear: GLCLEAR;
+let glClearColor: GLCLEARCOLOR;
+let glViewport: GLVIEWPORT;
+let glGenBuffers: GLGENBUFFERS;
+let glBindBuffer: GLBINDBUFFER;
+let glBufferData: GLBUFFERDATA;
+let glGenVertexArrays: GLGENVERTEXARRAYS;
+let glBindVertexArray: GLBINDVERTEXARRAY;
+let glVertexAttribPointer: GLVERTEXATTRIBPOINTER;
+let glEnableVertexAttribArray: GLENABLEVERTEXATTRIBARRAY;
+let glCreateShader: GLCREATESHADER;
+let glShaderSource: GLSHADERSOURCE;
+let glCompileShader: GLCOMPILESHADER;
+let glGetShaderiv: GLGETSHADERIV;
+let glGetShaderInfoLog: GLGETSHADERINFOLOG;
+let glDeleteShader: GLDELETESHADER;
+let glCreateProgram: GLCREATEPROGRAM;
+let glAttachShader: GLATTACHSHADER;
+let glLinkProgram: GLLINKPROGRAM;
+let glGetProgramiv: GLGETPROGRAMIV;
+let glGetProgramInfoLog: GLGETPROGRAMINFOLOG;
+let glUseProgram: GLUSEPROGRAM;
+let glDeleteProgram: GLDELETEPROGRAM;
+let glDrawArrays: GLDRAWARRAYS;
 
 // Shader sources
 const vertexShaderSource = "#version 330 core\n"
@@ -149,15 +152,17 @@ function loadOpenGLFunctions() => int {
     glDrawArrays = glfwGetProcAddress("glDrawArrays") as GLDRAWARRAYS;
 
     // Check if all functions were loaded
-    if (glClear == nullptr || glClearColor == nullptr || glViewport == nullptr ||
-        glGenBuffers == nullptr || glBindBuffer == nullptr || glBufferData == nullptr ||
-        glGenVertexArrays == nullptr || glBindVertexArray == nullptr ||
-        glVertexAttribPointer == nullptr || glEnableVertexAttribArray == nullptr ||
-        glCreateShader == nullptr || glShaderSource == nullptr || glCompileShader == nullptr ||
-        glGetShaderiv == nullptr || glGetShaderInfoLog == nullptr || glDeleteShader == nullptr ||
-        glCreateProgram == nullptr || glAttachShader == nullptr || glLinkProgram == nullptr ||
-        glGetProgramiv == nullptr || glGetProgramInfoLog == nullptr || glUseProgram == nullptr ||
-        glDeleteProgram == nullptr || glDrawArrays == nullptr) {
+    if (
+        // glClear == nullptr || glClearColor == nullptr || glViewport == nullptr ||
+        // glGenBuffers == nullptr || glBindBuffer == nullptr || glBufferData == nullptr ||
+        // glGenVertexArrays == nullptr || glBindVertexArray == nullptr ||
+        // glVertexAttribPointer == nullptr || glEnableVertexAttribArray == nullptr ||
+        // glCreateShader == nullptr || glShaderSource == nullptr || glCompileShader == nullptr ||
+        // glGetShaderiv == nullptr || glGetShaderInfoLog == nullptr || glDeleteShader == nullptr ||
+        // glCreateProgram == nullptr || glAttachShader == nullptr || glLinkProgram == nullptr ||
+        // glGetProgramiv == nullptr || glGetProgramInfoLog == nullptr || glUseProgram == nullptr ||
+        // glDeleteProgram == nullptr || glDrawArrays == nullptr
+    ) {
         return 0;
     }
     return 1;
@@ -168,12 +173,12 @@ function compileShader(source: char*, type: uint) => uint {
     glShaderSource(shader, 1, &source, nullptr);
     glCompileShader(shader);
 
-    var success: int;
+    let success: int;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (success == GL_FALSE) {
-        var infoLogLength: int;
+        let infoLogLength: int;
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLength);
-        var infoLog = malloc(infoLogLength) as char*;
+        let infoLog = malloc(infoLogLength) as char*;
         glGetShaderInfoLog(shader, infoLogLength, nullptr, infoLog);
         printf("Shader compilation failed: %s\n", infoLog);
         free(infoLog);
@@ -196,12 +201,12 @@ function createShaderProgram() => uint {
     glAttachShader(program, fragmentShader);
     glLinkProgram(program);
 
-    var success: int;
+    let success: int;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (success == GL_FALSE) {
-        var infoLogLength: int;
+        let infoLogLength: int;
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLogLength);
-        var infoLog = malloc(infoLogLength) as char*;
+        let infoLog = malloc(infoLogLength) as char*;
         glGetProgramInfoLog(program, infoLogLength, nullptr, infoLog);
         printf("Program linking failed: %s\n", infoLog);
         free(infoLog);
@@ -258,7 +263,7 @@ let vertices: float[15] = [
 ];
 
 // Create VAO and VBO
-var VAO: uint, VBO: uint;
+let VAO: uint, VBO: uint;
 glGenVertexArrays(1, &VAO);
 glGenBuffers(1, &VBO);
 

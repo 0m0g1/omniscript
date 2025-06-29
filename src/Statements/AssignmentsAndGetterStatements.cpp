@@ -155,6 +155,16 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
 
 std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    if (type && type->isUnresolved()) {
+        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
+            type = scope->getType(unresolved->joinedTypeString);
+            rootType = type;
+            if (!type) {
+                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+            }
+        }
+    }
+
     DEBUG_LOG("Assigning variable " + variable + (type? " of type " + type->toString() : ""));
 
     std::shared_ptr<Omniscript::Expression> result;
@@ -170,13 +180,6 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     }
 
     if (type) {
-        if (type->isUnresolved()) {
-            if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
-                type = scope->getType(unresolved->joinedTypeString);
-                rootType = type;
-            }
-        }
-
         if (type->isGeneric()) {
             auto genericVal = scope->get(type->getName());
             if (auto generic = std::dynamic_pointer_cast<Omniscript::TypeExpression>(genericVal)) {
@@ -192,7 +195,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
         }
         
         if (!type->isPointer() && !type->isReference()) {
-            if (!value) {
+            if (!value || std::dynamic_pointer_cast<Null>(value)) {
                 result = std::make_shared<Omniscript::NullExpression>(type);
             } else if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
                 if (!typed->getType() && !type->isInvalid()) {
@@ -300,6 +303,17 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     }
 
     if (type) {
+        if (type->isUnresolved()) {
+            if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
+                type = scope->getType(unresolved->joinedTypeString);
+                rootType = type;
+                result->type = type;
+                result->rootType = type;
+                if (!type) {
+                    console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+                }
+            }
+        }
         if (!result) {
             console.error("Variable '" + variable + " has an invalid r value");
         } 
@@ -318,7 +332,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     if (isReassign) {
         std::shared_ptr<Omniscript::Expression> prevValue = scope->get(variable);
         if (!Omniscript::Type::isSameOrCastableTo(result->getType(), prevValue->getType())) {
-            console.error("'" + variable + "' should be of type " + prevValue->getType()->toString() + "' not a '" + result->getType()->toString() + "'.");
+            console.error("'" + variable + "' should be of type '" + prevValue->getType()->toString() + "' not a '" + result->getType()->toString() + "'.");
         }
     }
 

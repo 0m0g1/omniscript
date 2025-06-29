@@ -12,10 +12,14 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("");
 
-    if (type->isUnresolved()) {
-        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(targetType)) {
+    if (type && type->isUnresolved()) {
+        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
             type = scope->getType(unresolved->joinedTypeString);
             rootType = type;
+            targetType = type;
+            if (!type) {
+                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+            }
         }
     }
 
@@ -78,7 +82,15 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
 
 std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
-
+    if (type && type->isUnresolved()) {
+        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
+            type = scope->getType(unresolved->joinedTypeString);
+            rootType = type;
+            if (!type) {
+                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+            }
+        }
+    }
     auto nullpointerType = type ? type : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
 
     auto result = Omniscript::make_expression<Omniscript::NullPointerExpression>(type);
@@ -89,7 +101,15 @@ std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) 
 
 std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
-    
+    if (type && type->isUnresolved()) {
+        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
+            type = scope->getType(unresolved->joinedTypeString);
+            rootType = type;
+            if (!type) {
+                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+            }
+        }
+    }
     std::shared_ptr<Omniscript::Expression> result;
     
     if (type->isNullable()) {

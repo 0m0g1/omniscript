@@ -916,8 +916,14 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + (type ? type->toString() : "undefined"));
     
-    std::shared_ptr<Omniscript::Expression> result;
+    if (type && type->isUnresolved()) {
+        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
+            type = scope->getType(unresolved->joinedTypeString);
+            rootType = type;
+        }
+    }
 
+    std::shared_ptr<Omniscript::Expression> result;
     bool isValidDefaultValue = true;
 
     if (defaultValue) {
@@ -982,6 +988,15 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
 
 std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    if (type && type->isUnresolved()) {
+        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
+            type = scope->getType(unresolved->joinedTypeString);
+            rootType = type;
+            if (!type) {
+                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+            }
+        }
+    }
     DEBUG_LOG("[Argument] Creating argument " + name);
     extendContextOf(value);
     std::shared_ptr<Omniscript::Expression> result;

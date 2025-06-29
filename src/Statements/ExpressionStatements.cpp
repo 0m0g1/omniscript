@@ -13,6 +13,7 @@
 
 // ============================== Binary, Unary and Ternary Expressions ============================== //
 std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableType scope) {
+    Omniscript::setPosition(getPosition());
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
         stmt->setType(type);
     }
@@ -63,6 +64,7 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
 }
 
 std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableType scope) {
+    Omniscript::setPosition(getPosition());
     DEBUG_LOG();
 
     DEBUG_LOG("Left expression: " + (left ? left->toString() : "null"));
@@ -248,6 +250,7 @@ bool BinaryExpression::isCompileTimeEvaluatable() {
 }
 
 std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType scope) {
+    Omniscript::setPosition(pos);
     if (operand) {
         DEBUG_LOG("Creating a unary expression " + operand->toString());
     } else {

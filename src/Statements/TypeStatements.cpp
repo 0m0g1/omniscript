@@ -21,7 +21,9 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
     if (type->isUnresolved()) {
         if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
             originalType = scope->getType(unresolved->joinedTypeString);
-            if (originalType->isInvalid()) {
+            if (!originalType) {
+                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+            } else if (originalType->isInvalid()) {
                 console.error("Cannot alias invalid type '" + unresolved->joinedTypeString + "' as '" + name + "'.");
             }
             isAliasingOtherType = true;
@@ -34,6 +36,7 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
     } else {
         scope->addType(name, type);
     }
+    DEBUG_LOG("Declared type: '" + type->toString() + "' in scope as '" + name + "'.");
     
     auto typeDeclExpr = std::make_shared<Omniscript::TypeDeclarationExpression>(name, type);
     if (isAliasingOtherType) {

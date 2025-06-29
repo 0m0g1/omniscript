@@ -88,7 +88,7 @@ std::shared_ptr<Type> Type::createInvalid() {
 }
 
 std::shared_ptr<Type> Type::createUnresolved(const std::vector<std::string>& types) {
-    return std::make_shared<Type>(Kind::Unresolved);
+    return std::make_shared<UnresolvedType>(types);
 }
 
 std::shared_ptr<Type> Type::createUndefined() {
@@ -341,6 +341,20 @@ bool Type::isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shar
         }
 
         return true;
+    }
+
+    if (from->isPointer() && to->isFunction()) {
+        auto fromPointee = from->getPointeeType();
+        if (fromPointee && fromPointee->isVoidLike()) {
+            return true;
+        }
+    }
+
+    if (from->isFunction() && to->isPointer()) {
+        auto pointee = to->getPointeeType();
+        if (pointee && pointee->isVoidLike()) {
+            return true;
+        }
     }
 
     auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
