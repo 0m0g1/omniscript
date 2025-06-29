@@ -427,7 +427,7 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     std::string baseType = dataTypes[index++];
 
     // Stack of arrays (outermost first)
-    std::vector<std::optional<uint64_t>> arrayStack;
+    std::vector<uint64_t> arrayStack;
     // Parse post-type array sizes like char[32][2]
     while (index + 2 <= dataTypes.size() && dataTypes[index] == "[") {
         index += 1;
@@ -436,14 +436,14 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
             return nullptr;
         }
 
-        std::optional<uint64_t> size;
+        uint64_t size;
         if (dataTypes[index] == "]") {
-            size = std::nullopt; // support dynamic []
+            console.error("An array should have a size between '[' and ']'.");
         } else {
             try {
                 size = std::stoull(dataTypes[index]);
             } catch (...) {
-                std::cerr << "[ERROR] Invalid array size: " << dataTypes[index] << "\n";
+                console.error("Invalid array size: " + dataTypes[index] + " compile time constants aren't supported yet");
                 return nullptr;
             }
             index += 1;
@@ -528,8 +528,8 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     }
 
    // Wrap in arrays (from innermost to outermost)
-   for (auto it = arrayStack.rbegin(); it != arrayStack.rend(); ++it) {
-        type = Type::createFixedArrayType(type, it->value());
+    for (auto it = arrayStack.rbegin(); it != arrayStack.rend(); ++it) {
+        type = Type::createFixedArrayType(type, *it);
     }
 
     // Wrap in references

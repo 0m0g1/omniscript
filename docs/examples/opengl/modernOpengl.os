@@ -250,7 +250,7 @@ if (shaderProgram == 0) {
 }
 
 // Triangle vertices with position and color
-let vertices: float[] = [
+let vertices: float[15] = [
     // Position      // Color
      0.0,  0.5, 0.0,  1.0, 0.0, 0.0,  // Top vertex - Red
     -0.5, -0.5, 0.0,  0.0, 1.0, 0.0,  // Bottom-left vertex - Green

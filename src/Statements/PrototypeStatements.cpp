@@ -108,6 +108,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 callExpr->instanceName = "";
                 ctorExpressions.push_back(ctorCall);
                 auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
+                constructionBlock->setPosition(getPosition());
                 return constructionBlock;
             } else {
                 const std::string moduleTypeSuffix = "_module_type";
@@ -143,7 +144,9 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             if (isFromConstantAssignment) {
                 stmt->markAsConstant();
             }
-            return stmt->express(scope);
+            auto result = stmt->express(scope);
+            result->setPosition(getPosition());
+            return result;
         }
     }
     
@@ -511,7 +514,9 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
 
     if (std::dynamic_pointer_cast<Omniscript::FunctionExpression>(called)) {
         DEBUG_LOG("[Call] Returning CallExpression for '" + evaluatedCallee + "' with " + std::to_string(finalArgs.size()) + " args");
-        return std::make_shared<Omniscript::CallExpression>(evaluatedCallee, finalArgs, type);
+        auto callExpr = std::make_shared<Omniscript::CallExpression>(evaluatedCallee, finalArgs, type);
+        callExpr->setPosition(getPosition());
+        return callExpr;
     }
 
     std::vector<std::shared_ptr<Omniscript::MemberExpression>> instanceMembers;
@@ -524,7 +529,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
         );
         instanceConstructor->members.push_back(instanceMember);
     }
-
+    instanceConstructor->setPosition(getPosition());
     return instanceConstructor;
 }
 
@@ -843,6 +848,7 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
     for (const auto& overload : overloads) {
         if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
             if (mangledName == funcExpr->mangledName) {
+                funcExpr->setPosition(getPosition());
                 return funcExpr;
             }
         }
@@ -970,7 +976,7 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
 
     auto param = std::make_shared<Omniscript::FunctionInputExpression>(name, type, result, isConstant);
     param->isVariadic = isVariadic;
-
+    param->setPosition(getPosition());
     return param;
 }
 
@@ -989,7 +995,9 @@ std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableTy
         }
     }
     DEBUG_LOG("[Argument] The value for argument '" + name + "' is " + result->toString());
-    return std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
+    auto arg = std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
+    arg->setPosition(getPosition());
+    return arg;
 }
 
 std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
@@ -1079,7 +1087,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     );
 
     scope->set(getName(), structExpr);
-
+    structExpr->setPosition(getPosition());
     return structExpr;
 }
 
@@ -1190,7 +1198,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
     }
 
     classExpr->parameters = structExpr->parameters;
-
+    classExpr->setPosition(getPosition());
     return classExpr;
 }
  
@@ -1217,6 +1225,7 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
         instance->instanceType = scope->getType(objectType);
         instance->type = scope->getType(objectType);
         scope->set(instanceName, instance);
+        call->setPosition(getPosition());
         return call;
     } else {
         console.error("Object type was not found in the scope");

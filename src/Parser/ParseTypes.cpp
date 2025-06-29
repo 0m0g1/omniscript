@@ -2,6 +2,7 @@
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/FunctionStatement.h>
 #include <omniscript/Statements/LiteralStatements.h>
+#include <omniscript/Statements/TypeStatements.h>
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
@@ -174,10 +175,10 @@ std::vector<std::string> Parser::parseType() {
     };
 
     // Check for function type syntax: fn(params) => returnType
-    if (currentToken.getType() == TokenTypes::Function && currentToken.getValue() == "fn") {
+    if (currentToken.getType() == TokenTypes::Function) {
         dataTypes.push_back("fn");
         prevColumn = currentToken.getColumn();
-        eat(TokenTypes::Identifier);
+        eat(TokenTypes::Function);
 
         // Parse parameter list
         if (currentToken.getType() == TokenTypes::LeftParen) {
@@ -301,11 +302,24 @@ std::vector<std::string> Parser::parseType() {
         dataTypes.push_back("[");
         prevColumn = currentToken.getColumn();
         eat(TokenTypes::LeftBracket);
-        
-        if (currentToken.getType() == TokenTypes::IntegerLiteral) {
+
+        if (currentToken.getType() == TokenTypes::IntegerLiteral ||
+            currentToken.getType() == TokenTypes::Identifier) {
+
             dataTypes.push_back(currentToken.getValue());
+
+            if (currentToken.getType() == TokenTypes::IntegerLiteral) {
+                uint64_t size = std::stoull(currentToken.getValue());
+                if (size == 0) {
+                    console.error("Array size must be greater than 0");
+                }
+            }
+
             prevColumn = currentToken.getColumn();
-            eat(TokenTypes::IntegerLiteral);
+            eat(currentToken.getType());
+
+        } else {
+            console.error("Expected an integer or constant identifier inside array brackets '[size]'");
         }
 
         dataTypes.push_back("]");
@@ -344,21 +358,19 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
     eat(TokenTypes::Type);
     std::string typeName = currentToken.getValue();
     eat(TokenTypes::Identifier);
+    std::shared_ptr<Omniscript::Type> type = nullptr;
+
     if (currentToken.getType() == TokenTypes::Semicolon) {
         eat(currentToken.getType());
-        return nullptr;
-    }
-
-    eat(TokenTypes::Assign);
-
-    if (currentToken.getType() == TokenTypes::Function) {
-        eat(TokenTypes::Function);
-        auto function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(typeName));
     } else {
-        std::vector<std::string> type = parseType();
+        eat(TokenTypes::Assign);
+        std::vector<std::string> typeString = parseType();
+        type = Omniscript::resolveType(typeString);
     }
 
-    return nullptr;
+    auto typeDecl = std::make_shared<TypeDeclaration>(typeName, type);
+    typeDecl->setPosition(startToken);
+    return typeDecl;
 }
 
 std::shared_ptr<Statement> Parser::parseUsingAlias() {

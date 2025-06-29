@@ -190,11 +190,11 @@ void CStdLibResolver::applyPlatformSpecificAttributes(llvm::Function* func, cons
     
     // Add common attributes for certain functions
     if (name == "malloc" || name == "calloc" || name == "realloc") {
-        func->addFnAttr(llvm::Attribute::NoAlias);
+        // func->addFnAttr(llvm::Attribute::NoAlias);
     }
     
     if (name == "strlen" || name == "strcmp" || name == "memcmp") {
-        func->addFnAttr(llvm::Attribute::ReadOnly);
+        // func->addFnAttr(llvm::Attribute::ReadOnly);
         func->addFnAttr(llvm::Attribute::NoUnwind);
     }
     

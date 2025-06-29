@@ -87,94 +87,69 @@ Token Lexer::getNextToken() {
         std::string identifier = toLowerCaseString(raw_identifier); // Convert to lowercase
 
         // Return the corresponding token for keywords
-        if (identifier == "if") {
-            return Token(TokenTypes::If, "", line, column, sourceFilePath);
-        } else if (identifier == "else") {
+        // Special cases first
+        if (identifier == "else") {
             if (peek() == 'i' && peek(2) == 'f') {
                 currentPosition += 3; // Skip "i" and "f"
-                column += 3; // Increment column for "if"
-                // std::cout << "The current value is '" << source[currentPosition] << "'" << std::endl;
-                return Token(TokenTypes::Else_if, "", line, column, sourceFilePath);
+                column += 3;
+                return Token(TokenTypes::Else_if, "else if", line, column, sourceFilePath);
             }
-            return Token(TokenTypes::Else, "", line, column, sourceFilePath);
-        } else if (identifier == "while") {
-            return Token(TokenTypes::While, "", line, column, sourceFilePath);
-        } else if (identifier == "for") {
-            return Token(TokenTypes::For, "", line, column, sourceFilePath);
-        } else if (identifier == "continue") {
-            return Token(TokenTypes::Continue, "", line, column, sourceFilePath);
-        } else if (identifier == "break") {
-            return Token(TokenTypes::Break, "", line, column, sourceFilePath);
-        } else if (identifier == "return") {
-            return Token(TokenTypes::Return, "", line, column, sourceFilePath);
-        } else if (identifier == "function" || identifier == "fn") {
-            return Token(TokenTypes::Function, "", line, column, sourceFilePath);
-        } else if (identifier == "let" || identifier == "var") {
-            return Token(TokenTypes::Let, "", line, column, sourceFilePath);
-        } else if (identifier == "var") {
-            return Token(TokenTypes::Var, "", line, column, sourceFilePath);
-        } else if (identifier == "namespace") {
-            return Token(TokenTypes::Namespace, "", line, column, sourceFilePath);
-        } else if (identifier == "using") {
-            return Token(TokenTypes::Using, "", line, column, sourceFilePath);
-        } else if (identifier == "new") {
-            return Token(TokenTypes::New, "", line, column, sourceFilePath);
-        } else if (identifier == "delete") {
-            return Token(TokenTypes::New, "", line, column, sourceFilePath);
-        } else if (identifier == "struct") {
-            return Token(TokenTypes::Struct, "", line, column, sourceFilePath);
-        } else if (identifier == "class") {
-            return Token(TokenTypes::Class, "", line, column, sourceFilePath);
-        } else if (identifier == "extends") {
-            return Token(TokenTypes::Extends, "", line, column, sourceFilePath);
-        }  else if (identifier == "variant") {
-            return Token(TokenTypes::Variant, "", line, column, sourceFilePath);
-        }  else if (identifier == "any") {
-            return Token(TokenTypes::Any, "", line, column, sourceFilePath);
-        } else if (identifier == "enum") {
-            return Token(TokenTypes::Enum, "", line, column, sourceFilePath);
-        } else if (identifier == "public") {
-            return Token(TokenTypes::Public, "", line, column, sourceFilePath);
-        } else if (identifier == "private") {
-            return Token(TokenTypes::Private, "", line, column, sourceFilePath);
-        } else if (identifier == "override") {
-            return Token(TokenTypes::Override, "", line, column, sourceFilePath);
-        } else if (identifier == "virtual") {
-            return Token(TokenTypes::Virtual, "", line, column, sourceFilePath);
-        } else if (identifier == "static") {
-            return Token(TokenTypes::Static, "", line, column, sourceFilePath);
-        } else if (identifier == "final") {
-            return Token(TokenTypes::Final, "", line, column, sourceFilePath);
-        } else if (identifier == "const") {
-            return Token(TokenTypes::Const, "", line, column, sourceFilePath);
-        } else if (identifier == "true") {
-            return Token(TokenTypes::True, "", line, column, sourceFilePath);
-        } else if (identifier == "false") {
-            return Token(TokenTypes::False, "", line, column, sourceFilePath);
-        } else if (identifier == "nullptr") {
-            return Token(TokenTypes::Nullptr, "", line, column, sourceFilePath);
-        } else if (identifier == "null" || identifier == "nullptr") {
-            return Token(TokenTypes::Null, "", line, column, sourceFilePath);
-        } else if (identifier == "xor") {
-            return Token(TokenTypes::LogicalXor, "", line, column, sourceFilePath);
-        }  else if (identifier == "include") {
-            return Token(TokenTypes::Include, "", line, column, sourceFilePath);
-        } else if (identifier == "import") {
-            return Token(TokenTypes::Import, "", line, column, sourceFilePath);
-        } else if (identifier == "from") {
-            return Token(TokenTypes::From, "", line, column, sourceFilePath);
-        } else if (identifier == "module" || identifier == "mod") {
-            return Token(TokenTypes::Module, "", line, column, sourceFilePath);
-        } else if (identifier == "extern") {
-            return Token(TokenTypes::Extern, "", line, column, sourceFilePath);
-        } else if (identifier == "intrinsic") {
-            return Token(TokenTypes::Intrinsic, "", line, column, sourceFilePath);
-        } else if (identifier == "volatile") {
-            return Token(TokenTypes::Volatile, "", line, column, sourceFilePath);
-        } else if (identifier == "as") {
-            return Token(TokenTypes::As, "", line, column, sourceFilePath);
-        } else if (identifier == "type" && peek() == ' ') {
-            return Token(TokenTypes::Type, "", line, column, sourceFilePath);
+            return Token(TokenTypes::Else, "else", line, column, sourceFilePath);
+        }
+
+        if (identifier == "type" && peekToken(1).getType() == TokenTypes::Identifier) {
+            return Token(TokenTypes::Type, "type", line, column, sourceFilePath);
+        }
+
+        // Main keyword map
+        static const std::unordered_map<std::string, TokenTypes> keywordMap = {
+            {"if", TokenTypes::If},
+            {"while", TokenTypes::While},
+            {"for", TokenTypes::For},
+            {"continue", TokenTypes::Continue},
+            {"break", TokenTypes::Break},
+            {"return", TokenTypes::Return},
+            {"function", TokenTypes::Function},
+            {"fn", TokenTypes::Function},
+            {"let", TokenTypes::Let},
+            {"var", TokenTypes::Let}, // Assuming var = let in your language
+            {"namespace", TokenTypes::Namespace},
+            {"using", TokenTypes::Using},
+            {"new", TokenTypes::New},
+            {"delete", TokenTypes::Delete},
+            {"struct", TokenTypes::Struct},
+            {"class", TokenTypes::Class},
+            {"extends", TokenTypes::Extends},
+            {"variant", TokenTypes::Variant},
+            {"any", TokenTypes::Any},
+            {"enum", TokenTypes::Enum},
+            {"public", TokenTypes::Public},
+            {"private", TokenTypes::Private},
+            {"override", TokenTypes::Override},
+            {"virtual", TokenTypes::Virtual},
+            {"static", TokenTypes::Static},
+            {"final", TokenTypes::Final},
+            {"const", TokenTypes::Const},
+            {"true", TokenTypes::True},
+            {"false", TokenTypes::False},
+            {"nullptr", TokenTypes::Nullptr},
+            {"null", TokenTypes::Null},
+            {"xor", TokenTypes::LogicalXor},
+            {"include", TokenTypes::Include},
+            {"import", TokenTypes::Import},
+            {"from", TokenTypes::From},
+            {"module", TokenTypes::Module},
+            {"mod", TokenTypes::Module},
+            {"extern", TokenTypes::Extern},
+            {"intrinsic", TokenTypes::Intrinsic},
+            {"volatile", TokenTypes::Volatile},
+            {"as", TokenTypes::As}
+        };
+
+        // Lookup
+        auto it = keywordMap.find(identifier);
+        if (it != keywordMap.end()) {
+            return Token(it->second, identifier, line, column, sourceFilePath);
         }
 
         // Otherwise treat it as an identifier token

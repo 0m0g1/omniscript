@@ -31,7 +31,9 @@ std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType
         DEBUG_LOG("[Return] The result of the return value is 'void'.");
     }
     
-    return std::make_shared<Omniscript::ReturnExpression>(result, type);
+    auto returnstmt = std::make_shared<Omniscript::ReturnExpression>(result, type);
+    returnstmt->setPosition(getPosition());
+    return returnstmt;
 }
 
 std::shared_ptr<Statement> ReturnStatement::evaluate(SymbolTableType scope) {
@@ -39,9 +41,13 @@ std::shared_ptr<Statement> ReturnStatement::evaluate(SymbolTableType scope) {
     std::shared_ptr<Statement> result = returnValue->evaluate(scope);
 
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(result)) {
-        return std::make_shared<ReturnStatement>(result, typed->getType());
+        auto ret = std::make_shared<ReturnStatement>(result, typed->getType());
+        ret->setPosition(getPosition());
+        return ret;
     }
-    return std::make_shared<ReturnStatement>(result);
+    auto ret = std::make_shared<ReturnStatement>(result);
+    ret->setPosition(getPosition());
+    return ret;
 }
 
 bool ReturnStatement::hasSideEffects() {
@@ -72,7 +78,9 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
     std::shared_ptr<Omniscript::Expression> bodyExpr = body ? body->express(localScope) : nullptr;
     DEBUG_LOG("Created its body expression: " + bodyExpr->toString() + "'.");
 
-    return std::make_shared<Omniscript::WhileLoopExpression>(conditionExpr, bodyExpr);
+    auto whileLoop = std::make_shared<Omniscript::WhileLoopExpression>(conditionExpr, bodyExpr);
+    whileLoop->setPosition(getPosition());
+    return whileLoop;
  }
  
  std::shared_ptr<Statement> IfStatement::evaluate(SymbolTableType scope) {
@@ -111,20 +119,23 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
         exprBranches.push_back(bodies[i]->express(localScope)); // convert BlockStatement to Expression
     }
  
-     std::shared_ptr<Omniscript::Expression> elseExpr = nullptr;
-     if (elseBody) {
+    std::shared_ptr<Omniscript::Expression> elseExpr = nullptr;
+    if (elseBody) {
         elseBody->isGlobal = false;
         extendContextOf(elseBody);
         elseBody->setType(type);
         auto localScope = scope->createChildScope("else");
         elseExpr = elseBody->express(localScope); // convert BlockStatement to Expression
-     }
+    }
  
-     return std::make_shared<Omniscript::IfExpression>(
+    auto ifExpr = std::make_shared<Omniscript::IfExpression>(
         exprConditions,
         exprBranches,
         elseExpr
-     );
+    );
+
+    ifExpr->setPosition(getPosition());
+    return ifExpr;
  }
 
 std::shared_ptr<Omniscript::Expression> BreakStatement::express(SymbolTableType scope) {
@@ -157,5 +168,7 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
     std::shared_ptr<Omniscript::Expression> bodyExpr = body->express(localScope);
     DEBUG_LOG("Created its body");
 
-    return std::make_shared<Omniscript::ForLoopExpression>(initializationExpr, conditionExpr, increamentExpr, bodyExpr);
+    auto forExpr = std::make_shared<Omniscript::ForLoopExpression>(initializationExpr, conditionExpr, increamentExpr, bodyExpr);
+    forExpr->setPosition(getPosition());
+    return forExpr;
 }

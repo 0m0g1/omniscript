@@ -25,7 +25,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
             "args": [
-                "docs\\examples\\opengl\\rotatingtriangle.os",
+                "docs\\examples\\opengl\\modernOpengl.os",
                 "--debug"
             ],
             "stopAtEntry": false,

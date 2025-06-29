@@ -33,7 +33,8 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
             setRootType(Omniscript::Type::createPointerType(referent->getType()));
         }
 
-        return std::make_shared<Omniscript::AddressOfExpression>(mangledName, referent);
+        auto addrOf = std::make_shared<Omniscript::AddressOfExpression>(mangledName, referent);
+        
     }
 
     if (!type) {
@@ -41,7 +42,9 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
         setRootType(Omniscript::Type::createPointerType(referent->getType()));
     }
 
-    return std::make_shared<Omniscript::AddressOfExpression>(name, referent);
+    auto addrOf = std::make_shared<Omniscript::AddressOfExpression>(name, referent);
+    addrOf->setPosition(getPosition());
+    return addrOf;
 }
 
 std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType scope) {
@@ -55,14 +58,18 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
     auto variable = scope->getValue(name);
     if (variable) {
         setType(variable->getType());
-        return std::make_shared<Omniscript::ReferenceExpression>(name, variable);
+        auto ref = std::make_shared<Omniscript::ReferenceExpression>(name, variable);
+        ref->setPosition(getPosition());
+        return ref;
     }
 
     if (!variable) {
         auto overloads = scope->getOverloads(name);
         auto mangledName = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overloads[0])->mangledName;
         setType(variable->getType());
-        return std::make_shared<Omniscript::ReferenceExpression>(mangledName, variable);
+        auto ref = std::make_shared<Omniscript::ReferenceExpression>(mangledName, variable);
+        ref->setPosition(getPosition());
+        return ref;
     }
     
     // If the variable isn't found, handle the error (e.g., return nullptr)
@@ -129,6 +136,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
                 auto val = std::make_shared<Omniscript::VariableAccessExpression>(resolvedName, symbolType);
                 auto result = std::make_shared<Omniscript::NullableExpression>(val);
                 // By default, nullCaseHandled == false here, which is correct
+                result->setPosition(getPosition());
                 return result;
             }
             DEBUG_LOG("The casted type is '" + type->toString() + "'.");
@@ -141,6 +149,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
     auto varAccess = std::make_shared<Omniscript::VariableAccessExpression>(resolvedName, type);
     varAccess->value = expr;
     // varAccess->isVolatileAccess;
+    varAccess->setPosition(getPosition());
     return varAccess;
 }
 
@@ -161,6 +170,13 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     }
 
     if (type) {
+        if (type->isUnresolved()) {
+            if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
+                type = scope->getType(unresolved->joinedTypeString);
+                rootType = type;
+            }
+        }
+
         if (type->isGeneric()) {
             auto genericVal = scope->get(type->getName());
             if (auto generic = std::dynamic_pointer_cast<Omniscript::TypeExpression>(genericVal)) {
@@ -295,6 +311,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 );
     } else {
         DEBUG_LOG("No type was deduced for variable '" + variable + "'.\n It had a value and no type or multiple types. Returning its result.");
+        result->setPosition(getPosition());
         return result;
     }
 
@@ -316,6 +333,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     assignment->isGlobal = isGlobal;
     assignment->isConstant = isConstant;
     assignment->isVolatile = isVolatile;
+    assignment->setPosition(getPosition());
     return assignment;
 }
 

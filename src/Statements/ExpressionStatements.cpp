@@ -55,9 +55,11 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
         }
     }
 
-    return std::make_shared<Omniscript::TernaryExpression>(
+    auto tenaryExpr = std::make_shared<Omniscript::TernaryExpression>(
         condValue, trueValue, falseValue, type
     );
+    tenaryExpr->setPosition(getPosition());
+    return tenaryExpr;
 }
 
 std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableType scope) {
@@ -229,7 +231,9 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     DEBUG_LOG("The left value is: " + leftValue->toString());
     DEBUG_LOG("The right value is: " + rightValue->toString());
 
-    return std::make_shared<Omniscript::BinaryExpression>(leftValue, op, rightValue, type);
+    auto binaryExpr = std::make_shared<Omniscript::BinaryExpression>(leftValue, op, rightValue, type);
+    binaryExpr->setPosition(getPosition());
+    return binaryExpr;
 }
 
 bool BinaryExpression::hasSideEffects() {
@@ -272,5 +276,7 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
 
     bool isPrefix = position == Position::Prefix;
 
-    return std::make_shared<Omniscript::UnaryExpression>(op, operandValue, type, isPrefix);
+    auto unaryExpr = std::make_shared<Omniscript::UnaryExpression>(op, operandValue, type, isPrefix);
+    unaryExpr->setPosition(pos);
+    return unaryExpr;
 }

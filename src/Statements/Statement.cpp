@@ -34,6 +34,7 @@ std::shared_ptr<Omniscript::Expression> BlockStatement::express(SymbolTableType 
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     auto block = std::make_shared<Omniscript::BlockExpression>(expressAsVector(scope));
     block->isGlobal = isGlobal;
+    block->setPosition(getPosition());
     return block;
 }
 

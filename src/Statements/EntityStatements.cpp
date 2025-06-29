@@ -10,7 +10,9 @@
 
 std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
-    return std::make_shared<IntegerLiteral>(valueIndex)->express(scope);
+    auto integer = std::make_shared<IntegerLiteral>(valueIndex)->express(scope);
+    integer->setPosition(getPosition());
+    return integer;
 }
 
 std::shared_ptr<Omniscript::Expression> EnumConstructor::express(SymbolTableType scope) {
@@ -21,5 +23,6 @@ std::shared_ptr<Omniscript::Expression> EnumConstructor::express(SymbolTableType
         expr->addEntry(val->getIndex(), val->getName(), val->express(scope));
     }
 
+    expr->setPosition(getPosition());
     return expr;
 }

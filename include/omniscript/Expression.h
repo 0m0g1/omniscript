@@ -142,7 +142,32 @@ public:
 
     std::string name;
     std::shared_ptr<Type> type = Type::createInvalid();  
-    std::shared_ptr<Type> rootType = Type::createInvalid();  
+    std::shared_ptr<Type> rootType = Type::createInvalid();
+    
+    inline void setPosition(Token startToken) {
+        pos.line = startToken.getLine();
+        pos.col = startToken.getColumn();
+        pos.fileName = startToken.getFilePath();
+        pos.filePath = startToken.getFilePath();
+    }
+
+    inline void setPosition(int line, int column, const std::string& file, const std::string& path) {
+        pos.line = line;
+        pos.col = column;
+        pos.fileName = file;
+        pos.filePath = path;
+    }
+
+    inline void setPosition(const Omniscript::filePosition& position) {
+        pos = position;
+    }
+
+    inline Omniscript::filePosition getPosition() const {
+        return pos;
+    }
+
+    protected:
+        Omniscript::filePosition pos;
 };
 
 template <typename T>

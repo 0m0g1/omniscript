@@ -133,7 +133,9 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                 DEBUG_LOG("'" + qualifiedName + "' has type " + type->toString() + "'.");
                 
                 if (!assignmentValue) {
-                    return std::make_shared<Omniscript::VariableAccessExpression>(qualifiedName, type);
+                    auto acc = std::make_shared<Omniscript::VariableAccessExpression>(qualifiedName, type);
+                    acc->setPosition(getPosition());
+                    return acc;
                 }
     
                 std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
@@ -143,7 +145,9 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                     console.error("Failed to evaluate assignment expression");
                     return nullptr;
                 }
-                return std::make_shared<Omniscript::VariableAccessExpression>(qualifiedName, assignmentExpr);
+                auto acc = std::make_shared<Omniscript::VariableAccessExpression>(qualifiedName, assignmentExpr);
+                acc->setPosition(getPosition());
+                return acc;
             }
             
         } else {
@@ -243,6 +247,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
         assignmentExpr
     );
     result->type = type;
+    result->setPosition(getPosition());
     return result;
 }
 
@@ -323,6 +328,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType sco
     );
 
     result->type = type;
+    result->setPosition(getPosition());
     return result;
 }
 
@@ -400,6 +406,7 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
     );
 
     result->type = type;
+    result->setPosition(getPosition());
     return result;
 }
 
@@ -448,6 +455,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::express(SymbolTableType sco
     );
 
     result->type = type;
+    result->setPosition(getPosition());
     return result;
 }
 

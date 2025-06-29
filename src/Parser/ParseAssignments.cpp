@@ -3,6 +3,7 @@
 #include <omniscript/Statements/FunctionStatement.h>
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/ExpressionStatements.h>
+#include <omniscript/Statements/LiteralStatements.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
 #include <omniscript/Core.h>
@@ -91,6 +92,9 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
     bool isPointer = false;
     bool isArray = false;
     
+    // Vector to store multiple declarations
+    std::vector<std::shared_ptr<Statement>> declarations;
+    
     if (!assignee) {
         if (currentToken.getType() == TokenTypes::Let) {
             eat(TokenTypes::Let);
@@ -104,55 +108,96 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
             variableName = previousToken.getValue();
         }
 
-        variableName = currentToken.getValue();
-        eat(TokenTypes::Identifier);
+        // Parse first variable declaration
+        do {
+            variableName = currentToken.getValue();
+            eat(TokenTypes::Identifier);
 
-        std::vector<std::string> dataTypes;
+            std::vector<std::string> dataTypes;
+            std::shared_ptr<Omniscript::Type> currentType = nullptr;
+            std::shared_ptr<Statement> currentValue = nullptr;
 
-        if (currentToken.getType() == TokenTypes::Colon) {
-            eat(TokenTypes::Colon);
-            dataTypes = parseType();
-        
-        } else if (currentToken.getType() == TokenTypes::Assign) {
-            eat(TokenTypes::Assign);
-            std::string typeName = currentToken.getValue();
-    
-            std::shared_ptr<Statement> result = parseExpression();
-    
-            result->setPosition(startToken);
-            if (auto objConstructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(result)) {
-                objConstructor->setInstanceName(variableName);
-                return result;
-            } else if (auto call = std::dynamic_pointer_cast<Call>(result)) {
-                call->setInstanceName(variableName);
-                call->isFromAssignment = true;
-                if (variableType == TokenTypes::Const) {
-                    call->markAsConstant();
+            if (currentToken.getType() == TokenTypes::Colon) {
+                eat(TokenTypes::Colon);
+                dataTypes = parseType();
+                currentType = Omniscript::resolveType(dataTypes);
+                
+                DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " '" + variableName + "' with type '" + currentType->toString() + "'.");
+                
+                // Check if there's an assignment after type declaration
+                if (currentToken.getType() == TokenTypes::Assign) {
+                    eat(TokenTypes::Assign);
+                    currentValue = parseExpression();
+                } else {
+                    currentValue = std::make_shared<Null>(currentType);
                 }
-                return result;
+            
+            } else if (currentToken.getType() == TokenTypes::Assign) {
+                eat(TokenTypes::Assign);
+                std::string typeName = currentToken.getValue();
+        
+                std::shared_ptr<Statement> result = parseExpression();
+        
+                if (auto objConstructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(result)) {
+                    objConstructor->setInstanceName(variableName);
+                    objConstructor->setPosition(startToken);
+                    declarations.push_back(objConstructor);
+                } else if (auto call = std::dynamic_pointer_cast<Call>(result)) {
+                    call->setInstanceName(variableName);
+                    call->isFromAssignment = true;
+                    if (variableType == TokenTypes::Const) {
+                        call->markAsConstant();
+                    }
+                    call->setPosition(startToken);
+                    declarations.push_back(call);
+                } else if (auto funcDecl = std::dynamic_pointer_cast<FunctionDeclaration>(result)) {
+                    if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
+                        named->setName(variableName);
+                    }
+                    funcDecl->setPosition(startToken);
+                    declarations.push_back(funcDecl);
+                } else {
+                    currentValue = result;
+                }
+            } else {
+                // No type annotation and no assignment - default initialization
+                currentValue = std::make_shared<Null>(nullptr);
             }
             
-            if (auto funcDecl = std::dynamic_pointer_cast<FunctionDeclaration>(result)) {
-                if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
-                    named->setName(variableName);
+            // Create the assignment if we haven't already added a special case
+            if (currentValue) {
+                if (variableType == TokenTypes::Const) {
+                    auto constant = std::make_shared<AssignVariable>(variableName, currentType, currentValue);
+                    constant->markAsConstant();
+                    constant->setPosition(startToken);
+                    declarations.push_back(constant);
+                } else {
+                    auto assignment = std::make_shared<AssignVariable>(variableName, currentType, currentValue);
+                    assignment->setPosition(startToken);
+                    declarations.push_back(assignment);
                 }
-                return funcDecl;
             }
-    
-            if (variableType == TokenTypes::Let) {
-                return std::make_shared<AssignVariable>(variableName, nullptr, result);
+            
+            // Check for comma to continue with next variable
+            if (currentToken.getType() == TokenTypes::Comma) {
+                eat(TokenTypes::Comma);
+            } else {
+                break; // No more variables to declare
             }
-
-            auto constant = std::make_shared<AssignVariable>(variableName, nullptr, result);
-            constant->markAsConstant();
-            return constant;
-        }    
-    
-        type = Omniscript::resolveType(dataTypes);
-    
-        DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " '" + variableName + "' with type '" + type->toString() + "'.");
+            
+        } while (true);
+        
+        // If we have multiple declarations, return a block statement
+        if (declarations.size() > 1) {
+            auto block = std::make_shared<BlockStatement>(declarations);
+            block->setPosition(startToken);
+            return block;
+        } else if (declarations.size() == 1) {
+            return declarations[0];
+        }
     }
     
+    // Handle reassignment cases (existing logic)
     if (currentToken.getType() != TokenTypes::Semicolon) {
         if (currentToken.getType() == TokenTypes::Increment || currentToken.getType() == TokenTypes::Decrement) {
             DEBUG_LOG("Assigning a unary statement");
@@ -212,7 +257,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
         }
 
     } else {
-        value = nullptr; // Handle cases like `let a;`
+        value = std::make_shared<Null>(type); // Handle cases like `let a;`
         if (currentToken.getType() != TokenTypes::Newline &&
             currentToken.getType() != TokenTypes::Semicolon &&
             currentToken.getType() != TokenTypes::EOI) {
@@ -220,23 +265,27 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
         }
     }
 
-    value->setPosition(startToken);
-
     if (!assignee) {
         if (variableType == TokenTypes::Const) {
             auto constant = std::make_shared<AssignVariable>(variableName, type, value);
             constant->markAsConstant();
+            constant->setPosition(startToken);
             return constant;
         }
-        return std::make_shared<AssignVariable>(variableName, type, value);
+        auto assignment = std::make_shared<AssignVariable>(variableName, type, value);
+        assignment->setPosition(startToken);
+        return assignment;
     }
 
     if (auto varGetter = std::dynamic_pointer_cast<GetVariable>(assignee)) {
-        return std::make_shared<AssignVariable>(varGetter->getName(), type, value, true);
+        auto reassignment = std::make_shared<AssignVariable>(varGetter->getName(), type, value, true);
+        reassignment->setPosition(startToken);
+        return reassignment;
 
     } else if (auto reassignAccess = std::dynamic_pointer_cast<Access>(assignee)) {
         auto accessClone = std::dynamic_pointer_cast<Access>(reassignAccess->clone());
         accessClone->setAssignmentValueTo(value);
+        accessClone->setPosition(startToken);
         return accessClone;
     }
 

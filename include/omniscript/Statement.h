@@ -44,11 +44,8 @@ class Statement {
             pos.filePath = path;
         }
 
-        inline void setPosition(Omniscript::filePosition position) {
-            pos.line = position.line;
-            pos.col = position.col;
-            pos.fileName = position.fileName;
-            pos.filePath = position.filePath;
+        inline void setPosition(const Omniscript::filePosition& position) {
+            pos = position;
         }
 
         inline Omniscript::filePosition getPosition() const {

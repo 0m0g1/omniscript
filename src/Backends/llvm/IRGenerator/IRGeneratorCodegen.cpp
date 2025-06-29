@@ -1,6 +1,8 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Expressions/TypeExpressions.h>
 
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, SymbolTableType scope) {
+    Omniscript::setPosition(value->getPosition());
     DEBUG_LOG();
     if (!value) {
         console.error("There is no value to be codegened.");
@@ -444,7 +446,17 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         );
     
         return moduleInstance;
-    }   
+    } 
+    
+    if (auto typeDecl = std::dynamic_pointer_cast<Omniscript::TypeDeclarationExpression>(value)) {
+        if (!typeDecl->isAliasing()) {
+            llvm::Type* resolvedType = resolveLLVMType(typeDecl->getType());
+            activeScope->addType(typeDecl->typeName, resolvedType);
+        } else {
+            llvm::Type* originalType = activeScope->getType(typeDecl->originalTypeName);
+            activeScope->addType(typeDecl->typeName, originalType);
+        }
+    }
 
     return nullptr;
 }

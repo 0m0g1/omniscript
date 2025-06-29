@@ -12,6 +12,13 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("");
 
+    if (type->isUnresolved()) {
+        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(targetType)) {
+            type = scope->getType(unresolved->joinedTypeString);
+            rootType = type;
+        }
+    }
+
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
         if (typed->getRootType()) {
             DEBUG_LOG("[Cast] Casting '" + value->toString() + "' a '" + typed->getRootType()->toString() + "' to a '" + targetType->toString() + "'.");
@@ -31,35 +38,42 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
 
     extendContextOf(value);
 
+    std::shared_ptr<Omniscript::Expression> result;
+
     // Literal cast (handles constant folding, primitive -> primitive, etc.)
     if (auto literal = std::dynamic_pointer_cast<Literal>(value)) {
         if (!targetType->isNullable()) {
             auto castedStmt = literal->castTo(targetType);
-            return castedStmt->express(scope);
+            result = castedStmt->express(scope);
+            result->setPosition(getPosition());
+            return result;
         }
     }
 
-    auto result = value->express(scope);
+    auto valueResult = value->express(scope);
 
     // If casting to a nullable type
     if (targetType->isNullable()) {
         // If the result is already null or nullable, just return as NullableExpression
-        if (std::dynamic_pointer_cast<Omniscript::NullableExpression>(result)) {
-            return result;
+        if (std::dynamic_pointer_cast<Omniscript::NullableExpression>(valueResult)) {
+            result = valueResult;
         }
-
         // If we're casting a null literal (e.g., NullExpression or NullPointerExpression)
-        if (std::dynamic_pointer_cast<Omniscript::NullExpression>(result) ||
-            std::dynamic_pointer_cast<Omniscript::NullPointerExpression>(result)) {
-            return std::make_shared<Omniscript::NullableExpression>();
+        else if (std::dynamic_pointer_cast<Omniscript::NullExpression>(valueResult) ||
+            std::dynamic_pointer_cast<Omniscript::NullPointerExpression>(valueResult)) {
+            result = std::make_shared<Omniscript::NullableExpression>();
         }
-
         // Wrap any expression in a NullableExpression
-        return std::make_shared<Omniscript::NullableExpression>(result);
+        else {
+            result = std::make_shared<Omniscript::NullableExpression>(valueResult);
+        }
+    } else {
+        // Normal cast expression fallback
+        result = std::make_shared<Omniscript::CastExpression>(valueResult, targetType);
     }
 
-    // Normal cast expression fallback
-    return std::make_shared<Omniscript::CastExpression>(result, targetType);
+    result->setPosition(getPosition());
+    return result;
 }
 
 std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
@@ -69,38 +83,47 @@ std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) 
 
     auto result = Omniscript::make_expression<Omniscript::NullPointerExpression>(type);
 
+    result->setPosition(getPosition());
     return result;
 }
 
 std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    
+    std::shared_ptr<Omniscript::Expression> result;
+    
     if (type->isNullable()) {
         auto nullable = std::dynamic_pointer_cast<Omniscript::NullableType>(type);
         auto nullableExpr = std::make_shared<Omniscript::NullableExpression>();
         nullableExpr->type = nullable->innerType ? nullable->innerType : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
         nullableExpr->rootType = nullable->innerType ? nullable->innerType : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
-        return nullableExpr;
+        result = nullableExpr;
+    } else {
+        result = Omniscript::make_expression<Omniscript::NullExpression>(
+            type ? type : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void));
     }
 
-    return Omniscript::make_expression<Omniscript::NullExpression>(
-        type ? type : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void));
+    result->setPosition(getPosition());
+    return result;
 }
 
 std::shared_ptr<Omniscript::Expression> PointerLiteral::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    
+    std::shared_ptr<Omniscript::Expression> result;
+    
     // Handle null pointer case
     if (address == 0) {
-        return Omniscript::make_expression<Omniscript::NullPointerExpression>(type->getPointeeType());
+        result = Omniscript::make_expression<Omniscript::NullPointerExpression>(type->getPointeeType());
+    } else {
+        // Create raw pointer expression
+        auto pointeeType = type ? type->getPointeeType() : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
+        auto ptrType = Omniscript::Type::createPointerType(pointeeType, isConst, isVolatile);
+        result = Omniscript::make_expression<Omniscript::RawPointerExpression>(address, ptrType);
     }
 
-    // Create raw pointer expression
-    auto pointeeType = type ? type->getPointeeType() : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void);
-
-    auto ptrType = Omniscript::Type::createPointerType(pointeeType, isConst, isVolatile);
-
-    return Omniscript::make_expression<Omniscript::RawPointerExpression>(
-        address,
-        ptrType);
+    result->setPosition(getPosition());
+    return result;
 }
 
 std::shared_ptr<Literal> PointerLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
@@ -174,10 +197,15 @@ std::shared_ptr<Literal> PointerLiteral::castTo(std::shared_ptr<Omniscript::Type
 
 std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    
+    std::shared_ptr<Omniscript::Expression> result;
+    
     if (!type) {
         DEBUG_LOG("Creating a 32-bit integer");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Int32);
-        return std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
+        result = std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
+        result->setPosition(getPosition());
+        return result;
     }
 
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Int8);
@@ -194,9 +222,13 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
                 typed->setType(nullable->innerType);
                 auto cast = std::make_shared<Cast>(clone, type);
                 auto castResult = cast->express(scope);
-                return castResult;
+                result = castResult;
+                result->setPosition(getPosition());
+                return result;
             }
-            return castTo(type)->express(scope);
+            result = castTo(type)->express(scope);
+            result->setPosition(getPosition());
+            return result;
         }
         DEBUG_LOG("Creating an '" + type->toString() + "' integer");
     }
@@ -204,35 +236,40 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
     // Check for specific bit-widths using the isInteger function with optional bitwidth argument
     if (type->isInteger(8)) {
         DEBUG_LOG("Creating an 8-bit integer");
-        return std::make_shared<Omniscript::Integer<int8_t>>(static_cast<int8_t>(value));
+        result = std::make_shared<Omniscript::Integer<int8_t>>(static_cast<int8_t>(value));
     }
     else if (type->isInteger(16)) {
         DEBUG_LOG("Creating a 16-bit integer");
-        return std::make_shared<Omniscript::Integer<int16_t>>(static_cast<int16_t>(value));
+        result = std::make_shared<Omniscript::Integer<int16_t>>(static_cast<int16_t>(value));
     }
     else if (type->isInteger(32)) {
         DEBUG_LOG("Creating a 32-bit integer");
-        return std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
+        result = std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
     }
     else if (type->isInteger(64)) {
         DEBUG_LOG("Creating a 64-bit integer");
-        return std::make_shared<Omniscript::Integer<int64_t>>(static_cast<int64_t>(value));
+        result = std::make_shared<Omniscript::Integer<int64_t>>(static_cast<int64_t>(value));
     }
     else if (type->isInteger(128)) {
         DEBUG_LOG("Creating a 128-bit integer");
-        return std::make_shared<Omniscript::BigInt>(std::to_string(value), 128);
+        result = std::make_shared<Omniscript::BigInt>(std::to_string(value), 128);
     }
     else if (type->isInteger(256)) {
         DEBUG_LOG("Creating a 256-bit integer");
-        return std::make_shared<Omniscript::BigInt>(std::to_string(value), 256);
+        result = std::make_shared<Omniscript::BigInt>(std::to_string(value), 256);
     }
     else if (type->isInteger(512)) {
         DEBUG_LOG("Creating a 512-bit integer");
-        return std::make_shared<Omniscript::BigInt>(std::to_string(value), 512);
+        result = std::make_shared<Omniscript::BigInt>(std::to_string(value), 512);
     }
     else if (type->isInteger(1024)) {
         DEBUG_LOG("Creating a 1024-bit integer");
-        return std::make_shared<Omniscript::BigInt>(std::to_string(value), 1024);
+        result = std::make_shared<Omniscript::BigInt>(std::to_string(value), 1024);
+    }
+
+    if (result) {
+        result->setPosition(getPosition());
+        return result;
     }
 
     return nullptr;
@@ -298,6 +335,9 @@ std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type
 
 std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    
+    std::shared_ptr<Omniscript::Expression> result;
+    
     // Default to 128-bit float if type is not specified
     if (!type) {
         if (isFloat16) {
@@ -334,9 +374,13 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
                 typed->setType(nullable->innerType);
                 auto cast = std::make_shared<Cast>(clone, type);
                 auto castResult = cast->express(scope);
-                return castResult;
+                result = castResult;
+                result->setPosition(getPosition());
+                return result;
             }
-            return castTo(type)->express(scope);
+            result = castTo(type)->express(scope);
+            result->setPosition(getPosition());
+            return result;
         }
         DEBUG_LOG("Creating an '" + type->toString() + "' float.");
     }
@@ -345,33 +389,38 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
     #ifdef __ARM_ARCH
         if (type->isFloat(16)) {
             DEBUG_LOG("Creating a 16-bit float (__fp16 for ARM)");
-            return std::make_shared<Omniscript::Float<__fp16>>(static_cast<__fp16>(value));
+            result = std::make_shared<Omniscript::Float<__fp16>>(static_cast<__fp16>(value));
         }
     #elif defined(__x86_64__) || defined(__i386__) 
         if (type->isFloat(16)) {
             DEBUG_LOG("Creating a 16-bit float (_Float16 for x86)");
-            return std::make_shared<Omniscript::Float<_Float16>>(static_cast<_Float16>(value));
+            result = std::make_shared<Omniscript::Float<_Float16>>(static_cast<_Float16>(value));
         }
     #endif
 
-    if (type->isFloat(32)) {
+    if (!result && type->isFloat(32)) {
         DEBUG_LOG("Creating a 32-bit float");
-        return std::make_shared<Omniscript::Float<float>>(static_cast<float>(value));
+        result = std::make_shared<Omniscript::Float<float>>(static_cast<float>(value));
     }
 
-    if (type->isFloat(64)) {
+    if (!result && type->isFloat(64)) {
         DEBUG_LOG("Creating a 64-bit float");
-        return std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));
+        result = std::make_shared<Omniscript::Float<double>>(static_cast<double>(value));
     }
 
-    if (type->isFloat(80)) {
+    if (!result && type->isFloat(80)) {
         DEBUG_LOG("Creating an 80-bit float (X86_FP80)");
-        return std::make_shared<Omniscript::Float<long double>>(static_cast<long double>(value));
+        result = std::make_shared<Omniscript::Float<long double>>(static_cast<long double>(value));
     }
 
-    if (type->isFloat(128)) {
+    if (!result && type->isFloat(128)) {
         DEBUG_LOG("Creating a 128-bit float (FP128 or PPC_FP128)");
-        return std::make_shared<Omniscript::Float<__float128>>(value);
+        result = std::make_shared<Omniscript::Float<__float128>>(value);
+    }
+
+    if (result) {
+        result->setPosition(getPosition());
+        return result;
     }
 
     return nullptr;
@@ -438,22 +487,33 @@ std::shared_ptr<Omniscript::Expression> BigInt::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("Creating a big int " + value);
     unsigned bitWidth = BigInt::determineBitWidth(value);
-    return std::make_shared<Omniscript::BigInt>(value, bitWidth);
+    auto result = std::make_shared<Omniscript::BigInt>(value, bitWidth);
+    
+    result->setPosition(getPosition());
+    return result;
 }
 
 std::shared_ptr<Omniscript::Expression> Invalid::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("Creating an invalid");
-    return std::make_shared<Omniscript::InvalidExpression>();
+    auto result = std::make_shared<Omniscript::InvalidExpression>();
+    
+    result->setPosition(getPosition());
+    return result;
 }
 
 std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    
+    std::shared_ptr<Omniscript::Expression> result;
+    
     // DEBUG_LOG("Bool value " + value);
     if (!type) {
         DEBUG_LOG("Creating a bool false");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Bool);
-        return std::make_shared<Omniscript::Primitive<bool>>(value); // Default to double (64-bit)
+        result = std::make_shared<Omniscript::Primitive<bool>>(value); // Default to double (64-bit)
+        result->setPosition(getPosition());
+        return result;
     }
 
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Bool);
@@ -470,14 +530,21 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType sco
                 typed->setType(nullable->innerType);
                 auto cast = std::make_shared<Cast>(clone, type);
                 auto castResult = cast->express(scope);
-                return castResult;
+                result = castResult;
+                result->setPosition(getPosition());
+                return result;
             }
-            return castTo(type)->express(scope);
+            result = castTo(type)->express(scope);
+            result->setPosition(getPosition());
+            return result;
         }
         DEBUG_LOG("Creating an '" + type->toString() + "'.");
     }
 
-    return std::make_shared<Omniscript::Primitive<bool>>(value);
+    result = std::make_shared<Omniscript::Primitive<bool>>(value);
+    
+    result->setPosition(getPosition());
+    return result;
 }
 
 std::shared_ptr<Literal> BoolLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
@@ -525,11 +592,16 @@ std::shared_ptr<Literal> BoolLiteral::castTo(std::shared_ptr<Omniscript::Type> t
 
 std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    
+    std::shared_ptr<Omniscript::Expression> result;
+    
     if (!type) {
         DEBUG_LOG("Creating a char literal");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
         auto utf8 = utf32_to_utf8(std::u32string(1, value));
-        return std::make_shared<Omniscript::Primitive<char>>(utf8[0]);
+        result = std::make_shared<Omniscript::Primitive<char>>(utf8[0]);
+        result->setPosition(getPosition());
+        return result;
     }
 
     if (!type->isChar()) {
@@ -540,7 +612,9 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
             typed->setType(nullable->innerType);
             auto cast = std::make_shared<Cast>(clone, type);
             auto castResult = cast->express(scope);
-            return castResult;
+            result = castResult;
+            result->setPosition(getPosition());
+            return result;
         }
         console.error("The specified type is " + type->toString() + " but '" + std::to_string(static_cast<uint32_t>(value)) + "' is a char.");
     } else {
@@ -550,16 +624,21 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
     if (type->isChar(8)) {
         DEBUG_LOG("Creating UTF-8 char");
         std::string utf8_value = utf32_to_utf8(std::u32string(1, value));
-        return std::make_shared<Omniscript::Primitive<char>>(utf8_value[0]); // assumes single-char utf8
+        result = std::make_shared<Omniscript::Primitive<char>>(utf8_value[0]); // assumes single-char utf8
     }
     else if (type->isChar(16)) {
         DEBUG_LOG("Creating UTF-16 char");
         std::u16string utf16_value = utf32_to_utf16(std::u32string(1, value));
-        return std::make_shared<Omniscript::Primitive<char16_t>>(utf16_value[0]);
+        result = std::make_shared<Omniscript::Primitive<char16_t>>(utf16_value[0]);
     }
     else if (type->isChar(32)) {
         DEBUG_LOG("Creating UTF-32 char");
-        return std::make_shared<Omniscript::Primitive<char32_t>>(value);
+        result = std::make_shared<Omniscript::Primitive<char32_t>>(value);
+    }
+
+    if (result) {
+        result->setPosition(getPosition());
+        return result;
     }
 
     return nullptr;
@@ -567,50 +646,57 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
 
 std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
     using Kind = Omniscript::Kind;
+    std::shared_ptr<Literal> result = nullptr;
+    
     switch (targetType->getKind()) {
     case Kind::Char:
     case Kind::Char16:
     case Kind::Char32:
-        return std::make_shared<CharacterLiteral>(value);
+        result = std::make_shared<CharacterLiteral>(value);
+        break;
     case Kind::Int8:
     case Kind::Int16:
     case Kind::Int32:
     case Kind::Int64: {
         auto val = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
         val->setType(targetType);
-        return val;
+        result = val;
+        break;
     }
-
     case Kind::Half: {
         auto lit = std::make_shared<FloatLiteral>(static_cast<_Float16>(value));
         lit->isFloat16 = true;
-        return lit;
+        result = lit;
+        break;
     }
     case Kind::Float: {
         auto lit = std::make_shared<FloatLiteral>(static_cast<float>(value));
         lit->isFloat32 = true;
-        return lit;
+        result = lit;
+        break;
     }
     case Kind::Double: {
         auto lit = std::make_shared<FloatLiteral>(static_cast<double>(value));
         lit->isFloat64 = true;
-        return lit;
+        result = lit;
+        break;
     }
     case Kind::FP128:
     case Kind::PPC_FP128: {
         auto lit = std::make_shared<FloatLiteral>(static_cast<__float128>(value));
         lit->isFloat128 = true;
-        return lit;
+        result = lit;
+        break;
     }
     case Kind::X86_FP80: {
         auto lit = std::make_shared<FloatLiteral>(static_cast<long double>(value));
         lit->isFloat80 = true;
-        return lit;
+        result = lit;
+        break;
     }
-
     case Kind::Bool:
-        return std::make_shared<BoolLiteral>(value != 0);
-
+        result = std::make_shared<BoolLiteral>(value != 0);
+        break;
     case Kind::String:
     case Kind::Utf8:
     case Kind::Utf16:
@@ -618,21 +704,29 @@ std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Ty
         auto utf32 = std::u32string(1, value);
         auto val = std::make_shared<StringLiteral>(utf32);
         val->setType(targetType);
-        return val;
+        result = val;
+        break;
     }
     default:
         console.error("Cannot cast a char to a '" + targetType->toString() + "'.");
         return nullptr;
     }
+    
+    if (result) {
+        result->setPosition(getPosition());
+    }
+    return result;
 }
 
 std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    std::shared_ptr<Omniscript::Expression> result = nullptr;
+    
     if (!type) {
         DEBUG_LOG("Creating UTF-8 string");
         type = rootType;
         std::string utf8_value = utf32_to_utf8(value);
-        return std::make_shared<Omniscript::StringExpression<std::string>>(utf8_value);
+        result = std::make_shared<Omniscript::StringExpression<std::string>>(utf8_value);
     }
     else if (!type->isPointer()) {
         DEBUG_LOG("Casting char* to '" + type->toString() + "'.");
@@ -642,76 +736,91 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
             auto typed = std::dynamic_pointer_cast<TypedStatement>(clone);
             typed->setType(nullable->innerType);
             auto cast = std::make_shared<Cast>(clone, type);
-            auto castResult = cast->express(scope);
-            return castResult;
+            result = cast->express(scope);
+            // Note: cast->express() will handle its own position setting
+            return result;
         }
         console.error("Cannot cast a char* to a " + type->toString());
+        return nullptr;
     }
+    else {
+        std::shared_ptr<Omniscript::Type> pointeeType = type->getPointeeType();
 
-    std::shared_ptr<Omniscript::Type> pointeeType = type->getPointeeType();
+        if (!Omniscript::Type::isSameOrCastableTo(rootType, type)) {
+            console.error("The specified type is " + type->toString() + " but a UTF-8 string was given.");
+            return nullptr;
+        } else {
+            DEBUG_LOG("Creating a '" + type->toString() + "' string literal.");
+        }
 
-    // auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Utf32);
-
-    if (!Omniscript::Type::isSameOrCastableTo(rootType, type)) {
-        console.error("The specified type is " + type->toString() + " but a UTF-8 string was given.");
-    } else {
-        DEBUG_LOG("Creating a '" + type->toString() + "' string literal.");
+        if (pointeeType->isString(8) || pointeeType->isChar(8)) {
+            DEBUG_LOG("Creating UTF-8 string");
+            type = rootType;
+            std::string utf8_value = utf32_to_utf8(value);
+            result = std::make_shared<Omniscript::StringExpression<std::string>>(utf8_value);
+        }
+        else if (pointeeType->isString(16) || pointeeType->isChar(16)) {
+            DEBUG_LOG("Creating UTF-16 string");
+            auto char16Type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char16);
+            auto string16Type = Omniscript::Type::createPointerType(char16Type);
+            type = string16Type;
+            std::u16string utf16_value = utf32_to_utf16(value);
+            result = std::make_shared<Omniscript::StringExpression<std::u16string>>(utf16_value);
+        }
+        else if (pointeeType->isString(32) || pointeeType->isChar(32)) {
+            DEBUG_LOG("Creating UTF-32 string");
+            auto char32Type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char32);
+            auto string32Type = Omniscript::Type::createPointerType(char32Type);
+            type = string32Type;
+            result = std::make_shared<Omniscript::StringExpression<std::u32string>>(value);
+        }
     }
-
-    if (pointeeType->isString(8) || pointeeType->isChar(8)) {
-        DEBUG_LOG("Creating UTF-8 string");
-        type = rootType;
-        std::string utf8_value = utf32_to_utf8(value);
-        return std::make_shared<Omniscript::StringExpression<std::string>>(utf8_value);
+    
+    if (result) {
+        result->setPosition(getPosition());
     }
-    else if (pointeeType->isString(16) || pointeeType->isChar(16)) {
-        DEBUG_LOG("Creating UTF-16 string");
-        auto char16Type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char16);
-        auto string16Type = Omniscript::Type::createPointerType(char16Type);
-        type = string16Type;
-        std::u16string utf16_value = utf32_to_utf16(value);
-        return std::make_shared<Omniscript::StringExpression<std::u16string>>(utf16_value);
-    }
-    else if (pointeeType->isString(32) || pointeeType->isChar(32)) {
-        DEBUG_LOG("Creating UTF-32 string");
-        auto char32Type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char32);
-        auto string32Type = Omniscript::Type::createPointerType(char32Type);
-        type = string32Type;
-        return std::make_shared<Omniscript::StringExpression<std::u32string>>(value);
-    }
-
-    return nullptr;
+    return result;
 }
 
 std::shared_ptr<Literal> StringLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
     using Kind = Omniscript::Kind;
+    std::shared_ptr<Literal> result = nullptr;
+    
     switch (targetType->getKind()) {
     case Kind::String:
     case Kind::Utf8:
     case Kind::Utf16:
     case Kind::Utf32:
-        return std::make_shared<StringLiteral>(value); // Already a UTF-32 string
+        result = std::make_shared<StringLiteral>(value); // Already a UTF-32 string
+        break;
     case Kind::Char:
     case Kind::Char16:
     case Kind::Char32: {
         if (!value.empty()) {
             auto val = std::make_shared<CharacterLiteral>(value[0]); // char32_t
             val->setType(targetType);
-            return val;
+            result = val;
         }
-        return nullptr;
+        break;
     }
     case Kind::Bool:
-        return std::make_shared<BoolLiteral>(!value.empty());
+        result = std::make_shared<BoolLiteral>(!value.empty());
+        break;
     default:
         console.error("Cannot cast a char* to a '" + targetType->toString() + "'.");
         return nullptr;
     }
+    
+    if (result) {
+        result->setPosition(getPosition());
+    }
+    return result;
 }
 
 std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("[Array] Creating an array");
+    std::shared_ptr<Omniscript::Expression> result = nullptr;
 
     if (!type) {
         DEBUG_LOG("[Array] The array has no explicit type. Inferring...");
@@ -770,13 +879,10 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
         setType(arrayType);
         setRootType(arrayType);
 
-        return std::make_shared<Omniscript::FixedArrayExpression>(castedValues, bestType);
+        result = std::make_shared<Omniscript::FixedArrayExpression>(castedValues, bestType);
     }
-
-    // === If type is specified (not inferred) ===
-    DEBUG_LOG("[Array] The array has a declared type: '" + type->toString() + "'");
-
-    if (type->isArray()) {
+    else if (type->isArray()) {
+        DEBUG_LOG("[Array] The array has a declared type: '" + type->toString() + "'");
         DEBUG_LOG("[Array] Creating a fixed array with declared element type");
 
         std::vector<std::shared_ptr<Omniscript::Expression>> values;
@@ -808,22 +914,27 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
             n++;
         }
 
-        return std::make_shared<Omniscript::FixedArrayExpression>(values, expectedElementType);
+        result = std::make_shared<Omniscript::FixedArrayExpression>(values, expectedElementType);
     }
-
-    if (type->isDynamicArray()) {
+    else if (type->isDynamicArray()) {
         DEBUG_LOG("[Array] Creating a dynamic Array");
         // TODO: Implement
         return nullptr;
     }
-
-    if (type->isHeterogeneousArray()) {
+    else if (type->isHeterogeneousArray()) {
         DEBUG_LOG("[Array] Creating a heterogeneous Array");
         // TODO: Implement
         return nullptr;
     }
-
-    return nullptr;
+    else {
+        DEBUG_LOG("[Array] The array has a declared type: '" + type->toString() + "'");
+        return nullptr;
+    }
+    
+    if (result) {
+        result->setPosition(getPosition());
+    }
+    return result;
 }
 
 std::shared_ptr<Literal> Array::castTo(std::shared_ptr<Omniscript::Type> targetType) const {

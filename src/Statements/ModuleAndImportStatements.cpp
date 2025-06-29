@@ -258,7 +258,9 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
     // }
 
     
-    return moduleStmt->express(scope);
+    auto mod = moduleStmt->express(scope);
+    mod->setPosition(getPosition());
+    return mod;
 }
 
 // Helper function to split module path into components (e.g., Math.Algebra.Matrix -> {"Math", "Algebra", "Matrix"})
@@ -318,5 +320,7 @@ std::shared_ptr<Omniscript::Expression> ModuleMember::express(SymbolTableType sc
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }
-    return value->express(scope);
+    auto val = value->express(scope);
+    val->setPosition(getPosition());
+    return val;
 }
