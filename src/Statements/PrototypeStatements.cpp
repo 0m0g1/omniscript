@@ -133,7 +133,23 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                         args.insert(args.begin(), thisArg);
                         DEBUG_LOG("The 'this' arg is of instance '" + (instanceName.empty() ? targetName : instanceName) + "' and of type '" + thisArg->getType()->toString() + "'.");
                     } else {
-                        console.error("The type '" + typeName + "' does not exist in the scope.");
+                        if (auto uType = scope->get(evaluatedCallee)->getType()) {
+                            if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(uType)) {
+                                this->type = funcType->returnType;
+                                this->rootType = type;
+                                console.warn("Reached here, will figure out what to do next later.");
+                                std::vector<std::shared_ptr<Omniscript::Expression>> finalArgs;
+                                for (const auto& arg : args) {
+                                    finalArgs.push_back(arg->express(scope));
+                                }
+                                DEBUG_LOG("[Call] Returning CallExpression for '" + evaluatedCallee + "' with " + std::to_string(finalArgs.size()) + " args");
+                                auto callExpr = std::make_shared<Omniscript::CallExpression>(evaluatedCallee, finalArgs, type);
+                                callExpr->setPosition(getPosition());
+                                return callExpr;
+                            }
+                        } else {
+                            console.error("The type '" + typeName + "' does not exist in the scope.");
+                        }
                     }
                 }
             }

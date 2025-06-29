@@ -152,19 +152,19 @@ function loadOpenGLFunctions() => int {
     glDrawArrays = glfwGetProcAddress("glDrawArrays") as GLDRAWARRAYS;
 
     // Check if all functions were loaded
-    if (
-        // glClear == nullptr || glClearColor == nullptr || glViewport == nullptr ||
-        // glGenBuffers == nullptr || glBindBuffer == nullptr || glBufferData == nullptr ||
-        // glGenVertexArrays == nullptr || glBindVertexArray == nullptr ||
-        // glVertexAttribPointer == nullptr || glEnableVertexAttribArray == nullptr ||
-        // glCreateShader == nullptr || glShaderSource == nullptr || glCompileShader == nullptr ||
-        // glGetShaderiv == nullptr || glGetShaderInfoLog == nullptr || glDeleteShader == nullptr ||
-        // glCreateProgram == nullptr || glAttachShader == nullptr || glLinkProgram == nullptr ||
-        // glGetProgramiv == nullptr || glGetProgramInfoLog == nullptr || glUseProgram == nullptr ||
-        // glDeleteProgram == nullptr || glDrawArrays == nullptr
-    ) {
-        return 0;
-    }
+    // if (
+    //     // glClear == nullptr || glClearColor == nullptr || glViewport == nullptr ||
+    //     // glGenBuffers == nullptr || glBindBuffer == nullptr || glBufferData == nullptr ||
+    //     // glGenVertexArrays == nullptr || glBindVertexArray == nullptr ||
+    //     // glVertexAttribPointer == nullptr || glEnableVertexAttribArray == nullptr ||
+    //     // glCreateShader == nullptr || glShaderSource == nullptr || glCompileShader == nullptr ||
+    //     // glGetShaderiv == nullptr || glGetShaderInfoLog == nullptr || glDeleteShader == nullptr ||
+    //     // glCreateProgram == nullptr || glAttachShader == nullptr || glLinkProgram == nullptr ||
+    //     // glGetProgramiv == nullptr || glGetProgramInfoLog == nullptr || glUseProgram == nullptr ||
+    //     // glDeleteProgram == nullptr || glDrawArrays == nullptr
+    // ) {
+    //     return 0;
+    // }
     return 1;
 }
 
