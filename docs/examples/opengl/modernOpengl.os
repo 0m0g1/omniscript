@@ -168,144 +168,146 @@ function loadOpenGLFunctions() => int {
     return 1;
 }
 
-function compileShader(source: char*, type: uint) => uint {
-    let shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, nullptr);
-    glCompileShader(shader);
+// function compileShader(source: char*, type: uint) => uint {
+//     let shader = glCreateShader(type);
+//     glShaderSource(shader, 1, &source, nullptr);
+//     glCompileShader(shader);
 
-    let success: int;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (success == GL_FALSE) {
-        let infoLogLength: int;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLength);
-        let infoLog = malloc(infoLogLength) as char*;
-        glGetShaderInfoLog(shader, infoLogLength, nullptr, infoLog);
-        printf("Shader compilation failed: %s\n", infoLog);
-        free(infoLog);
-        glDeleteShader(shader);
-        return 0;
-    }
-    return shader;
-}
+//     let success: int;
+//     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+//     if (success == GL_FALSE) {
+//         let infoLogLength: int;
+//         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLength);
+//         let infoLog = malloc(infoLogLength) as char*;
+//         glGetShaderInfoLog(shader, infoLogLength, nullptr, infoLog);
+//         printf("Shader compilation failed: %s\n", infoLog);
+//         free(infoLog);
+//         glDeleteShader(shader);
+//         return 0;
+//     }
+//     return shader;
+// }
 
-function createShaderProgram() => uint {
-    let vertexShader = compileShader(vertexShaderSource, GL_VERTEX_SHADER);
-    let fragmentShader = compileShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
+// function createShaderProgram() => uint {
+//     let vertexShader = compileShader(vertexShaderSource, GL_VERTEX_SHADER);
+//     let fragmentShader = compileShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
 
-    if (vertexShader == 0 || fragmentShader == 0) {
-        return 0;
-    }
+//     if (vertexShader == 0 || fragmentShader == 0) {
+//         return 0;
+//     }
 
-    let program = glCreateProgram();
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glLinkProgram(program);
+//     let program = glCreateProgram();
+//     glAttachShader(program, vertexShader);
+//     glAttachShader(program, fragmentShader);
+//     glLinkProgram(program);
 
-    let success: int;
-    glGetProgramiv(program, GL_LINK_STATUS, &success);
-    if (success == GL_FALSE) {
-        let infoLogLength: int;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLogLength);
-        let infoLog = malloc(infoLogLength) as char*;
-        glGetProgramInfoLog(program, infoLogLength, nullptr, infoLog);
-        printf("Program linking failed: %s\n", infoLog);
-        free(infoLog);
-        glDeleteProgram(program);
-        return 0;
-    }
+//     let success: int;
+//     glGetProgramiv(program, GL_LINK_STATUS, &success);
+//     if (success == GL_FALSE) {
+//         let infoLogLength: int;
+//         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLogLength);
+//         let infoLog = malloc(infoLogLength) as char*;
+//         glGetProgramInfoLog(program, infoLogLength, nullptr, infoLog);
+//         printf("Program linking failed: %s\n", infoLog);
+//         free(infoLog);
+//         glDeleteProgram(program);
+//         return 0;
+//     }
 
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-    return program;
-}
+//     glDeleteShader(vertexShader);
+//     glDeleteShader(fragmentShader);
+//     return program;
+// }
 
-// Entry point
-if (glfwInit() == 0) {
-    printf("Failed to initialize GLFW\n");
-    return;
-}
+// // Entry point
+// if (glfwInit() == 0) {
+//     printf("Failed to initialize GLFW\n");
+//     return;
+// }
 
-// Request OpenGL 3.3 Core Profile
-glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+// // Request OpenGL 3.3 Core Profile
+// glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+// glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+// glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-let window = glfwCreateWindow(800, 600, "Modern OpenGL Triangle", nullptr, nullptr);
-if (window == nullptr) {
-    printf("Failed to create window\n");
-    glfwTerminate();
-    return;
-}
+// let window = glfwCreateWindow(800, 600, "Modern OpenGL Triangle", nullptr, nullptr);
+// if (window == nullptr) {
+//     printf("Failed to create window\n");
+//     glfwTerminate();
+//     return;
+// }
 
-glfwMakeContextCurrent(window);
+// glfwMakeContextCurrent(window);
 
 // Load OpenGL functions
 if (loadOpenGLFunctions() == 0) {
     printf("Failed to load OpenGL functions\n");
     glfwTerminate();
     return;
+} else {
+    printf("functions loaded");
 }
 
-// Create shader program
-let shaderProgram = createShaderProgram();
-if (shaderProgram == 0) {
-    printf("Failed to create shader program\n");
-    glfwTerminate();
-    return;
-}
+// // Create shader program
+// let shaderProgram = createShaderProgram();
+// if (shaderProgram == 0) {
+//     printf("Failed to create shader program\n");
+//     glfwTerminate();
+//     return;
+// }
 
-// Triangle vertices with position and color
-let vertices: float[15] = [
-    // Position      // Color
-     0.0,  0.5, 0.0,  1.0, 0.0, 0.0,  // Top vertex - Red
-    -0.5, -0.5, 0.0,  0.0, 1.0, 0.0,  // Bottom-left vertex - Green
-     0.5, -0.5, 0.0,  0.0, 0.0, 1.0   // Bottom-right vertex - Blue
-];
+// // Triangle vertices with position and color
+// let vertices: float[15] = [
+//     // Position      // Color
+//      0.0,  0.5, 0.0,  1.0, 0.0, 0.0,  // Top vertex - Red
+//     -0.5, -0.5, 0.0,  0.0, 1.0, 0.0,  // Bottom-left vertex - Green
+//      0.5, -0.5, 0.0,  0.0, 0.0, 1.0   // Bottom-right vertex - Blue
+// ];
 
-// Create VAO and VBO
-let VAO: uint, VBO: uint;
-glGenVertexArrays(1, &VAO);
-glGenBuffers(1, &VBO);
+// // Create VAO and VBO
+// let VAO: uint, VBO: uint;
+// glGenVertexArrays(1, &VAO);
+// glGenBuffers(1, &VBO);
 
-// Bind VAO first
-glBindVertexArray(VAO);
+// // Bind VAO first
+// glBindVertexArray(VAO);
 
-// Bind and set up VBO
-glBindBuffer(GL_ARRAY_BUFFER, VBO);
-glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), &vertices[0], GL_STATIC_DRAW);
+// // Bind and set up VBO
+// glBindBuffer(GL_ARRAY_BUFFER, VBO);
+// glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), &vertices[0], GL_STATIC_DRAW);
 
-// Position attribute (location = 0)
-glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), 0 as void*);
-glEnableVertexAttribArray(0);
+// // Position attribute (location = 0)
+// glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), 0 as void*);
+// glEnableVertexAttribArray(0);
 
-// Color attribute (location = 1)
-glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (3 * sizeof(float)) as void*);
-glEnableVertexAttribArray(1);
+// // Color attribute (location = 1)
+// glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (3 * sizeof(float)) as void*);
+// glEnableVertexAttribArray(1);
 
-// Unbind VAO
-glBindVertexArray(0);
+// // Unbind VAO
+// glBindVertexArray(0);
 
-// Set viewport
-glViewport(0, 0, 800, 600);
+// // Set viewport
+// glViewport(0, 0, 800, 600);
 
-// Main render loop
-while (glfwWindowShouldClose(window) == 0) {
-    // Clear screen
-    glClearColor(0.1, 0.1, 0.1, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
+// // Main render loop
+// while (glfwWindowShouldClose(window) == 0) {
+//     // Clear screen
+//     glClearColor(0.1, 0.1, 0.1, 1.0);
+//     glClear(GL_COLOR_BUFFER_BIT);
 
-    // Use shader program
-    glUseProgram(shaderProgram);
+//     // Use shader program
+//     glUseProgram(shaderProgram);
     
-    // Bind VAO and draw triangle
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+//     // Bind VAO and draw triangle
+//     glBindVertexArray(VAO);
+//     glDrawArrays(GL_TRIANGLES, 0, 3);
     
-    // Swap buffers and poll events
-    glfwSwapBuffers(window);
-    glfwPollEvents();
-}
+//     // Swap buffers and poll events
+//     glfwSwapBuffers(window);
+//     glfwPollEvents();
+// }
 
-// Cleanup
-glDeleteProgram(shaderProgram);
-glfwTerminate();
+// // Cleanup
+// glDeleteProgram(shaderProgram);
+// glfwTerminate();
