@@ -217,6 +217,7 @@ llvm::Value* IRGenerator::createModuleObject(
 }
 
 llvm::Value* IRGenerator::generateCast(llvm::Value* src, llvm::Type* destType) {
+    // Todo:: add a bitcast omniscript expression
     llvm::Type* srcType = src->getType();
 
     if (srcType == destType) {
@@ -260,6 +261,28 @@ llvm::Value* IRGenerator::generateCast(llvm::Value* src, llvm::Type* destType) {
             return nullptr;
         }
         return Builder->CreateBitCast(src, destType, "ptrcast");
+    }
+
+    // ✅ NEW: Cast from integer to pointer (e.g., 12 as void*)
+    if (srcType->isIntegerTy() && destType->isPointerTy()) {
+        return Builder->CreateIntToPtr(src, destType, "inttoptr");
+    }
+
+    // ✅ NEW: Cast from pointer to integer (optional reverse)
+    if (srcType->isPointerTy() && destType->isIntegerTy()) {
+        return Builder->CreatePtrToInt(src, destType, "ptrtoint");
+    }
+
+    // Cast from void* (i8*) to function pointer type
+    if (srcType->isPointerTy() && destType->isFunctionTy()) {
+        llvm::PointerType* funcPtrType = llvm::PointerType::getUnqual(destType);
+        return Builder->CreateBitCast(src, funcPtrType, "void_to_func_ptrcast");
+    }
+
+    // Cast from function pointer to void*
+    if (srcType->isFunctionTy() && destType->isPointerTy()) {
+        llvm::PointerType* srcPtrType = llvm::PointerType::getUnqual(srcType);
+        return Builder->CreateBitCast(src, destType, "func_to_void_ptrcast");
     }
 
     console.error("Unsupported cast from '" + debugType(srcType) + "' to '" + debugType(destType) + "'");

@@ -34,6 +34,9 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
     if (!type) {
         scope->addType(name, Omniscript::Type::createInvalid());
     } else {
+        if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(type)) {
+            funcType->functionName = name;
+        }
         scope->addType(name, type);
     }
     DEBUG_LOG("Declared type: '" + type->toString() + "' in scope as '" + name + "'.");

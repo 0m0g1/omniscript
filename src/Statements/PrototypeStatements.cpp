@@ -111,49 +111,49 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 constructionBlock->setPosition(getPosition());
                 return constructionBlock;
             } else {
-                const std::string moduleTypeSuffix = "_module_type";
+                auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? targetName : instanceName));
+                if (auto thisArgType = scope->getType(typeName)) {
+                    thisArg->setType(Omniscript::Type::createPointerType(thisArgType));
+                    thisArg->setRootType(thisArg->getType());
+                    args.insert(args.begin(), thisArg);
+                    DEBUG_LOG("The 'this' arg is of instance '" + (instanceName.empty() ? targetName : instanceName) + "' and of type '" + thisArg->getType()->toString() + "'.");
+                } else {
+                    if (auto objtest = scope->get(callee)) {
+                        if (auto objtestType = objtest->getType()) {
+                            if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType)) {
+                                this->type = funcType->returnType;
+                                this->rootType = type;
+                                console.warn("Reached here, will figure out what to do next later.");
 
-                std::string baseTypeName = typeName;
-                bool isModuleType = false;
-
-                // Strip '_module_type' suffix if present
-                if (baseTypeName.size() > moduleTypeSuffix.size() &&
-                    baseTypeName.compare(baseTypeName.size() - moduleTypeSuffix.size(), moduleTypeSuffix.size(), moduleTypeSuffix) == 0) {
-                    isModuleType = true;
-                    baseTypeName = baseTypeName.substr(0, baseTypeName.size() - moduleTypeSuffix.size());
-                }
-
-                evaluatedCallee = baseTypeName + "." + callee;
-
-                if (!isModuleType) {
-                    auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? targetName : instanceName));
-                    if (auto thisArgType = scope->getType(typeName)) {
-                        thisArg->setType(Omniscript::Type::createPointerType(thisArgType));
-                        thisArg->setRootType(thisArg->getType());
-                        args.insert(args.begin(), thisArg);
-                        DEBUG_LOG("The 'this' arg is of instance '" + (instanceName.empty() ? targetName : instanceName) + "' and of type '" + thisArg->getType()->toString() + "'.");
-                    } else {
-                        if (auto objtest = scope->get(callee)) {
-                            if (auto objtestType = objtest->getType()) {
-                                if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType)) {
-                                    this->type = funcType->returnType;
-                                    this->rootType = type;
-                                    console.warn("Reached here, will figure out what to do next later.");
-                                    std::vector<std::shared_ptr<Omniscript::Expression>> finalArgs;
-                                    for (const auto& arg : args) {
-                                        finalArgs.push_back(arg->express(scope));
+                                if (isFromAssignment) {
+                                    std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
+                                    auto funcCall = std::make_shared<Call>(assignmentExpr, callee, args);
+                                    auto stmt = std::make_shared<AssignVariable>(instanceName, type, funcCall);
+                                    funcCall->setPosition(getPosition());
+                                    if (isFromConstantAssignment) {
+                                        stmt->markAsConstant();
                                     }
-                                    DEBUG_LOG("[Call] Returning CallExpression for '" + callee + "' with " + std::to_string(finalArgs.size()) + " args");
-                                    auto callExpr = std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
-                                    callExpr->setPosition(getPosition());
-                                    return callExpr;
+                                    auto result = stmt->express(scope);
+                                    result->setPosition(getPosition());
+                                    return result;
                                 }
-                            } else {
-                                console.error("objtest has no type");
+
+                                std::vector<std::shared_ptr<Omniscript::Expression>> finalArgs;
+                                for (const auto& arg : args) {
+                                    finalArgs.push_back(arg->express(scope));
+                                }
+                                DEBUG_LOG("[Call] Returning CallExpression for '" + callee + "' with " + std::to_string(finalArgs.size()) + " args");
+                                auto callExpr = std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
+                                callExpr->setPosition(getPosition());
+                                callExpr->functionTypeName = funcType->functionName;
+                                // auto dereferenceFunctionPointer = std::make_shared<Omniscript::DerefenceExpression>();
+                                return callExpr;
                             }
                         } else {
-                            console.error("The type '" + typeName + "' does not exist in the scope.");
+                            console.error("objtest has no type");
                         }
+                    } else {
+                        console.error("The type '" + typeName + "' does not exist in the scope '" + scope->getName() + "'.");
                     }
                 }
             }
@@ -934,7 +934,7 @@ void FunctionDeclaration::setReturnTypesInStatement(
 
 std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
-    DEBUG_LOG("[Parameter] Creating parameter " + name + " of kind " + (type ? type->toString() : "undefined"));
+    DEBUG_LOG("[Parameter] Creating parameter '" + name + "' of kind " + (type ? type->toString() : "undefined"));
     
     if (type && type->isUnresolved()) {
         if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
@@ -993,13 +993,15 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
     }
 
     DEBUG_LOG("[Parameter] Created value for parameter " + name + " of kind " + result->getType()->toString());
-
+    
     if (isConstant) {
         scope->setConstant(name, result);
     } else {
         scope->set(name, result);
     }
-
+    
+    DEBUG_LOG("[Parameter] Stored parameter '" + name + "' in scope '" + scope->getName() + "'.");
+    
     auto param = std::make_shared<Omniscript::FunctionInputExpression>(name, type, result, isConstant);
     param->isVariadic = isVariadic;
     param->setPosition(getPosition());

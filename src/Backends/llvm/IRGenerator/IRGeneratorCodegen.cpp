@@ -1,5 +1,6 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Expressions/TypeExpressions.h>
+#include <omniscript/Expressions/CallableExpression.h>
 
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, SymbolTableType scope) {
     Omniscript::setPosition(value->getPosition());
@@ -298,7 +299,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
 
         if (call->instanceName.empty()) {
             DEBUG_LOG("Creating a normal call for " + call->calleeName);
-            return createCall(call->calleeName, args);
+            return createCall(call->calleeName, args, call->functionTypeName);
         }
         DEBUG_LOG("Creating an object instance");
         return createObjectInstance(call->calleeName, call->instanceName, args, call->isGlobal);

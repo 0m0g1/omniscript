@@ -1,6 +1,9 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 
 llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type) {
+    // Resolve the base type kind
+    llvm::Type* llvmType = nullptr;
+
     if (!type) {
         std::cerr << "[ERROR] Type is null!" << std::endl;
         return nullptr;
@@ -65,7 +68,8 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         // For function pointer variables (like OpenGL function pointers), return a pointer to the function type
         // This is what you'd use for: type GLCLEAR = fn(mask: uint) => void;
         // The variable GLCLEAR would be of type "pointer to function"
-        return llvm::PointerType::get(llvmFuncType, 0);
+        llvmType = llvmFuncType;
+        // return llvm::PointerType::get(llvmFuncType, 0);
     }
 
     // If the type is an array, resolve the base type first.
@@ -98,16 +102,9 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
         return llvm::PointerType::get(referencedType, 0);
     }
 
-    // Resolve the base type kind
-    llvm::Type* llvmType = nullptr;
-
     switch (type->getKind()) {
         case Omniscript::Kind::Function:
-            // This case shouldn't be reached directly since we handle FunctionType above,
-            // but included for completeness
-            console.error("[ERROR] Function kind encountered without FunctionType cast");
-            return nullptr;
-            
+            break;  
         case Omniscript::Kind::Int8:
             DEBUG_LOG("Generating LLVM type: Int8");
             llvmType = llvm::Type::getInt8Ty(context);
@@ -227,8 +224,16 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
             llvmType = llvm::Type::getVoidTy(context);
             break;
         case Omniscript::Kind::Null:
-            DEBUG_LOG("Generating LLVM type: Null (as pointer to i8)");
-            llvmType = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context));
+            if (auto nullType = std::dynamic_pointer_cast<Omniscript::NullType>(type)) {
+                DEBUG_LOG("Generating LLVM type: Null expects " + (nullType->innerType ? nullType->innerType->toString() : "void"));
+                if (nullType->innerType) {
+                    llvmType = llvm::PointerType::getUnqual(resolveLLVMType(nullType->innerType));
+                } else {
+                    llvmType = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context));
+                }
+            } else {
+                console.error("Type with kind null is not a valid null type.");
+            }
             break;
         case Omniscript::Kind::Utf8:
             DEBUG_LOG("Generating LLVM type: Utf8 (i8*)");

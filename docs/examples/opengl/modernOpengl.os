@@ -173,10 +173,10 @@ function compileShader(source: char*, type: uint) => uint {
     glShaderSource(shader, 1, &source, nullptr);
     glCompileShader(shader);
 
-    let success: int;
+    let success: int = -1;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (success == GL_FALSE) {
-        let infoLogLength: int;
+        let infoLogLength: int = -1;
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLength);
         let infoLog = malloc(infoLogLength) as char*;
         glGetShaderInfoLog(shader, infoLogLength, nullptr, infoLog);
@@ -186,25 +186,26 @@ function compileShader(source: char*, type: uint) => uint {
         return 0;
     }
     return shader;
+    // return 0;
 }
 
 function createShaderProgram() => uint {
     let vertexShader = compileShader(vertexShaderSource, GL_VERTEX_SHADER);
     let fragmentShader = compileShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
 
-    if (vertexShader == 0 || fragmentShader == 0) {
-        return 0;
-    }
+    // if (vertexShader == 0 || fragmentShader == 0) {
+    //     return 0;
+    // }
 
     let program = glCreateProgram();
     glAttachShader(program, vertexShader);
     glAttachShader(program, fragmentShader);
     glLinkProgram(program);
 
-    let success: int;
+    let success: int = -1;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (success == GL_FALSE) {
-        let infoLogLength: int;
+        let infoLogLength: int = -1;
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLogLength);
         let infoLog = malloc(infoLogLength) as char*;
         glGetProgramInfoLog(program, infoLogLength, nullptr, infoLog);
@@ -217,6 +218,7 @@ function createShaderProgram() => uint {
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
     return program;
+    // return 0;
 }
 
 // Entry point
@@ -255,7 +257,7 @@ if (shaderProgram == 0) {
 }
 
 // Triangle vertices with position and color
-let vertices: float[15] = [
+let vertices: float[18] = [
     // Position      // Color
      0.0,  0.5, 0.0,  1.0, 0.0, 0.0,  // Top vertex - Red
     -0.5, -0.5, 0.0,  0.0, 1.0, 0.0,  // Bottom-left vertex - Green
@@ -272,14 +274,15 @@ glBindVertexArray(VAO);
 
 // Bind and set up VBO
 glBindBuffer(GL_ARRAY_BUFFER, VBO);
-glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), &vertices[0], GL_STATIC_DRAW);
+// glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), &vertices[0], GL_STATIC_DRAW);
+glBufferData(GL_ARRAY_BUFFER, 72, &vertices, GL_STATIC_DRAW);
 
 // Position attribute (location = 0)
-glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), 0 as void*);
+glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * 4, nullptr);// 0 as void*);
 glEnableVertexAttribArray(0);
 
 // Color attribute (location = 1)
-glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (3 * sizeof(float)) as void*);
+glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * 4, (3 * 4) as void*);
 glEnableVertexAttribArray(1);
 
 // Unbind VAO

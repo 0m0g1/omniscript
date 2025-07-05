@@ -26,7 +26,10 @@
             "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
             "args": [
                 "docs\\examples\\opengl\\modernOpengl.os",
-                "--debug"
+                "--debug",
+                "--log-final-code",
+                "-O",
+                "-1"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

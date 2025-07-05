@@ -295,6 +295,11 @@ public:
         std::vector<llvm::Value*>& args, 
         llvm::BasicBlock* activeBlock = nullptr
     );
+    llvm::Value* createCall(
+        const std::string& callee, 
+        std::vector<llvm::Value*>& args,
+        const std::string& functionTypeName
+    );
     bool currentBlockHasTerminator() const;
     llvm::Value* createReturn(llvm::Value* returnValue, llvm::Type* expectedReturnType);
 
