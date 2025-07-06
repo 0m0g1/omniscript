@@ -104,6 +104,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     } else if (rightTyped) {
         rightType = rightTyped->getType();
     } else {
+        return left->express(scope);
         console.error("The left operand '" + right->toString() + "' has no type or is not a typed statement");
     }
 

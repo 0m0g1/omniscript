@@ -1,19 +1,12 @@
-extern "C" {
-    fn printf(...fmt: char*) => int;
-    fn malloc(size: int) => void*;
-    fn free(ptr: void*) => void;
-    fn strlen(str: char*) => int;
-}
+// extern "C" {
+//     fn printf(...fmt: char*) => int;
+//     fn malloc(size: int) => void*;
+//     fn free(ptr: void*) => void;
+//     fn strlen(str: char*) => int;
+// }
 
-let isRaining: bool = false;
-let isSunny: bool = true;
-
-if (isRaining || isSunny) {
-    printf("is rainy or sunny");
-}
-
-// extern "C:/Windows/System32/msvcrt.dll" fn ___chkstk_ms() => void;
-// // function ___chkstk_ms() => void {}
+// // extern "C:/Windows/System32/msvcrt.dll" fn ___chkstk_ms() => void;
+// // // function ___chkstk_ms() => void {}
 
 // // GLFW
 // extern 
@@ -162,19 +155,19 @@ if (isRaining || isSunny) {
 //     glDrawArrays = glfwGetProcAddress("glDrawArrays") as GLDRAWARRAYS;
 
 // //     // Check if all functions were loaded
-// //     // if (
-// //     //     // glClear == nullptr || glClearColor == nullptr || glViewport == nullptr ||
-// //     //     // glGenBuffers == nullptr || glBindBuffer == nullptr || glBufferData == nullptr ||
-// //     //     // glGenVertexArrays == nullptr || glBindVertexArray == nullptr ||
-// //     //     // glVertexAttribPointer == nullptr || glEnableVertexAttribArray == nullptr ||
-// //     //     // glCreateShader == nullptr || glShaderSource == nullptr || glCompileShader == nullptr ||
-// //     //     // glGetShaderiv == nullptr || glGetShaderInfoLog == nullptr || glDeleteShader == nullptr ||
-// //     //     // glCreateProgram == nullptr || glAttachShader == nullptr || glLinkProgram == nullptr ||
-// //     //     // glGetProgramiv == nullptr || glGetProgramInfoLog == nullptr || glUseProgram == nullptr ||
-// //     //     // glDeleteProgram == nullptr || glDrawArrays == nullptr
-// //     // ) {
-// //     //     return 0;
-// //     // }
+//     if (
+//         glClear == nullptr || glClearColor == nullptr || glViewport == nullptr || 
+//         glBindBuffer == nullptr || glBufferData == nullptr ||
+//         glGenVertexArrays == nullptr || glBindVertexArray == nullptr ||
+//         glVertexAttribPointer == nullptr || glEnableVertexAttribArray == nullptr ||
+//         glCreateShader == nullptr //|| glShaderSource == nullptr // || glCompileShader == nullptr ||
+//         // glGetShaderiv == nullptr || glGetShaderInfoLog == nullptr || glDeleteShader == nullptr ||
+//         // glCreateProgram == nullptr || glAttachShader == nullptr || glLinkProgram == nullptr ||
+//         // glGetProgramiv == nullptr || glGetProgramInfoLog == nullptr || glUseProgram == nullptr ||
+//         // glDeleteProgram == nullptr || glDrawArrays == nullptr
+//     ) {
+//         return 0;
+//     }
 //     return 1;
 // }
 
@@ -196,7 +189,6 @@ if (isRaining || isSunny) {
 //         return 0;
 //     }
 //     return shader;
-//     // return 0;
 // }
 
 // function createShaderProgram() => uint {
@@ -228,7 +220,6 @@ if (isRaining || isSunny) {
 //     glDeleteShader(vertexShader);
 //     glDeleteShader(fragmentShader);
 //     return program;
-//     // return 0;
 // }
 
 // // Entry point
@@ -266,13 +257,13 @@ if (isRaining || isSunny) {
 //     return;
 // }
 
-// // Triangle vertices with position and color
-// let vertices: float[18] = [
-//     // // Position      // Color
-//      0.0,  0.5, 0.0,  1.0, 0.0, 0.0,  // Top vertex - Red
-//     -0.5, -0.5, 0.0,  0.0, 1.0, 0.0,  // Bottom-left vertex - Green
-//      0.5, -0.5, 0.0,  0.0, 0.0, 1.0   // Bottom-right vertex - Blue
-// ];
+// Triangle vertices with position and color
+const vertices: float[18] = [
+    // // Position      // Color
+     0.0,  0.5, 0.0,  1.0, 0.0, 0.0,  // Top vertex - Red
+    -0.5, -0.5, 0.0,  0.0, 1.0, 0.0,  // Bottom-left vertex - Green
+     0.5, -0.5, 0.0,  0.0, 0.0, 1.0   // Bottom-right vertex - Blue
+];
 
 // // Create VAO and VBO
 // let VAO: uint, VBO: uint;
