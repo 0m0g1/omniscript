@@ -200,7 +200,7 @@ public:
         SymbolTableType scope);
     llvm::Type* resolveLLVMType(std::shared_ptr<Omniscript::Type> type);
     
-    llvm::Value* createNullValue();
+    llvm::Value* createNullValue(llvm::Type* type);
     llvm::Value* createNullPointer(llvm::Type* pointeeType);
     llvm::Value* createRawPointer(uintptr_t address, llvm::Type* pointeeType);
     

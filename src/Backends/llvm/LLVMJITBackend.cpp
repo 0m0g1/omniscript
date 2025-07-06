@@ -379,6 +379,8 @@ void LLVMJITBackend::executeFunction(const std::string& functionName, const Conf
     if (config.diagnostics.verbose) {
         DEBUG_LOG("Function returned: " + std::to_string(result));
     }
+
+    DEBUG_LOG("Done");
 }
 
 llvm::Expected<llvm::orc::ExecutorAddr> LLVMJITBackend::lookupFunction(const std::string& name) {

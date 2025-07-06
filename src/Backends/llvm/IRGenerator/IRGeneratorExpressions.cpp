@@ -232,6 +232,39 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
             return phi;
         }
 
+        case TokenTypes::LogicalOr: {
+            // Ensure both operands are boolean-like (i1)
+            llvm::Value* lhs = Builder->CreateICmpNE(left, llvm::ConstantInt::get(left->getType(), 0), "lhscond");
+
+            llvm::Function* function = Builder->GetInsertBlock()->getParent();
+
+            // Create blocks
+            llvm::BasicBlock* rhsBlock = llvm::BasicBlock::Create(*Context, "rhs", function);
+            llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(*Context, "lormerge", function);
+
+            // Result variable
+            llvm::PHINode* phi = nullptr;
+
+            llvm::BasicBlock* lhsBlock = Builder->GetInsertBlock(); // Save this before setting insert point
+
+            Builder->CreateCondBr(lhs, mergeBlock, rhsBlock);  // Note: reversed compared to AND
+
+            // RHS block
+            Builder->SetInsertPoint(rhsBlock);
+            llvm::Value* rhs = Builder->CreateICmpNE(right, llvm::ConstantInt::get(right->getType(), 0), "rhscond");
+            Builder->CreateBr(mergeBlock);
+
+            // Merge block
+            Builder->SetInsertPoint(mergeBlock);
+            phi = Builder->CreatePHI(llvm::Type::getInt1Ty(*Context), 2, "lortmp");
+
+            // Correct incoming blocks - reversed compared to AND
+            phi->addIncoming(llvm::ConstantInt::getTrue(*Context), lhsBlock);
+            phi->addIncoming(rhs, rhsBlock);
+
+            return phi;
+        }
+
         default:
             console.error("Unknown binary operator '" + getTokenTypeName(op) + "'.");
             return nullptr;

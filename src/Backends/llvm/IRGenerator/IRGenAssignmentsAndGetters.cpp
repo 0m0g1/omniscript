@@ -8,9 +8,7 @@ llvm::Value* IRGenerator::assignVariable(
     std::string name = statement->variableName;
     llvm::Type* type = resolveLLVMType(statement->getType());
     DEBUG_LOG("Variable '" + name + "' has type '" + debugType(type) + "'.");
-    llvm::Value* value = codegen(statement->getValue(), scope);
-    DEBUG_LOG("Got variable '" + statement->variableName + "''s value.");
-    llvm::Value* initialValue = value;
+    
     bool isGlobal = statement->isGlobal;
     bool isConstant = statement->isConstant;
     llvm::GlobalValue::LinkageTypes linkage = llvm::GlobalValue::InternalLinkage;
@@ -23,92 +21,95 @@ llvm::Value* IRGenerator::assignVariable(
         llvm::Value* existingVar = activeScope->get(name);
         DEBUG_LOG("Variable '" + name + "' already exists. Reassigning value...");
 
-        if (initialValue && !isConstant) {
-            llvm::Type* valueType = type;
-            if (initialValue->getType() != valueType) {
-                initialValue = generateCast(initialValue, valueType);
-                if (!initialValue) {
+        if (statement->getValue() && !isConstant) {
+            llvm::Value* newValue = codegen(statement->getValue(), scope);
+            if (newValue->getType() != type) {
+                newValue = generateCast(newValue, type);
+                if (!newValue) {
                     console.error("Failed to cast value when reassigning '" + name + "'");
                     return nullptr;
                 }
             }
-            llvm::StoreInst* store = Builder->CreateStore(initialValue, existingVar, isVolatile);
+            llvm::StoreInst* store = Builder->CreateStore(newValue, existingVar, isVolatile);
             store->setAlignment(llvm::Align(4));
         }
-        
         return existingVar;
     }
 
     // --- Global variable ---
     if (isGlobal) {
-        llvm::Constant* constInit = llvm::dyn_cast<llvm::Constant>(initialValue);
+        llvm::Constant* initVal = llvm::Constant::getNullValue(type);
+        
+        // Handle array initialization without temporary stack copies
+        if (type->isArrayTy() && statement->getValue()) {
+            if (auto arrayLit = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(statement->getValue())) {
+                std::vector<llvm::Constant*> elements;
+                llvm::ArrayType* arrayType = cast<llvm::ArrayType>(type);
+                
+                // Create constant elements directly
+                for (auto& elem : arrayLit->elements) {
+                    elements.push_back(cast<llvm::Constant>(codegen(elem, scope)));
+                }
+                
+                if (elements.size() == arrayType->getNumElements()) {
+                    initVal = llvm::ConstantArray::get(arrayType, elements);
+                }
+            }
+        }
+
         llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
             *activeModule,
             type,
             isConstant,
             linkage,
-            constInit ? constInit : llvm::Constant::getNullValue(type),
+            initVal,
             name
         );
 
-        activeScope->set(name, gVar);
-        DEBUG_LOG("Global variable '" + name + "' created with type: " + debugType(type));
-
-        if (initialValue && !constInit && !isConstant) {
-            DEBUG_LOG("Global variable '" + name + "' initialized with non-constant value; adding runtime store.");
-            Builder->CreateStore(initialValue, gVar, isVolatile);
+        // Handle non-constant initialization after creation
+        if (statement->getValue()) {
+            llvm::Value* initValue = codegen(statement->getValue(), scope);
+            Builder->CreateStore(initValue, gVar, isVolatile);
         }
 
+        activeScope->set(name, gVar);
         return gVar;
     }
 
     // --- Local variable ---
-    llvm::Function* function = (Builder->GetInsertBlock()->getParent());
+    llvm::Function* function = Builder->GetInsertBlock()->getParent();
     llvm::BasicBlock* entryBlock = &function->getEntryBlock();
 
-    // Save current insertion point
+    // Move to entry block for allocation
     llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
-
-    // Move builder to the beginning of the entry block
     Builder->SetInsertPoint(entryBlock, entryBlock->begin());
-
-    // Create the alloca
     llvm::AllocaInst* alloca = Builder->CreateAlloca(type, nullptr, name);
-
-    // Restore builder to original insertion point
     Builder->restoreIP(savedIP);
 
     // Set alignment
-    unsigned align = 4;
+    unsigned align = type->isDoubleTy() ? 8 : 4; // Default for floats/others
     if (type->isIntegerTy()) {
-        unsigned bits = type->getIntegerBitWidth();
-        align = (bits >= 64) ? 8 : (bits >= 32) ? 4 : 2;
-    } else if (type->isFloatingPointTy()) {
-        align = type->isDoubleTy() ? 8 : 4;
+        align = (type->getIntegerBitWidth() >= 64) ? 8 : 4;
     }
     alloca->setAlignment(llvm::Align(align));
 
-    // Store initializer
-    if (initialValue) {
-        if (initialValue->getType() != type) {
-            initialValue = generateCast(initialValue, type);
-            if (!initialValue) {
+    // Handle initialization
+    if (statement->getValue()) {
+        llvm::Value* initValue = codegen(statement->getValue(), scope);
+        if (initValue->getType() != type) {
+            initValue = generateCast(initValue, type);
+            if (!initValue) {
                 console.error("Failed to cast initializer for variable '" + name + "'");
                 return nullptr;
             }
         }
-        llvm::StoreInst* store = Builder->CreateStore(initialValue, alloca, isVolatile);
+        llvm::StoreInst* store = Builder->CreateStore(initValue, alloca, isVolatile);
         store->setAlignment(llvm::Align(align));
     }
 
     // Register in scope
-    if (isConstant) {
-        activeScope->setConstant(name, alloca);
-    } else {
-        activeScope->set(name, alloca);
-    }
-
-    DEBUG_LOG("Local variable '" + name + "' allocated and initialized" + (isConstant ? " (const)" : ""));
+    activeScope->set(name, alloca);
+    DEBUG_LOG("Local variable '" + name + "' allocated and initialized");
     return alloca;
 }
 

@@ -90,7 +90,8 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
 
     if (auto null = std::dynamic_pointer_cast<Omniscript::NullExpression>(value)) {
         DEBUG_LOG("Creating a null value");
-        return createNullValue();
+        auto innerType = resolveLLVMType(null->getType());
+        return createNullValue(innerType);
     }
 
     else if (auto rawPtr = std::dynamic_pointer_cast<Omniscript::RawPointerExpression>(value)) {

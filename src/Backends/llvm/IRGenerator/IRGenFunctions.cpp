@@ -189,85 +189,93 @@ llvm::Value* IRGenerator::createCall(
     std::vector<llvm::Value*>& args,
     const std::string& functionTypeName
 ) {
+    // 1. Find the callable value
     llvm::Value* funcValue = nullptr;
-
-    // Look for the function in the module or current scope
+    bool isDynamicFunction = !functionTypeName.empty();
+    
     if (auto* moduleFunc = Module->getFunction(callee)) {
         funcValue = moduleFunc;
+    } else if (auto* globalVar = Module->getGlobalVariable(callee)) {
+        // This is a global variable (likely a function pointer)
+        funcValue = globalVar;
     } else if (auto* value = activeScope->get(callee)) {
         funcValue = value;
     } else {
-        console.error("Function or pointer '" + callee + "' not found in scope '" + activeScope->getName() + "'");
+        console.error("Callable '" + callee + "' not found");
         return nullptr;
     }
 
+    // 2. Determine the function type
     llvm::FunctionType* funcType = nullptr;
-
-    // If it's a function, get the FunctionType directly
+    
     if (auto* func = llvm::dyn_cast<llvm::Function>(funcValue)) {
         funcType = func->getFunctionType();
     }
-    // If it's a function pointer (Value*), attempt to use a known signature
-    else if (funcValue->getType()->isPointerTy()) {
-        // NOTE: Opaque pointers don't expose element type anymore.
-        // So you must already know or track the function signature elsewhere.
-        if (!functionTypeName.empty()) {
-            funcType = llvm::dyn_cast<llvm::FunctionType>(activeScope->getType(functionTypeName));
-            if (!funcType) {
-                console.error("Value in scope is not a FunctionType for: " + functionTypeName);
+    else if (!functionTypeName.empty()) {
+        // Handle typed function pointers
+        if (auto* type = activeScope->getType("*" + functionTypeName)) {
+            if (auto* ft = llvm::dyn_cast<llvm::FunctionType>(type)) {
+                funcType = ft;
+            } else {
+                console.error("Type '" + functionTypeName + "' is not a function type");
                 return nullptr;
             }
+        } else {
+            console.error("Unknown type '" + functionTypeName + "'");
+            return nullptr;
         }
-    } else {
-        console.error("Value for '" + callee + "' is not callable");
+    }
+    else {
+        console.error("Untyped function pointer call to '" + callee + "'");
         return nullptr;
     }
 
-    // Validate and cast arguments
+    // 3. Validate arguments
     bool isVarArg = funcType->isVarArg();
     size_t fixedParams = funcType->getNumParams();
-    size_t givenArgs = args.size();
-
-    if (!isVarArg && fixedParams != givenArgs) {
-        console.error("Argument count mismatch for '" + callee + "', expected " +
-                      std::to_string(fixedParams) + " but got " + std::to_string(givenArgs));
+    
+    if (!isVarArg && args.size() != fixedParams) {
+        console.error("Argument count mismatch for '" + callee + "'");
         return nullptr;
     }
 
-    for (size_t i = 0; i < fixedParams; ++i) {
-        llvm::Type* expected = funcType->getParamType(i);
-        if (args[i]->getType() != expected) {
-            llvm::Value* castedArg = generateCast(args[i], expected);
-            if (!castedArg) {
-                console.error("Failed to cast argument " + std::to_string(i) +
-                              " in call to '" + callee + "'");
+    // 4. Cast arguments if needed
+    for (size_t i = 0; i < std::min(args.size(), fixedParams); ++i) {
+        if (args[i]->getType() != funcType->getParamType(i)) {
+            args[i] = generateCast(args[i], funcType->getParamType(i));
+            if (!args[i]) {
+                console.error("Argument " + std::to_string(i) + " type mismatch");
                 return nullptr;
             }
-            args[i] = castedArg;
         }
     }
 
-    llvm::BasicBlock* insertBlock = Builder->GetInsertBlock();
-    if (!insertBlock) {
-        console.error("No valid insertion block available for call to '" + callee + "'");
-        return nullptr;
-    }
-
-    if (insertBlock->getTerminator()) {
-        Builder->SetInsertPoint(insertBlock->getTerminator());
-    } else {
-        Builder->SetInsertPoint(insertBlock);
-    }
-
-    // Direct call if Function*
+    // 5. Create the call
+    llvm::CallInst* call = nullptr;
+    
     if (auto* func = llvm::dyn_cast<llvm::Function>(funcValue)) {
-        return Builder->CreateCall(func, args);
+        // Direct function call
+        call = Builder->CreateCall(func, args);
+    } else {
+        // Function pointer call - LOAD the pointer first!
+        llvm::Value* loadedFuncPtr = nullptr;
+        
+        if (auto* globalVar = llvm::dyn_cast<llvm::GlobalVariable>(funcValue)) {
+            // Load from global variable (this is the key fix!)
+            loadedFuncPtr = Builder->CreateLoad(
+                llvm::PointerType::getUnqual(funcType), 
+                globalVar
+            );
+        } else {
+            // Already a loaded pointer
+            loadedFuncPtr = funcValue;
+        }
+        
+        // Create indirect call through the loaded function pointer
+        call = Builder->CreateCall(funcType, loadedFuncPtr, args);
     }
 
-    // If it's a function pointer, cast it to known type and call
-    llvm::PointerType* funcPtrType = llvm::PointerType::getUnqual(funcType);
-    llvm::Value* castedFunc = Builder->CreateBitCast(funcValue, funcPtrType);
-    return Builder->CreateCall(funcType, castedFunc, args);
+    return call;
 }
 
 llvm::Function* IRGenerator::createExternFunction(

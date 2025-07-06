@@ -91,8 +91,14 @@ llvm::Value* IRGenerator::createNullPointer(llvm::Type* pointeeType) {
     return llvm::ConstantPointerNull::get(ptrType);
 }
 
-llvm::Value* IRGenerator::createNullValue() {
-    return llvm::UndefValue::get(llvm::Type::getVoidTy(*Context));
+llvm::Value* IRGenerator::createNullValue(llvm::Type* type) {
+    if (type->isPointerTy()) {
+        return llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(type));
+    } else if (type->isIntegerTy()) {
+        return llvm::ConstantInt::get(type, 0);
+    } else {
+        return llvm::Constant::getNullValue(type);
+    }
 }
 
 // Generate IR for different types

@@ -23,6 +23,10 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
         }
     }
 
+    if (type->isFunction()) {
+        type = std::make_shared<Omniscript::PointerType>(type);
+    }
+
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
         if (typed->getRootType()) {
             DEBUG_LOG("[Cast] Casting '" + value->toString() + "' a '" + typed->getRootType()->toString() + "' to a '" + targetType->toString() + "'.");
@@ -932,6 +936,10 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
             }
 
             n++;
+        }
+
+        if (n > type->fixedSize) {
+            console.error("Array expects '" + std::to_string(type->fixedSize) + "' elements or less but got '" + std::to_string(n) + "' instead.");
         }
 
         result = std::make_shared<Omniscript::FixedArrayExpression>(values, expectedElementType);

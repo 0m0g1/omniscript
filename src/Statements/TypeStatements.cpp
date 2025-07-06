@@ -31,20 +31,41 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
         }
     }
 
+    std::shared_ptr<Omniscript::Expression> typeDeclExpr;
     if (!type) {
         scope->addType(name, Omniscript::Type::createInvalid());
     } else {
         if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(type)) {
             funcType->functionName = name;
         }
-        scope->addType(name, type);
+        if (type->isFunction()) {
+            auto typePointer = std::make_shared<Omniscript::PointerType>(type);
+            auto pointerTypeDecl = std::make_shared<Omniscript::TypeDeclarationExpression>(name, typePointer);
+            auto typeDecl = std::make_shared<Omniscript::TypeDeclarationExpression>("*" + name, type);
+            if (isAliasingOtherType) {
+                typeDecl->setIsAliasing(originalTypeName);
+                pointerTypeDecl->setIsAliasing(originalTypeName);
+            }
+            typeDecl->setPosition(getPosition());
+            pointerTypeDecl->setPosition(getPosition());
+            std::vector<std::shared_ptr<Omniscript::Expression>> declarations = {pointerTypeDecl, typeDecl};
+            auto block = std::make_shared<Omniscript::BlockExpression>(declarations);
+            block->setPosition(getPosition());
+            typeDeclExpr = block;
+
+            scope->addType(name, typePointer);
+            scope->addType("*" + name, type);
+    } else {
+        auto typeDecl = std::make_shared<Omniscript::TypeDeclarationExpression>(name, type);
+        if (isAliasingOtherType) {
+            typeDecl->setIsAliasing(originalTypeName);
+        }
+        typeDecl->setPosition(getPosition());
+        typeDeclExpr = typeDecl;
+    }
     }
     DEBUG_LOG("Declared type: '" + type->toString() + "' in scope as '" + name + "'.");
-    
-    auto typeDeclExpr = std::make_shared<Omniscript::TypeDeclarationExpression>(name, type);
-    if (isAliasingOtherType) {
-        typeDeclExpr->setIsAliasing(originalTypeName);
-    }
-    typeDeclExpr->setPosition(getPosition());
+
+
     return typeDeclExpr;
 }

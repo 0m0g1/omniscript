@@ -63,7 +63,7 @@ std::shared_ptr<Statement> Parser::logicalOrExpression() {
         Token opToken = currentToken;
         TokenTypes op = TokenTypes::LogicalOr;
         eat(TokenTypes::LogicalOr);
-        left = std::make_shared<BinaryExpression>(left, currentToken, logicalAndExpression());
+        left = std::make_shared<BinaryExpression>(left, opToken, logicalAndExpression());
     }
 
     return left;

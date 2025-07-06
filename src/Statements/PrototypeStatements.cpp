@@ -120,7 +120,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 } else {
                     if (auto objtest = scope->get(callee)) {
                         if (auto objtestType = objtest->getType()) {
-                            if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType)) {
+                            if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType->getPointeeType())) {
                                 this->type = funcType->returnType;
                                 this->rootType = type;
                                 console.warn("Reached here, will figure out what to do next later.");
