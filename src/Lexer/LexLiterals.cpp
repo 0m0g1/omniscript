@@ -69,8 +69,11 @@ Token Lexer::getNextToken() {
 
     currentChar = source[currentPosition];
 
+    bool isRawStringPrefix = currentChar == 'r' &&
+                         (peek() == '\'' || peek() == '\"' || peek() == '`');
+
     // Check for identifiers and keywords
-    if (std::isalpha(currentChar) || currentChar == '_') { // If the current character is an alphabetical [A-Z][a-z]
+    if ((std::isalpha(currentChar) || currentChar == '_') && !isRawStringPrefix) { // If the current character is an alphabetical [A-Z][a-z]
         std::string raw_identifier; // Identifier as given in the input could be in any case
 
         // Check if an identifier's character is a letter, number, underscore and it is not a fullstop

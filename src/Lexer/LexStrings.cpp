@@ -92,6 +92,7 @@ Token Lexer::getStringToken(char &currentChar) {
                 // Process character normally (no escape handling)
                 literalValue += currentChar;
                 hasContent = true;
+                currentPosition++;
                 continue;
             }
 
@@ -205,9 +206,10 @@ Token Lexer::getStringToken(char &currentChar) {
                 }
 
                 default:
-                    throw std::runtime_error(
-                    "Unknown escape sequence \\" + std::string(1,next)
-                    + " at line " + std::to_string(line));
+                    break;
+                    // console.error(
+                    // "Unknown escape sequence \\" + std::string(1,next)
+                    // + " at line " + std::to_string(line));
                 }
             } else {
                 char c = source[currentPosition];

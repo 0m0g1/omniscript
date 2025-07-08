@@ -24,7 +24,7 @@ llvm::Value* IRGenerator::assignVariable(
 
         if (statement->getValue() && !isConstant) {
             llvm::Value* newValue = codegen(statement->getValue(), scope);
-            if (newValue->getType() != type) {
+            if (newValue->getType() != type && !llvm::isa<llvm::AllocaInst>(newValue)) {
                 newValue = generateCast(newValue, type);
                 if (!newValue) {
                     console.error("Failed to cast value when reassigning '" + name + "'");
@@ -53,8 +53,12 @@ llvm::Value* IRGenerator::assignVariable(
 
                 initVal = llvm::ConstantArray::get(arrayType, elements);
             }
+        } else if (statement->getValue()) {
+            auto val = codegen(statement->getValue(), scope);
+            initVal = llvm::cast<llvm::Constant>(val);  // <-- ✅ update the `initVal` here
         }
 
+        // ✅ now create global var after initVal is fully computed
         llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
             *activeModule,
             type,

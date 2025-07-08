@@ -174,8 +174,12 @@ Token Lexer::getOperator(char &currentChar) {
         case '!':
             if (peek() == '=') {
                 currentPosition += 2;
+                column += 2;
                 return Token(TokenTypes::NotEquals, "!=", line, column, sourceFilePath);
             }
+            currentPosition += 1;
+            column += 1;
+            return Token(TokenTypes::LogicalNot, "!", line, column, sourceFilePath);
         case '<':
             if (peek() == '<') {
                 if (peek(1) == '=') {
