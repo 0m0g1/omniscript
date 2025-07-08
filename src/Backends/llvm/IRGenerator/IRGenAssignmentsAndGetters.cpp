@@ -8,15 +8,16 @@ llvm::Value* IRGenerator::assignVariable(
     std::string name = statement->variableName;
     llvm::Type* type = resolveLLVMType(statement->getType());
     DEBUG_LOG("Variable '" + name + "' has type '" + debugType(type) + "'.");
-    
+
     bool isGlobal = statement->isGlobal;
     bool isConstant = statement->isConstant;
+    bool isVolatile = statement->isVolatile;
     llvm::GlobalValue::LinkageTypes linkage = llvm::GlobalValue::InternalLinkage;
     llvm::Module* activeModule = currentModule;
-    bool isVolatile = statement->isVolatile;
 
     DEBUG_LOG("Creating variable: " + name + (isGlobal ? " (global)" : " (local)") + (isConstant ? " [const]" : ""));
 
+    // --- If variable exists, reassign value ---
     if (activeScope->exists(name)) {
         llvm::Value* existingVar = activeScope->get(name);
         DEBUG_LOG("Variable '" + name + "' already exists. Reassigning value...");
@@ -33,27 +34,24 @@ llvm::Value* IRGenerator::assignVariable(
             llvm::StoreInst* store = Builder->CreateStore(newValue, existingVar, isVolatile);
             store->setAlignment(llvm::Align(4));
         }
+
         return existingVar;
     }
 
-    // --- Global variable ---
+    // --- GLOBAL VARIABLE HANDLING ---
     if (isGlobal) {
         llvm::Constant* initVal = llvm::Constant::getNullValue(type);
-        
-        // Handle array initialization without temporary stack copies
+
         if (type->isArrayTy() && statement->getValue()) {
             if (auto arrayLit = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(statement->getValue())) {
+                llvm::ArrayType* arrayType = llvm::cast<llvm::ArrayType>(type);
                 std::vector<llvm::Constant*> elements;
-                llvm::ArrayType* arrayType = cast<llvm::ArrayType>(type);
-                
-                // Create constant elements directly
-                for (auto& elem : arrayLit->elements) {
-                    elements.push_back(cast<llvm::Constant>(codegen(elem, scope)));
+                for (const auto& elem : arrayLit->elements) {
+                    auto val = codegen(elem, scope);
+                    elements.push_back(llvm::cast<llvm::Constant>(val));
                 }
-                
-                if (elements.size() == arrayType->getNumElements()) {
-                    initVal = llvm::ConstantArray::get(arrayType, elements);
-                }
+
+                initVal = llvm::ConstantArray::get(arrayType, elements);
             }
         }
 
@@ -66,48 +64,56 @@ llvm::Value* IRGenerator::assignVariable(
             name
         );
 
-        // Handle non-constant initialization after creation
-        if (statement->getValue()) {
-            llvm::Value* initValue = codegen(statement->getValue(), scope);
-            Builder->CreateStore(initValue, gVar, isVolatile);
-        }
-
         activeScope->set(name, gVar);
         return gVar;
     }
 
-    // --- Local variable ---
+    // --- LOCAL VARIABLE HANDLING ---
     llvm::Function* function = Builder->GetInsertBlock()->getParent();
     llvm::BasicBlock* entryBlock = &function->getEntryBlock();
 
-    // Move to entry block for allocation
     llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
     Builder->SetInsertPoint(entryBlock, entryBlock->begin());
     llvm::AllocaInst* alloca = Builder->CreateAlloca(type, nullptr, name);
     Builder->restoreIP(savedIP);
 
     // Set alignment
-    unsigned align = type->isDoubleTy() ? 8 : 4; // Default for floats/others
+    unsigned align = type->isDoubleTy() ? 8 : 4;
     if (type->isIntegerTy()) {
         align = (type->getIntegerBitWidth() >= 64) ? 8 : 4;
     }
     alloca->setAlignment(llvm::Align(align));
 
-    // Handle initialization
+    // --- Handle initialization ---
     if (statement->getValue()) {
-        llvm::Value* initValue = codegen(statement->getValue(), scope);
-        if (initValue->getType() != type) {
-            initValue = generateCast(initValue, type);
-            if (!initValue) {
-                console.error("Failed to cast initializer for variable '" + name + "'");
-                return nullptr;
+        if (type->isArrayTy()) {
+            if (auto arrayLit = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(statement->getValue())) {
+                llvm::ArrayType* arrayType = llvm::cast<llvm::ArrayType>(type);
+
+                std::vector<llvm::Value*> elements;
+                for (const auto& elem : arrayLit->elements) {
+                    elements.push_back(this->codegen(elem, scope));
+                }
+
+                createFixedArrayInPlace(alloca, arrayType, elements);  // ✅ write directly into local
+            } else {
+                llvm::Value* rhs = codegen(statement->getValue(), scope);
+                Builder->CreateStore(rhs, alloca, isVolatile);
             }
+        } else {
+            llvm::Value* initValue = codegen(statement->getValue(), scope);
+            if (initValue->getType() != type && !llvm::isa<llvm::AllocaInst>(initValue)) {
+                initValue = generateCast(initValue, type);
+                if (!initValue) {
+                    console.error("Failed to cast initializer for variable '" + name + "'");
+                    return nullptr;
+                }
+            }
+            llvm::StoreInst* store = Builder->CreateStore(initValue, alloca, isVolatile);
+            store->setAlignment(llvm::Align(align));
         }
-        llvm::StoreInst* store = Builder->CreateStore(initValue, alloca, isVolatile);
-        store->setAlignment(llvm::Align(align));
     }
 
-    // Register in scope
     activeScope->set(name, alloca);
     DEBUG_LOG("Local variable '" + name + "' allocated and initialized");
     return alloca;

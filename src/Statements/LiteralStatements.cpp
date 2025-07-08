@@ -938,7 +938,7 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
             n++;
         }
 
-        if (n > type->fixedSize) {
+        if (n != type->fixedSize) {
             console.error("Array expects '" + std::to_string(type->fixedSize) + "' elements or less but got '" + std::to_string(n) + "' instead.");
         }
 

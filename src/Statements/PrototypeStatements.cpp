@@ -123,8 +123,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                             if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType->getPointeeType())) {
                                 this->type = funcType->returnType;
                                 this->rootType = type;
-                                console.warn("Reached here, will figure out what to do next later.");
-
+                                
                                 if (isFromAssignment) {
                                     std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
                                     auto funcCall = std::make_shared<Call>(assignmentExpr, callee, args);

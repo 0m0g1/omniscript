@@ -261,6 +261,11 @@ public:
     llvm::Value* generateOpaqueDynamicVariable(const std::string& name, llvm::Value* value);
 
     llvm::Value* createFixedArray(llvm::Type* elementType, size_t arraySize, const std::vector<llvm::Value*>& elements);
+    void createFixedArrayInPlace(
+            llvm::Value* destination,
+            llvm::ArrayType* arrayType,
+            const std::vector<llvm::Value*>& elements
+        );
     llvm::Function* createExternFunction(std::shared_ptr<Omniscript::FunctionExpression> func, SymbolTableType scope);
     llvm::Function* createIntrinsicFunction(
         const std::string& name,

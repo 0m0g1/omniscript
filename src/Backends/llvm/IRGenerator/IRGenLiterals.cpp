@@ -379,3 +379,39 @@ llvm::Value* IRGenerator::createFixedArray(
     DEBUG_LOG("Finished creating fixed array");
     return arrayAlloc;
 }
+
+void IRGenerator::createFixedArrayInPlace(
+    llvm::Value* destination,
+    llvm::ArrayType* arrayType,
+    const std::vector<llvm::Value*>& elements
+) {
+    llvm::Type* elementType = arrayType->getElementType();
+
+    // DEBUG_LOG("Creating fixed array in-place at " + debugValue(destination));
+
+    const llvm::DataLayout& dataLayout = currentModule
+        ? currentModule->getDataLayout()
+        : Module->getDataLayout();
+
+    unsigned elementAlign = dataLayout.getABITypeAlign(elementType).value();
+
+    for (size_t i = 0; i < elements.size(); ++i) {
+        llvm::Value* element = elements[i];
+
+        if (element->getType() != elementType) {
+            DEBUG_LOG("Casting element at index " + std::to_string(i));
+            element = generateCast(element, elementType);
+        }
+
+        llvm::Value* elementPtr = Builder->CreateGEP(arrayType, destination, {
+            Builder->getInt32(0),
+            Builder->getInt32(i)
+        });
+
+        llvm::StoreInst* store = Builder->CreateStore(element, elementPtr);
+        store->setAlignment(llvm::Align(elementAlign));
+    }
+
+    DEBUG_LOG("Finished creating fixed array in-place");
+}
+
