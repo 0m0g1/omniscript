@@ -25,7 +25,7 @@ Token Lexer::getStringToken(char &currentChar) {
         currentPosition++; // Move past the opening quote
         column++;
     
-        bool isTemplate = (quoteType == '`');
+        bool isTemplate = (quoteType == '`') && !isRawString;
         bool isString = (quoteType == '\"');
 
         bool hasContent = false;
@@ -58,8 +58,9 @@ Token Lexer::getStringToken(char &currentChar) {
                     if (quoteType == '\'') {
                         // Character literal validation
                         std::u32string u32chars = utf8_to_utf32(literalValue);
-                        if (u32chars.size() != 1) {
-                            throw std::runtime_error("Invalid character literal at line " + std::to_string(line));
+                        if (u32chars.size() > 1) {
+                            // throw std::runtime_error("Invalid character literal at line " + std::to_string(line));
+                            return finalizeToken(TokenTypes::StringLiteral);
                         }
                         return finalizeToken(TokenTypes::Character);
                     }
@@ -103,32 +104,50 @@ Token Lexer::getStringToken(char &currentChar) {
                 return finalizeToken(hasContent ? TokenTypes::TemplateMiddle : TokenTypes::TemplateHead);
             }
 
-            // Handle newlines in normal strings (REMOVE THEM)
-           if (currentChar == '\n' || currentChar == '\r') {
-                // Skip the newline
-                currentPosition++;
-                
-                // Handle CRLF (Windows-style newline)
-                if (currentChar == '\r' && currentPosition < source.length() && source[currentPosition] == '\n') {
-                    currentPosition++;
-                }
-                
-                line++;
-                column = 1;
-                
-                // Skip all whitespace (spaces/tabs) after the newline
-                while (currentPosition < source.length()) {
-                    char nextChar = source[currentPosition];
-                    if (nextChar == ' ' || nextChar == '\t') {
+           if (currentChar == '\n' || currentChar == '\r') {                
+                if (isTemplate) {
+                    // For backtick strings: KEEP the newline but skip leading whitespace
+                    literalValue += '\n'; // Normalize to LF
+                    line++;
+                    column = 1;
+                    
+                    // Skip CRLF if present
+                    if (currentChar == '\r' && currentPosition + 1 < source.length() && source[currentPosition + 1] == '\n') {
                         currentPosition++;
-                        column++;
                     }
-                    else {
-                        break; // Stop at the first non-whitespace character
+                    currentPosition++; // Skip the newline
+                    
+                    // Skip leading spaces/tabs after the newline
+                    while (currentPosition < source.length()) {
+                        char nextChar = source[currentPosition];
+                        if (nextChar == ' ' || nextChar == '\t') {
+                            currentPosition++;
+                            column++;
+                        } else {
+                            break; // Stop at first non-whitespace character
+                        }
+                    }
+                } else {
+                    // For normal strings: REMOVE the newline and all following whitespace
+                    currentPosition++;
+                    if (currentChar == '\r' && currentPosition < source.length() && source[currentPosition] == '\n') {
+                        currentPosition++; // Skip LF in CRLF
+                    }
+                    line++;
+                    column = 1;
+                    
+                    // Skip all whitespace after newline
+                    while (currentPosition < source.length()) {
+                        char nextChar = source[currentPosition];
+                        if (nextChar == ' ' || nextChar == '\t') {
+                            currentPosition++;
+                            column++;
+                        } else {
+                            break;
+                        }
                     }
                 }
-                
-                continue; // Skip adding the newline/whitespace to `literalValue`
+                continue; // Skip adding newline/whitespace to `literalValue` (except for template newlines)
             }
 
             // Handle escape sequences
@@ -137,10 +156,6 @@ Token Lexer::getStringToken(char &currentChar) {
                     throw std::runtime_error(
                         "Unterminated escape sequence at line " + std::to_string(line));
                 }
-
-                char next = source[currentPosition+1];
-                currentPosition += 2;
-                column += 2;
 
                 {
                     // Check if this is the last character before a newline
@@ -163,12 +178,16 @@ Token Lexer::getStringToken(char &currentChar) {
                     }
 
                     if (isBackslashAtEndOfLine) {
-                        // Literal backslash (no escape behavior)
-                        literalValue += '\\';
+                    //     // Literal backslash (no escape behavior)
+                    //     literalValue += '\\';
                         currentPosition = nextPos; // Skip to newline
                         continue;
                     }
                 }
+
+                char next = source[currentPosition+1];
+                currentPosition += 2;
+                column += 2;
 
                 // Add template-specific escapes
                 if (isTemplate && (next == '`' || next == '$' || next == '{')) {

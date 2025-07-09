@@ -78,6 +78,9 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
         case TokenTypes::StringLiteral:
             statement = parseExpression();
             break;
+        case TokenTypes::TemplateTail:
+            statement = parseExpression();
+            break;
         case TokenTypes::If:
             statement = parseIfStatement();
             break;

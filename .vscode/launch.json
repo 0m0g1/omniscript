@@ -44,8 +44,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
             "args": [
-                "examples\\timer.os",
-                "--execute",
+                "docs\\examples\\strings.os",
                 "--debug",
                 "--log-final-code",
                 // "--optimization-level",

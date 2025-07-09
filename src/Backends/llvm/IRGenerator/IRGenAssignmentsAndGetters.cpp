@@ -4,7 +4,8 @@ llvm::Value* IRGenerator::assignVariable(
     std::shared_ptr<Omniscript::VariableAssignment> statement,
     SymbolTableType scope
 ) {
-    DEBUG_LOG(statement->toDebugString());
+    //Todo:: To debug string method for all expressions
+    // DEBUG_LOG(statement->toDebugString());
     std::string name = statement->variableName;
     llvm::Type* type = resolveLLVMType(statement->getType());
     DEBUG_LOG("Variable '" + name + "' has type '" + debugType(type) + "'.");
@@ -51,27 +52,26 @@ llvm::Value* IRGenerator::assignVariable(
             name
         );
 
-        activeScope->set(name, gVar);
-
         // If value is specified and not a constant, add runtime initializer
         if (statement->getValue()) {
             auto val = codegen(statement->getValue(), scope);
-
-            if (llvm::isa<llvm::Constant>(val)) {
-                gVar->setInitializer(llvm::cast<llvm::Constant>(val));
+            if (auto* constVal = llvm::dyn_cast<llvm::Constant>(val)) {
+                // Constant value — compile-time initializer
+                gVar->setInitializer(constVal);
             } else {
-                // Create global init function if not already
-                // llvm::Function* initFn = getOrCreateGlobalInitFunction();
-
-                // llvm::BasicBlock* entryBlock = &initFn->getEntryBlock();
-                // llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
-                
-                // Builder->SetInsertPoint(entryBlock, entryBlock->begin());
+                // Runtime value — must insert store into main or init block
+                llvm::Function* initFunc = getOrCreateGlobalInitFunction();
+                llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
+    
+                llvm::BasicBlock& entryBlock = initFunc->getEntryBlock();
+                Builder->SetInsertPoint(&entryBlock, entryBlock.begin());
                 Builder->CreateStore(val, gVar);
-                // Builder->restoreIP(savedIP);
-            
+    
+                Builder->restoreIP(savedIP);
             }
         }
+
+        activeScope->set(name, gVar);
 
         return gVar;
     }
@@ -110,6 +110,7 @@ llvm::Value* IRGenerator::assignVariable(
             }
         } else {
             llvm::Value* initValue = codegen(statement->getValue(), scope);
+
             if (initValue->getType() != type && !llvm::isa<llvm::AllocaInst>(initValue)) {
                 initValue = generateCast(initValue, type);
                 if (!initValue) {
@@ -117,6 +118,16 @@ llvm::Value* IRGenerator::assignVariable(
                     return nullptr;
                 }
             }
+            
+            // if (auto* globalString = llvm::dyn_cast<llvm::GlobalVariable>(initValue)) {
+            //     globalString->setName(name);
+            // }
+            // else
+            if (initValue->getType() != alloca->getAllocatedType()) {
+                // Normal type mismatch handling
+                initValue = generateCast(initValue, alloca->getAllocatedType());
+            }
+            
             llvm::StoreInst* store = Builder->CreateStore(initValue, alloca, isVolatile);
             store->setAlignment(llvm::Align(align));
         }

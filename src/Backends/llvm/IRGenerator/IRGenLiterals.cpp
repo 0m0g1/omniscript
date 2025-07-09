@@ -265,7 +265,7 @@ llvm::Value* IRGenerator::createChar32(char32_t value) {
 
 // Create an 8-bit (UTF-8) string
 llvm::Value* IRGenerator::createUTF8String(const std::string& str) {
-    return Builder->CreateGlobalString(str, ".utf8str");
+    return Builder->CreateGlobalString(str, "utf8str");
 }
 
 // Create a 16-bit (UTF-16) string
@@ -280,7 +280,7 @@ llvm::Value* IRGenerator::createUTF16String(const std::u16string& str) {
     llvm::Constant* array = llvm::ConstantArray::get(arrayType, chars);
 
     auto global = new llvm::GlobalVariable(
-        *Module, arrayType, true, llvm::GlobalValue::PrivateLinkage, array, ".utf16str");
+        *Module, arrayType, true, llvm::GlobalValue::PrivateLinkage, array, "utf16str");
 
     return global;
 }
@@ -297,7 +297,7 @@ llvm::Value* IRGenerator::createUTF32String(const std::u32string& str) {
     llvm::Constant* array = llvm::ConstantArray::get(arrayType, chars);
 
     auto global = new llvm::GlobalVariable(
-        *Module, arrayType, true, llvm::GlobalValue::PrivateLinkage, array, ".utf32str");
+        *Module, arrayType, true, llvm::GlobalValue::PrivateLinkage, array, "utf32str");
 
     return global;
 }

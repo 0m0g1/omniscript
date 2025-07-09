@@ -298,9 +298,15 @@ std::shared_ptr<Statement> Parser::factor() {
     }
 
     else if (currentToken.getType() == TokenTypes::StringLiteral) {
-        eat(TokenTypes::StringLiteral);
+        left = std::make_shared<StringLiteral>(parseStringLiteral());
+    }
+
+    else if (currentToken.getType() == TokenTypes::TemplateTail) {
+        eat(TokenTypes::TemplateTail);
         left = std::make_shared<StringLiteral>(previousToken.getU32Value());
-    } else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
+    }
+    
+    else if (currentToken.getType() == TokenTypes::BitwiseAnd) {
         eat(TokenTypes::BitwiseAnd);
         if (currentToken.getType() == TokenTypes::Identifier) {
             std::string varName = currentToken.getValue();
