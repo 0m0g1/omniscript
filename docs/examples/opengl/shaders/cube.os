@@ -6,7 +6,9 @@ extern "C" {
 }
 
 // GLFW
-extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
+extern 
+"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll", 
+"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/lib glfw3.a" {
     fn glfwInit() => int;
     fn glfwCreateWindow(width: int, height: int, title: char*, monitor: void*, share: void*) => void*;
     fn glfwMakeContextCurrent(window: void*) => void;
@@ -17,6 +19,8 @@ extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
     fn glfwGetProcAddress(name: char*) => void*;
     fn glfwWindowHint(hint: int, value: int) => void;
     fn glfwSetErrorCallback(callback: void*) => void*;
+    fn glfwGetTime() => double;
+    fn glfwGetFramebufferSize(window: void*, width: int*, height: int*) => void;
 }
 
 // OpenGL Constants
@@ -67,7 +71,9 @@ type GLDELETEPROGRAM = fn(program: uint) => void;
 type GLDRAWARRAYS = fn(mode: uint, first: int, count: int) => void;
 type GLDELETEVERTEXARRAYS = fn(n: int, arrays: uint*) => void;
 type GLDELETEBUFFERS = fn(n: int, buffers: uint*) => void;
-
+type GLGETUNIFORMLOCATION = fn(program: uint, name: char*) => int;
+type GLUNIFORM1F = fn(location: int, v0: float) => void;
+type GLUNIFORM2F = fn(location: int, v0: float, v1: float) => void;
 
 // Global OpenGL function pointers
 let glGetError: GLGETERROR;
@@ -97,19 +103,75 @@ let glDeleteProgram: GLDELETEPROGRAM;
 let glDrawArrays: GLDRAWARRAYS;
 let glDeleteVertexArrays: GLDELETEVERTEXARRAYS;
 let glDeleteBuffers: GLDELETEBUFFERS;
+let glGetUniformLocation: GLGETUNIFORMLOCATION;
+let glUniform1f: GLUNIFORM1F;
+let glUniform2f: GLUNIFORM2F;
 
 // Shader sources
 const vertexShaderSource = r"#version 330 core
-    layout(location = 0) in vec3 aPos;
-    void main() {
-        gl_Position = vec4(aPos, 1.0);
-    }";
+layout(location = 0) in vec3 aPos;
 
-const fragmentShaderSource = r"#version 330 core
-    out vec4 FragColor;
-    void main() {
-        FragColor = vec4(1.0, 0.5, 0.2, 1.0);
-    }";
+uniform float u_time;
+uniform vec2 u_resolution;
+
+out vec3 fragPos;
+
+mat4 perspective(float fov, float aspect, float near, float far) {
+    float f = 1.0 / tan(fov / 2.0);
+    return mat4(
+        f / aspect, 0.0, 0.0, 0.0,
+        0.0, f, 0.0, 0.0,
+        0.0, 0.0, (far + near) / (near - far), -1.0,
+        0.0, 0.0, (2.0 * far * near) / (near - far), 0.0
+    );
+}
+
+mat4 rotateY(float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    return mat4(
+        c, 0.0, s, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        -s, 0.0, c, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+mat4 rotateX(float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    return mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, c, -s, 0.0,
+        0.0, s, c, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+void main() {
+    mat4 proj = perspective(radians(45.0), u_resolution.x / u_resolution.y, 0.1, 100.0);
+    mat4 view = mat4(1.0);
+    view[3][2] = -3.0; // Move camera back
+    
+    mat4 model = rotateY(u_time) * rotateX(u_time * 0.5);
+    
+    fragPos = aPos;
+    gl_Position = proj * view * model * vec4(aPos, 1.0);
+}
+";
+
+const fragmentShaderSource =  r"#version 330 core
+in vec3 fragPos;
+out vec4 FragColor;
+
+uniform float u_time;
+
+void main() {
+    vec3 color = abs(fragPos);
+    color = sin(color + u_time) * 0.5 + 0.5;
+    FragColor = vec4(color, 1.0);
+}
+";
 
 // Error callback for GLFW
 fn glfwErrorCallback(error: int, description: char*) => void {
@@ -154,12 +216,15 @@ function loadOpenGLFunctions() => void {
     glDrawArrays = loadGLFunction("glDrawArrays", 1) as GLDRAWARRAYS;
     glDeleteVertexArrays = loadGLFunction("glDeleteVertexArrays", 1) as GLDELETEVERTEXARRAYS;
     glDeleteBuffers = loadGLFunction("glDeleteBuffers", 1) as GLDELETEBUFFERS;
+    glGetUniformLocation = loadGLFunction("glGetUniformLocation", 1) as GLGETUNIFORMLOCATION;
+    glUniform1f = loadGLFunction("glUniform1f", 1) as GLUNIFORM1F;
+    glUniform2f = loadGLFunction("glUniform2f", 1) as GLUNIFORM2F;
 }
 
 function compileShader(source: char*, type: uint) => uint {
     let shader = glCreateShader(type);
     if (shader == 0) {
-        printf("Failed to create \n");
+        printf("Failed to create shader\n");
         return 0;
     }
 
@@ -169,9 +234,9 @@ function compileShader(source: char*, type: uint) => uint {
     let success: int;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (!success) {
-        let infoLog: char*;
-        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-        printf("Shader compilation error:\n%s\n", infoLog);
+        let infoLog: char[512];
+        glGetShaderInfoLog(shader, 512, nullptr, &infoLog);
+        printf("Shader compilation error:\n%s\n", &infoLog);
         glDeleteShader(shader);
         return 0;
     }
@@ -180,12 +245,13 @@ function compileShader(source: char*, type: uint) => uint {
 }
 
 function createShaderProgram() => uint {
-    printf("creating the shader program\n");
+    printf("Creating the shader program\n");
     let vertexShader = compileShader(&vertexShaderSource, GL_VERTEX_SHADER);
-    printf("compiled the shader\n");
+    printf("Compiled vertex shader\n");
     if (vertexShader == 0) return 0;
 
     let fragmentShader = compileShader(&fragmentShaderSource, GL_FRAGMENT_SHADER);
+    printf("Compiled fragment shader\n");
     if (fragmentShader == 0) {
         glDeleteShader(vertexShader);
         return 0;
@@ -199,9 +265,9 @@ function createShaderProgram() => uint {
     let success: int;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success) {
-        let infoLog: char*;
-        glGetProgramInfoLog(program, 512, nullptr, infoLog);
-        printf("Shader linking error:\n%s\n", infoLog);
+        let infoLog: char[512];
+        glGetProgramInfoLog(program, 512, nullptr, &infoLog);
+        printf("Shader linking error:\n%s\n", &infoLog);
         glDeleteProgram(program);
         program = 0;
     }
@@ -226,20 +292,20 @@ function main() => void {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     // Create window
-    let window = glfwCreateWindow(800, 600, "OpenGL Triangle", nullptr, nullptr);
+    let window = glfwCreateWindow(800, 600, "Star Field", nullptr, nullptr);
     if (window == nullptr) {
-        printf("Failed to create GLFW windown\n");
+        printf("Failed to create GLFW window\n");
         glfwTerminate();
         return;
     }
     printf("Successfully created the window\n");
     
     glfwMakeContextCurrent(window);
-    printf("Successfully made the context the current window\n");
+    printf("Successfully made the context current\n");
     
     // Load OpenGL functions
     loadOpenGLFunctions();
-    printf("Successfully loaded the opengl functions\n");
+    printf("Successfully loaded OpenGL functions\n");
 
     // Create shader program
     let shaderProgram = createShaderProgram();
@@ -250,11 +316,21 @@ function main() => void {
     }
     printf("Successfully created the shader program\n");
 
-    // Set up vertex data
-    let vertices: float[9] = [
-        -0.5, -0.5, 0.0,  // left
-         0.5, -0.5, 0.0,  // right
-         0.0,  0.5, 0.0   // top
+    // Get uniform locations
+    let timeLocation = glGetUniformLocation(shaderProgram, "u_time");
+    let resolutionLocation = glGetUniformLocation(shaderProgram, "u_resolution");
+    printf("Time location: %d, Resolution location: %d\n", timeLocation, resolutionLocation);
+
+    // Set up fullscreen quad vertices (two triangles)
+    let vertices: float[18] = [
+        // First triangle
+        -1.0, -1.0, 0.0,
+         1.0, -1.0, 0.0,
+        -1.0,  1.0, 0.0,
+        // Second triangle
+         1.0, -1.0, 0.0,
+         1.0,  1.0, 0.0,
+        -1.0,  1.0, 0.0
     ];
 
     let VAO: uint, VBO: uint;
@@ -263,7 +339,7 @@ function main() => void {
 
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, 9 * 4 /*sizeof(vertices)*/, &vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 18 * 4 /*sizeof(vertices)*/, &vertices, GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * 4/*sizeof(float)*/, nullptr);
     glEnableVertexAttribArray(0);
@@ -271,14 +347,35 @@ function main() => void {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
+    printf("Starting main loop\n");
     // Main loop
     while (!glfwWindowShouldClose(window)) {
-        glClearColor(0.2, 0.3, 0.3, 1.0);
+        // Get current time
+        let currentTime = glfwGetTime() as float;
+        
+        // Get window size
+        let width: int, height: int;
+        glfwGetFramebufferSize(window, &width, &height);
+        glViewport(0, 0, width, height);
+
+        // Clear screen
+        glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // Use shader program
         glUseProgram(shaderProgram);
+        
+        // Set uniforms
+        if (timeLocation != -1) {
+            glUniform1f(timeLocation, currentTime);
+        }
+        if (resolutionLocation != -1) {
+            glUniform2f(resolutionLocation, width as float, height as float);
+        }
+
+        // Draw fullscreen quad
         glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -293,3 +390,4 @@ function main() => void {
 }
 
 main();
+printf("Done\n");
