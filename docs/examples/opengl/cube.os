@@ -14,7 +14,7 @@ extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
     fn glfwGetTime() => double;
 }
 
-extern "opengl32.dll" {
+extern "C:/Windows/System32/opengl32.dll" {
     fn glClearColor(r: float, g: float, b: float, a: float) => void;
     fn glClear(mask: uint) => void;
     fn glBegin(mode: uint) => void;

@@ -1,8 +1,5 @@
 extern "C" {
     fn printf(...fmt: char*) => int;
-    fn malloc(size: int) => void*;
-    fn free(ptr: void*) => void;
-    fn strlen(str: char*) => int;
 }
 
 // GLFW
@@ -231,7 +228,7 @@ void main() {
 ";
 
 // Error callback for GLFW
-fn glfwErrorCallback(error: int, description: char*) => void {
+function glfwErrorCallback(error: int, description: char*) => void {
     printf("GLFW Error %d: %s\n", error, description);
 }
 

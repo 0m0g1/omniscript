@@ -25,7 +25,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
             "args": [
-                "docs\\examples\\opengl\\modernOpengl.os",
+                "docs\\examples\\opengl\\legacytriangle.os",
                 "--debug",
                 "--log-final-code",
                 "-O",

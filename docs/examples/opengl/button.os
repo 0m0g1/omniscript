@@ -4,8 +4,7 @@ extern "C" {
 
 extern 
 "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll", 
-"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a" 
-"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a" 
+"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a"
 {
     fn glfwInit() => int;
     fn glfwCreateWindow(w: int, h: int, title: char*, monitor: void*, share: void*) => void*;
@@ -18,7 +17,7 @@ extern
     fn glfwGetMouseButton(win: void*, button: int) => int;
 }
 
-extern "opengl32.dll" {
+extern "C:/Windows/System32/opengl32.dll" {
     fn glClearColor(r: float, g: float, b: float, a: float) => void;
     fn glClear(mask: uint) => void;
     fn glBegin(mode: uint) => void;

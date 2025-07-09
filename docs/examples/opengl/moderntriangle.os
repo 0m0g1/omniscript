@@ -1,9 +1,4 @@
-extern "C" {
-    fn printf(...fmt: char*) => int;
-    fn malloc(size: int) => void*;
-    fn free(ptr: void*) => void;
-    fn strlen(str: char*) => int;
-}
+extern "C" fn printf(...fmt: char*) => int;
 
 // GLFW
 extern 

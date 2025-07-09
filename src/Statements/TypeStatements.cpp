@@ -55,14 +55,15 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
 
             scope->addType(name, typePointer);
             scope->addType("*" + name, type);
-    } else {
-        auto typeDecl = std::make_shared<Omniscript::TypeDeclarationExpression>(name, type);
-        if (isAliasingOtherType) {
-            typeDecl->setIsAliasing(originalTypeName);
+        } else {
+            auto typeDecl = std::make_shared<Omniscript::TypeDeclarationExpression>(name, type);
+            if (isAliasingOtherType) {
+                typeDecl->setIsAliasing(originalTypeName);
+            }
+            typeDecl->setPosition(getPosition());
+            typeDeclExpr = typeDecl;
+            scope->addType(name, type);
         }
-        typeDecl->setPosition(getPosition());
-        typeDeclExpr = typeDecl;
-    }
     }
     DEBUG_LOG("Declared type: '" + type->toString() + "' in scope as '" + name + "'.");
 

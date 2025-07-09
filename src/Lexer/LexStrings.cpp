@@ -103,6 +103,34 @@ Token Lexer::getStringToken(char &currentChar) {
                 return finalizeToken(hasContent ? TokenTypes::TemplateMiddle : TokenTypes::TemplateHead);
             }
 
+            // Handle newlines in normal strings (REMOVE THEM)
+           if (currentChar == '\n' || currentChar == '\r') {
+                // Skip the newline
+                currentPosition++;
+                
+                // Handle CRLF (Windows-style newline)
+                if (currentChar == '\r' && currentPosition < source.length() && source[currentPosition] == '\n') {
+                    currentPosition++;
+                }
+                
+                line++;
+                column = 1;
+                
+                // Skip all whitespace (spaces/tabs) after the newline
+                while (currentPosition < source.length()) {
+                    char nextChar = source[currentPosition];
+                    if (nextChar == ' ' || nextChar == '\t') {
+                        currentPosition++;
+                        column++;
+                    }
+                    else {
+                        break; // Stop at the first non-whitespace character
+                    }
+                }
+                
+                continue; // Skip adding the newline/whitespace to `literalValue`
+            }
+
             // Handle escape sequences
             if (source[currentPosition] == '\\') {
                 if (currentPosition + 1 >= source.length()) {
@@ -113,6 +141,34 @@ Token Lexer::getStringToken(char &currentChar) {
                 char next = source[currentPosition+1];
                 currentPosition += 2;
                 column += 2;
+
+                {
+                    // Check if this is the last character before a newline
+                    size_t nextPos = currentPosition + 1;
+                    bool isBackslashAtEndOfLine = false;
+                    
+                    // Skip whitespace after the backslash
+                    while (nextPos < source.length()) {
+                        char nextChar = source[nextPos];
+                        if (nextChar == ' ' || nextChar == '\t') {
+                            nextPos++; // Skip spaces/tabs
+                        }
+                        else if (nextChar == '\n' || nextChar == '\r') {
+                            isBackslashAtEndOfLine = true;
+                            break;
+                        }
+                        else {
+                            break; // Not a newline, treat as normal escape
+                        }
+                    }
+
+                    if (isBackslashAtEndOfLine) {
+                        // Literal backslash (no escape behavior)
+                        literalValue += '\\';
+                        currentPosition = nextPos; // Skip to newline
+                        continue;
+                    }
+                }
 
                 // Add template-specific escapes
                 if (isTemplate && (next == '`' || next == '$' || next == '{')) {

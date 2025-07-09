@@ -42,23 +42,6 @@ llvm::Value* IRGenerator::assignVariable(
     if (isGlobal) {
         llvm::Constant* initVal = llvm::Constant::getNullValue(type);
 
-        if (type->isArrayTy() && statement->getValue()) {
-            if (auto arrayLit = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(statement->getValue())) {
-                llvm::ArrayType* arrayType = llvm::cast<llvm::ArrayType>(type);
-                std::vector<llvm::Constant*> elements;
-                for (const auto& elem : arrayLit->elements) {
-                    auto val = codegen(elem, scope);
-                    elements.push_back(llvm::cast<llvm::Constant>(val));
-                }
-
-                initVal = llvm::ConstantArray::get(arrayType, elements);
-            }
-        } else if (statement->getValue()) {
-            auto val = codegen(statement->getValue(), scope);
-            initVal = llvm::cast<llvm::Constant>(val);  // <-- ✅ update the `initVal` here
-        }
-
-        // ✅ now create global var after initVal is fully computed
         llvm::GlobalVariable* gVar = new llvm::GlobalVariable(
             *activeModule,
             type,
@@ -69,6 +52,27 @@ llvm::Value* IRGenerator::assignVariable(
         );
 
         activeScope->set(name, gVar);
+
+        // If value is specified and not a constant, add runtime initializer
+        if (statement->getValue()) {
+            auto val = codegen(statement->getValue(), scope);
+
+            if (llvm::isa<llvm::Constant>(val)) {
+                gVar->setInitializer(llvm::cast<llvm::Constant>(val));
+            } else {
+                // Create global init function if not already
+                // llvm::Function* initFn = getOrCreateGlobalInitFunction();
+
+                // llvm::BasicBlock* entryBlock = &initFn->getEntryBlock();
+                // llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
+                
+                // Builder->SetInsertPoint(entryBlock, entryBlock->begin());
+                Builder->CreateStore(val, gVar);
+                // Builder->restoreIP(savedIP);
+            
+            }
+        }
+
         return gVar;
     }
 
@@ -116,6 +120,9 @@ llvm::Value* IRGenerator::assignVariable(
             llvm::StoreInst* store = Builder->CreateStore(initValue, alloca, isVolatile);
             store->setAlignment(llvm::Align(align));
         }
+    } else {
+        llvm::Value* zeroInit = llvm::Constant::getNullValue(type);
+        Builder->CreateStore(zeroInit, alloca);
     }
 
     activeScope->set(name, alloca);
