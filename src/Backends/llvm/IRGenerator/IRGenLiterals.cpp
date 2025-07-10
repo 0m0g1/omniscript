@@ -265,11 +265,27 @@ llvm::Value* IRGenerator::createChar32(char32_t value) {
 
 // Create an 8-bit (UTF-8) string
 llvm::Value* IRGenerator::createUTF8String(const std::string& str) {
-    return Builder->CreateGlobalString(str, "utf8str");
+    // Use string literal as unique key
+    std::string key = "__utf8str_" + str;
+
+    if (activeScope->exists(key)) {
+        return activeScope->get(key);
+    }
+
+    llvm::Constant* global = Builder->CreateGlobalString(str, "utf8str");
+    activeScope->setConstant(key, global);
+
+    return global;
 }
 
 // Create a 16-bit (UTF-16) string
 llvm::Value* IRGenerator::createUTF16String(const std::u16string& str) {
+    std::string key = "__utf16str_" + utf16_to_utf8(str);
+
+    if (activeScope->exists(key)) {
+        return activeScope->get(key);
+    }
+
     std::vector<llvm::Constant*> chars;
     for (char16_t c : str) {
         chars.push_back(llvm::ConstantInt::get(llvm::Type::getInt16Ty(*Context), c, false));
@@ -282,11 +298,19 @@ llvm::Value* IRGenerator::createUTF16String(const std::u16string& str) {
     auto global = new llvm::GlobalVariable(
         *Module, arrayType, true, llvm::GlobalValue::PrivateLinkage, array, "utf16str");
 
+    activeScope->setConstant(key, global);
+
     return global;
 }
 
 // Create a 32-bit (UTF-32) string
 llvm::Value* IRGenerator::createUTF32String(const std::u32string& str) {
+    std::string key = "__utf32str_" + utf32_to_utf8(str);
+
+    if (activeScope->exists(key)) {
+        return activeScope->get(key);
+    }
+
     std::vector<llvm::Constant*> chars;
     for (char32_t c : str) {
         chars.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), c, false));
@@ -298,6 +322,8 @@ llvm::Value* IRGenerator::createUTF32String(const std::u32string& str) {
 
     auto global = new llvm::GlobalVariable(
         *Module, arrayType, true, llvm::GlobalValue::PrivateLinkage, array, "utf32str");
+
+    activeScope->setConstant(key, global);
 
     return global;
 }

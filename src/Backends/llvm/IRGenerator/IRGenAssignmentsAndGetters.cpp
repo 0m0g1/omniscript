@@ -54,20 +54,41 @@ llvm::Value* IRGenerator::assignVariable(
 
         // If value is specified and not a constant, add runtime initializer
         if (statement->getValue()) {
-            auto val = codegen(statement->getValue(), scope);
-            if (auto* constVal = llvm::dyn_cast<llvm::Constant>(val)) {
-                // Constant value — compile-time initializer
-                gVar->setInitializer(constVal);
+            if (type->isArrayTy()) {
+                if (auto arrayLit = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(statement->getValue())) {
+                    llvm::ArrayType* arrayType = llvm::cast<llvm::ArrayType>(type);
+                    std::vector<llvm::Constant*> elements;
+
+                    for (const auto& elem : arrayLit->elements) {
+                        auto* val = llvm::dyn_cast<llvm::Constant>(codegen(elem, scope));
+                        if (!val) {
+                            console.error("Global array '" + name + "' has non-constant initializer element.");
+                            return nullptr;
+                        }
+                        elements.push_back(val);
+                    }
+
+                    llvm::Constant* arrayInit = llvm::ConstantArray::get(arrayType, elements);
+                    gVar->setInitializer(arrayInit);
+                    activeScope->set(name, gVar);
+                    return gVar;
+                }
             } else {
-                // Runtime value — must insert store into main or init block
-                llvm::Function* initFunc = getOrCreateGlobalInitFunction();
-                llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
-    
-                llvm::BasicBlock& entryBlock = initFunc->getEntryBlock();
-                Builder->SetInsertPoint(&entryBlock, entryBlock.begin());
-                Builder->CreateStore(val, gVar);
-    
-                Builder->restoreIP(savedIP);
+                auto val = codegen(statement->getValue(), scope);
+                if (auto* constVal = llvm::dyn_cast<llvm::Constant>(val)) {
+                    // Constant value — compile-time initializer
+                    gVar->setInitializer(constVal);
+                } else {
+                    // Runtime value — must insert store into main or init block
+                    llvm::Function* initFunc = getOrCreateGlobalInitFunction();
+                    llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
+        
+                    llvm::BasicBlock& entryBlock = initFunc->getEntryBlock();
+                    Builder->SetInsertPoint(&entryBlock, entryBlock.begin());
+                    Builder->CreateStore(val, gVar);
+        
+                    Builder->restoreIP(savedIP);
+                }
             }
         }
 

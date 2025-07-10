@@ -57,7 +57,8 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
 
     auto variable = scope->getValue(name);
     if (variable) {
-        setType(variable->getType());
+        setType(Omniscript::Type::createPointerType(variable->getType()));
+        setRootType(type);
         auto ref = std::make_shared<Omniscript::ReferenceExpression>(name, variable);
         ref->setPosition(getPosition());
         return ref;
@@ -66,7 +67,8 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
     if (!variable) {
         auto overloads = scope->getOverloads(name);
         auto mangledName = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overloads[0])->mangledName;
-        setType(variable->getType());
+        setType(Omniscript::Type::createPointerType((variable->getType())));
+        setRootType(type);
         auto ref = std::make_shared<Omniscript::ReferenceExpression>(mangledName, variable);
         ref->setPosition(getPosition());
         return ref;
@@ -227,7 +229,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                         console.error("Variable '" + name + "' is not a pointer");
                     }
                     if (!typed->getType()) {
-                        typed->setType(type->getPointeeType());
+                        typed->setType(type);
                     }
                     result = typed->express(scope);
                     auto resultType = result->getType();

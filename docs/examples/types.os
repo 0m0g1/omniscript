@@ -146,12 +146,9 @@
 // // // Function pointers
 // // let fn : (i32, i32) -> i32 = add; // Function pointer
 
-// // // Nullable types (if supported)
-// // let x : ?i32 = null; // Nullable integer
-
-// // // Optional values (if supported)
-// // // let y : Option<i32> = Some(10);
-// // // let z : Option<i32> = None;
+// // // Nullable types 
+// // // let z : int? = null;
+// // // let y :int? = 10;
 // // let variable : int = 10;
 
 // // function add(a: int = 1, b: int = 1) => i32 {

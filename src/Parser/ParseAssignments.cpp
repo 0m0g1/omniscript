@@ -128,6 +128,10 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 if (currentToken.getType() == TokenTypes::Assign) {
                     eat(TokenTypes::Assign);
                     currentValue = parseExpression();
+                    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(currentValue)) {
+                        typed->setType(type);
+                        typed->setRootType(type);
+                    }
                 } else {
                     currentValue = std::make_shared<Null>(currentType);
                 }
