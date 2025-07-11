@@ -42,47 +42,56 @@ void IRGenerator::createEntryFunction() {
     Builder->SetInsertPoint(entry);
 }
 
+// Generates a main function if none exists, ensuring no recursion
 void IRGenerator::addMainFunction() {
     if (!Module) return;
-    
-    llvm::Function* mainFn = Module->getFunction("main");
-    if (mainFn) return; // already present
-    
+
+    // Get or create the top-level function
     llvm::Function* topFunc = Module->getFunction("__top_level__");
     if (!topFunc) {
-        // If top-level doesn't exist, create a dummy one
-        llvm::FunctionType* topType = llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
-        topFunc = llvm::Function::Create(topType, llvm::Function::ExternalLinkage, "__top_level__", Module.get());
+        llvm::FunctionType* topType = 
+            llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
+        topFunc = llvm::Function::Create(topType, 
+                                       llvm::Function::ExternalLinkage, 
+                                       "__top_level__", 
+                                       Module.get());
         llvm::BasicBlock* topEntry = llvm::BasicBlock::Create(*Context, "entry", topFunc);
         Builder->SetInsertPoint(topEntry);
         Builder->CreateRetVoid();
     }
-    
-    // Create the standard `main` function with signature: int main(int argc, char** argv)
-    llvm::Type* intType = llvm::Type::getInt32Ty(*Context);
-    llvm::Type* charType = llvm::Type::getInt8Ty(*Context);
-    llvm::Type* charPtrType = llvm::PointerType::getUnqual(charType);
-    llvm::Type* charPtrPtrType = llvm::PointerType::getUnqual(charPtrType);
 
-    llvm::FunctionType* mainType = llvm::FunctionType::get(
-        intType, 
-        {intType, charPtrPtrType}, 
-        false
-    );
+    // Create main with the simplest valid signature (main(void))
+    llvm::Type* intType = llvm::Type::getInt32Ty(*Context);
+    llvm::FunctionType* mainType = 
+        llvm::FunctionType::get(intType, false);  // int main(void)
     
-    mainFn = llvm::Function::Create(mainType, llvm::Function::ExternalLinkage, "main", Module.get());
+    llvm::Function* mainFn = llvm::Function::Create(mainType,
+                                                  llvm::Function::ExternalLinkage,
+                                                  "main",
+                                                  Module.get());
     
-    // Set parameter names for clarity
-    auto args = mainFn->arg_begin();
-    args->setName("argc");
-    (++args)->setName("argv");
-    
+    // Create function body
     llvm::BasicBlock* mainEntry = llvm::BasicBlock::Create(*Context, "entry", mainFn);
     Builder->SetInsertPoint(mainEntry);
     
-    // Call __top_level__() (ignoring argc/argv for now)
+    // Call the top-level function
     Builder->CreateCall(topFunc);
-    Builder->CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), 0));
+    
+    // Return 0 (success)
+    Builder->CreateRet(llvm::ConstantInt::get(intType, 0));
+    
+    // Verify the top-level function doesn't call main
+    for (auto &BB : *topFunc) {
+        for (auto &I : BB) {
+            if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
+                if (Call->getCalledFunction() == mainFn) {
+                    console.error("__top_level__ calls main()");
+                    mainFn->eraseFromParent();  // Remove the invalid main
+                    return;
+                }
+            }
+        }
+    }
 }
 
 llvm::Function* IRGenerator::getOrCreateGlobalInitFunction() {
@@ -189,14 +198,36 @@ llvm::Value* IRGenerator::createCall(
     std::vector<llvm::Value*>& args,
     const std::string& functionTypeName
 ) {
-    // 1. Find the callable value
+    // Get the current function properly
+    llvm::Function* currentFn = Builder->GetInsertBlock() ? 
+        Builder->GetInsertBlock()->getParent() : nullptr;
+
+    // Prevent recursive calls from __top_level__ to main
+    if (currentFn && currentFn->getName() == "__top_level__" && 
+        (callee == "main" || callee == "__main")) {
+        console.warn(
+            "⚠️  Invalid call to main() from __top_level__\n"
+            "┌──────────────────────────────────────────────────────────┐\n"
+            "│ The compiler automatically generates a main() function   │\n"
+            "│ that calls __top_level__.                                │\n"
+            "│                                                          │\n"
+            "│ Do not call main() manually from __top_level__ as this   │\n"
+            "│ would create infinite recursion.                         │\n"
+            "│                                                          │\n"
+            "│ Solution: Remove this call to main() - your program      |\n"
+            "│ entry point is already handled automatically.            │\n"
+            "└──────────────────────────────────────────────────────────┘\n"
+        );
+        return Builder->getInt32(0);  // Return dummy value instead of nullptr
+    }
+
+    // 1. Find the callable value [original code unchanged]
     llvm::Value* funcValue = nullptr;
     bool isDynamicFunction = !functionTypeName.empty();
     
     if (auto* moduleFunc = Module->getFunction(callee)) {
         funcValue = moduleFunc;
     } else if (auto* globalVar = Module->getGlobalVariable(callee)) {
-        // This is a global variable (likely a function pointer)
         funcValue = globalVar;
     } else if (auto* value = activeScope->get(callee)) {
         funcValue = value;
@@ -205,14 +236,39 @@ llvm::Value* IRGenerator::createCall(
         return nullptr;
     }
 
-    // 2. Determine the function type
+    // 2. Determine the function type [original code unchanged]
     llvm::FunctionType* funcType = nullptr;
     
     if (auto* func = llvm::dyn_cast<llvm::Function>(funcValue)) {
         funcType = func->getFunctionType();
     }
+    else if (funcValue->getType()->isPointerTy()) {
+        // Function pointer case - we need to check if it points to a function
+        if (auto* funcPtrType = llvm::dyn_cast<llvm::PointerType>(funcValue->getType())) {
+            // For opaque pointers, we need the function type from elsewhere
+            if (!functionTypeName.empty()) {
+                if (auto* type = activeScope->getType("*" + callee)) {
+                    if (auto* ft = llvm::dyn_cast<llvm::FunctionType>(type)) {
+                        funcType = ft;
+                    }
+                    else {
+                        console.error("Type '" + functionTypeName + "' is not a function type");
+                        return nullptr;
+                    }
+                }
+                else {
+                    console.error("Unknown type '" + functionTypeName + "'");
+                    return nullptr;
+                }
+            }
+            else {
+                // With opaque pointers, we can't get the pointee type, so we need explicit type info
+                console.error("Function pointer call requires explicit type for '" + callee + "'");
+                return nullptr;
+            }
+        }
+    }
     else if (!functionTypeName.empty()) {
-        // Handle typed function pointers
         if (auto* type = activeScope->getType("*" + functionTypeName)) {
             if (auto* ft = llvm::dyn_cast<llvm::FunctionType>(type)) {
                 funcType = ft;
@@ -230,7 +286,7 @@ llvm::Value* IRGenerator::createCall(
         return nullptr;
     }
 
-    // 3. Validate arguments
+    // 3. Validate arguments [original code unchanged]
     bool isVarArg = funcType->isVarArg();
     size_t fixedParams = funcType->getNumParams();
     
@@ -239,7 +295,7 @@ llvm::Value* IRGenerator::createCall(
         return nullptr;
     }
 
-    // 4. Cast arguments if needed
+    // 4. Cast arguments if needed [original code unchanged]
     for (size_t i = 0; i < std::min(args.size(), fixedParams); ++i) {
         if (args[i]->getType() != funcType->getParamType(i)) {
             args[i] = generateCast(args[i], funcType->getParamType(i));
@@ -250,28 +306,23 @@ llvm::Value* IRGenerator::createCall(
         }
     }
 
-    // 5. Create the call
+    // 5. Create the call [original code unchanged]
     llvm::CallInst* call = nullptr;
     
     if (auto* func = llvm::dyn_cast<llvm::Function>(funcValue)) {
-        // Direct function call
         call = Builder->CreateCall(func, args);
     } else {
-        // Function pointer call - LOAD the pointer first!
         llvm::Value* loadedFuncPtr = nullptr;
         
         if (auto* globalVar = llvm::dyn_cast<llvm::GlobalVariable>(funcValue)) {
-            // Load from global variable (this is the key fix!)
             loadedFuncPtr = Builder->CreateLoad(
                 llvm::PointerType::getUnqual(funcType), 
                 globalVar
             );
         } else {
-            // Already a loaded pointer
             loadedFuncPtr = funcValue;
         }
         
-        // Create indirect call through the loaded function pointer
         call = Builder->CreateCall(funcType, loadedFuncPtr, args);
     }
 

@@ -353,6 +353,17 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     assignment->isConstant = isConstant;
     assignment->isVolatile = isVolatile;
     assignment->setPosition(getPosition());
+    assignment->isExtern = isExtern;
+    assignment->externName = assignment->getName();
+    assignment->windowsDynamic  = libraryPaths.windowsDynamic;   // e.g., "lib/foo.dll"
+    assignment->windowsStatic   = libraryPaths.windowsStatic;    // e.g., "lib/foo.lib"
+    assignment->linuxShared     = libraryPaths.linuxShared;      // e.g., "libfoo.so"
+    assignment->linuxStatic     = libraryPaths.linuxStatic;      // e.g., "libfoo.a"
+    assignment->macosShared     = libraryPaths.macosShared;      // e.g., "libfoo.dylib"
+    assignment->macosStatic     = libraryPaths.macosStatic;      // e.g., "libfoo.a"
+    assignment->genericDynamic  = libraryPaths.genericDynamic;   // fallback .so/.dll/.dylib
+    assignment->genericStatic   = libraryPaths.genericStatic;    // fallback .a/.lib
+
     return assignment;
 }
 

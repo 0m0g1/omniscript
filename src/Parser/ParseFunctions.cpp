@@ -126,6 +126,23 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
 
         return function;
 
+    } else if (currentToken.getType() == TokenTypes::Let || currentToken.getType() == TokenTypes::Const) {
+        auto assignment = std::dynamic_pointer_cast<AssignVariable>(parseAssignment());
+        if (!assignment) {
+            console.error("Invalid assignment after let / const in external declaration");
+        }
+        assignment->isExtern = true;
+        assignment->externName = assignment->getName();
+        assignment->libraryPaths.windowsDynamic  = libraryPaths.windowsDynamic;   // e.g., "lib/foo.dll"
+        assignment->libraryPaths.windowsStatic   = libraryPaths.windowsStatic;    // e.g., "lib/foo.lib"
+        assignment->libraryPaths.linuxShared     = libraryPaths.linuxShared;      // e.g., "libfoo.so"
+        assignment->libraryPaths.linuxStatic     = libraryPaths.linuxStatic;      // e.g., "libfoo.a"
+        assignment->libraryPaths.macosShared     = libraryPaths.macosShared;      // e.g., "libfoo.dylib"
+        assignment->libraryPaths.macosStatic     = libraryPaths.macosStatic;      // e.g., "libfoo.a"
+        assignment->libraryPaths.genericDynamic  = libraryPaths.genericDynamic;   // fallback .so/.dll/.dylib
+        assignment->libraryPaths.genericStatic   = libraryPaths.genericStatic;    // fallback .a/.lib
+
+        return assignment;
     } else if (currentToken.getType() == TokenTypes::LeftBrace) {
         eat(TokenTypes::LeftBrace);
         std::vector<std::shared_ptr<Statement>> functions;
@@ -133,19 +150,37 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         while (currentToken.getType() != TokenTypes::RightBrace) {
             if (currentToken.getType() == TokenTypes::Function) {
                 eat(TokenTypes::Function);
+                std::string functionName = currentToken.getValue();
+                eat(TokenTypes::Identifier);
+    
+                auto function = std::dynamic_pointer_cast<FunctionDeclaration>(
+                    parseLambdaFunction(functionName));
+                
+                function->isExtern = true;
+                function->libraryPaths = libraryPaths;
+                function->externName = functionName;
+    
+                functions.push_back(function);
+                
+            } else if (currentToken.getType() == TokenTypes::Let || currentToken.getType() == TokenTypes::Const) {
+                auto assignment = std::dynamic_pointer_cast<AssignVariable>(parseAssignment());
+                if (!assignment) {
+                    console.error("Invalid assignment after let / const in external declaration");
+                }
+                assignment->isExtern = true;
+                assignment->externName = assignment->getName();
+                assignment->libraryPaths.windowsDynamic  = libraryPaths.windowsDynamic;   // e.g., "lib/foo.dll"
+                assignment->libraryPaths.windowsStatic   = libraryPaths.windowsStatic;    // e.g., "lib/foo.lib"
+                assignment->libraryPaths.linuxShared     = libraryPaths.linuxShared;      // e.g., "libfoo.so"
+                assignment->libraryPaths.linuxStatic     = libraryPaths.linuxStatic;      // e.g., "libfoo.a"
+                assignment->libraryPaths.macosShared     = libraryPaths.macosShared;      // e.g., "libfoo.dylib"
+                assignment->libraryPaths.macosStatic     = libraryPaths.macosStatic;      // e.g., "libfoo.a"
+                assignment->libraryPaths.genericDynamic  = libraryPaths.genericDynamic;   // fallback .so/.dll/.dylib
+                assignment->libraryPaths.genericStatic   = libraryPaths.genericStatic;    // fallback .a/.lib
+
+                functions.push_back(assignment);
             }
 
-            std::string functionName = currentToken.getValue();
-            eat(TokenTypes::Identifier);
-
-            auto function = std::dynamic_pointer_cast<FunctionDeclaration>(
-                parseLambdaFunction(functionName));
-            
-            function->isExtern = true;
-            function->libraryPaths = libraryPaths;
-            function->externName = functionName;
-
-            functions.push_back(function);
             if (currentToken.getType() == TokenTypes::Semicolon) {
                 eat(TokenTypes::Semicolon);
             }

@@ -1,14 +1,13 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
 
 llvm::Value* IRGenerator::assignVariable(
     std::shared_ptr<Omniscript::VariableAssignment> statement,
     SymbolTableType scope
 ) {
-    //Todo:: To debug string method for all expressions
-    // DEBUG_LOG(statement->toDebugString());
     std::string name = statement->variableName;
     llvm::Type* type = resolveLLVMType(statement->getType());
-    DEBUG_LOG("Variable '" + name + "' has type '" + debugType(type) + "'.");
+    DEBUG_LOG("Variable '" + name + "' has type '" + debugType(type) + "'");
 
     bool isGlobal = statement->isGlobal;
     bool isConstant = statement->isConstant;
@@ -16,7 +15,104 @@ llvm::Value* IRGenerator::assignVariable(
     llvm::GlobalValue::LinkageTypes linkage = llvm::GlobalValue::InternalLinkage;
     llvm::Module* activeModule = currentModule;
 
-    DEBUG_LOG("Creating variable: " + name + (isGlobal ? " (global)" : " (local)") + (isConstant ? " [const]" : ""));
+    if (statement->getType()->isFunction()) {
+        activeScope->addType("*" + name, resolveLLVMType(statement->getType()));
+    }
+
+    // --- Handle external variables ---
+    if (statement->isExtern) {
+        std::string externName = statement->externName.empty() ? name : statement->externName;
+        std::string genericStatic = statement->genericStatic;
+        std::string genericDynamic = statement->genericDynamic;
+        
+        // Resolve platform-specific library paths
+        auto targetOS = configs.resolveTargetOS();
+        switch (targetOS) {
+            case TargetOS::Windows:
+                if (!statement->windowsStatic.empty()) genericStatic = statement->windowsStatic;
+                if (!statement->windowsDynamic.empty()) genericDynamic = statement->windowsDynamic;
+                break;
+            case TargetOS::Linux:
+            case TargetOS::FreeBSD:
+            case TargetOS::Android:
+                if (!statement->linuxStatic.empty()) genericStatic = statement->linuxStatic;
+                if (!statement->linuxShared.empty()) genericDynamic = statement->linuxShared;
+                break;
+            case TargetOS::MacOS:
+            case TargetOS::iOS:
+                if (!statement->macosStatic.empty()) genericStatic = statement->macosStatic;
+                if (!statement->macosShared.empty()) genericDynamic = statement->macosShared;
+                break;
+            default: break;
+        }
+
+        // Special handling for system libraries
+        // if (genericStatic.empty() && genericDynamic.empty()) {
+        //     if (targetOS == TargetOS::Windows && WindowsAPIResolver::isLikelyWindowsAPIVariable(externName)) {
+        //         std::string detectedLib = WindowsAPIResolver::getRequiredLibraryForVariable(externName);
+        //         genericStatic = detectedLib + ".lib";
+        //         genericDynamic = detectedLib + ".dll";
+        //         console.info("Auto-detected Windows API variable '" + externName + "' in library: " + detectedLib);
+        //     }
+        // }
+
+        // Check symbol existence in libraries
+        bool staticExists = false;
+        bool dynamicExists = false;
+        
+        if (!genericStatic.empty() && configs.mode != CompileMode::JIT) {
+            if (WindowsAPIResolver::isWindowsSystemLibrary(genericStatic)) {
+                staticExists = true; // Trust that Windows system libs have the symbol
+            } else if (fileExists(genericStatic)) {
+                staticExists = symbolExistsInStaticLib(genericStatic, externName);
+                if (!staticExists) {
+                    console.warn("Symbol '" + externName + "' not found in static library: " + genericStatic);
+                }
+            }
+        }
+
+        if (!genericDynamic.empty() && !staticExists) {
+            if (fileExists(genericDynamic)) {
+                dynamicExists = symbolExistsInDLL(genericDynamic, externName);
+                if (!dynamicExists) {
+                    console.error("Symbol '" + externName + "' not found in dynamic library: " + genericDynamic);
+                }
+            }
+            std::string error;
+            auto dynLib = llvm::sys::DynamicLibrary::getPermanentLibrary(genericDynamic.c_str(), &error);
+            if (!dynLib.isValid()) {
+                console.error("Failed to load dynamic library " + genericDynamic + ": " + error + "\n");
+            }
+        }
+
+        if (!staticExists && !dynamicExists) {
+            console.error("External variable '" + externName + "' not found in any specified libraries");
+            return nullptr;
+        }
+
+        // Create external global variable
+        llvm::GlobalVariable* externVar = new llvm::GlobalVariable(
+            *activeModule,
+            type,
+            isConstant,
+            llvm::GlobalValue::ExternalLinkage,
+            nullptr,  // No initializer for extern variables
+            externName
+        );
+
+        // Add to linker dependencies
+        LinkDependencies::LibraryInfo info;
+        if (staticExists) {
+            info.name = genericStatic;
+        } else if (dynamicExists) {
+            info.name = genericDynamic;
+        }
+        linkerDependencies.addRequiredLibrary(info.name, info);
+
+        activeScope->set(name, externVar);
+        DEBUG_LOG("Declared external variable '" + name + "' (extern name: '" + externName + "')");
+        return externVar;
+    }
 
     // --- If variable exists, reassign value ---
     if (activeScope->exists(name)) {
@@ -76,10 +172,8 @@ llvm::Value* IRGenerator::assignVariable(
             } else {
                 auto val = codegen(statement->getValue(), scope);
                 if (auto* constVal = llvm::dyn_cast<llvm::Constant>(val)) {
-                    // Constant value — compile-time initializer
                     gVar->setInitializer(constVal);
                 } else {
-                    // Runtime value — must insert store into main or init block
                     llvm::Function* initFunc = getOrCreateGlobalInitFunction();
                     llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
         
@@ -93,7 +187,6 @@ llvm::Value* IRGenerator::assignVariable(
         }
 
         activeScope->set(name, gVar);
-
         return gVar;
     }
 
@@ -118,13 +211,11 @@ llvm::Value* IRGenerator::assignVariable(
         if (type->isArrayTy()) {
             if (auto arrayLit = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(statement->getValue())) {
                 llvm::ArrayType* arrayType = llvm::cast<llvm::ArrayType>(type);
-
                 std::vector<llvm::Value*> elements;
                 for (const auto& elem : arrayLit->elements) {
                     elements.push_back(this->codegen(elem, scope));
                 }
-
-                createFixedArrayInPlace(alloca, arrayType, elements);  // ✅ write directly into local
+                createFixedArrayInPlace(alloca, arrayType, elements);
             } else {
                 llvm::Value* rhs = codegen(statement->getValue(), scope);
                 Builder->CreateStore(rhs, alloca, isVolatile);
@@ -140,12 +231,7 @@ llvm::Value* IRGenerator::assignVariable(
                 }
             }
             
-            // if (auto* globalString = llvm::dyn_cast<llvm::GlobalVariable>(initValue)) {
-            //     globalString->setName(name);
-            // }
-            // else
             if (initValue->getType() != alloca->getAllocatedType()) {
-                // Normal type mismatch handling
                 initValue = generateCast(initValue, alloca->getAllocatedType());
             }
             

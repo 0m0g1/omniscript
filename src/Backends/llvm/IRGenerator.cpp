@@ -17,6 +17,14 @@
 #include <llvm/TargetParser/Host.h>
 #include <llvm/Linker/Linker.h>
 
+#ifdef _WIN32
+    #define popen _popen
+    #define pclose _pclose
+#else
+    #include <dlfcn.h>
+    #include <unistd.h>
+#endif
+
 IRGenerator::IRGenerator(const Config& configs) {
     this->configs = configs;
     Context = std::make_unique<llvm::LLVMContext>();
@@ -60,42 +68,93 @@ void IRGenerator::setupModuleMetadata() {
     }
 }
 
-bool IRGenerator::symbolExistsInDLL(const std::string& dllPath, const std::string& symbolName) {
-    std::string command = "objdump -T \"" + dllPath + "\" 2>&1";
+bool IRGenerator::symbolExistsInDLL(const std::string& libPath, const std::string& symbolName) {
+    namespace fs = std::filesystem;
+    
+    // Validate file existence and extension
+    if (!fs::exists(libPath)) {
+        console.error("Library file does not exist: " + libPath);
+        return false;
+    }
+
+    std::string extension = fs::path(libPath).extension().string();
+    bool isDynamicLib = extension == ".dll" || extension == ".so" || extension == ".dylib";
+    if (!isDynamicLib) {
+        console.error("Not a recognized dynamic library format: " + extension);
+        return false;
+    }
+
+#ifdef _WIN32
+    // Windows: Use LoadLibrary and GetProcAddress
+    HMODULE handle = LoadLibraryA(libPath.c_str());
+    if (!handle) {
+        console.error("Failed to load library: " + libPath + ", error code: " + std::to_string(GetLastError()));
+        return false;
+    }
+
+    FARPROC symbol = GetProcAddress(handle, symbolName.c_str());
+    bool found = (symbol != nullptr);
+    
+    FreeLibrary(handle);
+    if (!found) {
+        console.error("Symbol '" + symbolName + "' not found in dynamic library: " + libPath + ", error code: " + std::to_string(GetLastError()));
+    }
+    return found;
+#else
+    // Unix-like: Use dlopen/dlsym for SO/DYLIB
+    void* handle = dlopen(libPath.c_str(), RTLD_LAZY);
+    if (!handle) {
+        console.error("Failed to open library: " + std::string(dlerror()));
+        return false;
+    }
+
+    void* symbol = dlsym(handle, symbolName.c_str());
+    bool found = (symbol != nullptr);
+    
+    dlclose(handle);
+    if (!found) {
+        console.error("Symbol '" + symbolName + "' not found in dynamic library: " + libPath);
+    }
+    return found;
+#endif
+}
+
+bool IRGenerator::symbolExistsInStaticLib(const std::string& libPath, const std::string& symbolName) {
+    namespace fs = std::filesystem;
+    
+    // Validate file existence and extension
+    if (!fs::exists(libPath)) {
+        console.error("Library file does not exist: " + libPath);
+        return false;
+    }
+
+    std::string extension = fs::path(libPath).extension().string();
+    if (extension != ".a" && extension != ".lib") {
+        console.error("Not a recognized static library format: " + extension);
+        return false;
+    }
+
+#ifdef _WIN32
+    std::string command = "llvm-nm --defined-only \"" + libPath + "\" 2>&1";
+#else
+    std::string command = "nm -g \"" + libPath + "\" 2>&1";
+#endif
+    
     std::array<char, 512> buffer;
     std::string output;
     
-    FILE* pipe = _popen(command.c_str(), "r");
+    FILE* pipe = popen(command.c_str(), "r");
     if (!pipe) {
-        console.error("Failed to run objdump");
+        console.error("Failed to run nm command");
         return false;
     }
     
     while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
         output += buffer.data();
     }
-    _pclose(pipe);
     
-    return output.find(symbolName) != std::string::npos;
-}
-
-bool IRGenerator::symbolExistsInStaticLib(const std::string& libPath, const std::string& symbolName) {
-    std::string command = "llvm-nm \"" + libPath + "\" 2>&1";
-
-    std::array<char, 512> buffer;
-    std::string output;
-
-    FILE* pipe = _popen(command.c_str(), "r");
-    if (!pipe) {
-        console.error("Failed to run llvm-nm");
-    }
-
-    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
-        output += buffer.data();
-    }
-
-    _pclose(pipe);
-
+    pclose(pipe);
+    
     return output.find(symbolName) != std::string::npos;
 }
 

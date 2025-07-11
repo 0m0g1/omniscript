@@ -40,10 +40,31 @@ public:
         return std::string("Error assigning ") + (isConstant ? "constant '" : "variable '") + name + "'.\n" + msg;
     };
     std::shared_ptr<Statement> clone() const override {
-        return std::make_shared<AssignVariable>(variable, type, value->clone(), isReassign);
+        auto clone = std::make_shared<AssignVariable>(variable, type, value->clone(), isReassign);
+        clone->isExtern = isExtern;
+        clone->libraryPaths = libraryPaths;
+        return clone;
     }
     
     bool isVolatile = false;
+    bool isExtern = false;
+
+    struct LibraryPaths {
+        std::string windowsDynamic;    // .dll
+        std::string windowsStatic;     // .lib/.a
+        std::string linuxShared;       // .so
+        std::string linuxStatic;       // .a
+        std::string macosShared;       // .dylib
+        std::string macosStatic;       // .a
+        std::string genericDynamic;    // fallback dynamic
+        std::string genericStatic;     // fallback static
+    };
+
+    LibraryPaths libraryPaths;
+        
+    std::string externName;
+    std::string intrinsicName;
+    std::string section = "";
 private:
     std::string variable;
     bool isReassign;

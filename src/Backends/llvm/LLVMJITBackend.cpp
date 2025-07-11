@@ -327,26 +327,57 @@ bool LLVMJITBackend::hasMainFunction() {
     auto module = irGen->getCurrentModule();
     if (!module) return false;
 
-    auto mainFunc = module->getFunction("__main");
-    if (!mainFunc) return false;
+    auto isMainValid = [](llvm::Function* f) {
+        if (!f || f->isDeclaration()) return false;
+        
+        // Check return type (either void or int32)
+        auto* retType = f->getReturnType();
+        bool validReturn = retType->isVoidTy() || 
+                         retType->isIntegerTy(32);
+        if (!validReturn) return false;
+        
+        // Check parameters
+        unsigned params = f->getFunctionType()->getNumParams();
+        switch (params) {
+            case 0:  // main() or main(void)
+                return true;
+                
+            case 2:  // main(int, char**)
+                return f->getFunctionType()->getParamType(0)->isIntegerTy(32) &&
+                       f->getFunctionType()->getParamType(1)->isPointerTy();
+                       
+            case 3:  // main(int, char**, char**) - some platforms
+                return f->getFunctionType()->getParamType(0)->isIntegerTy(32) &&
+                       f->getFunctionType()->getParamType(1)->isPointerTy() &&
+                       f->getFunctionType()->getParamType(2)->isPointerTy();
+                       
+            default:
+                return false;
+        }
+    };
 
-    auto funcType = mainFunc->getFunctionType();
-
-    // Must return i32
-    if (!funcType->getReturnType()->isIntegerTy(32)) return false;
-
-    // Accept either: int main() or int main(int, char**)
-    unsigned numParams = funcType->getNumParams();
-    if (numParams == 0) {
-        return true;
-    } else if (numParams == 2) {
-        return funcType->getParamType(0)->isIntegerTy(32) &&
-               funcType->getParamType(1)->isPointerTy();
+    // Check both standard and alternative main names
+    const char* mainNames[] = {"main", "__main", "_main"};
+    for (auto name : mainNames) {
+        if (auto* func = module->getFunction(name)) {
+            if (isMainValid(func)) {
+                // Additional check: ensure main isn't recursive
+                for (auto& BB : *func) {
+                    for (auto& I : BB) {
+                        if (auto* call = llvm::dyn_cast<llvm::CallInst>(&I)) {
+                            if (call->getCalledFunction() == func) {
+                                llvm::errs() << "Warning: Recursive main function detected\n";
+                                return false;
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+        }
     }
-
     return false;
 }
-
 
 void LLVMJITBackend::executeFunction(const std::string& functionName, const Config& config) {
     auto symbol = jit->lookup(functionName);

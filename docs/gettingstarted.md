@@ -89,14 +89,9 @@ This provides:
 Create a file called `hello.os`:
 
 ```os
-extern "C" {
-    fn printf(fmt: char*, ...) => int;
-}
+extern "C" fn printf(fmt: char*, ...) => int;
 
-function main() => i32 {
-    printf("Hello, OS!\n");
-    return 0;
-}
+printf("Hello, OS!\n")
 ```
 
 Run it:

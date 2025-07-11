@@ -120,7 +120,12 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 } else {
                     if (auto objtest = scope->get(callee)) {
                         if (auto objtestType = objtest->getType()) {
-                            if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType->getPointeeType())) {
+                            auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType->getPointeeType());
+                            if (!funcType) {
+                                funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType);
+                                funcType->functionName = callee;
+                            }
+                            if (funcType) {
                                 this->type = funcType->returnType;
                                 this->rootType = type;
                                 
@@ -882,7 +887,16 @@ std::string FunctionDeclaration::generateMangledName() const {
     for (size_t i = 0; i < parameters.size(); ++i) {
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(parameters[i])) {
             auto paramType = typed->getType();
-            mangled += paramType ? (paramType->isPointer() ? paramType->getBasePointeeType()->toString() + "*" : paramType->toString()) : "unknown";
+            if (paramType) {
+                if (paramType->isPointer()) {
+                    auto baseType = paramType->getPointeeType();
+                    mangled += baseType ? (baseType->toString() + "*") : "void*";
+                } else {
+                    mangled += paramType->toString();
+                }
+            } else {
+                mangled += "unknown";
+            }
         } else {
             mangled += "any";
         }

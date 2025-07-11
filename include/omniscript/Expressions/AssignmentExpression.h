@@ -3,6 +3,7 @@
 
 namespace Omniscript {
 struct VariableAssignment : public Expression {
+    bool isExtern = false;
     bool isStatic = false;
     bool isConstant = false;
     bool isGlobal = true;
@@ -10,6 +11,20 @@ struct VariableAssignment : public Expression {
     bool isVolatile = false;
     std::string variableName;
     std::shared_ptr<Expression> assignedValue;
+
+    // External linkage information
+    std::string windowsDynamic;    // .dll
+    std::string windowsStatic;     // .lib/.a
+    std::string linuxShared;       // .so
+    std::string linuxStatic;       // .a
+    std::string macosShared;       // .dylib
+    std::string macosStatic;       // .a
+    std::string genericDynamic;    // fallback dynamic
+    std::string genericStatic;     // fallback static
+        
+    std::string externName;
+    std::string intrinsicName;
+    std::string section = "";
 
     VariableAssignment(std::string name, std::shared_ptr<Expression> value, bool isGlobal = false, bool isReassignment = false)
         : variableName(std::move(name)), assignedValue(std::move(value)), isGlobal(isGlobal), isReassignment(isReassignment) {
@@ -57,6 +72,19 @@ struct VariableAssignment : public Expression {
         clone->isConstant = isConstant;
         clone->isReassignment = isReassignment;
         clone->isVolatile = isVolatile;
+        clone->windowsDynamic = windowsDynamic;    // .dll
+        clone->windowsStatic = windowsStatic;     // .lib/.a
+        clone->linuxShared = linuxShared;       // .so
+        clone->linuxStatic = linuxStatic;       // .a
+        clone->macosShared = macosShared;       // .dylib
+        clone->macosStatic = macosStatic;       // .a
+        clone->genericDynamic = genericDynamic;    // fallback dynamic
+        clone->genericStatic = genericStatic;     // fallback static
+            
+        clone->externName = externName;
+        clone->intrinsicName = intrinsicName;
+        clone->section = section;
+        clone->isExtern = isExtern;
         return clone;
     }
 };
