@@ -1,16 +1,5 @@
 extern "C" fn printf(...fmt: char*) => int;
 
-// Threading support
-extern "C" {
-    fn CreateThread(lpThreadAttributes: void*, dwStackSize: uint, 
-                   lpStartAddress: void*, lpParameter: void*, 
-                   dwCreationFlags: uint, lpThreadId: uint*) => void*;
-    fn WaitForSingleObject(hHandle: void*, dwMilliseconds: uint) => uint;
-    fn CloseHandle(hObject: void*) => int;
-    fn Sleep(dwMilliseconds: uint) => void;
-    fn GetCurrentThreadId() => uint;
-}
-
 // GLFW
 extern 
 "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll", 
@@ -33,7 +22,7 @@ extern
 extern 
 "dependencies/glad/gl/bin/glad_gl.dll",
 "dependencies/glad/gl/bin/libglad_gl.a" {
-    fn gladLoadGL() => int;
+    fn gladLoadGL(loader: void*) => int;
 
     let glad_glGetError: fn() => uint;
     let glad_glClear: fn(mask: uint) => void;
@@ -86,14 +75,6 @@ const GLFW_CONTEXT_VERSION_MAJOR: uint = 0x00022002;
 const GLFW_CONTEXT_VERSION_MINOR: uint = 0x00022003;
 const GLFW_OPENGL_PROFILE: uint = 0x00022008;
 const GLFW_OPENGL_CORE_PROFILE: uint = 0x00032001;
-
-// Threading constants
-const INFINITE: uint = 0xFFFFFFFF;
-
-// Global state for thread communication
-let g_shouldExit: int = 0;
-let g_window: void* = nullptr;
-let g_renderThread: void* = nullptr;
 
 // Shader sources
 const vertexShaderSource = r"#version 330 core
@@ -285,29 +266,49 @@ function createShaderProgram() => uint {
     return program;
 }
 
-// Thread function for rendering
-fn renderThreadFunction(param: void*) => uint {
-    printf("Render thread started (Thread ID: %d)\n", GetCurrentThreadId());
+function main() => void {
+    printf("Starting single-threaded star field application\n");
     
-    // Make context current on this thread
-    glfwMakeContextCurrent(g_window);
-    printf("Made context current on render thread\n");
-    
-    // Initialize GLAD on this thread
-    if (!gladLoadGL()) {
-        printf("Failed to initialize GLAD on render thread\n");
-        return 1;
+    // Initialize GLFW
+    glfwSetErrorCallback(glfwErrorCallback);
+    if (!glfwInit()) {
+        printf("Failed to initialize GLFW\n");
+        return;
     }
+
+    // Configure GLFW
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    // Create window
+    let window = glfwCreateWindow(800, 600, "Single-threaded Star Field", nullptr, nullptr);
+    if (window == nullptr) {
+        printf("Failed to create GLFW window\n");
+        glfwTerminate();
+        return;
+    }
+    printf("Successfully created the window\n");
+
+    // Make context current
+    glfwMakeContextCurrent(window);
     
-    printf("Successfully initialized GLAD on render thread\n");
+    // Initialize GLAD
+    if (gladLoadGL(glfwGetProcAddress) == 0) {
+        printf("Failed to initialise GLAD\n");
+        glfwTerminate();
+        return;
+    }
+    printf("Successfully initialized GLAD\n");
 
     // Create shader program
     let shaderProgram = createShaderProgram();
     if (shaderProgram == 0) {
-        printf("Failed to create shader program on render thread\n");
-        return 1;
+        printf("Failed to create shader program\n");
+        glfwTerminate();
+        return;
     }
-    printf("Created shader program on render thread\n");
+    printf("Created shader program\n");
 
     // Get uniform locations
     let timeLocation = glad_glGetUniformLocation(shaderProgram, "u_time");
@@ -340,16 +341,19 @@ fn renderThreadFunction(param: void*) => uint {
     glad_glBindBuffer(GL_ARRAY_BUFFER, 0);
     glad_glBindVertexArray(0);
 
-    printf("Starting render loop on separate thread\n");
+    printf("Starting main render loop\n");
     
-    // Render loop
-    while (!g_shouldExit) {
+    // Main render loop
+    while (!glfwWindowShouldClose(window)) {
+        // Poll events
+        glfwPollEvents();
+        
         // Get current time
         let currentTime = glfwGetTime() as float;
         
         // Get window size
         let width: int, height: int;
-        glfwGetFramebufferSize(g_window, &width, &height);
+        glfwGetFramebufferSize(window, &width, &height);
         glad_glViewport(0, 0, width, height);
 
         // Clear screen
@@ -371,78 +375,18 @@ fn renderThreadFunction(param: void*) => uint {
         glad_glBindVertexArray(VAO);
         glad_glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        glfwSwapBuffers(g_window);
-        
-        // Small sleep to prevent excessive CPU usage
-        Sleep(8); // ~120 FPS target
+        // Swap buffers
+        glfwSwapBuffers(window);
     }
 
-    printf("Render thread cleaning up\n");
+    printf("Cleaning up\n");
     
     // Cleanup
     glad_glDeleteVertexArrays(1, &VAO);
     glad_glDeleteBuffers(1, &VBO);
     glad_glDeleteProgram(shaderProgram);
 
-    printf("Render thread exiting\n");
-    return 0;
-}
-
-function main() => void {
-    printf("Main thread started (Thread ID: %d)\n", GetCurrentThreadId());
-    
-    // Initialize GLFW
-    glfwSetErrorCallback(glfwErrorCallback);
-    if (!glfwInit()) {
-        printf("Failed to initialize GLFW\n");
-        return;
-    }
-
-    // Configure GLFW
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    // Create window
-    g_window = glfwCreateWindow(800, 600, "Threaded Star Field", nullptr, nullptr);
-    if (g_window == nullptr) {
-        printf("Failed to create GLFW window\n");
-        glfwTerminate();
-        return;
-    }
-    printf("Successfully created the window\n");
-
-    // Don't make context current on main thread - render thread will do it
-    
-    // Create render thread
-    let threadId: uint;
-    g_renderThread = CreateThread(nullptr, 0, renderThreadFunction, nullptr, 0, &threadId);
-    if (g_renderThread == nullptr) {
-        printf("Failed to create render thread\n");
-        glfwTerminate();
-        return;
-    }
-    printf("Created render thread with ID: %d\n", threadId);
-
-    // Main thread handles events
-    printf("Main thread entering event loop\n");
-    while (!glfwWindowShouldClose(g_window)) {
-        glfwPollEvents();
-        
-        // Sleep to prevent excessive CPU usage in main thread
-        Sleep(16); // ~60 FPS for event polling
-    }
-
-    printf("Main thread signaling render thread to exit\n");
-    g_shouldExit = 1;
-
-    // Wait for render thread to finish
-    printf("Waiting for render thread to finish\n");
-    WaitForSingleObject(g_renderThread, INFINITE);
-    CloseHandle(g_renderThread);
-    printf("Render thread finished\n");
-
-    // Cleanup
+    // Terminate GLFW
     glfwTerminate();
     printf("Application exiting\n");
 }
