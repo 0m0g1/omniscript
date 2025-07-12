@@ -1,7 +1,7 @@
 extern "C" fn printf(fmt: char*, ...) => int;
 
 // Threading support
-extern "C" {
+extern r"C:\Windows\System32\Kernel32.dll" {
     fn CreateThread(lpThreadAttributes: void*, dwStackSize: uint, 
                    lpStartAddress: void*, lpParameter: void*, 
                    dwCreationFlags: uint, lpThreadId: uint*) => void*;
@@ -13,8 +13,7 @@ extern "C" {
 
 // GLFW
 extern 
-"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll", 
-"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a" {
+"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll"{
     fn glfwInit() => int;
     fn glfwCreateWindow(width: int, height: int, title: char*, monitor: void*, share: void*) => void*;
     fn glfwMakeContextCurrent(window: void*) => void;
@@ -31,8 +30,7 @@ extern
 
 // GLAD
 extern 
-"dependencies/glad/gl/bin/glad_gl.dll",
-"dependencies/glad/gl/bin/libglad_gl.a" {
+"dependencies/glad/gl/bin/glad_gl.dll" {
     fn gladLoadGL(loader: void*) => int;
 
     const glad_glGetError: fn() => uint;

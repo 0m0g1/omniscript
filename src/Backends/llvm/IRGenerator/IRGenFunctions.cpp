@@ -11,6 +11,10 @@
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
 
+#ifdef _WIN32
+    #include <sys/stat.h>
+#endif
+
 void IRGenerator::createEntryFunction() {
     DEBUG_LOG("creating the entry function '__top_level'.");
     // Always create __top_level__ as the entry point
@@ -331,7 +335,8 @@ llvm::Value* IRGenerator::createCall(
 
 llvm::Function* IRGenerator::createExternFunction(
     std::shared_ptr<Omniscript::FunctionExpression> func,
-    SymbolTableType scope) {
+    SymbolTableType scope
+) {
     
     std::string& name = func->mangledName;
     std::string& externName = func->externName;
@@ -439,6 +444,41 @@ llvm::Function* IRGenerator::createExternFunction(
                libPath == "libpthread.so" || libPath == "libdl.so";
     };
     
+    // Helper function to create directories recursively
+    std::function<bool(const std::string&)> createDirectoryRecursive = [&](const std::string& path) -> bool {
+        if (path.empty()) return true;
+        
+        // Check if directory already exists
+        struct stat st;
+        if (stat(path.c_str(), &st) == 0) {
+        #ifdef _WIN32
+            if (st.st_mode & _S_IFDIR) {
+                return true;
+            }
+        #else
+            if (S_ISDIR(st.st_mode)) {
+                return true;
+            }
+        #endif
+        }
+        
+        // Find parent directory
+        size_t lastSlash = path.find_last_of("/\\");
+        if (lastSlash != std::string::npos) {
+            std::string parent = path.substr(0, lastSlash);
+            if (!createDirectoryRecursive(parent)) {
+                return false;
+            }
+        }
+        
+        // Create this directory
+        #ifdef _WIN32
+            return CreateDirectoryA(path.c_str(), NULL) != 0 || GetLastError() == ERROR_ALREADY_EXISTS;
+        #else
+            return mkdir(path.c_str(), 0755) == 0 || errno == EEXIST;
+        #endif
+    };
+    
     // Helper function to copy DLL to output directory if needed
     auto copyDllToOutputDir = [&](const std::string& dllPath) -> std::string {
         if (isSystemLibrary(dllPath)) {
@@ -468,6 +508,12 @@ llvm::Function* IRGenerator::createExternFunction(
             } else {
                 outputDir = ".";
             }
+        }
+        
+        // Create output directory if it doesn't exist
+        if (!createDirectoryRecursive(outputDir)) {
+            console.error("Failed to create output directory: " + outputDir);
+            return dllPath;
         }
         
         std::string destPath = outputDir + "/" + filename;
@@ -564,6 +610,7 @@ llvm::Function* IRGenerator::createExternFunction(
         });
 
         if (resolver) {
+            // For JIT mode, use dynamic library resolver without linker dependencies
             function = resolver->resolve(*this, externName, funcType, linkerDependencies);
         }
         
@@ -576,6 +623,7 @@ llvm::Function* IRGenerator::createExternFunction(
         std::string originalDynamicPath = genericDynamic;
         std::string copiedDynamicPath;
         bool dynamicWasCopied = false;
+        bool resolvedWithStatic = false;
 
         if (!staticExists && !dynamicExists) {
             // Try common system libraries as fallback - user should provide explicit paths
@@ -602,6 +650,7 @@ llvm::Function* IRGenerator::createExternFunction(
             }
         }
 
+        // Try static library first
         if (staticExists) {
             // Skip symbol existence check for Windows system libraries
             bool isWindowsSystemLib = (targetOS == TargetOS::Windows) && 
@@ -609,47 +658,41 @@ llvm::Function* IRGenerator::createExternFunction(
             if (!isWindowsSystemLib && !ExternalFunctionResolver::isSystemLibrary(genericStatic) && 
                 !symbolExistsInStaticLib(genericStatic, externName)) {
                 console.error("Symbol '" + externName + "' not found in static library: " + genericStatic);
-                return nullptr;
-            }
+                staticExists = false; // Mark as not usable
+            } else {
+                auto resolver = tryAddResolver(genericStatic, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
+                    if (CStdLibResolver::isCStdLibFunction(externName)) {
+                        return std::make_unique<CStdLibResolver>();
+                    } else if (targetOS == TargetOS::Windows && WindowsAPIResolver::isWindowsSystemLibrary(genericStatic)) {
+                        // Create a resolver that knows about the specific library
+                        return std::make_unique<WindowsAPIResolver>(genericStatic);
+                    } else {
+                        return std::make_unique<StaticLibraryResolver>(genericStatic);
+                    }
+                });
 
-            auto resolver = tryAddResolver(genericStatic, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
-                if (CStdLibResolver::isCStdLibFunction(externName)) {
-                    return std::make_unique<CStdLibResolver>();
-                } else if (targetOS == TargetOS::Windows && WindowsAPIResolver::isWindowsSystemLibrary(genericStatic)) {
-                    // Create a resolver that knows about the specific library
-                    return std::make_unique<WindowsAPIResolver>(genericStatic);
-                } else {
-                    return std::make_unique<StaticLibraryResolver>(genericStatic);
+                if (resolver) {
+                    function = resolver->resolve(*this, externName, funcType, linkerDependencies);
+                    if (function) {
+                        resolvedWithStatic = true;
+                    }
                 }
-            });
-
-            if (resolver) {
-                function = resolver->resolve(*this, externName, funcType, linkerDependencies);
             }
         }
 
+        // If static resolution failed, try dynamic library
         if (!function && dynamicExists) {
             // Copy dynamic library to output directory for AOT mode
             copiedDynamicPath = copyDllToOutputDir(genericDynamic);
             dynamicWasCopied = (copiedDynamicPath != genericDynamic);
             
-            auto resolver = tryAddResolver(copiedDynamicPath, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
-                switch (targetOS) {
-                    case TargetOS::Windows:
-                        return std::make_unique<DynamicLibraryResolver>(copiedDynamicPath);
-                    case TargetOS::Linux:
-                    case TargetOS::FreeBSD:
-                    case TargetOS::Android:
-                        return std::make_unique<DynamicLibraryResolver>(copiedDynamicPath);
-                    case TargetOS::MacOS:
-                    case TargetOS::iOS:
-                        return std::make_unique<DynamicLibraryResolver>(copiedDynamicPath);
-                    default:
-                        return std::make_unique<DynamicLibraryResolver>(copiedDynamicPath);
-                }
+            auto resolver = tryAddResolver(originalDynamicPath, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
+                // Always use DynamicLibraryResolver for dynamic libraries
+                return std::make_unique<DynamicLibraryResolver>(originalDynamicPath);
             });
 
             if (resolver) {
+                // For dynamic libraries, don't add linker dependencies
                 function = resolver->resolve(*this, externName, funcType, linkerDependencies);
                 
                 // If dynamic resolution failed after copying, clean up the copied DLL
@@ -663,7 +706,7 @@ llvm::Function* IRGenerator::createExternFunction(
         }
         
         // If we successfully resolved with static library but had copied a dynamic library earlier, clean it up
-        if (function && dynamicWasCopied && staticExists) {
+        if (resolvedWithStatic && dynamicWasCopied) {
             deleteUnusedDll(originalDynamicPath);
         }
     }

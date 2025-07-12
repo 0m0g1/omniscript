@@ -338,28 +338,141 @@ void LinkDependencies::addLibrarySearchPath(const std::string& path) {
 
 std::vector<std::string> LinkDependencies::getLinkerFlags() const {
     std::vector<std::string> flags;
-    
+    std::set<std::string> libDirs; // Deduplicate -L paths
+    static std::map<std::string, std::string> importLibCache; // Cache for found import libs
+
+    // Platform-specific extensions
+    #if defined(_WIN32)
+    const std::string sharedExt = ".dll";
+    const std::vector<std::string> importExts = {".dll.a", ".lib", ".a"};
+    const std::string libPrefix = "lib";
+    #elif defined(__linux__)
+    const std::string sharedExt = ".so";
+    const std::vector<std::string> importExts = {".so", ".a"};
+    const std::string libPrefix = "lib";
+    #elif defined(__APPLE__)
+    const std::string sharedExt = ".dylib";
+    const std::vector<std::string> importExts = {".dylib", ".a"};
+    const std::string libPrefix = "lib";
+    #endif
+
+    namespace fs = std::filesystem;
+
+    auto getBaseName = [&](const std::string& libPath) -> std::string {
+        std::string filename = fs::path(libPath).filename().string();
+        std::string baseName = fs::path(libPath).stem().string();
+        
+        // Remove lib prefix if present
+        if (baseName.rfind(libPrefix, 0) == 0) {
+            baseName = baseName.substr(libPrefix.length());
+        }
+        
+        // Remove version numbers (e.g., libname.so.1.2.3 -> libname)
+        size_t pos = baseName.find('.');
+        if (pos != std::string::npos) {
+            baseName = baseName.substr(0, pos);
+        }
+        
+        return baseName;
+    };
+
+    auto isSharedLibrary = [&](const std::string& libPath) -> bool {
+        return libPath.ends_with(sharedExt) || 
+               libPath.find(sharedExt + ".") != std::string::npos; // versioned .so files
+    };
+
+    auto findImportLibrary = [&](const std::string& sharedLibPath) -> std::string {
+        // Check cache first
+        if (importLibCache.find(sharedLibPath) != importLibCache.end()) {
+            return importLibCache[sharedLibPath];
+        }
+        
+        std::string libDir = fs::path(sharedLibPath).parent_path().string();
+        std::string baseName = getBaseName(sharedLibPath);
+        
+        // Generate all possible import library names
+        std::vector<std::string> candidates;
+        for (const auto& ext : importExts) {
+            candidates.push_back(libDir + "/" + libPrefix + baseName + ext);
+            candidates.push_back(libDir + "/" + baseName + ext);
+            candidates.push_back(libDir + "/" + libPrefix + baseName + "dll" + ext);
+            candidates.push_back(libDir + "/" + baseName + "dll" + ext);
+            
+            // Special Windows patterns
+            #if defined(_WIN32)
+            candidates.push_back(libDir + "/" + libPrefix + baseName + "dll.a");
+            candidates.push_back(libDir + "/" + baseName + "dll.a");
+            candidates.push_back(libDir + "/" + baseName + ".lib");
+            #endif
+        }
+        
+        // Find first existing candidate
+        for (const auto& candidate : candidates) {
+            if (fs::exists(candidate)) {
+                importLibCache[sharedLibPath] = candidate;
+                return candidate;
+            }
+        }
+        
+        importLibCache[sharedLibPath] = "";
+        return "";
+    };
+
     for (const auto& libName : requiredLibraries_) {
         auto it = libraryInfo_.find(libName);
-        if (it != libraryInfo_.end()) {
-            const auto& info = it->second;
-            
-            if (!info.linkerFlags.empty()) {
-                // Custom linker flags (includes both -L and -l)
-                flags.insert(flags.end(), info.linkerFlags.begin(), info.linkerFlags.end());
-            } else if (!info.path.empty()) {
-                // Explicit path provided
-                flags.push_back(info.path);
+        
+        if (it != libraryInfo_.end() && !it->second.linkerFlags.empty()) {
+            // Use custom linker flags if provided
+            flags.insert(flags.end(), it->second.linkerFlags.begin(), it->second.linkerFlags.end());
+            continue;
+        }
+
+        std::string libPath;
+        if (it != libraryInfo_.end() && !it->second.path.empty()) {
+            libPath = it->second.path;
+        } else {
+            // No explicit path, fallback to -l flag
+            flags.push_back("-l" + libName);
+            continue;
+        }
+
+        if (!fs::exists(libPath)) {
+            console.warn("Library path does not exist: " + libPath);
+            flags.push_back("-l" + libName);
+            continue;
+        }
+
+        std::string libDir = fs::path(libPath).parent_path().string();
+        std::string baseName = getBaseName(libPath);
+
+        if (isSharedLibrary(libPath)) {
+            // For shared libraries, find and use the import library
+            std::string importLib = findImportLibrary(libPath);
+            if (!importLib.empty()) {
+                flags.push_back("-l" + baseName);
+                libDirs.insert(fs::path(importLib).parent_path().string());
             } else {
-                // Standard library name
-                flags.push_back("-l" + libName);
+                console.warn("Import library not found for: " + libPath + ", using fallback");
+                flags.push_back("-l" + baseName);
+                libDirs.insert(libDir);
             }
         } else {
-            // Fallback: just add -l flag
-            flags.push_back("-l" + libName);
+            // Static library or import library - link directly
+            if (libPath.ends_with(".a") || libPath.ends_with(".lib")) {
+                flags.push_back("-l" + baseName);
+                libDirs.insert(libDir);
+            } else {
+                flags.push_back("-l" + baseName);
+                libDirs.insert(libDir);
+            }
         }
     }
-    
+
+    // Add unique -L flags
+    for (const auto& dir : libDirs) {
+        flags.push_back("-L" + dir);
+    }
+
     return flags;
 }
 

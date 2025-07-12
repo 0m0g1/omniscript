@@ -27,9 +27,9 @@
             "args": [
                 "docs\\examples\\opengl\\shaders\\starlikeglad.os",
                 "--debug",
-                "--log-final-code",
-                "-O",
-                "-1"
+                "--make",
+                "-o",
+                "test_dll\\test.exe"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

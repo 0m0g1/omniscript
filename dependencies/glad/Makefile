@@ -1,5 +1,6 @@
 # GLAD Build Makefile for Windows (MinGW/MSYS2)
 # Builds OpenGL, OpenGL ES 2.0, and Vulkan libraries
+# Supports static (.a), shared (.dll), MSVC import (.lib), and MinGW import (.dll.a) libraries
 
 # Compiler and tools
 CC = gcc
@@ -42,14 +43,17 @@ VULKAN_OBJECTS = $(VULKAN_INT_DIR)/vulkan.o
 GL_STATIC_LIB = $(GL_BIN_DIR)/libglad_gl.a
 GL_SHARED_LIB = $(GL_BIN_DIR)/glad_gl.dll
 GL_IMPORT_LIB = $(GL_BIN_DIR)/glad_gl.lib
+GL_DLLA_LIB = $(GL_BIN_DIR)/libglad_gl.dll.a
 
 GLES2_STATIC_LIB = $(GLES2_BIN_DIR)/libglad_gles2.a
 GLES2_SHARED_LIB = $(GLES2_BIN_DIR)/glad_gles2.dll
 GLES2_IMPORT_LIB = $(GLES2_BIN_DIR)/glad_gles2.lib
+GLES2_DLLA_LIB = $(GLES2_BIN_DIR)/libglad_gles2.dll.a
 
 VULKAN_STATIC_LIB = $(VULKAN_BIN_DIR)/libglad_vulkan.a
 VULKAN_SHARED_LIB = $(VULKAN_BIN_DIR)/glad_vulkan.dll
 VULKAN_IMPORT_LIB = $(VULKAN_BIN_DIR)/glad_vulkan.lib
+VULKAN_DLLA_LIB = $(VULKAN_BIN_DIR)/libglad_vulkan.dll.a
 
 # Default target
 all: glad_gl glad_gles2 glad_vulkan
@@ -68,7 +72,7 @@ prepare_dirs:
 	@if not exist "$(VULKAN_INT_DIR)" mkdir "$(VULKAN_INT_DIR)"
 
 # OpenGL targets
-glad_gl: prepare_dirs $(GL_STATIC_LIB) $(GL_SHARED_LIB) $(GL_IMPORT_LIB)
+glad_gl: prepare_dirs $(GL_STATIC_LIB) $(GL_SHARED_LIB) $(GL_IMPORT_LIB) $(GL_DLLA_LIB)
 	@echo Building GLAD OpenGL... Done!
 	@echo Cleaning OpenGL temporary files...
 	@if exist "$(GL_INT_DIR)" rmdir /s /q "$(GL_INT_DIR)"
@@ -85,13 +89,14 @@ $(GL_SHARED_LIB): $(GL_OBJECTS)
 	@echo Creating OpenGL shared library...
 	$(CC) $(SHARED_FLAGS) $(EXPORT_FLAGS) -o $@ $^
 
-$(GL_IMPORT_LIB): $(GL_SHARED_LIB)
-	@echo Creating OpenGL import library...
+$(GL_IMPORT_LIB) $(GL_DLLA_LIB): $(GL_SHARED_LIB)
+	@echo Creating OpenGL import libraries...
 	$(GENDEF) $< > $(GL_BIN_DIR)/glad_gl.def
-	$(DLLTOOL) -d $(GL_BIN_DIR)/glad_gl.def -l $@
+	$(DLLTOOL) -d $(GL_BIN_DIR)/glad_gl.def -l $(GL_IMPORT_LIB)
+	$(DLLTOOL) -d $(GL_BIN_DIR)/glad_gl.def -D glad_gl.dll -l $(GL_DLLA_LIB)
 
 # OpenGL ES 2.0 targets
-glad_gles2: prepare_dirs $(GLES2_STATIC_LIB) $(GLES2_SHARED_LIB) $(GLES2_IMPORT_LIB)
+glad_gles2: prepare_dirs $(GLES2_STATIC_LIB) $(GLES2_SHARED_LIB) $(GLES2_IMPORT_LIB) $(GLES2_DLLA_LIB)
 	@echo Building GLAD OpenGL ES 2.0... Done!
 	@echo Cleaning OpenGL ES 2.0 temporary files...
 	@if exist "$(GLES2_INT_DIR)" rmdir /s /q "$(GLES2_INT_DIR)"
@@ -112,13 +117,14 @@ $(GLES2_SHARED_LIB): $(GLES2_OBJECTS)
 	@echo Creating OpenGL ES 2.0 shared library...
 	$(CC) $(SHARED_FLAGS) $(EXPORT_FLAGS) -o $@ $^
 
-$(GLES2_IMPORT_LIB): $(GLES2_SHARED_LIB)
-	@echo Creating OpenGL ES 2.0 import library...
+$(GLES2_IMPORT_LIB) $(GLES2_DLLA_LIB): $(GLES2_SHARED_LIB)
+	@echo Creating OpenGL ES 2.0 import libraries...
 	$(GENDEF) $< > $(GLES2_BIN_DIR)/glad_gles2.def
-	$(DLLTOOL) -d $(GLES2_BIN_DIR)/glad_gles2.def -l $@
+	$(DLLTOOL) -d $(GLES2_BIN_DIR)/glad_gles2.def -l $(GLES2_IMPORT_LIB)
+	$(DLLTOOL) -d $(GLES2_BIN_DIR)/glad_gles2.def -D glad_gles2.dll -l $(GLES2_DLLA_LIB)
 
 # Vulkan targets
-glad_vulkan: prepare_dirs $(VULKAN_STATIC_LIB) $(VULKAN_SHARED_LIB) $(VULKAN_IMPORT_LIB)
+glad_vulkan: prepare_dirs $(VULKAN_STATIC_LIB) $(VULKAN_SHARED_LIB) $(VULKAN_IMPORT_LIB) $(VULKAN_DLLA_LIB)
 	@echo Building GLAD Vulkan... Done!
 	@echo Cleaning Vulkan temporary files...
 	@if exist "$(VULKAN_INT_DIR)" rmdir /s /q "$(VULKAN_INT_DIR)"
@@ -135,10 +141,11 @@ $(VULKAN_SHARED_LIB): $(VULKAN_OBJECTS)
 	@echo Creating Vulkan shared library...
 	$(CC) $(SHARED_FLAGS) $(EXPORT_FLAGS) -o $@ $^
 
-$(VULKAN_IMPORT_LIB): $(VULKAN_SHARED_LIB)
-	@echo Creating Vulkan import library...
+$(VULKAN_IMPORT_LIB) $(VULKAN_DLLA_LIB): $(VULKAN_SHARED_LIB)
+	@echo Creating Vulkan import libraries...
 	$(GENDEF) $< > $(VULKAN_BIN_DIR)/glad_vulkan.def
-	$(DLLTOOL) -d $(VULKAN_BIN_DIR)/glad_vulkan.def -l $@
+	$(DLLTOOL) -d $(VULKAN_BIN_DIR)/glad_vulkan.def -l $(VULKAN_IMPORT_LIB)
+	$(DLLTOOL) -d $(VULKAN_BIN_DIR)/glad_vulkan.def -D glad_vulkan.dll -l $(VULKAN_DLLA_LIB)
 
 # Clean targets
 clean:
@@ -170,9 +177,9 @@ clean_vulkan:
 help:
 	@echo Available targets:
 	@echo   all          - Build all libraries (default)
-	@echo   glad_gl      - Build OpenGL library only
-	@echo   glad_gles2   - Build OpenGL ES 2.0 library only
-	@echo   glad_vulkan  - Build Vulkan library only
+	@echo   glad_gl      - Build OpenGL libraries only (.a, .dll, .lib, .dll.a)
+	@echo   glad_gles2   - Build OpenGL ES 2.0 libraries only (.a, .dll, .lib, .dll.a)
+	@echo   glad_vulkan  - Build Vulkan libraries only (.a, .dll, .lib, .dll.a)
 	@echo   clean        - Clean temporary files
 	@echo   clean_all    - Clean all build files
 	@echo   clean_gl     - Clean OpenGL build files
