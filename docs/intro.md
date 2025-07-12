@@ -40,7 +40,7 @@ function customStart() => void {
 
 Compile and run with:
 ```bash
-./bin/Debug-windows-x86_64/Osengine.exe program.os --entry=customStart
+./path/to/Osengine.exe program.os --entry=customStart
 ```
 
 ## Running OS Programs
@@ -49,13 +49,13 @@ OS programs can be executed in two primary ways, leveraging its LLVM-based compi
 
 1. **JIT Execution**: Run programs directly using the JIT compiler for immediate execution, ideal for development and testing. For example:
    ```bash
-   ./bin/Debug-windows-x86_64/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os
+   ./path/to/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os
    ```
    This command executes the `starlikeglad.os` script using the JIT compiler, targeting the native architecture with `-O3` optimization.
 
 2. **AOT Compilation**: Generate standalone executables for distribution using the `--make` flag. For example:
    ```bash
-   ./bin/Debug-windows-x86_64/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os --make -o myappname.exe
+   ./path/to/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os --make -o myappname.exe
    ```
    This command compiles `starlikeglad.os` into a standalone executable named `myappname.exe`, optimized for portability like C++ binaries.
 
@@ -114,12 +114,12 @@ function main() => i32 {
 
 Run with:
 ```bash
-./bin/Debug-windows-x86_64/Osengine.exe sdl_example.os
+./path/to/Osengine.exe sdl_example.os
 ```
 
 Or compile to an executable:
 ```bash
-./bin/Debug-windows-x86_64/Osengine.exe sdl_example.os --make -o sdl_example.exe
+./path/to/Osengine.exe sdl_example.os --make -o sdl_example.exe
 ```
 
 This example shows how OS can link to SDL2's dynamic (`.dll`) and static (`.a`) libraries, initialize a window, and handle events, demonstrating its ability to integrate with widely used C libraries.
@@ -150,9 +150,11 @@ OS is designed to be flexible and lightweight, offering developers three executi
 OS is designed for developers who need low-level control without the verbosity of C++. Its clean syntax, combined with LLVM's optimizations, a robust FFI, and flexible execution models, makes it an excellent choice for systems programming, graphics, and cross-platform development. The ability to use almost any C-based library, run programs via JIT, or create standalone executables ensures OS can handle a wide range of use cases, from quick scripts to complex applications.
 
 ## Next Steps
-To learn more about OS, explore the following topics:
-- **FFI Details**: How to link and use external libraries (e.g., GLFW, OpenGL, SDL2).
-- **Threading**: Using OS's low-level threading APIs for concurrent programming.
-- **Graphics Programming**: Creating real-time graphics with OS and libraries like OpenGL or SDL2.
 
+To learn more about OmniScript, explore the following topics:
+
+- [**FFI Details**](./ffi.md): How to link and use external libraries (e.g., GLFW, OpenGL, SDL2)
+- [**Threading**](./threading.md): Using OmniScript's low-level threading APIs for concurrent programming  
+- [**Graphics Programming**](): Creating real-time graphics with OmniScript and libraries like OpenGL or SDL2
+-
 Stay tuned for more documentation as OS evolves!
