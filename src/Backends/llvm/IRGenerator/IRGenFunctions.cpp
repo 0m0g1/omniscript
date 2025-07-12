@@ -408,6 +408,150 @@ llvm::Function* IRGenerator::createExternFunction(
         return (it != resolvers.end()) ? it->second.get() : nullptr;
     };
     
+    // Helper function to check if a library is a system library that doesn't need copying
+    auto isSystemLibrary = [&](const std::string& libPath) -> bool {
+        if (libPath.empty() || libPath == "C") return true;
+        
+        // System libraries based on OS
+        if (targetOS == TargetOS::Windows) {
+            std::string filename = libPath;
+            size_t lastSlash = libPath.find_last_of("/\\");
+            if (lastSlash != std::string::npos) {
+                filename = libPath.substr(lastSlash + 1);
+            }
+            
+            // Convert to lowercase for comparison
+            std::transform(filename.begin(), filename.end(), filename.begin(), ::tolower);
+            
+            // Windows system DLLs that are always available
+            return filename == "kernel32.dll" || filename == "user32.dll" || 
+                   filename == "gdi32.dll" || filename == "msvcrt.dll" ||
+                   filename == "advapi32.dll" || filename == "shell32.dll" ||
+                   filename == "ole32.dll" || filename == "oleaut32.dll" ||
+                   filename == "winmm.dll" || filename == "ws2_32.dll";
+        }
+        
+        // For Unix-like systems, check if it's a system library path
+        return libPath.find("/lib/") != std::string::npos || 
+               libPath.find("/usr/lib/") != std::string::npos ||
+               libPath.find("/usr/local/lib/") != std::string::npos ||
+               libPath == "libc.so" || libPath == "libm.so" || 
+               libPath == "libpthread.so" || libPath == "libdl.so";
+    };
+    
+    // Helper function to copy DLL to output directory if needed
+    auto copyDllToOutputDir = [&](const std::string& dllPath) -> std::string {
+        if (isSystemLibrary(dllPath)) {
+            return dllPath; // Don't copy system libraries
+        }
+        
+        // Extract filename from full path
+        std::string filename = dllPath;
+        size_t lastSlash = dllPath.find_last_of("/\\");
+        if (lastSlash != std::string::npos) {
+            filename = dllPath.substr(lastSlash + 1);
+        }
+        
+        // Get output directory from config
+        std::string outputDir = configs.outputPath;
+        if (outputDir.empty()) {
+            outputDir = "."; // Default to current directory
+        }
+        
+        // Remove filename from outputPath if it contains one
+        size_t lastDot = outputDir.find_last_of(".");
+        size_t lastSlashInOutput = outputDir.find_last_of("/\\");
+        if (lastDot != std::string::npos && (lastSlashInOutput == std::string::npos || lastDot > lastSlashInOutput)) {
+            // outputPath contains a filename, extract directory
+            if (lastSlashInOutput != std::string::npos) {
+                outputDir = outputDir.substr(0, lastSlashInOutput);
+            } else {
+                outputDir = ".";
+            }
+        }
+        
+        std::string destPath = outputDir + "/" + filename;
+        
+        // Check if DLL already exists in output directory
+        if (fileExists(destPath)) {
+            return destPath; // Already exists, use it
+        }
+        
+        // Check if source DLL exists
+        if (!fileExists(dllPath)) {
+            return dllPath; // Return original path, let error handling deal with it
+        }
+        
+        // Copy DLL to output directory
+        try {
+            std::ifstream src(dllPath, std::ios::binary);
+            if (!src.is_open()) {
+                console.error("Failed to open source DLL: " + dllPath);
+                return dllPath;
+            }
+            
+            std::ofstream dest(destPath, std::ios::binary);
+            if (!dest.is_open()) {
+                console.error("Failed to create destination DLL: " + destPath);
+                return dllPath;
+            }
+            
+            dest << src.rdbuf();
+            src.close();
+            dest.close();
+            
+            console.info("Copied DLL: " + dllPath + " -> " + destPath);
+            return destPath;
+            
+        } catch (const std::exception& e) {
+            console.error("Failed to copy DLL " + dllPath + " to " + destPath + ": " + e.what());
+            return dllPath;
+        }
+    };
+    
+    // Helper function to delete copied DLL if it's not needed
+    auto deleteUnusedDll = [&](const std::string& dllPath) -> void {
+        if (isSystemLibrary(dllPath) || dllPath.empty()) {
+            return; // Don't delete system libraries
+        }
+        
+        // Extract filename from full path
+        std::string filename = dllPath;
+        size_t lastSlash = dllPath.find_last_of("/\\");
+        if (lastSlash != std::string::npos) {
+            filename = dllPath.substr(lastSlash + 1);
+        }
+        
+        // Get output directory from config
+        std::string outputDir = configs.outputPath;
+        if (outputDir.empty()) {
+            outputDir = ".";
+        }
+        
+        // Remove filename from outputPath if it contains one
+        size_t lastDot = outputDir.find_last_of(".");
+        size_t lastSlashInOutput = outputDir.find_last_of("/\\");
+        if (lastDot != std::string::npos && (lastSlashInOutput == std::string::npos || lastDot > lastSlashInOutput)) {
+            if (lastSlashInOutput != std::string::npos) {
+                outputDir = outputDir.substr(0, lastSlashInOutput);
+            } else {
+                outputDir = ".";
+            }
+        }
+        
+        std::string destPath = outputDir + "/" + filename;
+        
+        // Only delete if it exists and is different from the original path
+        if (fileExists(destPath) && destPath != dllPath) {
+            try {
+                std::remove(destPath.c_str());
+                console.info("Deleted unused DLL: " + destPath);
+            } catch (const std::exception& e) {
+                console.error("Failed to delete unused DLL " + destPath + ": " + e.what());
+            }
+        }
+    };
+    
     if (configs.mode == CompileMode::JIT) {
         if (!fileExists(genericDynamic) && (resolvers.find(genericDynamic) == resolvers.end()) && genericDynamic != "C") {
             console.error("Dynamic library '" + genericDynamic + "' for function '" + name + "' was not found.\n" +
@@ -427,6 +571,11 @@ llvm::Function* IRGenerator::createExternFunction(
         // AOT mode - enhanced static/dynamic library handling with dynamic Windows API detection
         bool staticExists = !genericStatic.empty() && fileExists(genericStatic);
         bool dynamicExists = !genericDynamic.empty() && fileExists(genericDynamic);
+        
+        // Store original dynamic path for potential cleanup
+        std::string originalDynamicPath = genericDynamic;
+        std::string copiedDynamicPath;
+        bool dynamicWasCopied = false;
 
         if (!staticExists && !dynamicExists) {
             // Try common system libraries as fallback - user should provide explicit paths
@@ -480,25 +629,42 @@ llvm::Function* IRGenerator::createExternFunction(
         }
 
         if (!function && dynamicExists) {
-            auto resolver = tryAddResolver(genericDynamic, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
+            // Copy dynamic library to output directory for AOT mode
+            copiedDynamicPath = copyDllToOutputDir(genericDynamic);
+            dynamicWasCopied = (copiedDynamicPath != genericDynamic);
+            
+            auto resolver = tryAddResolver(copiedDynamicPath, [&]() -> std::unique_ptr<ExternalFunctionResolver> {
                 switch (targetOS) {
                     case TargetOS::Windows:
-                        return std::make_unique<DynamicLibraryResolver>(genericDynamic);
+                        return std::make_unique<DynamicLibraryResolver>(copiedDynamicPath);
                     case TargetOS::Linux:
                     case TargetOS::FreeBSD:
                     case TargetOS::Android:
-                        return std::make_unique<DynamicLibraryResolver>(genericDynamic);
+                        return std::make_unique<DynamicLibraryResolver>(copiedDynamicPath);
                     case TargetOS::MacOS:
                     case TargetOS::iOS:
-                        return std::make_unique<DynamicLibraryResolver>(genericDynamic);
+                        return std::make_unique<DynamicLibraryResolver>(copiedDynamicPath);
                     default:
-                        return std::make_unique<DynamicLibraryResolver>(genericDynamic);
+                        return std::make_unique<DynamicLibraryResolver>(copiedDynamicPath);
                 }
             });
 
             if (resolver) {
                 function = resolver->resolve(*this, externName, funcType, linkerDependencies);
+                
+                // If dynamic resolution failed after copying, clean up the copied DLL
+                if (!function && dynamicWasCopied) {
+                    deleteUnusedDll(originalDynamicPath);
+                }
+            } else if (dynamicWasCopied) {
+                // If resolver creation failed after copying, clean up the copied DLL
+                deleteUnusedDll(originalDynamicPath);
             }
+        }
+        
+        // If we successfully resolved with static library but had copied a dynamic library earlier, clean it up
+        if (function && dynamicWasCopied && staticExists) {
+            deleteUnusedDll(originalDynamicPath);
         }
     }
 
