@@ -32,6 +32,7 @@ The FFI in OS is built for simplicity, flexibility, and power. Here are the key 
 4. **Automatic Linker Argument Generation and Fallback**: During AOT compilation, linker arguments are automatically generated from the library paths specified in `extern` declarations. For example, a path like `"dependencies/curl/lib/libcurl.a"` generates linker flags like `-lcurl` for `clang++`/`g++` or `libcurl.lib` for MSVC linkers. The backend supports multiple linkers:
    - **Windows**: `clang++`, `g++`, and `link` (MSVC linker), with default libraries like `user32.lib`, `gdi32.lib`, `shell32.lib`, `kernel32.lib`, and `ntdll.lib`.
    - **Non-Windows**: `clang++` and `g++`, with default libraries like `-lm`, `-ldl`, and `-lpthread`.
+   
    The backend attempts to link using the first available linker, falling back to the next if it fails (e.g., from `clang++` to `g++`). If all linkers fail, it throws a `std::runtime_error` listing available linkers and the last error, e.g., "Linking failed. Available linkers: clang++ g++. Last error: Linker clang++ failed with exit code: 1". This simplifies the build process by eliminating manual linker configuration.
 
 5. **Symbol Table Generation**: During AOT compilation, the backend generates a symbol table documenting global variables, functions, and aliases in the LLVM module. The symbol table is written to a specified file, including:
