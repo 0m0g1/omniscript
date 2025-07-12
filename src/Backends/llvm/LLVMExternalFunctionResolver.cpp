@@ -421,8 +421,8 @@ std::vector<std::string> LinkDependencies::getLinkerFlags() const {
     for (const auto& libName : requiredLibraries_) {
         auto it = libraryInfo_.find(libName);
         
+        // 1. Use custom linker flags if provided (user override)
         if (it != libraryInfo_.end() && !it->second.linkerFlags.empty()) {
-            // Use custom linker flags if provided
             flags.insert(flags.end(), it->second.linkerFlags.begin(), it->second.linkerFlags.end());
             continue;
         }
@@ -430,42 +430,27 @@ std::vector<std::string> LinkDependencies::getLinkerFlags() const {
         std::string libPath;
         if (it != libraryInfo_.end() && !it->second.path.empty()) {
             libPath = it->second.path;
+
+            // 2. If path is a dynamic library, find its import/static version
+            if (isSharedLibrary(libPath)) {
+                std::string importLib = findImportLibrary(libPath);
+                if (!importLib.empty()) {
+                    flags.push_back(importLib);  // Use the import lib (e.g., libglfw3.dll.a)
+                    continue;
+                } else {
+                    // If no import lib found, fall back to -l (e.g., -lKernel32)
+                    flags.push_back("-l" + libName);
+                    continue;
+                }
+            }
         } else {
-            // No explicit path, fallback to -l flag
+            // 3. No explicit path? Fall back to -l
             flags.push_back("-l" + libName);
             continue;
         }
 
-        if (!fs::exists(libPath)) {
-            console.warn("Library path does not exist: " + libPath);
-            flags.push_back("-l" + libName);
-            continue;
-        }
-
-        std::string libDir = fs::path(libPath).parent_path().string();
-        std::string baseName = getBaseName(libPath);
-
-        if (isSharedLibrary(libPath)) {
-            // For shared libraries, find and use the import library
-            std::string importLib = findImportLibrary(libPath);
-            if (!importLib.empty()) {
-                flags.push_back("-l" + baseName);
-                libDirs.insert(fs::path(importLib).parent_path().string());
-            } else {
-                console.warn("Import library not found for: " + libPath + ", using fallback");
-                flags.push_back("-l" + baseName);
-                libDirs.insert(libDir);
-            }
-        } else {
-            // Static library or import library - link directly
-            if (libPath.ends_with(".a") || libPath.ends_with(".lib")) {
-                flags.push_back("-l" + baseName);
-                libDirs.insert(libDir);
-            } else {
-                flags.push_back("-l" + baseName);
-                libDirs.insert(libDir);
-            }
-        }
+        // 4. If we get here, it's a static/import lib → link directly
+        flags.push_back(libPath);
     }
 
     // Add unique -L flags

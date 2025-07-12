@@ -104,8 +104,10 @@ llvm::Value* IRGenerator::assignVariable(
         LinkDependencies::LibraryInfo info;
         if (staticExists) {
             info.name = genericStatic;
+            info.path = genericStatic;
         } else if (dynamicExists) {
             info.name = genericDynamic;
+            info.path = genericDynamic;
         }
         linkerDependencies.addRequiredLibrary(info.name, info);
 
