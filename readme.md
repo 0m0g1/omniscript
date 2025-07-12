@@ -8,7 +8,7 @@ I'm building a new programming language originally called **OmniScript**, but si
 Feedback, ideas, and discussion are very welcome!
 
 
-[Temporary docs](https://github.com/0m0g1/omniscript/tree/main/docs)
+[Docs](docs\intro.md)
 
 
 OS Build Instructions
