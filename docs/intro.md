@@ -1,6 +1,6 @@
 # OS Programming Language
 
-Welcome to **OS**, a powerful and flexible systems programming language designed for performance and interoperability. OS combines the low-level control of C/C++ with a modern, concise syntax, making it ideal for building high-performance applications. With support for both Just-In-Time (JIT) and Ahead-Of-Time (AOT) compilation via LLVM, and a robust Foreign Function Interface (FFI), OS enables seamless integration with existing C libraries and system APIs. This introductory guide showcases OS's basic syntax, execution models, compilation options, and library integration through simple examples.
+Welcome to **OS** (to be renamed), a powerful and flexible systems programming language designed for performance and interoperability. OS combines the low-level control of C/C++ with a modern, concise syntax, making it ideal for building high-performance applications. With support for both Just-In-Time (JIT) and Ahead-Of-Time (AOT) compilation via LLVM, and a robust Foreign Function Interface (FFI), OS enables seamless integration with existing C libraries and system APIs. This introductory guide showcases OS's basic syntax, execution models, compilation options, and library integration through simple examples.
 
 ## Hello World Example
 
@@ -61,7 +61,7 @@ OS programs can be executed in two primary ways, leveraging its LLVM-based compi
 
 ## Library Integration
 
-OS's powerful Foreign Function Interface (FFI) allows it to use almost any C-based library that provides static (`.a`) or dynamic (`.dll`, `.so`) library files. This makes OS highly interoperable with existing ecosystems, enabling developers to leverage libraries written for C/C++ and other languages that expose C-compatible interfaces. In the future, OS plans to support libraries from other languages if necessary, further expanding its interoperability.
+OS's powerful Foreign Function Interface (FFI) allows it to use almost any C-based library that provides static (`.a`, `.lib`, etc) or dynamic (`.dll`, `.so`, `.dll`, `.wa`) library files. This makes OS highly interoperable with existing ecosystems, enabling developers to leverage libraries written for C/C++ and other languages that expose C-compatible interfaces. In the future, OS plans to support libraries from other languages if necessary, further expanding its interoperability.
 
 ### Example: Using SDL2
 The following example demonstrates how to use the SDL2 library to create a window and handle basic events. SDL2 is a popular cross-platform library for graphics and input handling, commonly used in game development.
@@ -133,18 +133,21 @@ OS is designed to be flexible and lightweight, offering developers three executi
 3. **Custom Entry Point Execution**: If a custom entry point with any name and return type is defined and specified with the `--entry=functionName` compiler argument, it will be executed. This provides maximum flexibility for defining program entry points, accommodating diverse use cases.
 
 ### Key Features
-- **Foreign Function Interface (FFI)**: OS's FFI is a cornerstone of its design, enabling integration with virtually any C-based library that provides static (`.a`) or dynamic (`.dll`, `.so`) files. For example, libraries like SDL2, GLFW, or OpenGL can be used seamlessly by declaring their functions with `extern "C"`. In the future, OS may extend support to libraries from other languages if needed. The FFI syntax is concise and platform-aware:
+- **Foreign Function Interface (FFI)**: OS's FFI is a cornerstone of its design, enabling integration with virtually any C-based library that provides static (`.a`) or dynamic (`.dll`, `.so`) files. For example, libraries like SDL2, GLFW, or OpenGL can be used seamlessly by declaring their functions with `extern "path/to/lib"`. The FFI syntax is concise and platform-aware: [more about the ffi](./ffi.md).
+
   ```os
   extern "C" fn printf(fmt: char*, ...) => int;
   ```
-  On Windows, this implicitly links to `msvcrt.dll` (e.g., `extern "system32/msvcrt.dll"`). On Linux and macOS, it resolves to `libc.so` or `libSystem.dylib`. Similarly, libraries like SDL2 can be linked by specifying their paths:
+  On Windows, this implicitly links to `msvcrt.dll` (e.g., `extern "C:/Windows/System32/msvcrt.dll"`). On Linux and macOS, it resolves to `libc.so` or `libSystem.dylib`. Similarly, libraries like SDL2 can be linked by specifying their paths:
   ```os
   extern "dependencies/SDL2/lib/SDL2.dll", "dependencies/SDL2/lib/libSDL2.a" { ... }
   ```
 
 - **LLVM Backend**: OS uses LLVM for both JIT and AOT compilation, with `-O3` optimization enabled by default. JIT targets the native architecture for maximum performance, while AOT generates portable binaries, similar to C++.
 
-- **Lightweight Design**: OS prioritizes simplicity and performance, avoiding the complexity of a large standard library. Instead, it leverages the FFI to access system and third-party libraries, ensuring flexibility across platforms.
+- **Lightweight Design**: OS prioritizes simplicity and performance, so its freestanding by default and has no runtime. 
+
+- **StandardLibrary**: OS will have a large standard library but it can leverages the FFI to access system and third-party libraries, since its still in early development.
 
 ### Why Choose OS?
 OS is designed for developers who need low-level control without the verbosity of C++. Its clean syntax, combined with LLVM's optimizations, a robust FFI, and flexible execution models, makes it an excellent choice for systems programming, graphics, and cross-platform development. The ability to use almost any C-based library, run programs via JIT, or create standalone executables ensures OS can handle a wide range of use cases, from quick scripts to complex applications.
@@ -154,7 +157,14 @@ OS is designed for developers who need low-level control without the verbosity o
 To learn more about OmniScript, explore the following topics:
 
 - [**FFI Details**](./ffi.md): How to link and use external libraries (e.g., GLFW, OpenGL, SDL2)
+- [**Syntax**](./syntax.md): An introduction to OS's syntax; 
+- [**Datatypes**](./datatypes.md): Datatypes in OS. 
+- [**Operations**](./operations.md): Operations in OS. 
+- [**Control Flow**](./operations.md): Control flow operations in OS. 
+- [**Functions**](./functions.md): An introduction to Functions in OS. 
+- [**Classes and Structs**](./classesandstructs.md): An introduction to Classes and structs.
 - [**Threading**](./threading.md): Using OmniScript's low-level threading APIs for concurrent programming  
+- [**Examples Scripts**](): Examples
 - [**Graphics Programming**](): Creating real-time graphics with OmniScript and libraries like OpenGL or SDL2
--
+
 Stay tuned for more documentation as OS evolves!

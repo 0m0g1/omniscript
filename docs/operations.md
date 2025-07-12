@@ -2,6 +2,9 @@
 
 This documentation describes the behavior of various operators in the `BinaryExpression` class. The operators are used in binary expressions and can operate on different types of data (e.g., `int`, `float`, `bool`, `std::string`, and arrays). Below are the details for each operator and its behavior when applied to different operand types.
 
+## Type Safety
+Operations must be performed on operands of the same type, otherwise a runtime error will be thrown. To perform operations on different types, you must explicitly cast one operand to match the type of the other using the `as` keyword (e.g., `x as int`). However, safe type promotions (e.g., `int16` to `int`) are allowed without explicit casting, as they do not result in loss of information.
+
 ## Supported Operators
 
 ### Arithmetic Operators
@@ -139,16 +142,17 @@ This documentation describes the behavior of various operators in the `BinaryExp
 - **Operands:** `ArrayPrimitive` and any value
 - **Behavior:**
   - **`Array + Value`**: Appends the value to the end of the array.
-  - 
-#### `+` (Array preppend)
+
+#### `+` (Array Prepend)
 - **Operands:** `ArrayPrimitive` and any value
 - **Behavior:**
-  - **`Value + Array`**: Preppends the value to the beginning of the array.
+  - **`Value + Array`**: Prepends the value to the beginning of the array.
 
 ### Notes:
 - **Division by Zero:** For both `int` and `float`, division by zero is not allowed and will throw a runtime error.
 - **Unsupported Operations:** Some operations may be unsupported for specific data types. A runtime error will be thrown in such cases.
+- **Type Casting:** Use the `as` keyword to cast types when necessary (e.g., `x as int`). Safe promotions (e.g., `int16` to `int`) are performed automatically without data loss.
 
 ## Conclusion
 
-The operators provided in this `BinaryExpression` class allow for flexible expression evaluation, with support for arithmetic, comparison, logical, and array operations. Each operator behaves differently based on the operand types, offering a wide range of operations suitable for various expressions.
+The operators provided in this `BinaryExpression` class allow for flexible expression evaluation, with support for arithmetic, comparison, logical, and array operations. Each operator behaves differently based on the operand types, offering a wide range of operations suitable for various expressions. Type safety is enforced, requiring explicit casting with the `as` keyword for operations on different types, except in cases of safe type promotion.
