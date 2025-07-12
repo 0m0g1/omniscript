@@ -1,8 +1,14 @@
+/*
+This code is complete as is, linker flags will be generated automatically based of the provided library paths in the ffi and any available linkers in your system
+Compile with:
+./path/to/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os // For JIT mode
+./path/to/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os --make -o app.exe // For AOT mode
+*/
 extern "C" {
     fn printf(fmt: char*, ...) => int;
-    fn malloc(size: int) => void*;
-    fn free(ptr: void*) => void;
-    fn strlen(str: char*) => int;
+    // fn malloc(size: int) => void*;
+    // fn free(ptr: void*) => void;
+    // fn strlen(str: char*) => int;
 }
 
 // GLFW
@@ -451,5 +457,3 @@ function main() => void {
     glfwTerminate();
     printf("Done\n");
 }
-
-// main();

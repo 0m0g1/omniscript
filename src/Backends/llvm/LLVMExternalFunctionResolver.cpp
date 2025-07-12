@@ -436,16 +436,33 @@ std::vector<std::string> LinkDependencies::getLinkerFlags() const {
                 std::string importLib = findImportLibrary(libPath);
                 if (!importLib.empty()) {
                     flags.push_back(importLib);  // Use the import lib (e.g., libglfw3.dll.a)
+                    libDirs.insert(fs::path(importLib).parent_path().string());
                     continue;
                 } else {
                     // If no import lib found, fall back to -l (e.g., -lKernel32)
-                    flags.push_back("-l" + libName);
+                     // 3. No explicit path? Fall back to -l
+                    std::string shortName = libName;
+                    if (libName.find('/') != std::string::npos || libName.find('\\') != std::string::npos) {
+                        std::string filename = fs::path(libName).filename().string();
+                        shortName = fs::path(filename).stem().string(); // Remove extension
+                        if (shortName.rfind("lib", 0) == 0)
+                            shortName = shortName.substr(3); // Strip leading "lib" if present
+                    }
+                    flags.push_back("-l" + shortName);
                     continue;
                 }
             }
         } else {
             // 3. No explicit path? Fall back to -l
-            flags.push_back("-l" + libName);
+            std::string shortName = libName;
+            if (libName.find('/') != std::string::npos || libName.find('\\') != std::string::npos) {
+                std::string filename = fs::path(libName).filename().string();
+                shortName = fs::path(filename).stem().string(); // Remove extension
+                if (shortName.rfind("lib", 0) == 0)
+                    shortName = shortName.substr(3); // Strip leading "lib" if present
+            }
+            flags.push_back("-l" + shortName);
+
             continue;
         }
 

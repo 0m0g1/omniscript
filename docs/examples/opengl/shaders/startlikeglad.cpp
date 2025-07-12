@@ -1,116 +1,122 @@
 /*
-This code is complete as is, linker flags will be generated automatically based of the provided library paths in the ffi and any available linkers in your system
+C++ equivalent without standard library
 Compile with:
-./path/to/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os // For JIT mode
-./path/to/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os --make -o app.exe // For AOT mode
+g++ -o starfield.exe starfield.cpp -lglfw3 -lglad -lgdi32 -lopengl32 -lkernel32
 */
-extern "C" fn printf(fmt: char*, ...) => int;
+
+// Basic C library functions
+extern "C" {
+    int printf(const char* fmt, ...);
+    void* malloc(unsigned long size);
+    void free(void* ptr);
+    int strcmp(const char* str1, const char* str2);
+    unsigned long strlen(const char* str);
+    void* memcpy(void* dest, const void* src, unsigned long n);
+    void* memset(void* ptr, int value, unsigned long num);
+}
 
 // Threading support
-extern "C:/Windows/System32/kernel32.dll" {
-    fn CreateThread(lpThreadAttributes: void*, dwStackSize: uint, 
-                   lpStartAddress: void*, lpParameter: void*, 
-                   dwCreationFlags: uint, lpThreadId: uint*) => void*;
-    fn WaitForSingleObject(hHandle: void*, dwMilliseconds: uint) => uint;
-    fn CloseHandle(hObject: void*) => int;
-    fn Sleep(dwMilliseconds: uint) => void;
-    fn GetCurrentThreadId() => uint;
+extern "C" {
+    void* CreateThread(void* lpThreadAttributes, unsigned int dwStackSize, 
+                      void* lpStartAddress, void* lpParameter, 
+                      unsigned int dwCreationFlags, unsigned int* lpThreadId);
+    unsigned int WaitForSingleObject(void* hHandle, unsigned int dwMilliseconds);
+    int CloseHandle(void* hObject);
+    void Sleep(unsigned int dwMilliseconds);
+    unsigned int GetCurrentThreadId();
 }
 
-// GLFW
-extern 
-"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll", 
-"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a" {
-    fn glfwInit() => int;
-    fn glfwCreateWindow(width: int, height: int, title: char*, monitor: void*, share: void*) => void*;
-    fn glfwMakeContextCurrent(window: void*) => void;
-    fn glfwWindowShouldClose(window: void*) => int;
-    fn glfwPollEvents() => void;
-    fn glfwSwapBuffers(window: void*) => void;
-    fn glfwTerminate() => void;
-    fn glfwGetProcAddress(name: char*) => void*;
-    fn glfwWindowHint(hint: int, value: int) => void;
-    fn glfwSetErrorCallback(callback: void*) => void*;
-    fn glfwGetTime() => double;
-    fn glfwGetFramebufferSize(window: void*, width: int*, height: int*) => void;
+// GLFW declarations
+extern "C" {
+    int glfwInit();
+    void* glfwCreateWindow(int width, int height, const char* title, void* monitor, void* share);
+    void glfwMakeContextCurrent(void* window);
+    int glfwWindowShouldClose(void* window);
+    void glfwPollEvents();
+    void glfwSwapBuffers(void* window);
+    void glfwTerminate();
+    void* glfwGetProcAddress(const char* name);
+    void glfwWindowHint(int hint, int value);
+    void* glfwSetErrorCallback(void* callback);
+    double glfwGetTime();
+    void glfwGetFramebufferSize(void* window, int* width, int* height);
 }
 
-// GLAD
-extern 
-"dependencies/glad/build/Windows_/lib/glad_gl.dll",
-"dependencies/glad/build/Windows_/lib/libglad_gl.a" {
-    fn gladLoadGL(loader: void*) => int;
-
-    const glad_glGetError: fn() => uint;
-    const glad_glClear: fn(mask: uint) => void;
-    const glad_glClearColor: fn(r: float, g: float, b: float, a: float) => void;
-    const glad_glViewport: fn(x: int, y: int, width: int, height: int) => void;
-    const glad_glGenBuffers: fn(n: int, buffers: uint*) => void;
-    const glad_glBindBuffer: fn(target: uint, buffer: uint) => void;
-    const glad_glBufferData: fn(target: uint, size: int, data: void*, usage: uint) => void;
-    const glad_glGenVertexArrays: fn(n: int, arrays: uint*) => void;
-    const glad_glBindVertexArray: fn(array: uint) => void;
-    const glad_glVertexAttribPointer: fn(index: uint, size: int, type: uint, normalized: uint, stride: int, pointer: void*) => void;
-    const glad_glEnableVertexAttribArray: fn(index: uint) => void;
-    const glad_glCreateShader: fn(type: uint) => uint;
-    const glad_glShaderSource: fn(shader: uint, count: int, string: char**, length: int*) => void;
-    const glad_glCompileShader: fn(shader: uint) => void;
-    const glad_glGetShaderiv: fn(shader: uint, pname: uint, params: int*) => void;
-    const glad_glGetShaderInfoLog: fn(shader: uint, bufSize: int, length: int*, infoLog: char*) => void;
-    const glad_glDeleteShader: fn(shader: uint) => void;
-    const glad_glCreateProgram: fn() => uint;
-    const glad_glAttachShader: fn(program: uint, shader: uint) => void;
-    const glad_glLinkProgram: fn(program: uint) => void;
-    const glad_glGetProgramiv: fn(program: uint, pname: uint, params: int*) => void;
-    const glad_glGetProgramInfoLog: fn(program: uint, bufSize: int, length: int*, infoLog: char*) => void;
-    const glad_glUseProgram: fn(program: uint) => void;
-    const glad_glDeleteProgram: fn(program: uint) => void;
-    const glad_glDrawArrays: fn(mode: uint, first: int, count: int) => void;
-    const glad_glDeleteVertexArrays: fn(n: int, arrays: uint*) => void;
-    const glad_glDeleteBuffers: fn(n: int, buffers: uint*) => void;
-    const glad_glGetUniformLocation: fn(program: uint, name: char*) => int;
-    const glad_glUniform1f: fn(location: int, v0: float) => void;
-    const glad_glUniform2f: fn(location: int, v0: float, v1: float) => void;
+// GLAD declarations
+extern "C" {
+    int gladLoadGL(void* loader);
+    
+    // OpenGL function pointers
+    extern unsigned int (*glad_glGetError)();
+    extern void (*glad_glClear)(unsigned int mask);
+    extern void (*glad_glClearColor)(float r, float g, float b, float a);
+    extern void (*glad_glViewport)(int x, int y, int width, int height);
+    extern void (*glad_glGenBuffers)(int n, unsigned int* buffers);
+    extern void (*glad_glBindBuffer)(unsigned int target, unsigned int buffer);
+    extern void (*glad_glBufferData)(unsigned int target, int size, const void* data, unsigned int usage);
+    extern void (*glad_glGenVertexArrays)(int n, unsigned int* arrays);
+    extern void (*glad_glBindVertexArray)(unsigned int array);
+    extern void (*glad_glVertexAttribPointer)(unsigned int index, int size, unsigned int type, unsigned int normalized, int stride, const void* pointer);
+    extern void (*glad_glEnableVertexAttribArray)(unsigned int index);
+    extern unsigned int (*glad_glCreateShader)(unsigned int type);
+    extern void (*glad_glShaderSource)(unsigned int shader, int count, const char** string, const int* length);
+    extern void (*glad_glCompileShader)(unsigned int shader);
+    extern void (*glad_glGetShaderiv)(unsigned int shader, unsigned int pname, int* params);
+    extern void (*glad_glGetShaderInfoLog)(unsigned int shader, int bufSize, int* length, char* infoLog);
+    extern void (*glad_glDeleteShader)(unsigned int shader);
+    extern unsigned int (*glad_glCreateProgram)();
+    extern void (*glad_glAttachShader)(unsigned int program, unsigned int shader);
+    extern void (*glad_glLinkProgram)(unsigned int program);
+    extern void (*glad_glGetProgramiv)(unsigned int program, unsigned int pname, int* params);
+    extern void (*glad_glGetProgramInfoLog)(unsigned int program, int bufSize, int* length, char* infoLog);
+    extern void (*glad_glUseProgram)(unsigned int program);
+    extern void (*glad_glDeleteProgram)(unsigned int program);
+    extern void (*glad_glDrawArrays)(unsigned int mode, int first, int count);
+    extern void (*glad_glDeleteVertexArrays)(int n, const unsigned int* arrays);
+    extern void (*glad_glDeleteBuffers)(int n, const unsigned int* buffers);
+    extern int (*glad_glGetUniformLocation)(unsigned int program, const char* name);
+    extern void (*glad_glUniform1f)(int location, float v0);
+    extern void (*glad_glUniform2f)(int location, float v0, float v1);
 }
 
 // OpenGL Constants
-const GL_COLOR_BUFFER_BIT: uint = 0x00004000;
-const GL_ARRAY_BUFFER: uint = 0x8892;
-const GL_STATIC_DRAW: uint = 0x88E4;
-const GL_TRIANGLES: uint = 0x0004;
-const GL_VERTEX_SHADER: uint = 0x8B31;
-const GL_FRAGMENT_SHADER: uint = 0x8B30;
-const GL_COMPILE_STATUS: uint = 0x8B81;
-const GL_LINK_STATUS: uint = 0x8B82;
-const GL_INFO_LOG_LENGTH: uint = 0x8B84;
-const GL_FLOAT: uint = 0x1406;
-const GL_FALSE: uint = 0;
-const GL_TRUE: int = 1;
+const unsigned int GL_COLOR_BUFFER_BIT = 0x00004000;
+const unsigned int GL_ARRAY_BUFFER = 0x8892;
+const unsigned int GL_STATIC_DRAW = 0x88E4;
+const unsigned int GL_TRIANGLES = 0x0004;
+const unsigned int GL_VERTEX_SHADER = 0x8B31;
+const unsigned int GL_FRAGMENT_SHADER = 0x8B30;
+const unsigned int GL_COMPILE_STATUS = 0x8B81;
+const unsigned int GL_LINK_STATUS = 0x8B82;
+const unsigned int GL_INFO_LOG_LENGTH = 0x8B84;
+const unsigned int GL_FLOAT = 0x1406;
+const unsigned int GL_FALSE = 0;
+const int GL_TRUE = 1;
 
 // GLFW constants
-const GLFW_CONTEXT_VERSION_MAJOR: uint = 0x00022002;
-const GLFW_CONTEXT_VERSION_MINOR: uint = 0x00022003;
-const GLFW_OPENGL_PROFILE: uint = 0x00022008;
-const GLFW_OPENGL_CORE_PROFILE: uint = 0x00032001;
+const unsigned int GLFW_CONTEXT_VERSION_MAJOR = 0x00022002;
+const unsigned int GLFW_CONTEXT_VERSION_MINOR = 0x00022003;
+const unsigned int GLFW_OPENGL_PROFILE = 0x00022008;
+const unsigned int GLFW_OPENGL_CORE_PROFILE = 0x00032001;
 
 // Threading constants
-const INFINITE: uint = 0xFFFFFFFF;
+const unsigned int INFINITE = 0xFFFFFFFF;
 
 // Global state for thread communication
-let g_shouldExit: int = 0;
-let g_window: void* = nullptr;
-let g_renderThread: void* = nullptr;
+int g_shouldExit = 0;
+void* g_window = nullptr;
+void* g_renderThread = nullptr;
 
 // Shader sources
-const vertexShaderSource = r"#version 330 core
+const char* vertexShaderSource = R"(#version 330 core
 layout(location = 0) in vec3 aPos;
 
 void main() {
     gl_Position = vec4(aPos, 1.0);
 }
-";
+)";
 
-const fragmentShaderSource = r"#version 330 core
+const char* fragmentShaderSource = R"(#version 330 core
 out vec4 FragColor;
 
 uniform float u_time;
@@ -227,15 +233,15 @@ void main() {
     
     FragColor = vec4(color, 1.0);
 }
-";
+)";
 
 // Error callback for GLFW
-function glfwErrorCallback(error: int, description: char*) => void {
+void glfwErrorCallback(int error, const char* description) {
     printf("GLFW Error %d: %s\n", error, description);
 }
 
-function compileShader(source: char*, type: uint) => uint {
-    let shader = glad_glCreateShader(type);
+unsigned int compileShader(const char* source, unsigned int type) {
+    unsigned int shader = glad_glCreateShader(type);
     if (shader == 0) {
         printf("Failed to create shader\n");
         return 0;
@@ -244,12 +250,12 @@ function compileShader(source: char*, type: uint) => uint {
     glad_glShaderSource(shader, 1, &source, nullptr);
     glad_glCompileShader(shader);
 
-    let success: int;
+    int success;
     glad_glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (!success) {
-        let infoLog: char[512];
-        glad_glGetShaderInfoLog(shader, 512, nullptr, &infoLog);
-        printf("Shader compilation error:\n%s\n", &infoLog);
+        char infoLog[512];
+        glad_glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+        printf("Shader compilation error:\n%s\n", infoLog);
         glad_glDeleteShader(shader);
         return 0;
     }
@@ -257,30 +263,30 @@ function compileShader(source: char*, type: uint) => uint {
     return shader;
 }
 
-function createShaderProgram() => uint {
+unsigned int createShaderProgram() {
     printf("Creating the shader program\n");
-    let vertexShader = compileShader(&vertexShaderSource, GL_VERTEX_SHADER);
+    unsigned int vertexShader = compileShader(vertexShaderSource, GL_VERTEX_SHADER);
     printf("Compiled vertex shader\n");
     if (vertexShader == 0) return 0;
 
-    let fragmentShader = compileShader(&fragmentShaderSource, GL_FRAGMENT_SHADER);
+    unsigned int fragmentShader = compileShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
     printf("Compiled fragment shader\n");
     if (fragmentShader == 0) {
         glad_glDeleteShader(vertexShader);
         return 0;
     }
 
-    let program = glad_glCreateProgram();
+    unsigned int program = glad_glCreateProgram();
     glad_glAttachShader(program, vertexShader);
     glad_glAttachShader(program, fragmentShader);
     glad_glLinkProgram(program);
 
-    let success: int;
+    int success;
     glad_glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success) {
-        let infoLog: char[512];
-        glad_glGetProgramInfoLog(program, 512, nullptr, &infoLog);
-        printf("Shader linking error:\n%s\n", &infoLog);
+        char infoLog[512];
+        glad_glGetProgramInfoLog(program, 512, nullptr, infoLog);
+        printf("Shader linking error:\n%s\n", infoLog);
         glad_glDeleteProgram(program);
         program = 0;
     }
@@ -292,7 +298,7 @@ function createShaderProgram() => uint {
 }
 
 // Thread function for rendering
-function renderThreadFunction(param: void*) => uint {
+unsigned int __stdcall renderThreadFunction(void* param) {
     printf("Render thread started (Thread ID: %d)\n", GetCurrentThreadId());
     
     // Make context current on this thread
@@ -308,7 +314,7 @@ function renderThreadFunction(param: void*) => uint {
     printf("Successfully initialized GLAD on render thread\n");
 
     // Create shader program
-    let shaderProgram = createShaderProgram();
+    unsigned int shaderProgram = createShaderProgram();
     if (shaderProgram == 0) {
         printf("Failed to create shader program on render thread\n");
         return 1;
@@ -316,31 +322,31 @@ function renderThreadFunction(param: void*) => uint {
     printf("Created shader program on render thread\n");
 
     // Get uniform locations
-    let timeLocation = glad_glGetUniformLocation(shaderProgram, "u_time");
-    let resolutionLocation = glad_glGetUniformLocation(shaderProgram, "u_resolution");
+    int timeLocation = glad_glGetUniformLocation(shaderProgram, "u_time");
+    int resolutionLocation = glad_glGetUniformLocation(shaderProgram, "u_resolution");
     printf("Time location: %d, Resolution location: %d\n", timeLocation, resolutionLocation);
 
     // Set up fullscreen quad vertices (two triangles)
-    let vertices: float[18] = [
+    float vertices[18] = {
         // First triangle
-        -1.0, -1.0, 0.0,
-         1.0, -1.0, 0.0,
-        -1.0,  1.0, 0.0,
+        -1.0f, -1.0f, 0.0f,
+         1.0f, -1.0f, 0.0f,
+        -1.0f,  1.0f, 0.0f,
         // Second triangle
-         1.0, -1.0, 0.0,
-         1.0,  1.0, 0.0,
-        -1.0,  1.0, 0.0
-    ];
+         1.0f, -1.0f, 0.0f,
+         1.0f,  1.0f, 0.0f,
+        -1.0f,  1.0f, 0.0f
+    };
 
-    let VAO: uint, VBO: uint;
+    unsigned int VAO, VBO;
     glad_glGenVertexArrays(1, &VAO);
     glad_glGenBuffers(1, &VBO);
 
     glad_glBindVertexArray(VAO);
     glad_glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glad_glBufferData(GL_ARRAY_BUFFER, 18 * 4, &vertices, GL_STATIC_DRAW);
+    glad_glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(float), vertices, GL_STATIC_DRAW);
 
-    glad_glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * 4, nullptr);
+    glad_glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
     glad_glEnableVertexAttribArray(0);
 
     glad_glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -351,15 +357,15 @@ function renderThreadFunction(param: void*) => uint {
     // Render loop
     while (!g_shouldExit) {
         // Get current time
-        let currentTime = glfwGetTime() as float;
+        float currentTime = static_cast<float>(glfwGetTime());
         
         // Get window size
-        let width: int, height: int;
+        int width, height;
         glfwGetFramebufferSize(g_window, &width, &height);
         glad_glViewport(0, 0, width, height);
 
         // Clear screen
-        glad_glClearColor(0.0, 0.0, 0.0, 1.0);
+        glad_glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glad_glClear(GL_COLOR_BUFFER_BIT);
 
         // Use shader program
@@ -370,7 +376,7 @@ function renderThreadFunction(param: void*) => uint {
             glad_glUniform1f(timeLocation, currentTime);
         }
         if (resolutionLocation != -1) {
-            glad_glUniform2f(resolutionLocation, width as float, height as float);
+            glad_glUniform2f(resolutionLocation, static_cast<float>(width), static_cast<float>(height));
         }
 
         // Draw fullscreen quad
@@ -394,14 +400,14 @@ function renderThreadFunction(param: void*) => uint {
     return 0;
 }
 
-function main() => void {
+int main() {
     printf("Main thread started (Thread ID: %d)\n", GetCurrentThreadId());
     
     // Initialize GLFW
-    glfwSetErrorCallback(glfwErrorCallback);
+    glfwSetErrorCallback(reinterpret_cast<void*>(glfwErrorCallback));
     if (!glfwInit()) {
         printf("Failed to initialize GLFW\n");
-        return;
+        return -1;
     }
 
     // Configure GLFW
@@ -414,19 +420,19 @@ function main() => void {
     if (g_window == nullptr) {
         printf("Failed to create GLFW window\n");
         glfwTerminate();
-        return;
+        return -1;
     }
     printf("Successfully created the window\n");
 
     // Don't make context current on main thread - render thread will do it
     
     // Create render thread
-    let threadId: uint;
-    g_renderThread = CreateThread(nullptr, 0, renderThreadFunction, nullptr, 0, &threadId);
+    unsigned int threadId;
+    g_renderThread = CreateThread(nullptr, 0, reinterpret_cast<void*>(renderThreadFunction), nullptr, 0, &threadId);
     if (g_renderThread == nullptr) {
         printf("Failed to create render thread\n");
         glfwTerminate();
-        return;
+        return -1;
     }
     printf("Created render thread with ID: %d\n", threadId);
 
@@ -451,4 +457,5 @@ function main() => void {
     // Cleanup
     glfwTerminate();
     printf("Application exiting\n");
+    return 0;
 }

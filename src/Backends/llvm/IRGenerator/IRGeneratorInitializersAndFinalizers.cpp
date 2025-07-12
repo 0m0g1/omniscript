@@ -227,13 +227,13 @@ void IRGenerator::setupExternalResolvers() {
     if (configs.mode == CompileMode::JIT) {
         // JIT mode - prefer dynamic libraries
         addExternalResolver("glfw", std::make_unique<DynamicLibraryResolver>("dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll"));
-        addExternalResolver("gladgl", std::make_unique<DynamicLibraryResolver>("dependencies/glad/gl/bin/glad_gl.dll"));
-        addExternalResolver("gladgles2", std::make_unique<DynamicLibraryResolver>("dependencies/glad/gl/bin/glad_gl.dll"));
+        addExternalResolver("gladgl", std::make_unique<DynamicLibraryResolver>("dependencies/glad/build/Windows_/lib/glad_gl.dll"));
+        addExternalResolver("gladgles2", std::make_unique<DynamicLibraryResolver>("dependencies/glad/build/Windows_/lib/glad_gl.dll"));
         addExternalResolver("gladvulkan", std::make_unique<DynamicLibraryResolver>("dependencies/glad/vulkan/bin/glad_vulkan.dll"));
     } else {
         // AOT mode - prefer static libraries
         addExternalResolver("glfw", std::make_unique<StaticLibraryResolver>("dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a"));
-        addExternalResolver("gladgl", std::make_unique<StaticLibraryResolver>("dependencies/glad/gl/bin/libglad_gl.a"));
+        addExternalResolver("gladgl", std::make_unique<StaticLibraryResolver>("dependencies/glad/build/Windows_/lib/libglad_gl.a"));
         addExternalResolver("gladgles2", std::make_unique<StaticLibraryResolver>("dependencies/glad/gles2/bin/libglad_gles2.a"));
         addExternalResolver("gladvulkan", std::make_unique<StaticLibraryResolver>("dependencies/glad/vulkan/bin/libglad_vulkan.a"));
     }

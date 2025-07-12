@@ -791,42 +791,51 @@ void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::strin
     };
 
     bool linked = false;
-    std::string cmd;
-    std::string lastError;
+    std::vector<std::string> cmds;
+    std::vector<std::string> errors;
+    std::vector<std::string> triedLinkers;
 
     for (const auto& [linker, args] : linkerOptions) {
-        if (isLinkerAvailable(linker)) {
-            cmd = linker;
-            for (const auto& arg : args) {
-                cmd += " " + arg;
-            }
-            DEBUG_LOG("Linking with command: " + cmd);
-            
-            int result = std::system(cmd.c_str());
-            if (result == 0) {
-                linked = true;
-                break;
-            } else {
-                lastError = "Linker " + linker + " failed with exit code: " + std::to_string(result);
-                DEBUG_LOG(lastError);
-            }
+        if (!isLinkerAvailable(linker)) continue;
+
+        std::string cmd = linker;
+        for (const auto& arg : args) {
+            cmd += " " + arg;
+        }
+
+        DEBUG_LOG("Trying linker: " + cmd);
+        cmds.push_back(cmd);
+        triedLinkers.push_back(linker);
+
+        int result = std::system(cmd.c_str());
+        if (result == 0) {
+            linked = true;
+            break;
+        } else {
+            std::ostringstream errorStream;
+            errorStream << "Linker `" << linker << "` failed with exit code " << result;
+            errors.push_back(errorStream.str());
+            DEBUG_LOG(errorStream.str());
         }
     }
 
     if (!linked) {
-        std::string availableLinkers;
-        for (const auto& [linker, _] : linkerOptions) {
-            if (isLinkerAvailable(linker)) {
-                availableLinkers += linker + " ";
-            }
+        std::ostringstream report;
+        report << "Linking failed.\nAvailable linkers: ";
+        for (const auto& linker : triedLinkers) {
+            report << linker << " ";
         }
-        
-        throw std::runtime_error(
-            "Linking failed. Available linkers: " + availableLinkers + 
-            ". Last error: " + lastError
-        );
-    }
+        report << "\n\n";
 
+        for (size_t i = 0; i < triedLinkers.size(); ++i) {
+            report << "Linker: " << triedLinkers[i] << "\n"
+                << "Command: " << cmds[i] << "\n"
+                << "Error: " << errors[i] << "\n\n";
+        }
+
+        console.error(report.str());
+    }
+    
 #ifndef _WIN32
     fs::permissions(exeFile, 
         fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
