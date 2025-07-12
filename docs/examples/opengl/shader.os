@@ -1,5 +1,5 @@
 extern "C" {
-    fn printf(...fmt: char*) => int;
+    fn printf(fmt: char*, ...) => int;
     // fn sin(x: double) => double;
     // fn cos(x: double) => double;
     // fn GetTickCount() => uint;

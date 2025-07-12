@@ -1,7 +1,7 @@
 // // OmniScript String Behavior Examples
 // // Demonstrating different string types and their newline handling
 
-extern "C" fn printf(...fmt: char*) => int;
+extern "C" fn printf(fmt: char*, ...) => int;
 
 // let text: char* = "hello world";
 printf("%s\n", "this is a really really long text which becomes unreadable because it has a lot of words. 
@@ -17,7 +17,7 @@ printf("%s\n", "this is a really really long text which becomes unreadable becau
 // printf("%s\n", r"hello world");
 // printf("%s\n", `hello world`);
 
-// extern "C" fn printf(...fmt: char*) => int;
+// extern "C" fn printf(fmt: char*, ...) => int;
 // extern "C" fn sprintf(buffer: char*, ...fmt: char*) => int;
 
 // // =============================================================================

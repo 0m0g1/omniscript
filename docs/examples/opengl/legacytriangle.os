@@ -1,4 +1,4 @@
-extern "C" fn printf(...fmt: char*) => int;
+extern "C" fn printf(fmt: char*, ...) => int;
 
 extern 
 "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll",

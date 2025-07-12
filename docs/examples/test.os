@@ -1,6 +1,6 @@
 // extern "C" {
 //     fn sin(x: double) => double;
-//     fn printf(...fmt: char*) => int;
+//     fn printf(fmt: char*, ...) => int;
 //     fn puts(str: char*) => int;
 // }
 
@@ -174,7 +174,7 @@
 // let pow = [powiii, powfff, powddd]
 
 
-// extern "C" fn printf(...fmt: char*) => int;
+// extern "C" fn printf(fmt: char*, ...) => int;
 // intrinsic fn pow(x: f32, y: f32) => f32;
 
 // let x: f32 = pow(2.0, 2.0);
@@ -228,7 +228,7 @@
 //    printf(msgFail);
 // }
 
-// extern "C" fn printf(...fmt: char*) => int;
+// extern "C" fn printf(fmt: char*, ...) => int;
 // extern "C" fn strcmp(a: char*, b: char*) => int;
 // let name : char* = "foo";
 
@@ -264,7 +264,7 @@
 // extern "C" fn free(ptr: void*) => void;
 // extern "C" fn realloc(ptr: void*, size: usize) => void*;
 // extern "C" fn calloc(count: usize, size: usize) => void*;
-// extern "C" fn printf(...fmt: char*) => int;
+// extern "C" fn printf(fmt: char*, ...) => int;
 
 // // // let textCar: char* = malloc(5);
 // // // free(textChar);

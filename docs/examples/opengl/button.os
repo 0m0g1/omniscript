@@ -1,5 +1,5 @@
 extern "C" {
-    fn printf(...fmt: char*) => int;
+    fn printf(fmt: char*, ...) => int;
 }
 
 extern 

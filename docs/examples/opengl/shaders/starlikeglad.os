@@ -1,4 +1,4 @@
-extern "C" fn printf(...fmt: char*) => int;
+extern "C" fn printf(fmt: char*, ...) => int;
 
 // Threading support
 extern "C" {
@@ -14,7 +14,7 @@ extern "C" {
 // GLFW
 extern 
 "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll", 
-"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/lib glfw3.a" {
+"dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/libglfw3.a" {
     fn glfwInit() => int;
     fn glfwCreateWindow(width: int, height: int, title: char*, monitor: void*, share: void*) => void*;
     fn glfwMakeContextCurrent(window: void*) => void;

@@ -1,5 +1,5 @@
 module Console {
-    extern "C" fn printf(...fmt: char*) => int;
+    extern "C" fn printf(fmt: char*, ...) => int;
     // extern "C" fn Beep(freq: int, duration: int) => int;
     // extern "C" fn time(ptr: void*) => int;
     // extern "C" fn localtime(ptr: void*) => void*;

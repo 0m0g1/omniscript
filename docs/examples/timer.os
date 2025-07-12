@@ -3,7 +3,7 @@ extern "kernel32" {
     fn QueryPerformanceFrequency(freq: int64*) => int;
 }
 
-extern "C" fn printf(...fmt: char*) => int;
+extern "C" fn printf(fmt: char*, ...) => int;
 
 let freq: int64 = 0;
 QueryPerformanceFrequency(&freq);
@@ -56,7 +56,7 @@ printf("Ops/ms: %.1f\n", 1000000.0 / elapsedMs);
 //     fn QueryPerformanceFrequency(freq: int64*) => int;
 // }
 
-// extern "C:/Windows/System32/msvcrt.dll" fn printf(...fmt: char*) => int;
+// extern "C:/Windows/System32/msvcrt.dll" fn printf(fmt: char*, ...) => int;
 
 // let freq: int64 = 0;
 // QueryPerformanceFrequency(&freq);

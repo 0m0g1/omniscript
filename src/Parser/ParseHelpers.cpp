@@ -26,8 +26,13 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
         std::shared_ptr<Statement> defaultValue = nullptr;
 
         if (currentToken.getType() == TokenTypes::Ellipsis) {
-            isVariadic = true;
+            auto param = std::dynamic_pointer_cast<ParameterStatement>(parameters.back());
+            if (!param) {
+                console.error("You cannont have a stand alone variadic.\nAdd a parameter to capture the variadic arguments.");
+            }
+            param->isVariadic = true;
             eat(TokenTypes::Ellipsis);
+            break;
         }
 
         if (currentToken.getType() == TokenTypes::Identifier) {

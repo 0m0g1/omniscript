@@ -1,7 +1,7 @@
 extern "C" {
     fn sin(x: double) => double;
     fn cos(x: double) => double;
-    fn printf(...fmt: char*) => int;
+    fn printf(fmt: char*, ...) => int;
 }
 
 extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {

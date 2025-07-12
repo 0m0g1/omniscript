@@ -1,4 +1,4 @@
-extern "C" fn printf(...fmt: char*) => int;
+extern "C" fn printf(fmt: char*, ...) => int;
 
 type INTEGER = int;
 

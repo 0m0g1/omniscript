@@ -1,5 +1,5 @@
 extern "C" {
-    fn printf(...fmt: char*) => int;
+    fn printf(fmt: char*, ...) => int;
     fn sinf(x: float) => float;
     fn fabs(x: float) => float;
 }

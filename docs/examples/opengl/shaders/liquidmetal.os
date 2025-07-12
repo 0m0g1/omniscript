@@ -1,5 +1,5 @@
 extern "C" {
-    fn printf(...fmt: char*) => int;
+    fn printf(fmt: char*, ...) => int;
     fn malloc(size: int) => void*;
     fn free(ptr: void*) => void;
     fn strlen(str: char*) => int;
