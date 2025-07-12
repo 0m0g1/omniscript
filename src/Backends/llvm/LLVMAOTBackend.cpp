@@ -237,7 +237,11 @@ fs::path LLVMAOTBackend::getTemporaryPath(const Config& config, const std::strin
 
 void LLVMAOTBackend::emitToFile(const Config& config) {
     fs::path outputPath(config.outputPath);
-    
+
+    if (outputPath.has_parent_path()) {
+        fs::create_directories(outputPath.parent_path());
+    }
+
     switch (config.aot.outputFormat) {
         case OutputFormat::Executable: {
             fs::path objPath = getTemporaryPath(config, ".o");
