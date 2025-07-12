@@ -72,15 +72,14 @@ let ss : &&bool = s; // Reference to a bool
 // String and character arrays
 let t : char* = "Hello, OmniScript++!"; // String (C-style)
 let tt : utf8 = "Hello, OmniScript++!"; // String (C-style)
-let ttt : utf16 = "Hello, OmniScript++!"; // String (C-style)
-let tttt : utf32 = "Hello, OmniScript++!"; // String (C-style)
-let u : [5]char = ['H', 'e', 'l', 'l', 'o']; // Character array
-let uu : [5]i32 = [1,2,3,4,5]; // integer arrays
-let uuu : [5]i32 = [1,2,3,4,5]; // multidimentional array
+let ttt : char16* = "Hello, OmniScript++!"; // String (C-style)
+let tttt : utf16 = "Hello, OmniScript++!"; // String (C-style)
+let ttttt : char32* = "Hello, OmniScript++!"; // String (C-style)
+let tttttt : utf32 = "Hello, OmniScript++!"; // String (C-style)
+let u : char[5] = ['H', 'e', 'l', 'l', 'o']; // Character array
+let uu : i32[5] = [1,2,3,4,5]; // integer arrays
+let uuu : i32[5] = [1,2,3,4,5]; // multidimentional array
 
-// Dynamic arrays (if supported)
-let v : [i32] = [1, 2, 3, 4, 5]; // Dynamic array of i/ntegers
-let w : [char] = "Dynamic String"; // Dynamic string (if OmniScript++ supports it)
 enum Color {
     Red,
     Green,
@@ -227,34 +226,34 @@ function add(a: f32 = 1.0, b: f32 = 1.0) => f32 {
 
 let n = add();
 
-// let isRaining: bool = true;
-// if (isRaining) {
+let isRaining: bool = true;
+if (isRaining) {
     
-// } 
+} 
 
-// function main() => i32 {
-//     return add(b = 1, a = 2, c = 10);
-//     // return add();
-//     // return c;
-//     // return 0;
-// }
-
-
-
-// return add<i32>(1, 1);
-// return 2;
-// add(1.0, 1.0);
-// add(1, 1);
+function main() => i32 {
+    return add(b = 1, a = 2, c = 10);
+    // return add();
+    // return c;
+    // return 0;
+}
 
 
 
-// function main() => i32 {
-//     let n: int32 = 0;
-//     n = 10;
-//     return n;
-// }
+return add<i32>(1, 1);
+return 2;
+add(1.0, 1.0);
+add(1, 1);
 
-// let f: int32 = 64.0 as int32;
+
+
+function main() => i32 {
+    let n: int32 = 0;
+    n = 10;
+    return n;
+}
+
+let f: int32 = 64.0 as int32;
 
 // // Structs (user-defined types)
 // // Todo: make types infered
@@ -292,10 +291,8 @@ let no = p1.getZ();
 v1.scale();
 v1.scale(2.0, 1.0, 1.0);
 
+struct Person {
+    age : int = 0;
+}
 
-
-// struct Person {
-//     age : int = 0;
-// }
-
-// let p1 = Person{};
+let p1 = Person{};
