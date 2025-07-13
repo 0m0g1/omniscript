@@ -2,24 +2,26 @@
 
 OS provides a comprehensive type system designed for systems programming with precise control over memory layout and performance characteristics.
 
+Most data types have aliases for example `int` can be `int32` or `i32`, `float`, `f32` and `double` can be `f64`.
+
 ## Integer Types
 
 ### Basic Integer Types
 
 ```os
 let platform_int : int = 1;        // Platform-specific integer
-let byte_val : i8 = 127;           // 8-bit signed integer (-128 to 127)
-let short_val : i16 = 32767;       // 16-bit signed integer
-let int_val : i32 = 2147483647;    // 32-bit signed integer
-let long_val : i64 = 9223372036854775807; // 64-bit signed integer
+let byte_val : int8 = 127;           // 8-bit signed integer (-128 to 127)
+let short_val : int16 = 32767;       // 16-bit signed integer
+let int_val : int32 = 2147483647;    // 32-bit signed integer
+let long_val : int64 = 9223372036854775807; // 64-bit signed integer
 ```
 
 ### Extended Integer Types
 
 ```os
 // Future support for larger integers
-// let huge_val : i128 = 340282366920938463463374607431768211455;
-// let massive_val : i256 = very_large_number;
+// let huge_val : int128 = 340282366920938463463374607431768211455;
+// let massive_val : int256 = very_large_number;
 ```
 
 ### Unsigned Integer Types
@@ -166,8 +168,9 @@ let ref_to_ref : &&i32 = &ref;
 
 ### Optional Values
 ```os
-let nullable_int : ?i32 = null;
-let optional_value : ?i32 = 42;
+let nullable_int : i32? = null;
+let optional_value : i32? = 42;
+let optional_pointer : int* = nullptr;
 
 // Check for null
 if (nullable_int == null) {
