@@ -104,7 +104,7 @@ The FFI in OS is built for simplicity, flexibility, and power. Here are the key 
 
 12. **Type Safety Caveat**: Incorrect type declarations in the FFI can cause runtime crashes. The standard library will mitigate this by providing type-safe abstractions.
 
-13. **Future Extensibility**: The FFI is designed to potentially support non-C libraries (e.g., Rust, C#, Python) in the future, as long as they expose a C-compatible interface.
+13. **Future Extensibility**: The FFI is designed to potentially support non-C libraries (e.g., Rust, C#, Python), as long as they have dynamic and static library files which expose C-compatible interfaces.
 
 14. **Seamless LLVM Integration**: The FFI integrates with OS's LLVM backend, ensuring optimized calls with `-O3`. The backend handles symbol table emission, executable linking with multiple linker support, platform-specific permissions, and intelligent dynamic library management, making it robust for AOT compilation.
 
