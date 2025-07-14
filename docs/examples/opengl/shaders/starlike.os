@@ -5,15 +5,6 @@ Compile with:
 ./path/to/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os --make -o app.exe // For AOT mode
 */
 
-type MATH_FUNCTION = fn(a: int, b: int) => int;
-function pow(base: int, expo: int) => int {
-    return base ^ expo;
-}
-
-function add(x: int, y: int) => int {
-    return x + y;
-}
-
 extern "C" {
     fn printf(fmt: char*, ...) => int;
     // fn malloc(size: int) => void*;
