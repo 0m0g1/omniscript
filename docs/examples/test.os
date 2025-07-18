@@ -1,17 +1,17 @@
-extern "C" fn printf(fmt: char*, ...) => int;
+// extern "C" fn printf(fmt: char*, ...) => int;
 
-struct Particle {
-   x: float = 10;
-   y: float = 0;
-   constructor(x: float, y: float) => void {
-      this.x = x;
-      this.y = y;
-   }
-}
+// struct Particle {
+//    x: float = 0;
+//    y: float = 0;
+//    constructor(x: float, y: float) => void {
+//       this.x = x;
+//       this.y = y;
+//    }
+// }
 
-let p1 = Particle{10, 0};
+// let p1 = Particle{10, 0};
 
-printf("%.2f", p1.x as double);
+// printf("%.2f", p1.x as double);
 
 // extern "C" {
 //     fn sin(x: double) => double;
