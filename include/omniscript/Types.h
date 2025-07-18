@@ -556,7 +556,7 @@ public:
         while (currentPointee->isPointer()) {
             currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee);
             if (currentPointee) {
-                currentPointee->getPointeeType();
+                currentPointee = currentPointee->getPointeeType();
             } else {
                 break;
             }
@@ -681,7 +681,7 @@ public:
         while (currentPointee->isPointer()) {
             currentPointee = std::dynamic_pointer_cast<PointerType>(currentPointee);
             if (currentPointee) {
-                currentPointee->getPointeeType();
+                currentPointee = currentPointee->getPointeeType();
             } else {
                 break;
             }

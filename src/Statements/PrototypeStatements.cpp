@@ -1068,6 +1068,8 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     DEBUG_LOG("[ConstructStructPrototype] Constructing a struct expression");
 
     std::vector<std::shared_ptr<Omniscript::Expression>> fields;
+    std::vector<std::shared_ptr<Omniscript::Expression>> methods;
+    std::vector<std::shared_ptr<FunctionDeclaration>> methodDeclr;
     std::vector<std::shared_ptr<Omniscript::Type>> fieldTypes;
     std::vector<std::string> fieldNames;
 
@@ -1078,14 +1080,22 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
             std::string fieldName = paramDecl->getName();
             fieldNames.push_back(fieldName);
 
-            std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(localScope);
+            if (paramDecl->getDefaultValue()) {
+                
+                std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(localScope);
+    
+                fields.push_back(fieldExpr);
+                fieldExpr->getType()->parameterName = fieldName;
+                fieldTypes.push_back(fieldExpr->getType());
+                DEBUG_LOG("Parameter '" + fieldName + "' has type " + fieldExpr->getType()->toString());
+            }
 
-            fields.push_back(fieldExpr);
-            fieldExpr->getType()->parameterName = fieldName;
-            fieldTypes.push_back(fieldExpr->getType());
-            DEBUG_LOG("Parameter '" + fieldName + "' has type " + fieldExpr->getType()->toString());
         } else {
-            DEBUG_LOG("Skipping non-variable declaration in struct body");
+            if (auto method = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
+                    methodDeclr.push_back(method);
+            } else {
+                console.warn("Skipping non-method and non-field declaration in struct body");
+            }
         }
     }
 
@@ -1093,38 +1103,27 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     scope->addType(name, structType);
     
     setType(structType);
+    setRootType(structType);
 
     // Phase 1: Register all methods (e.g., for mutual recursion or early references)
-    for (const auto& field : body) {
-        if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
-            auto thisParam = std::make_shared<ParameterStatement>("this");
-            thisParam->setType(Omniscript::Type::createPointerType(localScope->getType(name)));
-            methodStmt->parameters.insert(methodStmt->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
-            methodStmt->registerInScope(scope);
-        } else {
-            if (!std::dynamic_pointer_cast<ParameterStatement>(field)) {
-                DEBUG_LOG("Skipping non-method declaration in struct body");
-            }
-        }
+    for (const auto& field : methodDeclr) {
+        auto thisParam = std::make_shared<ParameterStatement>("this");
+        thisParam->setType(Omniscript::Type::createPointerType(getType()));
+        field->parameters.insert(field->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
+        field->registerInScope(scope);
     }
 
     // Phase 2: Compile methods and build method expressions
-    for (const auto& field : body) {
-        if (auto methodStmt = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
-            auto thisParam = std::make_shared<ParameterStatement>("this");
-            thisParam->setType(Omniscript::Type::createPointerType(localScope->getType(name)));
+    for (const auto& field : methodDeclr) {
+        auto thisParam = std::make_shared<ParameterStatement>("this");
+        thisParam->setType(Omniscript::Type::createPointerType(scope->getType(name)));
 
-            // Insert 'this' as the first parameter
-            methodStmt->parameters.insert(methodStmt->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
+        // Insert 'this' as the first parameter
+        field->parameters.insert(field->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
 
-            // Compile the method to an expression (LLVM function pointer, etc.)
-            std::shared_ptr<Omniscript::Expression> method = methodStmt->express(scope);
-            fields.push_back(method);
-        } else {
-            if (!std::dynamic_pointer_cast<ParameterStatement>(field)) {
-                DEBUG_LOG("Skipping non-method declaration in struct body");
-            }
-        }
+        // Compile the method to an expression (LLVM function pointer, etc.)
+        std::shared_ptr<Omniscript::Expression> method = field->express(scope);
+        methods.push_back(method);
     }
     
     // 🧱 Construct the StructExpression as a Callable
@@ -1138,7 +1137,15 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
 
     scope->set(getName(), structExpr);
     structExpr->setPosition(getPosition());
-    return structExpr;
+    std::vector<std::shared_ptr<Omniscript::Expression>> stmts = {structExpr};
+
+    for (const auto& method : methods) {
+        stmts.push_back(method);
+    }
+    
+    auto block = std::make_shared<Omniscript::BlockExpression>(stmts);
+
+    return block;
 }
 
 std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolTableType scope) {

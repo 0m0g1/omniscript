@@ -4,13 +4,7 @@ Compile with:
 ./path/to/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os // For JIT mode
 ./path/to/Osengine.exe docs/examples/opengl/shaders/starlikeglad.os --make -o app.exe // For AOT mode
 */
-
-extern "C" {
-    fn printf(fmt: char*, ...) => int;
-    // fn malloc(size: int) => void*;
-    // fn free(ptr: void*) => void;
-    // fn strlen(str: char*) => int;
-}
+extern "C" fn printf(fmt: char*, ...) => int;
 
 // GLFW
 extern 

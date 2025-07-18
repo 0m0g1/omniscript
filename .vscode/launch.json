@@ -6,18 +6,46 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "type": "java",
-            "name": "test",
+            "name": "DEBUG TEST.os",
+            "type": "cppdbg",
             "request": "launch",
-            "mainClass": "test",
-            "projectName": "omniscript_6945fcca"
+            "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
+            "args": [
+                "docs\\examples\\test.os",
+                "--debug",
+                "--log-final-code",
+                "-o",
+                "-1"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe" // or correct path to GDB
         },
         {
-            "type": "java",
-            "name": "Benchmark",
+            "name": "DEBUG JIT",
+            "type": "cppdbg",
             "request": "launch",
-            "mainClass": "Benchmark",
-            "projectName": "omniscript_6945fcca"
+            "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
+            "args": [
+                "docs\\examples\\strings.os",
+                "--debug",
+                "--log-final-code",
+                // "--optimization-level",
+                // "-1"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe",
+            "logging": {
+                "moduleLoad": true,
+                "trace": true
+            }
         },
         {
             "name": "DEBUG OPENGL",

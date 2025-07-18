@@ -1,3 +1,5 @@
+import { Console as console, Math, OS } from "std";
+import {} from "./module/path";
 // Print platform
 console.log(OS.getPlatform());
 

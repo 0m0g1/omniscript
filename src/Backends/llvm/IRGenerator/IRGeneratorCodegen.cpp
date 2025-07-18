@@ -115,7 +115,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         DEBUG_LOG("Evaluating a block value — First pass (registration)");
 
         for (const auto& expr : block->values) {
-            if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr)) {
+            if (auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(expr)) {
+                codegen(expr, scope);
+            } else if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr)) {
                 DEBUG_LOG("Processing function declaration: " + func->name + " (mangled: " + func->mangledName + ")");
                 llvm::Type* returnType = resolveLLVMType(func->returnType);
 
@@ -146,6 +148,10 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         }
 
         for (const auto& expr : block->values) {
+            if (auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(value)) {
+                continue;
+            }
+
             if (std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr)) {
                 continue;
             }

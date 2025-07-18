@@ -107,11 +107,19 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             }
 
             auto type = expr->getType();
-            baseTypeName = (type->isPointer()) ? 
-                type->getBasePointeeType()->getName() :
-                type->toString();
-            object = nullptr;
-
+            auto pointee = type->getBasePointeeType();
+            if (auto udt = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(type)) {
+                baseTypeName = udt->name;
+                DEBUG_LOG("The type is a '" + udt->toString() + "'.");
+            } else if (auto udt = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(pointee)) {
+                baseTypeName = udt->name;
+                DEBUG_LOG("The pointee is a '" + udt->toString() + "'.");
+            } else if (pointee) {
+                baseTypeName = pointee->getName();  // fallback
+                DEBUG_LOG("The pointee is a '" + pointee->kindName() + "'.");
+            } else {
+                baseTypeName = "<null>";
+        }
         } else if (auto memberAcc = std::dynamic_pointer_cast<MemberAccess>(object)) {
             std::shared_ptr<Omniscript::Expression> expr; 
             resolvedObjectName = objectName;
@@ -156,10 +164,16 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                 console.error("Failed to evaluate base expression for member access");
                 return nullptr;
             }
-            auto baseType = baseExpr->getType();
-            baseTypeName = (baseType->isPointer()) ?
-                baseType->getBasePointeeType()->getName() :
-                baseType->toString();
+
+            auto type = baseExpr->getType();
+            auto pointee = type->getPointeeType();
+            if (auto udt = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(pointee)) {
+                baseTypeName = udt->name;
+            } else if (pointee) {
+                baseTypeName = pointee->getName();  // fallback
+            } else {
+                baseTypeName = "<null>";
+            }
         }
     } else {
         std::shared_ptr<Omniscript::Expression> expr = scope->get(objectName);
@@ -187,9 +201,16 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
         }
 
         auto type = expr->getType();
-        baseTypeName = (type->isPointer()) ?
-            type->getBasePointeeType()->getName() :
-            type->toString();
+        auto pointee = type->getBasePointeeType();
+        if (auto udt = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(pointee)) {
+            baseTypeName = udt->name;
+            DEBUG_LOG("The pointee is a '" + pointee->kindName() + "'.");
+        } else if (pointee) {
+            baseTypeName = pointee->getName();  // fallback
+            DEBUG_LOG("The pointee is a '" + pointee->kindName() + "'.");
+        } else {
+            baseTypeName = "<null>";
+        }
     }
 
     auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(scope->getType(baseTypeName));

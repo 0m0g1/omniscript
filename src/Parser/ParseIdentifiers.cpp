@@ -36,7 +36,11 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
 
         else if (currentToken.getType() == TokenTypes::LeftBrace) {
             std::vector<std::shared_ptr<Statement>> args = parseArguments(TokenTypes::LeftBrace, TokenTypes::RightBrace, TokenTypes::Colon);
-            expr = std::make_shared<ObjectConstructorStatement>(expr, memberPath.back(), "", args);
+            if (memberPath.empty()) {
+                expr = std::make_shared<ObjectConstructorStatement>(expr, member, "", args);
+            } else {
+                expr = std::make_shared<ObjectConstructorStatement>(expr, memberPath.back(), "", args);
+            }
             continue;
         }
 
