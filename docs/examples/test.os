@@ -1,17 +1,93 @@
-// extern "C" fn printf(fmt: char*, ...) => int;
+extern "C" fn printf(fmt: char*, ...) => int;
 
-// struct Particle {
-//    x: float = 0;
-//    y: float = 0;
-//    constructor(x: float, y: float) => void {
-//       this.x = x;
-//       this.y = y;
-//    }
+struct Particle {
+   x: float = 0;
+   y: float = 0;
+   constructor(x: float, y: float) => void {
+      this.x = x;
+      this.y = y;
+   }
+   log() => void {
+      printf("%.2f, %.2f", this.x as double, this.y as double);
+   }
+}
+
+let p1 = Particle{10, 0};
+p1.log();
+
+// // which language woud users prefer based of the syntax my language, c, c++, zig, rust? my language can be both high level and low level the user chooses what they want I don't force keep in mind all the null checks are forced during compile time for safety
+// // Import standard file I/O module
+// import { readFile } from "std::fs";
+
+// // Parse space-separated integers from a file
+// fn parseNumbers(filePath: string) => Result<i32[], string> {
+//   try {
+//     // Read file content (nullable type, compiler enforces null check)
+//     let content: string? = readFile(filePath);
+//     if (content == null) {
+//       return result.Err("Failed to read file");
+//     }
+//     // Parse integers using high-level array operations
+//     let numbers: i32[] = content.split(" ").map(num => {
+//       let parsed: i32? = num.parseInt(); // Nullable type for parsing
+//       if parsed == null {
+//         return result.Err("Invalid integer: " + num);
+//       }
+//       return parsed; // Implicitly unwrapped after null check
+//     });
+//     if (numbers.length == 0) {
+//       return result.Err("No valid integers found");
+//     }
+//     return result.Ok(numbers);
+//   } catch (e) {
+//     return result.Err("Error: " + e.message);
+//   }
 // }
 
-// let p1 = Particle{10, 0};
+// // Top-down execution for simplicity
+// let result = parseNumbers("numbers.txt");
+// if result.isOk() {
+//   print("Numbers: ", result.unwrap());
+// } else {
+//   print("Error: ", result.unwrapErr());
+// }
 
-// printf("%.2f", p1.x as double);
+// // Declare C FFI functions
+// extern "C" {
+//   fn fopen(file: string, mode: string) => *FILE;
+//   fn fscanf(file: *FILE, format: string, ...) => i32;
+//   fn fclose(file: *FILE) => void;
+// }
+
+// // Parse space-separated integers from a file
+// fn parseNumbers(filePath: string) => Result<i32[], string> {
+//   // Open file with nullable pointer
+//   let file: *FILE? = fopen(filePath, "r");
+//   if (file == null) {
+//     return result.Err("Failed to read file");
+//   }
+//   // Initialize dynamic array for integers
+//   let numbers: i32[] = [];
+//   let num: i32;
+//   // Read integers until EOF or error
+//   while fscanf(file, "%d", &num) == 1 {
+//     numbers.push(num);
+//   }
+//   fclose(file);
+//   if (numbers.length == 0) {
+//     return result.Err("No valid integers found");
+//   }
+//   return result.Ok(numbers);
+// }
+
+// // Custom entry point // compiler flag
+// // --entry=parseNumbers("numbers.txt")
+// let result = parseNumbers("numbers.txt");
+// if result.isOk() {
+//   print("Numbers: ", result.unwrap());
+// } else {
+//   print("Error: ", result.unwrapErr());
+// }
 
 // extern "C" {
 //     fn sin(x: double) => double;

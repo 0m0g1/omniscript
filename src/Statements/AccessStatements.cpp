@@ -1,5 +1,6 @@
 #include <omniscript/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
+#include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
 #include <omniscript/Expressions/ClassExpression.h>
@@ -67,14 +68,18 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     std::string baseTypeName;
     std::string resolvedObjectName = objectName;
 
-    std::string prefix = accessContext[0];
-    for (size_t i = 0; i < accessContext.size() - 1; ++i) {
-        std::string baseName = accessContext[i];
-        std::string memberName = accessContext[i + 1];
+    std::string prefix = "";
 
-        DEBUG_LOG("Validating access for '" + memberName + "' in '" + baseName + "'.");
-        validateAccessiblity(baseName, memberName, scope);
-        prefix += "." + memberName;
+    if (!accessContext.empty()) {
+        prefix = accessContext[0];
+        for (size_t i = 0; i < accessContext.size() - 1; ++i) {
+            std::string baseName = accessContext[i];
+            std::string memberName = accessContext[i + 1];
+    
+            DEBUG_LOG("Validating access for '" + memberName + "' in '" + baseName + "'.");
+            validateAccessiblity(baseName, memberName, scope);
+            prefix += "." + memberName;
+        }
     }
 
     // Evaluate base expression or get type from variable
@@ -244,6 +249,9 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
     if (assignmentValue) {
         extendContextOf(assignmentValue);
+        if (auto constructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(assignmentValue)) {
+            constructor->setInstanceName(getName());
+        }
         assignmentExpr = assignmentValue->express(scope);
         if (!assignmentExpr) {
             console.error("Failed to evaluate assignment expression");

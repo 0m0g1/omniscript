@@ -184,6 +184,30 @@ public:
         this->name = name;
         instanceName = name; 
     }
+    std::shared_ptr<Statement> clone() const override {
+    // Clone the constructor arguments
+    std::vector<std::shared_ptr<Statement>> clonedArgs;
+        clonedArgs.reserve(constructorArgs.size());
+        for (const auto& arg : constructorArgs) {
+            clonedArgs.push_back(arg ? arg->clone() : nullptr);
+        }
+
+        // Clone the expression if it exists
+        if (expr) {
+            return std::make_shared<ObjectConstructorStatement>(
+                expr->clone(),
+                objectType,
+                instanceName,
+                std::move(clonedArgs)
+            );
+        } else {
+            return std::make_shared<ObjectConstructorStatement>(
+                objectType,
+                instanceName,
+                std::move(clonedArgs)
+            );
+        }
+    }
 };
 
 class ArgumentStatement :

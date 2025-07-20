@@ -969,8 +969,10 @@ void IRGenerator::generateFunctionBody(
             }
         }
 
-        DEBUG_LOG("Generating code for body expression of kind: " + expr->getType()->toString());
-        retVal = codegen(expr, localScope);
+        if (expr) {
+            DEBUG_LOG("Generating code for expression: " + expr->toString());
+            retVal = codegen(expr, localScope);
+        }
 
         if (retVal) {
             DEBUG_LOG("Body expression result type: " + debugType(retVal->getType()));

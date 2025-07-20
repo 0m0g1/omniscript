@@ -60,6 +60,7 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
         setType(Omniscript::Type::createPointerType(variable->getType()));
         setRootType(type);
         auto ref = std::make_shared<Omniscript::ReferenceExpression>(name, variable);
+        ref->type = type;
         ref->setPosition(getPosition());
         return ref;
     }

@@ -417,52 +417,264 @@ std::string Parser::generateSpecializedNameForDecleration(
 bool Parser::checkIfLambdaExpression() {
     int i = 0;
     DEBUG_LOG(getTokenTypeName(currentToken.getType()));
+    
+    // Check for optional lambda name
     if (currentToken.getType() == TokenTypes::Identifier) {
         i++;
     }
     
     DEBUG_LOG(getTokenTypeName(lexer.peekToken(i).getType()));
+    
+    // Check for parameter list
     if ((i == 0 ? currentToken.getType() : lexer.peekToken(i).getType()) == TokenTypes::LeftParen) {
-        i++;
+        i++; // consume '('
         bool hasValidArgument = false;
         
-        while (
-            lexer.peekToken(i).getType() == TokenTypes::Identifier ||
-            lexer.peekToken(i).getType() == TokenTypes::Comma || 
-            lexer.peekToken(i).getType() == TokenTypes::Assign ||
-            lexer.peekToken(i).getType() == TokenTypes::Colon
-            ) {
-
+        while (lexer.peekToken(i).getType() != TokenTypes::RightParen) {
             DEBUG_LOG(getTokenTypeName(lexer.peekToken(i).getType()));
             
+            // Parse parameter name (required)
             if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                 hasValidArgument = true;
-                i++;
-            }
-            
-            if (lexer.peekToken(i).getType() == TokenTypes::Colon) {
-                i++;
-                if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
-                    i++;
+                i++; // consume parameter name
+                
+                // Check for type annotation
+                if (lexer.peekToken(i).getType() == TokenTypes::Colon) {
+                    i++; // consume ':'
+                    
+                    // Parse type - handle function types first
+                    if (lexer.peekToken(i).getType() == TokenTypes::Function) {
+                        i++; // consume 'fn'
+                        
+                        if (lexer.peekToken(i).getType() == TokenTypes::LeftParen) {
+                            i++; // consume '('
+                            
+                            // Parse function parameters
+                            while (lexer.peekToken(i).getType() != TokenTypes::RightParen) {
+                                // Parse parameter name (optional)
+                                if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                                    if (lexer.peekToken(i + 1).getType() == TokenTypes::Colon) {
+                                        i++; // consume parameter name
+                                        i++; // consume ':'
+                                    }
+                                }
+                                
+                                // Skip over parameter type (simplified - would need recursive parsing for complex types)
+                                while (lexer.peekToken(i).getType() == TokenTypes::Identifier ||
+                                       lexer.peekToken(i).getType() == TokenTypes::Multiply ||
+                                       lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
+                                       lexer.peekToken(i).getType() == TokenTypes::QuestionMark ||
+                                       lexer.peekToken(i).getType() == TokenTypes::Dot ||
+                                       lexer.peekToken(i).getType() == TokenTypes::LeftBracket) {
+                                    
+                                    if (lexer.peekToken(i).getType() == TokenTypes::LeftBracket) {
+                                        i++; // consume '['
+                                        if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
+                                            lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                                            i++; // consume size
+                                        }
+                                        if (lexer.peekToken(i).getType() == TokenTypes::RightBracket) {
+                                            i++; // consume ']'
+                                        } else {
+                                            return false; // Invalid array syntax
+                                        }
+                                    } else {
+                                        i++;
+                                    }
+                                }
+                                
+                                // Handle comma-separated function parameters
+                                if (lexer.peekToken(i).getType() == TokenTypes::Comma) {
+                                    i++; // consume ','
+                                } else if (lexer.peekToken(i).getType() != TokenTypes::RightParen) {
+                                    return false; // Expected comma or closing paren
+                                }
+                            }
+                            
+                            i++; // consume ')'
+                            
+                            // Parse arrow operator =>
+                            if (lexer.peekToken(i).getType() == TokenTypes::Arrow || 
+                                (lexer.peekToken(i).getType() == TokenTypes::Assign && 
+                                 lexer.peekToken(i + 1).getType() == TokenTypes::GreaterThan)) {
+                                
+                                if (lexer.peekToken(i).getType() == TokenTypes::Arrow) {
+                                    i++; // consume '=>'
+                                } else {
+                                    i += 2; // consume '=' and '>'
+                                }
+                                
+                                // Skip over return type (simplified)
+                                while (lexer.peekToken(i).getType() == TokenTypes::Identifier ||
+                                       lexer.peekToken(i).getType() == TokenTypes::Multiply ||
+                                       lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
+                                       lexer.peekToken(i).getType() == TokenTypes::QuestionMark ||
+                                       lexer.peekToken(i).getType() == TokenTypes::Dot ||
+                                       lexer.peekToken(i).getType() == TokenTypes::LeftBracket) {
+                                    
+                                    if (lexer.peekToken(i).getType() == TokenTypes::LeftBracket) {
+                                        i++; // consume '['
+                                        if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
+                                            lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                                            i++; // consume size
+                                        }
+                                        if (lexer.peekToken(i).getType() == TokenTypes::RightBracket) {
+                                            i++; // consume ']'
+                                        } else {
+                                            return false; // Invalid array syntax
+                                        }
+                                    } else {
+                                        i++;
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Parse regular types (non-function types)
+                        
+                        // Parse prefix modifiers (*, &, ?)
+                        while (lexer.peekToken(i).getType() == TokenTypes::Multiply ||
+                               lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
+                               lexer.peekToken(i).getType() == TokenTypes::QuestionMark) {
+                            i++;
+                        }
+                        
+                        // Parse the main identifier (required for basic types)
+                        if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                            i++;
+                            
+                            // Handle dotted identifiers (e.g., std.vector)
+                            while (lexer.peekToken(i).getType() == TokenTypes::Dot) {
+                                i++; // consume '.'
+                                if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                                    i++; // consume identifier
+                                } else {
+                                    return false; // Invalid dotted identifier
+                                }
+                            }
+                        } else {
+                            return false; // Expected type identifier
+                        }
+                        
+                        // Parse suffix modifiers (*, &, ?)
+                        while (lexer.peekToken(i).getType() == TokenTypes::Multiply ||
+                               lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
+                               lexer.peekToken(i).getType() == TokenTypes::QuestionMark) {
+                            i++;
+                        }
+                        
+                        // Parse array brackets
+                        while (lexer.peekToken(i).getType() == TokenTypes::LeftBracket) {
+                            i++; // consume '['
+                            
+                            if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
+                                lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                                i++; // consume size
+                            } else {
+                                return false; // Invalid array syntax
+                            }
+                            
+                            if (lexer.peekToken(i).getType() == TokenTypes::RightBracket) {
+                                i++; // consume ']'
+                            } else {
+                                return false; // Missing closing bracket
+                            }
+                        }
+                    }
                 }
-            }
-            
-            if (lexer.peekToken(i).getType() == TokenTypes::Assign) {
-                i++;
-                if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
-                    lexer.peekToken(i).getType() == TokenTypes::FloatLiteral ||
-                    lexer.peekToken(i).getType() == TokenTypes::StringLiteral) {
-                    i++;
+                
+                // Check for default value
+                if (lexer.peekToken(i).getType() == TokenTypes::Assign) {
+                    i++; // consume '='
+                    
+                    // Parse default value (simplified - could be more complex expressions)
+                    if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
+                        lexer.peekToken(i).getType() == TokenTypes::FloatLiteral ||
+                        lexer.peekToken(i).getType() == TokenTypes::StringLiteral ||
+                        lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                        i++;
+                    } else {
+                        return false; // Invalid default value
+                    }
                 }
-            }
-            
-            if (lexer.peekToken(i).getType() == TokenTypes::Comma) {
-                i++;
+                
+                // Handle comma-separated parameters
+                if (lexer.peekToken(i).getType() == TokenTypes::Comma) {
+                    i++; // consume ','
+                } else if (lexer.peekToken(i).getType() != TokenTypes::RightParen) {
+                    return false; // Expected comma or closing paren
+                }
+            } else {
+                return false; // Expected parameter name
             }
         }
-
-        if (lexer.peekToken(i).getType() == TokenTypes::RightParen && lexer.peekToken(i + 1).getType() == TokenTypes::Arrow) {
-            return true;
+        
+        // Check for closing paren and arrow
+        if (lexer.peekToken(i).getType() == TokenTypes::RightParen) {
+            i++; // consume ')'
+            
+            // Check for optional return type annotation
+            if (lexer.peekToken(i).getType() == TokenTypes::Colon) {
+                i++; // consume ':'
+                
+                // Parse return type (same logic as parameter types)
+                if (lexer.peekToken(i).getType() == TokenTypes::Function) {
+                    // Handle function return type (simplified)
+                    while (lexer.peekToken(i).getType() != TokenTypes::Arrow &&
+                           lexer.peekToken(i).getType() != TokenTypes::EOI &&
+                           lexer.peekToken(i).getType() != TokenTypes::LeftBrace) {
+                        i++;
+                    }
+                } else {
+                    // Parse regular return type
+                    while (lexer.peekToken(i).getType() == TokenTypes::Multiply ||
+                           lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
+                           lexer.peekToken(i).getType() == TokenTypes::QuestionMark) {
+                        i++;
+                    }
+                    
+                    if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                        i++;
+                        
+                        while (lexer.peekToken(i).getType() == TokenTypes::Dot) {
+                            i++; // consume '.'
+                            if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                                i++; // consume identifier
+                            } else {
+                                return false; // Invalid dotted identifier
+                            }
+                        }
+                    } else {
+                        return false; // Expected return type identifier
+                    }
+                    
+                    while (lexer.peekToken(i).getType() == TokenTypes::Multiply ||
+                           lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
+                           lexer.peekToken(i).getType() == TokenTypes::QuestionMark) {
+                        i++;
+                    }
+                    
+                    while (lexer.peekToken(i).getType() == TokenTypes::LeftBracket) {
+                        i++; // consume '['
+                        if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
+                            lexer.peekToken(i).getType() == TokenTypes::Identifier) {
+                            i++; // consume size
+                        } else {
+                            return false; // Invalid array syntax
+                        }
+                        if (lexer.peekToken(i).getType() == TokenTypes::RightBracket) {
+                            i++; // consume ']'
+                        } else {
+                            return false; // Missing closing bracket
+                        }
+                    }
+                }
+            }
+            
+            // Check for arrow operator
+            if (lexer.peekToken(i).getType() == TokenTypes::Arrow) {
+                return true;
+            }
         }
     }
     

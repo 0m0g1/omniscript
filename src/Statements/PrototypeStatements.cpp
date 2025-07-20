@@ -65,19 +65,41 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     
     // If there is no target we are just calling a function
     // If there is a target we are calling a method
-    if (!targetName.empty()) {
-        auto obj = scope->get(impliedTargetName.empty() ? targetName : impliedTargetName);
-
-        std::string contextualName;
+    std::string contextualName;
+    {
+        int index = 0;
         for (size_t i = 0; i < accessContext.size(); ++i) {
             if (!contextualName.empty()) contextualName += ".";
-            contextualName += accessContext[i];
+            if (i == 0) {
+                auto obj = scope->get(impliedTargetName.empty() ? targetName : impliedTargetName);
+                if (auto udt = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(obj->getType())) {
+                    contextualName += udt->name;
+                    auto thisArg = std::make_shared<ReferenceTo>((instanceName.empty() ? targetName : instanceName));
+                    thisArg->setType(Omniscript::Type::createPointerType(udt));
+                    thisArg->setRootType(thisArg->getType());
+                    args.insert(args.begin(), thisArg);
+                    DEBUG_LOG("The 'this' arg is of instance '" + (instanceName.empty() ? targetName : instanceName) + "' and of type '" + thisArg->getType()->toString() + "'.");
+                } else {
+                    contextualName += accessContext[i];
+                }
+            } else {
+                contextualName += accessContext[i];
+            }
 
             std::string fullName = contextualName + "." + callee;
             DEBUG_LOG("[MemberAccess] Trying contextual name: " + fullName);
+            index++;
         }
 
-        contextualName += "." + callee;
+        if (index == 0) {
+            contextualName += callee;
+        } else {
+            contextualName += "." + callee;
+        }
+    }
+
+    if (!targetName.empty()) {
+        auto obj = scope->get(impliedTargetName.empty() ? targetName : impliedTargetName);
 
         auto contextualObj = scope->get(contextualName);
         if (!contextualObj) {
@@ -96,9 +118,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
             std::string typeName = obj->getType()->getName();
             DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");
 
-            validateAccessiblity(typeName, callee, scope);
-
-            if (typeName == callee) {
+            if ((typeName == callee)) {
                 std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
                 auto realExpr = std::make_shared<ObjectConstructorStatement>(nullptr, typeName, instanceName, args);
                 auto objConstructor = realExpr->express(scope);
@@ -111,7 +131,8 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                 constructionBlock->setPosition(getPosition());
                 return constructionBlock;
             } else {
-                auto thisArg = std::make_shared<AddressOf>((instanceName.empty() ? targetName : instanceName));
+                validateAccessiblity(typeName, callee, scope);
+                auto thisArg = std::make_shared<ReferenceTo>((instanceName.empty() ? targetName : instanceName));
                 if (auto thisArgType = scope->getType(typeName)) {
                     thisArg->setType(Omniscript::Type::createPointerType(thisArgType));
                     thisArg->setRootType(thisArg->getType());
@@ -123,7 +144,9 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
                             auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType->getPointeeType());
                             if (!funcType) {
                                 funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType);
-                                funcType->functionName = callee;
+                                if (funcType) {
+                                    funcType->functionName = callee;
+                                }
                             }
                             if (funcType) {
                                 this->type = funcType->returnType;
@@ -186,7 +209,7 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
 
     // Attempt overload resolution
     DEBUG_LOG("[Call] Attempting overload resolution for '" + originalCallee + "'");
-    auto overloads = scope->getOverloads(originalCallee);
+    auto overloads = scope->getOverloads(contextualName);
 
     if (overloads.empty()) {
         auto& contextList = getAccessContext();
@@ -727,6 +750,12 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
         std::vector<std::string> retType = {"void"};
         type = Omniscript::resolveType(retType);
         returnType = type;
+    } else if (type->isUnresolved()) {
+        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
+            type = scope->getType(unresolved->joinedTypeString);
+            returnType = type;
+            rootType = type;
+        }
     } else if (type->isGeneric()) {
         type = resolveGeneric(type->getName());
         returnType = type;
@@ -962,11 +991,26 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
     if (defaultValue) {
         auto typed = std::dynamic_pointer_cast<TypedStatement>(defaultValue);
         if (typed) {
-            if (typed->getRootType()->isInvalid()) {
-                auto resultType = typed->clone()->express(scope)->getType();
-                isValidDefaultValue = !resultType->isInvalid();
+            if (typed->getRootType()) {
+                if (typed->getRootType()->isInvalid()) {
+                    auto resultType = typed->clone()->express(scope)->getType();
+                    isValidDefaultValue = !resultType->isInvalid();
+                } else {
+                    isValidDefaultValue = true;
+                }
+            } else if (typed->getType()) {
+                if (typed->getType()->isInvalid()) {
+                    auto resultType = typed->clone()->express(scope)->getType();
+                    isValidDefaultValue = !resultType->isInvalid();
+                } else {
+                    isValidDefaultValue = true;
+                }
             } else {
+                auto clone = typed->clone();
+                auto result = clone->express(scope);
+                auto resultType = result->getType();
                 isValidDefaultValue = true;
+                // console.error("The the default value " + defaultValue->toString() + " of parameter '" + name + "' has no type.");
             }
         } else {
             isValidDefaultValue = false;
@@ -1005,7 +1049,11 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
         }
     }
 
-    DEBUG_LOG("[Parameter] Created value for parameter " + name + " of kind " + result->getType()->toString());
+    if (result->getType()) {
+        DEBUG_LOG("[Parameter] Created value for parameter '" + name + "' of kind '" + result->getType()->toString() + "'.");
+    } else {
+        DEBUG_LOG("[Parameter] Created value for parameter '" + name + "' which is '" + result->toString() + "'.");
+    }
     
     if (isConstant) {
         scope->setConstant(name, result);
@@ -1113,6 +1161,18 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
         field->registerInScope(scope);
     }
 
+    // 🧱 Construct the StructExpression as a Callable
+    auto structExpr = std::make_shared<Omniscript::StructExpression>(
+        getName(),
+        getName(),
+        fields,
+        fieldNames,
+        /* isVarArg */ false
+    );
+
+    scope->set(getName(), structExpr);
+    structExpr->setPosition(getPosition());
+
     // Phase 2: Compile methods and build method expressions
     for (const auto& field : methodDeclr) {
         auto thisParam = std::make_shared<ParameterStatement>("this");
@@ -1126,17 +1186,6 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
         methods.push_back(method);
     }
     
-    // 🧱 Construct the StructExpression as a Callable
-    auto structExpr = std::make_shared<Omniscript::StructExpression>(
-        getName(),
-        getName(),
-        fields,
-        fieldNames,
-        /* isVarArg */ false
-    );
-
-    scope->set(getName(), structExpr);
-    structExpr->setPosition(getPosition());
     std::vector<std::shared_ptr<Omniscript::Expression>> stmts = {structExpr};
 
     for (const auto& method : methods) {
@@ -1261,7 +1310,7 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
  
 std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
-    DEBUG_LOG("Constructing " + objectType + " " + instanceName);
+    DEBUG_LOG("Constructing '" + instanceName + "' of type '" + objectType + "'.");
 
     // std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
     // for (const auto& arg : constructorArgs) {
@@ -1270,7 +1319,7 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
 
     if (scope->getType(objectType)) {
         type = std::make_shared<Omniscript::UserDefinedType>(objectType);
-        auto constructorCall = std::make_shared<Call>(objectType, instanceName, constructorArgs);
+        auto constructorCall = std::make_shared<Call>(objectType, "", constructorArgs);
         auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(constructorCall->express(scope));
 
         auto instance = std::make_shared<Omniscript::InstanceExpression>(
@@ -1281,6 +1330,8 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
 
         instance->instanceType = scope->getType(objectType);
         instance->type = scope->getType(objectType);
+        setType(instance->type);
+        setRootType(type);
         scope->set(instanceName, instance);
         call->setPosition(getPosition());
         return call;

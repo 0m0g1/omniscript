@@ -53,7 +53,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/bin/Debug-windows-x86_64/Osengine.exe",
             "args": [
-                "docs\\examples\\opengl\\shaders\\starlikeglad.os",
+                "docs\\examples\\opengl\\shaders\\starlikewithstructs.os",
                 "--debug",
                 "--make",
                 "-o",
