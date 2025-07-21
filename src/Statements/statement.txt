@@ -2,7 +2,7 @@ if (!std::dynamic_pointer_cast<Omniscript::FunctionExpression>(called)) {
             std::string typeName = called->getType()->getName();
             DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");
 
-            if ((typeName == callee)) {
+            if (typeName == callee) {
                 std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
                 auto realExpr = std::make_shared<ObjectConstructorStatement>(nullptr, typeName, instanceName, args);
                 auto objConstructor = realExpr->express(scope);

@@ -486,15 +486,19 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
 
     std::vector<std::shared_ptr<Omniscript::MemberExpression>> instanceMembers;
     auto instanceConstructor = std::make_shared<Omniscript::CallExpression>(evaluatedCallee, instanceName, finalArgs);
+    int index = 0;
     for (const auto& param : parameters) {
         auto instanceMember = std::make_shared<Omniscript::MemberExpression>(
             param->getName(),
             param->getType(),
-            param->defaultValue
+            finalArgs[index]
         );
         instanceConstructor->members.push_back(instanceMember);
+        index++;
     }
+
     instanceConstructor->setPosition(getPosition());
+    
     return instanceConstructor;
 }
 

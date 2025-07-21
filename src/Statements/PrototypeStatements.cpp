@@ -363,30 +363,43 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
     //     argValues.push_back(arg->express(scope));
     // }
 
-    if (scope->getType(objectType)) {
-        type = std::make_shared<Omniscript::UserDefinedType>(objectType);
-        auto constructorCall = std::make_shared<Call>(objectType, "", constructorArgs);
-        auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(constructorCall->express(scope));
-
-        auto instance = std::make_shared<Omniscript::InstanceExpression>(
-            objectType,
-            instanceName,
-            call->members
-        );
-
-        instance->instanceType = scope->getType(objectType);
-        instance->type = scope->getType(objectType);
-        setType(instance->type);
-        setRootType(type);
-        scope->set(instanceName, instance);
-        call->setPosition(getPosition());
-        return call;
-    } else {
+    if (!scope->getType(objectType)) {
         console.error("Object type was not found in the scope");
     }
 
-    // // 5. Return the allocated instance
-    // return std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
-    return nullptr;
-    // return std::make_shared<Omniscript::CallExpression>(objectType, instanceName, argValues); //, type);
+    type = std::make_shared<Omniscript::UserDefinedType>(objectType);
+    auto constructorCall = std::make_shared<Call>(objectType, instanceName, constructorArgs);
+    auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(constructorCall->express(scope));
+
+    auto instance = std::make_shared<Omniscript::InstanceExpression>(
+        objectType,
+        instanceName,
+        call->members
+    );
+
+    instance->instanceType = scope->getType(objectType);
+    instance->type = scope->getType(objectType);
+    setType(instance->type);
+    setRootType(type);
+    scope->set(instanceName, instance);
+    call->setPosition(getPosition());
+    instance->setPosition(getPosition());
+
+    if (!scope->getOverloads(objectType + ".constructor").empty()) {
+        auto overloads = scope->getOverloads(objectType + ".constructor");
+        std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
+        ctorExpressions.push_back(instance);
+        auto thisArg = std::make_shared<ReferenceTo>(instanceName);
+        auto thisArgType = scope->getType(objectType);
+        thisArg->setType(Omniscript::Type::createPointerType(thisArgType));
+        thisArg->setRootType(thisArg->getType());
+        constructorArgs.insert(constructorArgs.begin(), thisArg);
+        DEBUG_LOG("The 'this' arg is of instance '" + instanceName + "' and of type '" + thisArg->getType()->toString() + "'.");
+        auto ctorCall = std::make_shared<Call>(objectType + ".constructor", instanceName, constructorArgs)->express(scope);
+        ctorExpressions.push_back(ctorCall);
+        auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
+        constructionBlock->setPosition(getPosition());
+        return constructionBlock;
+    }
+    return instance;
 }

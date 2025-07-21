@@ -4,8 +4,8 @@ struct Particle {
    x: float = 0;
    y: float = 0;
    constructor(x: float, y: float) => void {
-      this.x = x;
-      this.y = y;
+      this.x = y;
+      this.y = x;
    }
    log() => void {
       printf("%.2f, %.2f", this.x as double, this.y as double);

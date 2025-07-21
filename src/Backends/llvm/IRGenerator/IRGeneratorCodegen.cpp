@@ -274,6 +274,29 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return getVariable(var->variableName, false);
     }
 
+    if (auto instance = std::dynamic_pointer_cast<Omniscript::InstanceExpression>(value)) {
+        DEBUG_LOG("Creating an instance of '" + instance->baseName + "'.");
+        
+        std::vector<llvm::Value*> args;
+        args.reserve(instance->memberExpressions.size()); // Pre-reserve to avoid reallocations
+
+        for (const auto& arg : instance->memberExpressions) {
+            DEBUG_LOG(arg->toString());
+
+            if (auto member = std::dynamic_pointer_cast<Omniscript::MemberExpression>(arg)) {
+                if (auto value = codegen(member->value, scope)) {
+                    args.push_back(value);
+                }
+            } else {
+                console.error(formatError("Failed to generate code for constructor argument: " + arg->toString()));
+            }
+            
+        }
+
+        DEBUG_LOG("Creating an object instance");
+        return createObjectInstance(instance->baseName, instance->instanceName, args, false);
+    }
+
     if (auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(value)) {
         DEBUG_LOG("Calling " + call->calleeName);
         
