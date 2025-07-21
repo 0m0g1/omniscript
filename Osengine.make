@@ -84,6 +84,7 @@ GENERATED += $(OBJDIR)/AccessStatements.o
 GENERATED += $(OBJDIR)/AndriodLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/AssignmentsAndGetterStatements.o
 GENERATED += $(OBJDIR)/CLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/CallStatement.o
 GENERATED += $(OBJDIR)/ControlFlowStatements.o
 GENERATED += $(OBJDIR)/Core.o
 GENERATED += $(OBJDIR)/DarwninLLVMFunctionResolver.o
@@ -91,6 +92,7 @@ GENERATED += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/EngineConfigs.o
 GENERATED += $(OBJDIR)/EntityStatements.o
 GENERATED += $(OBJDIR)/ExpressionStatements.o
+GENERATED += $(OBJDIR)/FunctionDeclaration.o
 GENERATED += $(OBJDIR)/IRGenAssignmentsAndGetters.o
 GENERATED += $(OBJDIR)/IRGenControlFlow.o
 GENERATED += $(OBJDIR)/IRGenFunctions.o
@@ -151,6 +153,7 @@ OBJECTS += $(OBJDIR)/AccessStatements.o
 OBJECTS += $(OBJDIR)/AndriodLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/AssignmentsAndGetterStatements.o
 OBJECTS += $(OBJDIR)/CLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/CallStatement.o
 OBJECTS += $(OBJDIR)/ControlFlowStatements.o
 OBJECTS += $(OBJDIR)/Core.o
 OBJECTS += $(OBJDIR)/DarwninLLVMFunctionResolver.o
@@ -158,6 +161,7 @@ OBJECTS += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/EngineConfigs.o
 OBJECTS += $(OBJDIR)/EntityStatements.o
 OBJECTS += $(OBJDIR)/ExpressionStatements.o
+OBJECTS += $(OBJDIR)/FunctionDeclaration.o
 OBJECTS += $(OBJDIR)/IRGenAssignmentsAndGetters.o
 OBJECTS += $(OBJDIR)/IRGenControlFlow.o
 OBJECTS += $(OBJDIR)/IRGenFunctions.o
@@ -439,6 +443,9 @@ $(OBJDIR)/AccessStatements.o: src/Statements/AccessStatements.cpp
 $(OBJDIR)/AssignmentsAndGetterStatements.o: src/Statements/AssignmentsAndGetterStatements.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/CallStatement.o: src/Statements/CallStatement.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/ControlFlowStatements.o: src/Statements/ControlFlowStatements.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
@@ -446,6 +453,9 @@ $(OBJDIR)/EntityStatements.o: src/Statements/EntityStatements.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/ExpressionStatements.o: src/Statements/ExpressionStatements.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/FunctionDeclaration.o: src/Statements/FunctionDeclaration.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/LiteralStatements.o: src/Statements/LiteralStatements.cpp
