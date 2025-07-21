@@ -124,44 +124,9 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
                 DEBUG_LOG("The pointee is a '" + pointee->kindName() + "'.");
             } else {
                 baseTypeName = "<null>";
-        }
+            }
         } else if (auto memberAcc = std::dynamic_pointer_cast<MemberAccess>(object)) {
-            std::shared_ptr<Omniscript::Expression> expr; 
-            resolvedObjectName = objectName;
-            std::string qualifiedName;
-            for (size_t i = 0; i < accessContext.size(); ++i) {
-                if (!qualifiedName.empty()) qualifiedName += ".";
-                qualifiedName += accessContext[i];
-
-                std::string fullName = qualifiedName + "." + memberName;
-                DEBUG_LOG("[MemberAccess] Trying contextual name: " + fullName);
-            }
-
-            qualifiedName += "." + memberName;
             
-            expr = scope->get(qualifiedName);
-
-            if (expr) {
-                type = expr->getType();
-                DEBUG_LOG("'" + qualifiedName + "' has type " + type->toString() + "'.");
-                
-                if (!assignmentValue) {
-                    auto acc = std::make_shared<Omniscript::VariableAccessExpression>(qualifiedName, type);
-                    acc->setPosition(getPosition());
-                    return acc;
-                }
-    
-                std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
-                extendContextOf(assignmentValue);
-                assignmentExpr = assignmentValue->express(scope);
-                if (!assignmentExpr) {
-                    console.error("Failed to evaluate assignment expression");
-                    return nullptr;
-                }
-                auto acc = std::make_shared<Omniscript::VariableAccessExpression>(qualifiedName, assignmentExpr);
-                acc->setPosition(getPosition());
-                return acc;
-            }
             
         } else {
             baseExpr = object->express(scope);

@@ -26,7 +26,7 @@ public:
     AssignVariable(const std::string &var, std::shared_ptr<Omniscript::Type> ty, std::shared_ptr<Statement> val, bool isReassign = false)
     : variable(var), isReassign(isReassign) {
         setType(ty);
-        this->value = std::move(val);
+        this->value = val;
     }
 
     std::string getName() const override { return variable; }

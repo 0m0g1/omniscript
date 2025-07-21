@@ -237,12 +237,12 @@ struct FunctionInputExpression : public Expression {
                            std::shared_ptr<Expression> defaultValue = nullptr, 
                            bool isConst = false,
                            PassingMode mode = PassingMode::ByValue) :
-        defaultValue(std::move(defaultValue)), 
+        defaultValue(defaultValue), 
         isConstant(isConst),
         passingMode(mode),
         hasDefaultValue(defaultValue != nullptr) {
         this->name = name;
-        this->type = std::move(type);
+        this->type = type;
         this->isRequired = !hasDefaultValue;
     }
     

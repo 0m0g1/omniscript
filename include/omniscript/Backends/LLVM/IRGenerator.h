@@ -54,7 +54,7 @@ struct DynamicValue {
     DynamicValue(int val) : type(INT), intValue(val) {}
     DynamicValue(int64_t val) : type(INT), intValue(static_cast<int>(val)) {}  
     DynamicValue(double val) : type(FLOAT), floatValue(val) {}
-    DynamicValue(std::string val) : type(STRING), strValue(std::move(val)) {}
+    DynamicValue(std::string val) : type(STRING), strValue(val) {}
 };
 
 using IRGenSymbolTableType = std::shared_ptr<SymbolTable<llvm::Value*, llvm::Type*>>;

@@ -155,8 +155,8 @@ struct FunctionExpression : public Callable {
         bool isVarArg = false,
         CallingConvention convention = CallingConvention::Default,
         Linkage linkageType = Linkage::Internal
-    ) : Callable(name, mangledName, std::move(params), isVarArg),
-        body(std::move(body)), 
+    ) : Callable(name, mangledName, params, isVarArg),
+        body(body), 
         paramTypes(paramTypes),
         returnType(returnType),
         callingConvention(convention),

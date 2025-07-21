@@ -8,7 +8,7 @@ public:
         std::shared_ptr<Omniscript::Type> memberType,
         std::shared_ptr<Statement> defaultValue,
         const MemberModifiers& memberModifiers
-    ) : Member(memberName, std::move(defaultValue), memberModifiers) {
+    ) : Member(memberName, defaultValue, memberModifiers) {
         setType(memberType);
     }
 

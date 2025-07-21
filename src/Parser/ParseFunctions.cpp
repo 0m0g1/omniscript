@@ -10,9 +10,8 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/Parser.h>
-#include <omniscript/runtime/object.h>
-#include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
+#include <omniscript/omniscript_pch.h>
 
 
 std::shared_ptr<Statement> Parser::parseExternFunction() {

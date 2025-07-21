@@ -98,7 +98,7 @@ struct VariableAccessExpression : public Expression {
         std::shared_ptr<Expression> value,
         bool isVolatile = false,
         bool isAtomic = false
-    ) : variableName(std::move(name)), 
+    ) : variableName(name), 
         accessType(accessType),
         isVolatileAccess(isVolatile),
         isAtomicAccess(isAtomic) {
@@ -117,7 +117,7 @@ struct VariableAccessExpression : public Expression {
         AccessType accessType = AccessType::DirectAccess,
         bool isVolatile = false,
         bool isAtomic = false
-    ) : variableName(std::move(name)), 
+    ) : variableName(name), 
         accessType(accessType),
         isVolatileAccess(isVolatile),
         isAtomicAccess(isAtomic) {

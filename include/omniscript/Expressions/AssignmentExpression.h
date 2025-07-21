@@ -27,7 +27,7 @@ struct VariableAssignment : public Expression {
     std::string section = "";
 
     VariableAssignment(std::string name, std::shared_ptr<Expression> value, bool isGlobal = false, bool isReassignment = false)
-        : variableName(std::move(name)), assignedValue(std::move(value)), isGlobal(isGlobal), isReassignment(isReassignment) {
+        : variableName(name), assignedValue(value), isGlobal(isGlobal), isReassignment(isReassignment) {
         type = assignedValue->type;  
     }
 

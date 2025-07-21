@@ -6,7 +6,6 @@
 #include <omniscript/tokens.h>
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
-#include <omniscript/runtime/Class.h>
 
 using parameterType = std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>>;
 

@@ -96,7 +96,10 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
     }
 
     if (result->getType()) {
-        DEBUG_LOG("[Parameter] Created value for parameter '" + name + "' of kind '" + result->getType()->toString() + "'.");
+        DEBUG_LOG("[Parameter] Created value for parameter '" + name + "' which is of type '" + result->getType()->toString() + "'.");
+        if (type->isInvalid()) {
+            type = result->getType();
+        }
     } else {
         DEBUG_LOG("[Parameter] Created value for parameter '" + name + "' which is '" + result->toString() + "'.");
     }
@@ -110,6 +113,7 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
     DEBUG_LOG("[Parameter] Stored parameter '" + name + "' in scope '" + scope->getName() + "'.");
     
     auto param = std::make_shared<Omniscript::FunctionInputExpression>(name, type, result, isConstant);
+    type = param->type;
     param->isVariadic = isVariadic;
     param->setPosition(getPosition());
     return param;
@@ -176,6 +180,10 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
 
             if (paramDecl->getDefaultValue()) {
                 
+                if (paramDecl->getType()) {
+                    DEBUG_LOG("Parameter '" + fieldName + "' has type " + paramDecl->getType()->toString());
+                }
+
                 std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(localScope);
     
                 fields.push_back(fieldExpr);

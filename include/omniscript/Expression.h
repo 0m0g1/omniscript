@@ -194,7 +194,7 @@ struct TypeExpression : public Expression {
 
     
     explicit TypeExpression(const std::string& typeName, std::shared_ptr<Type> type)
-        : name(typeName), actualType(std::move(type)) {
+        : name(typeName), actualType(type) {
         this->type = Type::createMetaType();  
     }
 
@@ -363,7 +363,7 @@ struct PointerExpression : public Expression {
     bool isVolatile;
 
     PointerExpression(std::shared_ptr<Expression> pointee, bool isConst = false, bool isVolatile = false)
-        : pointee(std::move(pointee)), isConst(isConst), isVolatile(isVolatile) {
+        : pointee(pointee), isConst(isConst), isVolatile(isVolatile) {
         type = Type::createPointerType(this->pointee->type);
         rootType = std::make_shared<Type>(Kind::Pointer);
     }
@@ -449,7 +449,7 @@ struct NullableExpression : public Expression {
     std::shared_ptr<Expression> inner;
 
     NullableExpression(std::shared_ptr<Expression> expr = nullptr)
-        : inner(std::move(expr)) {
+        : inner(expr) {
         if (inner) {
             type = type->createNullableType(inner->getType());
             rootType = type;
@@ -552,7 +552,7 @@ struct ReferenceExpression : public Expression {
 
 struct ReturnExpression : public Expression {
     std::shared_ptr<Expression> value;
-    ReturnExpression(std::shared_ptr<Expression> value, std::shared_ptr<Type> returnType) : value(std::move(value)) {
+    ReturnExpression(std::shared_ptr<Expression> value, std::shared_ptr<Type> returnType) : value(value) {
         type = returnType;
     }
     
@@ -570,7 +570,7 @@ struct BinaryExpression : public Expression {
     Token op;
 
     BinaryExpression(std::shared_ptr<Expression> lhs, Token op, std::shared_ptr<Expression> rhs, std::shared_ptr<Type> resultType)
-        : left(std::move(lhs)), right(std::move(rhs)), op(std::move(op)) {
+        : left(lhs), right(rhs), op(op) {
         this->type = resultType;
     }
 
@@ -599,7 +599,7 @@ struct TernaryExpression : public Expression {
                             std::shared_ptr<Expression> ifTrue,
                             std::shared_ptr<Expression> ifFalse,
                             std::shared_ptr<Type> resultType)
-        : condition(std::move(cond)), truthy(std::move(ifTrue)), falsey(std::move(ifFalse)) {
+        : condition(cond), truthy(ifTrue), falsey(ifFalse) {
         this->type = resultType;
     }
 
@@ -628,7 +628,7 @@ struct UnaryExpression : public Expression {
                     std::shared_ptr<Type> resultType,
                     bool isPrefix
                 )
-        : op(op), operand(std::move(operand)), isPrefix(isPrefix) {
+        : op(op), operand(operand), isPrefix(isPrefix) {
         this->type = resultType;
     }
 
@@ -655,7 +655,7 @@ struct BlockExpression : public Expression {
     std::vector<std::shared_ptr<Expression>> values;  
 
     BlockExpression(std::vector<std::shared_ptr<Expression>> values)
-        : values(std::move(values)) {
+        : values(values) {
         type = Type::createInvalid();
     }
 
@@ -1124,7 +1124,7 @@ struct ArrayExpression : public Expression {
     std::vector<std::shared_ptr<Expression>> elements;
 
     explicit ArrayExpression(std::shared_ptr<Type> type, std::vector<std::shared_ptr<Expression>> elements = {}, bool isVariadic = false)
-        : elements(std::move(elements)), isVariadicArray(isVariadic) {
+        : elements(elements), isVariadicArray(isVariadic) {
         this->type = Type::createFixedArrayType(type, elements.size());
         this->rootType = this->type;
     }
@@ -1139,7 +1139,7 @@ struct ArrayExpression : public Expression {
     }
 
     void push(std::shared_ptr<Expression> val) {
-        elements.push_back(std::move(val));
+        elements.push_back(val);
     }
 
     std::shared_ptr<Expression> get(size_t index) const {
@@ -1169,7 +1169,7 @@ public:
     std::shared_ptr<Type> elementType;
 
     FixedArrayExpression(std::vector<std::shared_ptr<Expression>> elems, std::shared_ptr<Type> elemType)
-        : elements(std::move(elems)), elementType(std::move(elemType)) {
+        : elements(elems), elementType(elemType) {
             type = Type::createFixedArrayType(elementType, elements.size());
         }
 
@@ -1208,9 +1208,9 @@ struct IfExpression : public Expression {
         std::vector<std::shared_ptr<Expression>> conditions, 
         std::vector<std::shared_ptr<Expression>> bodies,
         std::shared_ptr<Expression> elseBody = nullptr
-    ) : conditions(std::move(conditions)),
-        bodies(std::move(bodies)),
-        elseBody(std::move(elseBody)) {
+    ) : conditions(conditions),
+        bodies(bodies),
+        elseBody(elseBody) {
 
         this->type = Type::createInvalid(); 
     }
@@ -1260,10 +1260,10 @@ struct ForLoopExpression : public Expression {
         std::shared_ptr<Expression> condition,
         std::shared_ptr<Expression> increment,
         std::shared_ptr<Expression> body
-    ) : initializer(std::move(initializer)),
-        condition(std::move(condition)),
-        increment(std::move(increment)),
-        body(std::move(body)) {}
+    ) : initializer(initializer),
+        condition(condition),
+        increment(increment),
+        body(body) {}
 
     std::string toString() const override {
         return "ForLoop(init: " + (initializer ? initializer->toString() : "null") +
@@ -1289,7 +1289,7 @@ struct WhileLoopExpression : public Expression {
     WhileLoopExpression(
         std::shared_ptr<Expression> condition,
         std::shared_ptr<Expression> body
-    ) : condition(std::move(condition)), body(std::move(body)) {}
+    ) : condition(condition), body(body) {}
 
     std::string toString() const override {
         return "WhileLoop(cond: " + (condition ? condition->toString() : "null") +

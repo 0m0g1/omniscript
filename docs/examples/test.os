@@ -1,18 +1,29 @@
 extern "C" fn printf(fmt: char*, ...) => int;
 
-struct Particle {
+struct Position {
    x: float = 0;
    y: float = 0;
-   constructor(x: float, y: float) => void {
-      this.x = y;
-      this.y = x;
-   }
    log() => void {
       printf("%.2f, %.2f", this.x as double, this.y as double);
    }
 }
 
-let p1 = Particle{10, 0};
+struct Particle {
+   position = Position{};
+   // constructor(x: float, y: float) => void {
+   //    this.position.x = x;
+   //    this.position.y = y;
+   // }
+   log() => void {
+      // let a = this.position;
+      // printf("%.2f", this.position.x as double);
+      // printf("Particle(");
+      // this.position.log();
+      // printf(")");
+   }
+}
+
+let p1 = Particle{};
 p1.log();
 
 // // which language woud users prefer based of the syntax my language, c, c++, zig, rust? my language can be both high level and low level the user chooses what they want I don't force keep in mind all the null checks are forced during compile time for safety

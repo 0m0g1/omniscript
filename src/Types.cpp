@@ -116,7 +116,7 @@ std::shared_ptr<Type> Type::createNullableType(std::shared_ptr<Type> innerType) 
 }
 
 std::shared_ptr<Type> Type::createReferenceType(std::shared_ptr<Type> referent) {
-    return std::make_shared<ReferenceType>(std::move(referent));
+    return std::make_shared<ReferenceType>(referent);
 }
 
 std::shared_ptr<Type> Type::createFunctionType(
@@ -146,7 +146,7 @@ std::shared_ptr<Type> Type::createFixedArrayType(std::shared_ptr<Type> elementTy
 std::shared_ptr<Type> Type::createDynamicArrayType(std::shared_ptr<Type> elementType) {
     auto t = std::make_shared<Type>();
     t->kind = Kind::DynamicArray;
-    t->elementType = std::move(elementType);
+    t->elementType = elementType;
     return t;
 }
 
@@ -401,7 +401,7 @@ std::shared_ptr<Type> Type::createUserDefinedType(
 
 std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     if (dataTypes.empty()) {
-        return Type::createPrimitiveType(Kind::Int32); // Default type
+        return Type::createInvalid(); // Default type
     }
 
     size_t index = 0;

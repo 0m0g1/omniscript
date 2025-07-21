@@ -1,81 +1,36 @@
-if (!std::dynamic_pointer_cast<Omniscript::FunctionExpression>(called)) {
-            std::string typeName = called->getType()->getName();
-            DEBUG_LOG("Type name is '" + typeName + "' callee is '" + callee + "'.");
+std::shared_ptr<Omniscript::Expression> expr; 
+            resolvedObjectName = objectName;
+            std::string qualifiedName;
+            for (size_t i = 1; i < accessContext.size(); ++i) {
+                if (!qualifiedName.empty()) qualifiedName += ".";
+                qualifiedName += accessContext[i];
 
-            if (typeName == callee) {
-                std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
-                auto realExpr = std::make_shared<ObjectConstructorStatement>(nullptr, typeName, instanceName, args);
-                auto objConstructor = realExpr->express(scope);
-                ctorExpressions.push_back(objConstructor);
-                auto ctorCall = std::make_shared<Call>("constructor", instanceName, args)->express(scope);
-                auto callExpr = std::dynamic_pointer_cast<Omniscript::CallExpression>(ctorCall);
-                callExpr->instanceName = "";
-                ctorExpressions.push_back(ctorCall);
-                auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
-                constructionBlock->setPosition(getPosition());
-                return constructionBlock;
-            } else {
-                validateAccessiblity(typeName, callee, scope);
-                auto thisArg = std::make_shared<ReferenceTo>((instanceName.empty() ? targetName : instanceName));
-                if (auto thisArgType = scope->getType(typeName)) {
-                    thisArg->setType(Omniscript::Type::createPointerType(thisArgType));
-                    thisArg->setRootType(thisArg->getType());
-                    args.insert(args.begin(), thisArg);
-                    DEBUG_LOG("The 'this' arg is of instance '" + (instanceName.empty() ? targetName : instanceName) + "' and of type '" + thisArg->getType()->toString() + "'.");
-                } else {
-                    if (auto objtest = scope->get(callee)) {
-                        if (auto objtestType = objtest->getType()) {
-                            auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType->getPointeeType());
-                            if (!funcType) {
-                                funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(objtestType);
-                                if (funcType) {
-                                    funcType->functionName = callee;
-                                }
-                            }
-                            if (funcType) {
-                                this->type = funcType->returnType;
-                                this->rootType = type;
-                                
-                                if (isFromAssignment) {
-                                    std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
-                                    auto funcCall = std::make_shared<Call>(assignmentExpr, callee, args);
-                                    auto stmt = std::make_shared<AssignVariable>(instanceName, type, funcCall);
-                                    funcCall->setPosition(getPosition());
-                                    if (isFromConstantAssignment) {
-                                        stmt->markAsConstant();
-                                    }
-                                    auto result = stmt->express(scope);
-                                    result->setPosition(getPosition());
-                                    return result;
-                                }
+                std::string fullName = qualifiedName + "." + memberName;
+                DEBUG_LOG("[MemberAccess] Trying contextual name: " + fullName);
+            }
 
-                                std::vector<std::shared_ptr<Omniscript::Expression>> finalArgs;
-                                for (const auto& arg : args) {
-                                    finalArgs.push_back(arg->express(scope));
-                                }
-                                DEBUG_LOG("[Call] Returning CallExpression for '" + callee + "' with " + std::to_string(finalArgs.size()) + " args");
-                                auto callExpr = std::make_shared<Omniscript::CallExpression>(callee, finalArgs, type);
-                                callExpr->setPosition(getPosition());
-                                callExpr->functionTypeName = funcType->functionName;
-                                // auto dereferenceFunctionPointer = std::make_shared<Omniscript::DerefenceExpression>();
-                                return callExpr;
-                            }
-                        } else {
-                            console.error("objtest has no type");
-                        }
-                    } else {
-                        console.error("The type '" + typeName + "' does not exist in the scope '" + scope->getName() + "'.");
-                    }
+            qualifiedName += "." + memberName;
+            
+            expr = scope->get(qualifiedName);
+
+            if (expr) {
+                type = expr->getType();
+                DEBUG_LOG("'" + qualifiedName + "' has type " + type->toString() + "'.");
+                
+                if (!assignmentValue) {
+                    auto acc = std::make_shared<Omniscript::VariableAccessExpression>(qualifiedName, type);
+                    acc->setPosition(getPosition());
+                    return acc;
                 }
+    
+                std::shared_ptr<Omniscript::Expression> assignmentExpr = nullptr;
+                extendContextOf(assignmentValue);
+                assignmentExpr = assignmentValue->express(scope);
+                if (!assignmentExpr) {
+                    console.error("Failed to evaluate assignment expression");
+                    return nullptr;
+                }
+                auto acc = std::make_shared<Omniscript::VariableAccessExpression>(qualifiedName, assignmentExpr);
+                acc->setPosition(getPosition());
+                return acc;
             }
-        } else if (isFromAssignment) {
-            std::shared_ptr<Statement> assignmentExpr = std::make_shared<GetVariable>(targetName);
-            auto methodCall = std::make_shared<Call>(assignmentExpr, evaluatedCallee, args);
-            auto stmt = std::make_shared<AssignVariable>(instanceName, type, methodCall);
-            if (isFromConstantAssignment) {
-                stmt->markAsConstant();
-            }
-            auto result = stmt->express(scope);
-            result->setPosition(getPosition());
-            return result;
-        }

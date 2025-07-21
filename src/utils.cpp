@@ -1,13 +1,6 @@
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 
-#include <omniscript/runtime/Namespace.h>
-#include <omniscript/runtime/object.h>
-// #include <omniscript/runtime/Function.h>
-#include <omniscript/runtime/Number.h>
-#include <omniscript/runtime/String.h>
-#include <omniscript/runtime/Pointer.h>
-
 //Converts a string to lower case
 std::string toLowerCaseString(const std::string &source) {
     std::string lowerCaseString;

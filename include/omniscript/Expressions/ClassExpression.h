@@ -21,10 +21,10 @@ public AggregateExpression {
         std::vector<std::shared_ptr<ClassMemberExpression>> members = {}
     )
         : Callable(name, name, {}, false),  
-          structExpr(std::move(structExpr)),
-          constructors(std::move(constructors)),
-          destructor(std::move(destructor)),
-          members(std::move(members))
+          structExpr(structExpr),
+          constructors(constructors),
+          destructor(destructor),
+          members(members)
     {
         type = this->structExpr->getType(); 
     }

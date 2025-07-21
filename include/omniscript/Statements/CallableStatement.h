@@ -14,7 +14,7 @@ public:
         std::string name,
         std::shared_ptr<Statement> defaultValue = nullptr,
         bool isConst = false
-    ) : defaultValue(std::move(defaultValue)), isConstant(isConst) {
+    ) : defaultValue(defaultValue), isConstant(isConst) {
             setName(name);
         }
     
@@ -158,7 +158,7 @@ public:
         std::vector<std::shared_ptr<Statement>> args = {})
         : objectType(objectType),
             instanceName(instanceName),
-            constructorArgs(std::move(args)) {}
+            constructorArgs(args) {}
     
     ObjectConstructorStatement(
         std::shared_ptr<Statement> expr,
@@ -168,7 +168,7 @@ public:
         :   expr(expr),
             objectType(objectType),
             instanceName(instanceName),
-            constructorArgs(std::move(args)) {
+            constructorArgs(args) {
                 this->name = instanceName;
             }
 
@@ -198,13 +198,13 @@ public:
                 expr->clone(),
                 objectType,
                 instanceName,
-                std::move(clonedArgs)
+                clonedArgs
             );
         } else {
             return std::make_shared<ObjectConstructorStatement>(
                 objectType,
                 instanceName,
-                std::move(clonedArgs)
+                clonedArgs
             );
         }
     }
@@ -220,7 +220,7 @@ public:
     bool isConstant;
 
     ArgumentStatement(std::string name, std::shared_ptr<Statement> value = nullptr, bool isConstant = false)
-        : name(std::move(name)), value(std::move(value)), isConstant(isConstant) {}
+        : name(name), value(value), isConstant(isConstant) {}
 
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }

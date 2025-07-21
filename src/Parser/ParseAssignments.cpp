@@ -11,10 +11,9 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/Parser.h>
-#include <omniscript/runtime/object.h>
-#include <omniscript/omniscript_pch.h>
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
+#include <omniscript/omniscript_pch.h>
 
 bool Parser::isAssignmentExpression(TokenTypes tokenType) {
     if (tokenType == TokenTypes::Assign || 

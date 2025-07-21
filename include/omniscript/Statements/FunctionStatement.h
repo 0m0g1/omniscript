@@ -22,6 +22,7 @@ public:
     
     // Cross-platform library paths
     struct LibraryPaths {
+        std::string cLibrary;
         std::string windowsDynamic;    // .dll
         std::string windowsStatic;     // .lib/.a
         std::string linuxShared;       // .so
@@ -60,7 +61,7 @@ public:
         std::shared_ptr<BlockStatement> body,
         std::shared_ptr<Omniscript::Type> returnType_ = nullptr // Default to nullptr if return type is unknown
     ) : parameters(parameters), body(body), Callable(parameters) {
-        setType(std::move(returnType_)); // Store the return type using `TypedStatement`
+        setType(returnType_); // Store the return type using `TypedStatement`
         returnType = getType();
         setName(functionName);
     }

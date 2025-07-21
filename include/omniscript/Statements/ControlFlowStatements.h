@@ -44,9 +44,9 @@ public:
         std::vector<std::shared_ptr<Statement>> conditions, 
         std::vector<std::shared_ptr<BlockStatement>> bodies,
         std::shared_ptr<BlockStatement> elseBody = nullptr
-    ) : conditions(std::move(conditions)),
-        bodies(std::move(bodies)),
-        elseBody(std::move(elseBody)) {
+    ) : conditions(conditions),
+        bodies(bodies),
+        elseBody(elseBody) {
     }
 
     // Evaluate the conditions and bodies
@@ -144,8 +144,8 @@ private:
 public:
     ForLoop(std::shared_ptr<Statement> init, std::shared_ptr<Statement> cond, 
             std::shared_ptr<Statement> incr, std::shared_ptr<BlockStatement> body)
-        :   initialization(std::move(init)), condition(std::move(cond)), 
-            increment(std::move(incr)), body(std::move(body)) {}
+        :   initialization(init), condition(cond), 
+            increment(incr), body(body) {}
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
     std::string toString() const override { 

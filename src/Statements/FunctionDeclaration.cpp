@@ -76,7 +76,7 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
             DEBUG_LOG("[Function] Parameter has type '" + paramType->toString() + "'.");
             
             if (paramType->isGeneric()) {
-                typed->setType(std::move(resolveGeneric(paramType->getName())));
+                typed->setType(resolveGeneric(paramType->getName()));
             }
         }
         auto result = param->express(localScope);

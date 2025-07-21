@@ -97,7 +97,7 @@ public:
 class ModuleMember : public Member {
 public:
     ModuleMember(const std::string& memberName, std::shared_ptr<Statement> value, MemberModifiers modifiers)
-        : Member(memberName, std::move(value), modifiers) {}
+        : Member(memberName, value, modifiers) {}
 
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
 };
@@ -113,7 +113,7 @@ public:
     std::vector<std::shared_ptr<Statement>> statements;
 
     CreateModule(std::string moduleName, std::vector<std::shared_ptr<Statement>> stmts)
-    : statements(std::move(stmts)) {
+    : statements(stmts) {
         setName(moduleName);
     }
     

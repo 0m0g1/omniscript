@@ -5,7 +5,6 @@
 #include <omniscript/Types.h>
 #include <omniscript/tokens.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/runtime/object.h>
 #include <omniscript/Expression.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/debuggingtools/console.h>
@@ -94,7 +93,7 @@ public:
     std::string typeName;
     std::shared_ptr<Omniscript::Type> getType() const { return type; }
     std::shared_ptr<Omniscript::Type> getRootType() const { return rootType; }
-    void setRootType(std::shared_ptr<Omniscript::Type> newType) { if (!rootType) { rootType = std::move(newType); } }
+    void setRootType(std::shared_ptr<Omniscript::Type> newType) { if (!rootType) { rootType = newType; } }
     void setTypeName(const std::string& newTypeName) { typeName = newTypeName; }
     void setType(std::shared_ptr<Omniscript::Type> newType) { type = newType; }
     virtual std::string toString() const override { return "TypedStatement"; }
@@ -296,18 +295,18 @@ public:
     std::vector<std::shared_ptr<Statement>> statements;
     
     BlockStatement(std::vector<std::shared_ptr<Statement>> statements = {})
-        : GenericHolder(statements), statements(std::move(statements)) {}
+        : GenericHolder(statements), statements(statements) {}
 
     static std::shared_ptr<BlockStatement> create() {
         return std::make_shared<BlockStatement>();
     }
 
     static std::shared_ptr<BlockStatement> create(std::vector<std::shared_ptr<Statement>> statements) {
-        return std::make_shared<BlockStatement>(std::move(statements));
+        return std::make_shared<BlockStatement>(statements);
     }
 
     void addStatement(std::shared_ptr<Statement> stmt) {
-        statements.push_back(std::move(stmt));
+        statements.push_back(stmt);
     }
 
     std::shared_ptr<Statement> clone() const override {
@@ -316,7 +315,7 @@ public:
         for (const auto& stmt : statements) {
             clonedStatements.push_back(stmt->clone());  // Assuming Statement has a `clone` method
         }
-        return std::make_shared<BlockStatement>(std::move(clonedStatements));
+        return std::make_shared<BlockStatement>(clonedStatements);
     }
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
@@ -388,7 +387,7 @@ public NamedStatement,
 public ContextAwareStatement {
 public:
     Member(const std::string& memberName, std::shared_ptr<Statement> value, const MemberModifiers& modifiers)
-        : value(std::move(value)), modifiers(modifiers) {
+        : value(value), modifiers(modifiers) {
         setName(memberName);
     }
 

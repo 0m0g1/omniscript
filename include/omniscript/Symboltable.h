@@ -7,7 +7,7 @@ template <typename T, typename TypeT = void>
 class SymbolTable : public std::enable_shared_from_this<SymbolTable<T, TypeT>> {
 public:
     SymbolTable(std::shared_ptr<SymbolTable<T, TypeT>> parent = nullptr, const std::string& name = "")
-        : parent_(std::move(parent)), name_(name) {}
+        : parent_(parent), name_(name) {}
 
     // ==================== VALUE MANAGEMENT ====================
     void set(const std::string& name, T value) { setVariable(name, value); }
@@ -21,7 +21,7 @@ public:
             std::cerr << "Cannot define variable '" << name << "' because a constant exists.\n";
             return;
         }
-        variables_[name] = std::move(value);
+        variables_[name] = value;
     }
 
     void setConstant(const std::string& name, T value) {
@@ -37,11 +37,11 @@ public:
             std::cerr << "Constant '" << name << "' already exists.\n";
             return;
         }
-        constants_[name] = std::move(value);
+        constants_[name] = value;
     }
 
     void addOverloadable(const std::string& name, T value) {
-        overloadables_[name].push_back(std::move(value));
+        overloadables_[name].push_back(value);
     }
 
     T get(const std::string& name) const { return getValue(name); }
@@ -75,7 +75,7 @@ public:
     template <typename U = TypeT>
     typename std::enable_if<!std::is_void<U>::value, void>::type
     addType(const std::string& name, U type) {
-        types_[name] = std::move(type);
+        types_[name] = type;
     }
 
     template <typename U = TypeT>
@@ -111,7 +111,7 @@ public:
 
     // ----- Module Registry (Global) -----
     static void defineModule(const std::string& path, std::shared_ptr<SymbolTable<T, TypeT>> module) {
-        globalModules_[path] = std::move(module);
+        globalModules_[path] = module;
     }
 
     static std::shared_ptr<SymbolTable<T, TypeT>> getModuleByPath(const std::string& path) {

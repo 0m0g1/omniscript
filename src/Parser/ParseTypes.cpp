@@ -9,10 +9,9 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>
 #include <omniscript/Tokens.h>
-#include <omniscript/runtime/object.h>
-#include <omniscript/omniscript_pch.h>
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
+#include <omniscript/omniscript_pch.h>
 
 
 bool Parser::tryParseTypeParametersLookahead(int& i) {

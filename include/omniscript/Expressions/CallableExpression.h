@@ -14,7 +14,7 @@ struct Callable : public virtual Expression {
             std::vector<std::shared_ptr<Expression>> params = {},
             bool isVarArg = false
         )
-        : parameters(std::move(params)), 
+        : parameters(params), 
             isVarArg(isVarArg) {
         this->name = name;
         this->mangledName = mangledName;
@@ -62,8 +62,8 @@ struct CallExpression : public Expression {
     bool isGlobal;
 
     CallExpression(const std::string& calleeName, const std::vector<std::shared_ptr<Expression>>& args = {}, std::shared_ptr<Type> returnType = nullptr)
-    : calleeName(calleeName), args(std::move(args)) {
-        type = std::move(returnType);
+    : calleeName(calleeName), args(args) {
+        type = returnType;
     }
 
     CallExpression(const std::string& objectName,
@@ -72,8 +72,8 @@ struct CallExpression : public Expression {
         std::shared_ptr<Type> returnType = nullptr,
         bool isGlobal = true
     )
-    : calleeName(objectName), instanceName(instanceName), args(std::move(args)), isGlobal(isGlobal) {
-        type = std::move(returnType);
+    : calleeName(objectName), instanceName(instanceName), args(args), isGlobal(isGlobal) {
+        type = returnType;
     }
 
     

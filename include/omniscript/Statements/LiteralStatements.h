@@ -187,7 +187,7 @@ class CharacterLiteral : public Literal {
 public:
     char32_t value;
 
-    explicit CharacterLiteral(char32_t val) : value(std::move(val)) {
+    explicit CharacterLiteral(char32_t val) : value(val) {
         setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char));
     }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
@@ -204,7 +204,7 @@ class StringLiteral : public Literal {
 public:
     std::u32string value;
 
-    explicit StringLiteral(std::u32string val) : value(std::move(val)) {
+    explicit StringLiteral(std::u32string val) : value(val) {
         auto charType = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
         auto stringType = Omniscript::Type::createPointerType(charType);
         setRootType(stringType);
@@ -222,7 +222,7 @@ class BoolLiteral : public Literal {
 public:
     bool value;
 
-    explicit BoolLiteral(bool val) : value(std::move(val)) {
+    explicit BoolLiteral(bool val) : value(val) {
         setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Bool));
     }
 
@@ -241,7 +241,7 @@ public:
     std::vector<std::shared_ptr<Statement>> initialValues; // Optional initial values
 
     Array(std::vector<std::shared_ptr<Statement>> values = {})
-        : initialValues(std::move(values)) {
+        : initialValues(values) {
             setRootType(Omniscript::Type::createPrimitiveType(Omniscript::Kind::Array));
         }
 
