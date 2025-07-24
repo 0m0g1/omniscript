@@ -9,7 +9,7 @@ struct Position {
 }
 
 struct Particle {
-   position = Position{};
+   position = Position{5, 10};
    // constructor(x: float, y: float) => void {
    //    this.position.x = x;
    //    this.position.y = y;

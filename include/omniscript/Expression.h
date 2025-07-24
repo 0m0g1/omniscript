@@ -738,6 +738,28 @@ public:
     std::string toString() const override {
         return modifiers.toString() + (type ? type->toString() : "unknown") + " " + name + ";";
     }
+
+    std::shared_ptr<Expression> clone() const override {
+        // Deep clone the value expression if it exists
+        std::shared_ptr<Expression> clonedValue = nullptr;
+        if (value) {
+            clonedValue = value->clone();
+        }
+        
+        // Deep clone the type if it exists
+        std::shared_ptr<Type> clonedType = nullptr;
+        if (type) {
+            clonedType = type->clone();
+        }
+        
+        // Create new MemberExpression with cloned components
+        return std::make_shared<MemberExpression>(
+            name,           // string is copied by value
+            clonedType,     // cloned type
+            clonedValue,    // cloned value expression
+            modifiers       // MemberModifiers should be copyable by value
+        );
+    }
 };
 
 struct ClassMemberExpression : public MemberExpression {

@@ -2,6 +2,13 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DarwinLLVMResolver.h>
 
+DarwinResolver::DarwinResolver() {
+}
+
+DarwinResolver::DarwinResolver(const std::string& libraryPath) 
+    : specifiedLibraryPath(libraryPath) {
+}
+
 llvm::Function* DarwinResolver::resolve(IRGenerator& generator, const std::string& name, 
                                       llvm::FunctionType* funcType, LinkDependencies& deps) {
     if (!PlatformInfo::isApple()) {

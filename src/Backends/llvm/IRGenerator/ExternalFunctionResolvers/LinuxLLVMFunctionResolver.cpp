@@ -1,6 +1,13 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
 
+LinuxResolver::LinuxResolver() {
+}
+
+LinuxResolver::LinuxResolver(const std::string& libraryPath) 
+    : specifiedLibraryPath(libraryPath) {
+}
+
 llvm::Function* LinuxResolver::resolve(IRGenerator& generator, const std::string& name, 
                                      llvm::FunctionType* funcType, LinkDependencies& deps) {
     if (PlatformInfo::getCurrentPlatform() != PlatformInfo::Linux) {
