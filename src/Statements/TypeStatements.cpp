@@ -7,6 +7,8 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
 
+#include <omniscript/Expressions/BlockExpression.h>
+
 std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType scope) {
     bool isAliasingOtherType = false;
     std::string originalTypeName;

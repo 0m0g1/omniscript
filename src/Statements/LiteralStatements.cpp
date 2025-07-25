@@ -7,6 +7,9 @@
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
 
+#include <omniscript/Expressions/LiteralExpressions.h>
+#include <omniscript/Expressions/CastExpression.h>
+
 // ============================== Literals and casting  ============================== //
 std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);

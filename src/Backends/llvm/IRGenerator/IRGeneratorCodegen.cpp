@@ -1,6 +1,15 @@
+#include <omniscript/Expressions/Expressions.h>
 #include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Expressions/CastExpression.h>
+#include <omniscript/Expressions/BlockExpression.h>
 #include <omniscript/Expressions/TypeExpressions.h>
+#include <omniscript/Expressions/GetterExpressions.h>
+#include <omniscript/Expressions/EntityExpressions.h>
+#include <omniscript/Expressions/AccessExpressions.h>
 #include <omniscript/Expressions/CallableExpression.h>
+#include <omniscript/Expressions/LiteralExpressions.h>
+#include <omniscript/Expressions/AssignmentExpression.h>
+#include <omniscript/Expressions/ControlFlowExpressions.h>
 
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, SymbolTableType scope) {
     Omniscript::setPosition(value->getPosition());

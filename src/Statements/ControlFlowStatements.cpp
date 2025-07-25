@@ -8,6 +8,8 @@
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 
+#include <omniscript/Expressions/ControlFlowExpressions.h>
+
 // ============================== Control flow statements  ============================== //
 
 std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType scope) {

@@ -10,6 +10,7 @@
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
+#include <omniscript/Expressions/Expressions.h>
 
 // ============================== Binary, Unary and Ternary Expressions ============================== //
 std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableType scope) {

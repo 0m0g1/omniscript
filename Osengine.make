@@ -82,6 +82,7 @@ OBJECTS :=
 
 GENERATED += $(OBJDIR)/AccessStatements.o
 GENERATED += $(OBJDIR)/AndriodLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/ArrowAccessStatement.o
 GENERATED += $(OBJDIR)/AssignmentsAndGetterStatements.o
 GENERATED += $(OBJDIR)/CLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/CallStatement.o
@@ -110,6 +111,7 @@ GENERATED += $(OBJDIR)/IRGeneratorOptimizers.o
 GENERATED += $(OBJDIR)/IRGeneratorOptionalHelpers.o
 GENERATED += $(OBJDIR)/IRGeneratorTargetHelpers.o
 GENERATED += $(OBJDIR)/IRGeneratorTypes.o
+GENERATED += $(OBJDIR)/IndexAccessStatment.o
 GENERATED += $(OBJDIR)/JITBackend.o
 GENERATED += $(OBJDIR)/LLVMAOTBackend.o
 GENERATED += $(OBJDIR)/LLVMExternalFunctionResolver.o
@@ -121,6 +123,7 @@ GENERATED += $(OBJDIR)/LexStrings.o
 GENERATED += $(OBJDIR)/Lexer.o
 GENERATED += $(OBJDIR)/LinuxLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/LiteralStatements.o
+GENERATED += $(OBJDIR)/MemberAccessStatement.o
 GENERATED += $(OBJDIR)/ModuleAndImportStatements.o
 GENERATED += $(OBJDIR)/ParseAssignments.o
 GENERATED += $(OBJDIR)/ParseBlock.o
@@ -151,6 +154,7 @@ GENERATED += $(OBJDIR)/main.o
 GENERATED += $(OBJDIR)/utils.o
 OBJECTS += $(OBJDIR)/AccessStatements.o
 OBJECTS += $(OBJDIR)/AndriodLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/ArrowAccessStatement.o
 OBJECTS += $(OBJDIR)/AssignmentsAndGetterStatements.o
 OBJECTS += $(OBJDIR)/CLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/CallStatement.o
@@ -179,6 +183,7 @@ OBJECTS += $(OBJDIR)/IRGeneratorOptimizers.o
 OBJECTS += $(OBJDIR)/IRGeneratorOptionalHelpers.o
 OBJECTS += $(OBJDIR)/IRGeneratorTargetHelpers.o
 OBJECTS += $(OBJDIR)/IRGeneratorTypes.o
+OBJECTS += $(OBJDIR)/IndexAccessStatment.o
 OBJECTS += $(OBJDIR)/JITBackend.o
 OBJECTS += $(OBJDIR)/LLVMAOTBackend.o
 OBJECTS += $(OBJDIR)/LLVMExternalFunctionResolver.o
@@ -190,6 +195,7 @@ OBJECTS += $(OBJDIR)/LexStrings.o
 OBJECTS += $(OBJDIR)/Lexer.o
 OBJECTS += $(OBJDIR)/LinuxLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/LiteralStatements.o
+OBJECTS += $(OBJDIR)/MemberAccessStatement.o
 OBJECTS += $(OBJDIR)/ModuleAndImportStatements.o
 OBJECTS += $(OBJDIR)/ParseAssignments.o
 OBJECTS += $(OBJDIR)/ParseBlock.o
@@ -440,6 +446,9 @@ $(OBJDIR)/Parser.o: src/Parser/Parser.cpp
 $(OBJDIR)/AccessStatements.o: src/Statements/AccessStatements.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/ArrowAccessStatement.o: src/Statements/ArrowAccessStatement.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/AssignmentsAndGetterStatements.o: src/Statements/AssignmentsAndGetterStatements.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
@@ -458,7 +467,13 @@ $(OBJDIR)/ExpressionStatements.o: src/Statements/ExpressionStatements.cpp
 $(OBJDIR)/FunctionDeclaration.o: src/Statements/FunctionDeclaration.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/IndexAccessStatment.o: src/Statements/IndexAccessStatment.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/LiteralStatements.o: src/Statements/LiteralStatements.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/MemberAccessStatement.o: src/Statements/MemberAccessStatement.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/ModuleAndImportStatements.o: src/Statements/ModuleAndImportStatements.cpp

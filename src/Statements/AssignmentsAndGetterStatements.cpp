@@ -4,9 +4,9 @@
 #include <omniscript/Statements/FunctionStatement.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
+#include <omniscript/Expressions/GetterExpressions.h>
 #include <omniscript/Expressions/FunctionExpression.h>
-#include <omniscript/Expressions/FunctionExpression.h>
-#include <omniscript/Expressions/AssignmentExpression.h>
+#include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Expressions/AssignmentExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
@@ -33,8 +33,7 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
             setRootType(Omniscript::Type::createPointerType(referent->getType()));
         }
 
-        auto addrOf = std::make_shared<Omniscript::AddressOfExpression>(mangledName, referent);
-        
+        auto addrOf = std::make_shared<Omniscript::AddressOfExpression>(mangledName, referent);       
     }
 
     if (!type) {
@@ -244,34 +243,25 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 if (auto referenceTo = std::dynamic_pointer_cast<ReferenceTo>(value)) {
                     auto ptr = scope->getPointerToValue(referenceTo->getName());
                     if (!ptr || !*ptr) {
-                        DEBUG_LOG("HERE 2.1");
                         console.error("Cannot create reference to undefined variable '" + referenceTo->getName() + "'.");
                     } else {
-                        DEBUG_LOG("HERE 2.2");
                         // Get the ultimate base types for comparison
                         auto expectedBaseType = type->getBaseReferencedType();
-                        DEBUG_LOG("HERE 2.3");
                         auto actualBaseType = (*ptr)->getType()->getBaseReferencedType();
 
                         if (!actualBaseType) {
                             actualBaseType = (*ptr)->getType();
                         }
-
-                        DEBUG_LOG("HERE 2.4");
                         
                         DEBUG_LOG(expectedBaseType->toString() + " " + actualBaseType->toString());
                         if (expectedBaseType->getKind() != actualBaseType->getKind()) {
-                            DEBUG_LOG("HERE 2.4.1");
                             console.error("Reference '" + variable + "' expects base type '" +
                                 expectedBaseType->toString() + "' but got '" +
                                 actualBaseType->toString() + "' instead.");
                         }
-                        DEBUG_LOG("HERE 2.5");
                         // Check reference depth matches
                         int expectedDepth = type->getReferenceDepth() - 1;
-                        DEBUG_LOG("HERE 2.6");
                         int actualDepth = (*ptr)->getType()->getReferenceDepth();
-                        DEBUG_LOG("HERE 2.7");
                         
                         if (expectedDepth != actualDepth) {
                             DEBUG_LOG("HERE 2.7.1");
@@ -279,11 +269,8 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                                 std::to_string(expectedDepth) + " level(s) of reference but got " +
                                 std::to_string(actualDepth) + " level(s) instead.");
                         }
-                        DEBUG_LOG("HERE 2.8");
                         result = Omniscript::make_expression<Omniscript::ReferenceExpression>(referenceTo->getName(), ptr);
-                        DEBUG_LOG("HERE 2.9");
                     }
-                    DEBUG_LOG("HERE 3");
                 } else if (auto addressOf = std::dynamic_pointer_cast<AddressOf>(value)) {
                     console.error("Cannot create reference from address-of expression for '" + variable + "'.");
                 } else if (auto nullpointer = std::dynamic_pointer_cast<Nullptr>(value)) {

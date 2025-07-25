@@ -15,7 +15,9 @@
 #include <omniscript/Expressions/ClassExpression.h>
 #include <omniscript/Expressions/StructExpression.h>
 #include <omniscript/Expressions/CallableExpression.h>
+#include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Expressions/FunctionExpression.h>
+#include <omniscript/Expressions/AggregateExpressions.h>
 #include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 

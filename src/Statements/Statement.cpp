@@ -9,6 +9,8 @@
 #include <omniscript/Statements/ControlFlowStatements.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
+#include <omniscript/Expressions/BlockExpression.h>
+
 // #include <omniscript/runtime/object.h>
 // #include <omniscript/runtime/Class.h>
 // #include <omniscript/runtime/Namespace.h>

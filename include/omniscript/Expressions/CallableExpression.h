@@ -1,5 +1,6 @@
 #pragma once
 #include <omniscript/Expression.h>
+#include <omniscript/Expressions/AggregateExpressions.h>
 #include <omniscript/Expressions/FunctionInputExpression.h>
 
 namespace Omniscript {

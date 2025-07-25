@@ -12,8 +12,10 @@
 #include <omniscript/debuggingtools/console.h>
 #include <omniscript/Expressions/ClassExpression.h>
 #include <omniscript/Expressions/StructExpression.h>
+#include <omniscript/Expressions/AccessExpressions.h>
 #include <omniscript/Expressions/FunctionExpression.h>
 #include <omniscript/Expressions/AssignmentExpression.h>
+#include <omniscript/Expressions/ControlFlowExpressions.h>
 #include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
@@ -203,7 +205,6 @@ public:
     llvm::Value* createNullValue(llvm::Type* type);
     llvm::Value* createNullPointer(llvm::Type* pointeeType);
     llvm::Value* createRawPointer(uintptr_t address, llvm::Type* pointeeType);
-    
     
     llvm::Value* create8BitInteger(int8_t value);
     llvm::Value* create16BitInteger(int16_t value);

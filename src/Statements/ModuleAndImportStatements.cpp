@@ -14,6 +14,9 @@
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
 
+#include <omniscript/Expressions/AggregateExpressions.h>
+#include <omniscript/Expressions/BlockExpression.h>
+
 std::shared_ptr<Omniscript::Expression> IncludeStatement::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     return nullptr;

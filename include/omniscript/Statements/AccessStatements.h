@@ -64,69 +64,33 @@ private:
     std::string objectName;
     std::shared_ptr<Statement> object;
 
+    // Helper method declarations
+    void validateAccessChain(SymbolTableType scope);
+    std::tuple<std::shared_ptr<Omniscript::Expression>, std::string, std::string> 
+        resolveBaseExpression(SymbolTableType scope);
+    std::tuple<std::shared_ptr<Omniscript::Expression>, std::string, std::string>
+        resolveVariableBase(SymbolTableType scope, const std::string& varName);
+    std::tuple<std::shared_ptr<Omniscript::Expression>, std::string, std::string>
+        resolveChainedAccess(SymbolTableType scope, std::shared_ptr<MemberAccess> memberAcc);
+    std::pair<std::shared_ptr<Omniscript::Expression>, std::string>
+        findVariableInScope(SymbolTableType scope, const std::string& varName);
+    std::string extractTypeName(std::shared_ptr<Omniscript::Type> type);
+    std::shared_ptr<Omniscript::UserDefinedType> 
+        getUserDefinedType(SymbolTableType scope, const std::string& typeName);
+    int findMemberIndex(std::shared_ptr<Omniscript::UserDefinedType> userType);
+    std::shared_ptr<Omniscript::Expression> 
+        processAssignment(SymbolTableType scope);
+
 public:
-    MemberAccess(const std::string& obj, const std::string& member, std::shared_ptr<Statement> assignVal = nullptr) {
-        this->objectName = obj;
-        this->memberName = member;
-        this->name = obj;
-        setAssignmentValueTo(assignVal);
-    }
+    MemberAccess(const std::string& obj, const std::string& member, std::shared_ptr<Statement> assignVal = nullptr);
+    MemberAccess(std::shared_ptr<Statement> obj, const std::string& member, std::shared_ptr<Statement> assignVal = nullptr);
 
-    MemberAccess(std::shared_ptr<Statement> obj, const std::string& member, std::shared_ptr<Statement> assignVal = nullptr) {
-        this->expr = obj;
-        this->object = obj;
-        this->memberName = member;
-        auto named = std::dynamic_pointer_cast<NamedStatement>(obj);
-        if (!named) {
-            console.error("The object having members should be named");
-        } else {
-            this->name = named->getName();
-        }
-        setAssignmentValueTo(assignVal);
-    }
-
-    const std::shared_ptr<Statement>& getObject() const { return object; }
-
-    std::shared_ptr<Statement> clone() const override {
-        auto cloned = object
-            ? std::make_shared<MemberAccess>(expr->clone(), memberName, assignmentValue ? assignmentValue->clone() : nullptr)
-            : std::make_shared<MemberAccess>(objectName, memberName, assignmentValue ? assignmentValue->clone() : nullptr);
-
-        cloned->arguments.reserve(arguments.size());
-        for (const auto& arg : arguments) {
-            cloned->arguments.push_back(arg->clone());
-        }
-        cloned->isCall = isCall;
-        return cloned;
-    }
-
-    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override {
-        return nullptr; // Evaluation logic to be filled
-    }
-
+    const std::shared_ptr<Statement>& getObject() const;
+    std::shared_ptr<Statement> clone() const override;
+    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override;
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-
-    std::string toString() const override {
-        std::string base = object ? "ObjectMember(" + object->toString() + ")" : objectName;
-        base += "." + memberName;
-
-        if (isCall) {
-            std::string argsStr = "(";
-            for (size_t i = 0; i < arguments.size(); ++i) {
-                argsStr += arguments[i] ? arguments[i]->toString() : "null";
-                if (i + 1 < arguments.size()) argsStr += ", ";
-            }
-            argsStr += ")";
-            return "Call: " + base + argsStr;
-        } else if (isSetter()) {
-            return "Set: " + base + " = " + (assignmentValue ? assignmentValue->toString() : "null");
-        } else {
-            return "Get: " + base;
-        }
-    }
-    std::string formatError(const std::string& msg) const override {
-        return "Error in '" + toString() + "'.\n" + msg;
-    };
+    std::string toString() const override;
+    std::string formatError(const std::string& msg) const override;
 };
 
 class Dereference : public Access {
@@ -174,84 +138,40 @@ class ArrowAccess : public Access {
 private:
     std::shared_ptr<Statement> pointer;
 
+    // Helper method declarations
+    std::shared_ptr<Omniscript::Expression> resolvePointerExpression(SymbolTableType scope);
+    std::shared_ptr<Omniscript::UserDefinedType> validateAndGetPointeeType(
+        std::shared_ptr<Omniscript::Type> pointerType);
+    int findMemberInType(std::shared_ptr<Omniscript::UserDefinedType> userType);
+    std::shared_ptr<Omniscript::Expression> processAssignment(SymbolTableType scope);
+
 public:
-    ArrowAccess(std::shared_ptr<Statement> ptr, const std::string& member) : pointer(ptr) {
-        memberName = member;
-        expr = ptr;
-    }
-
-    std::shared_ptr<Statement> clone() const override {
-        auto cloned = std::make_shared<ArrowAccess>(pointer->clone(), memberName);
-        cloned->assignmentValue = assignmentValue ? assignmentValue->clone() : nullptr;
-        for (const auto& arg : arguments) {
-            cloned->arguments.push_back(arg->clone());
-        }
-        cloned->isCall = isCall;
-        return cloned;
-    }
-
+    ArrowAccess(std::shared_ptr<Statement> ptr, const std::string& member);
+    
+    std::shared_ptr<Statement> clone() const override;
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-
-    std::string toString() const override {
-        std::string base = "(" + (pointer ? pointer->toString() : "null") + "->" + memberName + ")";
-
-        if (isSetter()) {
-            return base + " = " + (assignmentValue ? assignmentValue->toString() : "null");
-        } else if (isCall) {
-            std::string argsStr = "(";
-            for (size_t i = 0; i < arguments.size(); ++i) {
-                argsStr += arguments[i] ? arguments[i]->toString() : "null";
-                if (i + 1 < arguments.size()) argsStr += ", ";
-            }
-            argsStr += ")";
-            return "Call: " + base + argsStr;
-        } else {
-            return "Get: " + base;
-        }
-    }
-    std::string formatError(const std::string& msg) const override {
-        return "Error in '" + toString() + "'.\n" + msg;
-    };
+    std::string toString() const override;
+    std::string formatError(const std::string& msg) const override;
 };
 
-
 class IndexAccess : public Access {
-public:
-    IndexAccess(std::shared_ptr<Statement> expr, std::shared_ptr<Statement> index) {
-        this->expr = expr;
-        this->index = index;
-    }
-
+private:
     std::shared_ptr<Statement> index;
 
-    std::shared_ptr<Statement> clone() const override {
-        auto cloned = std::make_shared<IndexAccess>(expr->clone(), index->clone());
-        cloned->assignmentValue = assignmentValue ? assignmentValue->clone() : nullptr;
-        for (const auto& arg : arguments) {
-            cloned->arguments.push_back(arg->clone());
-        }
-        cloned->isCall = isCall;
-        return cloned;
-    }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::string toString() const override {
-        std::string base = "(" + (expr ? expr->toString() : "null") + "[" + (index ? index->toString() : "null") + "])";
+    // Helper method declarations
+    std::shared_ptr<Omniscript::Expression> resolveContainerExpression(SymbolTableType scope);
+    std::shared_ptr<Omniscript::Expression> resolveIndexExpression(SymbolTableType scope);
+    std::shared_ptr<Omniscript::Type> validateAndGetElementType(
+        std::shared_ptr<Omniscript::Type> containerType);
+    std::shared_ptr<Omniscript::Expression> processAssignment(SymbolTableType scope);
 
-        if (isSetter()) {
-            return base + " = " + (assignmentValue ? assignmentValue->toString() : "null");
-        } else if (isCall) {
-            std::string argsStr = "(";
-            for (size_t i = 0; i < arguments.size(); ++i) {
-                argsStr += arguments[i] ? arguments[i]->toString() : "null";
-                if (i + 1 < arguments.size()) argsStr += ", ";
-            }
-            argsStr += ")";
-            return "Call: " + base + argsStr;
-        } else {
-            return "Get: " + base;
-        }
-    }
-    std::string formatError(const std::string& msg) const override {
-        return "Error in '" + toString() + "'.\n" + msg;
-    };
+public:
+    IndexAccess(std::shared_ptr<Statement> expr, std::shared_ptr<Statement> index);
+    
+    std::shared_ptr<Statement> getIndex() const { return index; }
+    
+    std::shared_ptr<Statement> clone() const override;
+    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::string toString() const override;
+    std::string formatError(const std::string& msg) const override;
 };

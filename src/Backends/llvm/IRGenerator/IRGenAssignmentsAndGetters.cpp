@@ -1,4 +1,5 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
 
 llvm::Value* IRGenerator::assignVariable(

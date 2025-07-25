@@ -1,4 +1,5 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Expressions/BlockExpression.h>
 
 llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* expectedReturnType) {
     llvm::Function* currentFunction = Builder->GetInsertBlock()->getParent();

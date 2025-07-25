@@ -1,7 +1,7 @@
 extern "C" fn printf(fmt: char*, ...) => int;
 
 struct Position {
-   x: float = 0;
+   x: float = 10;
    y: float = 0;
    log() => void {
       printf("%.2f, %.2f", this.x as double, this.y as double);
@@ -15,8 +15,7 @@ struct Particle {
    //    this.position.y = y;
    // }
    log() => void {
-      // let a = this.position;
-      // printf("%.2f", this.position.x as double);
+      printf("%.2f", this.position.x as double);
       // printf("Particle(");
       // this.position.log();
       // printf(")");

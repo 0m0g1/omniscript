@@ -7,6 +7,7 @@
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
 
+#include <omniscript/Expressions/EntityExpressions.h>
 
 std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);

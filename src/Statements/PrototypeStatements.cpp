@@ -13,11 +13,14 @@
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/Expressions/ClassExpression.h>
+#include <omniscript/Expressions/BlockExpression.h>
 #include <omniscript/Expressions/StructExpression.h>
+#include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Expressions/CallableExpression.h>
 #include <omniscript/Expressions/FunctionExpression.h>
 #include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
+
 
 // ============================== Prototypes  ============================== //
 std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
