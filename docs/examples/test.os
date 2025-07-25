@@ -15,10 +15,10 @@ struct Particle {
    //    this.position.y = y;
    // }
    log() => void {
-      printf("%.2f", this.position.x as double);
-      // printf("Particle(");
-      // this.position.log();
-      // printf(")");
+      // printf("%.2f", this.position.x as double);
+      printf("Particle(");
+      this.position.log();
+      printf(")");
    }
 }
 
