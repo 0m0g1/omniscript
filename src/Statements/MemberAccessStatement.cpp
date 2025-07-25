@@ -63,14 +63,45 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     // Validate access context chain
     validateAccessChain(scope);
     
-    // Get base expression and type info
-    auto [baseExpr, baseTypeName, resolvedObjectName] = resolveBaseExpression(scope);
+    // Get base expression and type info using public methods
+    std::shared_ptr<Omniscript::Expression> baseExpr;
+    std::string baseTypeName;
+    std::string resolvedObjectName;
+    
+    // Resolve base expression manually since resolveBaseExpression might be private
+    DEBUG_LOG("The object is " + (object ? object->toString() : "null"));
+    
+    if (!object) {
+        // Handle string-based object name
+        auto expr = scope->get(objectName);
+        if (!expr) {
+            console.error("Variable '" + objectName + "' not found in scope");
+            return nullptr;
+        }
+        baseExpr = std::make_shared<Omniscript::VariableAccessExpression>(objectName, expr->getType());
+        baseTypeName = extractTypeName(expr->getType());
+        resolvedObjectName = objectName;
+    } else {
+        // Handle expression-based object
+        baseExpr = object->express(scope);
+        if (!baseExpr) {
+            console.error("Failed to evaluate base expression for member access");
+            return nullptr;
+        }
+        baseTypeName = extractTypeName(baseExpr->getType());
+        if (auto named = std::dynamic_pointer_cast<NamedStatement>(object)) {
+            resolvedObjectName = named->getName();
+        }
+    }
+    
     if (!baseExpr) {
         return nullptr;
     }
     
-    // Check if this is a method call (has arguments or isCall is true)
-    if (isCall || !arguments.empty()) {
+    DEBUG_LOG("Base type name: " + baseTypeName);
+    
+    // Check if this is a method call (has arguments or isCall is true)  
+    if (isMethodCall() || !arguments.empty()) {
         DEBUG_LOG("[MemberAccess] Detected method call: " + baseTypeName + "." + memberName);
         
         // Look for method with mangled name: TypeName.methodName

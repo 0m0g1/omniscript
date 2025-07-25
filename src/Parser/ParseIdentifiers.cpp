@@ -30,8 +30,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             
             // If the current expression is a MemberAccess, mark it as a call and set arguments
             if (auto memberAccess = std::dynamic_pointer_cast<MemberAccess>(expr)) {
-                memberAccess->isCall = true;
-                memberAccess->arguments = args;
+                memberAccess->setArguments(args); // This sets both arguments and isCall = true
                 
                 DEBUG_LOG("Marked MemberAccess as call: " + memberAccess->toString());
                 continue; // Don't create a separate Call object
@@ -47,9 +46,17 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             }
             call->setAccessContext(callContext);
             
-            DEBUG_LOG("Created call to '" + currentMember + "' with context: " + 
-                      (callContext.empty() ? "empty" : 
-                       std::string(callContext.begin(), callContext.end()).c_str()));
+            // Create context string for debug logging
+            std::string contextStr = "empty";
+            if (!callContext.empty()) {
+                contextStr = "";
+                for (size_t i = 0; i < callContext.size(); ++i) {
+                    if (i > 0) contextStr += ".";
+                    contextStr += callContext[i];
+                }
+            }
+            
+            DEBUG_LOG("Created call to '" + currentMember + "' with context: " + contextStr);
             
             expr = call;
             continue;
@@ -62,12 +69,15 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             
             auto constructor = std::make_shared<ObjectConstructorStatement>(expr, currentMember, "", args);
             
-            // Set access context for constructor
+            // Set access context for constructor if it supports it
             std::vector<std::string> constructorContext = accessContext;
             if (!constructorContext.empty()) {
                 constructorContext.pop_back();
             }
-            constructor->setAccessContext(constructorContext);
+            
+            if (auto ctxAware = std::dynamic_pointer_cast<ContextAwareStatement>(constructor)) {
+                ctxAware->setAccessContext(constructorContext);
+            }
             
             expr = constructor;
             continue;
@@ -94,9 +104,17 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             }
             memberAccess->setAccessContext(memberContext);
             
-            DEBUG_LOG("Created member access to '" + nextMember + "' with context: " + 
-                      (memberContext.empty() ? "empty" : 
-                       std::string(memberContext.begin(), memberContext.end()).c_str()));
+            // Create context string for debug logging
+            std::string contextStr = "empty";
+            if (!memberContext.empty()) {
+                contextStr = "";
+                for (size_t i = 0; i < memberContext.size(); ++i) {
+                    if (i > 0) contextStr += ".";
+                    contextStr += memberContext[i];
+                }
+            }
+            
+            DEBUG_LOG("Created member access to '" + nextMember + "' with context: " + contextStr);
             
             expr = memberAccess;
             continue;
