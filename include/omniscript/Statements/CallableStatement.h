@@ -1,5 +1,6 @@
 #pragma once
 #include <omniscript/Statement.h>
+#include <omniscript/Statements/AccessStatements.h>
 
 #include <omniscript/Expressions/FunctionExpression.h>
 
@@ -216,7 +217,7 @@ private:
         std::shared_ptr<MemberAccess> memberAccess,
         SymbolTableType scope
     );
-    
+
     std::shared_ptr<Omniscript::Expression> resolveMethodOverload(
         const std::vector<std::shared_ptr<Omniscript::Expression>>& overloads,
         std::shared_ptr<Omniscript::Expression> baseExpr,

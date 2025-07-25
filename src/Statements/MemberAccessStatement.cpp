@@ -77,10 +77,17 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
         std::string methodName = baseTypeName + "." + memberName;
         auto method = scope->get(methodName);
         
+        if (!method) {
+            // Check for overloaded methods
+            auto overloads = scope->getOverloads(methodName);
+            if (!overloads.empty()) {
+                DEBUG_LOG("[MemberAccess] Found overloaded methods for: " + methodName);
+                method = overloads[0]; // Use first overload for now
+            }
+        }
+        
         if (method) {
             DEBUG_LOG("[MemberAccess] Found method: " + methodName);
-            // Return a special expression that indicates this should be handled as a method call
-            // We'll create a CallExpression with the base expression as the 'this' argument
             
             // Create arguments list with 'this' as first argument
             std::vector<std::shared_ptr<Omniscript::Expression>> callArgs;
@@ -101,30 +108,6 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             callExpr->setPosition(getPosition());
             return callExpr;
         } else {
-            // Check for overloaded methods
-            auto overloads = scope->getOverloads(methodName);
-            if (!overloads.empty()) {
-                DEBUG_LOG("[MemberAccess] Found overloaded methods for: " + methodName);
-                // For now, return the first overload - proper overload resolution should happen in Call
-                auto firstOverload = overloads[0];
-                
-                std::vector<std::shared_ptr<Omniscript::Expression>> callArgs;
-                callArgs.push_back(baseExpr);
-                
-                for (const auto& arg : arguments) {
-                    if (auto argExpr = arg->express(scope)) {
-                        callArgs.push_back(argExpr);
-                    }
-                }
-                
-                auto methodType = firstOverload->getType();
-                auto returnType = methodType->isFunction() ? methodType->getReturnType() : methodType;
-                
-                auto callExpr = std::make_shared<Omniscript::CallExpression>(methodName, callArgs, returnType);
-                callExpr->setPosition(getPosition());
-                return callExpr;
-            }
-            
             console.error("Method '" + methodName + "' not found in scope");
             return nullptr;
         }
@@ -320,7 +303,7 @@ int MemberAccess::findMemberIndex(std::shared_ptr<Omniscript::UserDefinedType> u
         }
     }
     
-    console.error("Member '" + memberName + "' not found in user-defined type parameters");
+    DEBUG_LOG("Member '" + memberName + "' not found in user-defined type parameters");
     return -1;
 }
 

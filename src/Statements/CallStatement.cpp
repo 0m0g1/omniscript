@@ -83,9 +83,27 @@ std::shared_ptr<Omniscript::Expression> Call::handleMemberAccessCall(
     
     DEBUG_LOG("[Call] Handling member access call");
     
-    // Get the base expression and type
-    auto [baseExpr, baseTypeName, resolvedObjectName] = memberAccess->resolveBaseExpression(scope);
-    if (!baseExpr) {
+    // First, evaluate the member access to get its expression and type
+    auto memberExpr = memberAccess->express(scope);
+    if (!memberExpr) {
+        console.error(formatError("Failed to evaluate member access expression"));
+        return nullptr;
+    }
+    
+    // Extract the type name from the member access type
+    auto memberType = memberExpr->getType();
+    std::string baseTypeName;
+    
+    if (auto udt = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(memberType)) {
+        baseTypeName = udt->name;
+    } else if (auto pointeeType = memberType->getBasePointeeType()) {
+        if (auto pointeeUdt = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(pointeeType)) {
+            baseTypeName = pointeeUdt->name;
+        }
+    }
+    
+    if (baseTypeName.empty()) {
+        console.error(formatError("Could not determine base type for member access"));
         return nullptr;
     }
     
@@ -99,7 +117,7 @@ std::shared_ptr<Omniscript::Expression> Call::handleMemberAccessCall(
         // Try overload resolution
         auto overloads = scope->getOverloads(methodName);
         if (!overloads.empty()) {
-            method = resolveMethodOverload(overloads, baseExpr, scope);
+            method = resolveMethodOverload(overloads, memberExpr, scope);
         }
     }
     
@@ -117,9 +135,9 @@ std::shared_ptr<Omniscript::Expression> Call::handleMemberAccessCall(
     
     // Prepare arguments with 'this' as first argument
     std::vector<std::shared_ptr<Statement>> methodArgs;
-    auto thisArg = std::make_shared<ReferenceTo>(resolvedObjectName.empty() ? "this" : resolvedObjectName);
-    thisArg->setType(baseExpr->getType());
-    thisArg->setRootType(baseExpr->getType());
+    auto thisArg = std::make_shared<ReferenceTo>(memberAccess->toString());
+    thisArg->setType(memberType);
+    thisArg->setRootType(memberType);
     methodArgs.push_back(thisArg);
     
     // Add the original arguments

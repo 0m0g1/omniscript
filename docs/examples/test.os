@@ -10,12 +10,11 @@ struct Position {
 
 struct Particle {
    position = Position{5, 10};
-   // constructor(x: float, y: float) => void {
-   //    this.position.x = x;
-   //    this.position.y = y;
-   // }
+   constructor(x: float, y: float) => void {
+      this.position.x = x;
+      this.position.y = y;
+   }
    log() => void {
-      // printf("%.2f", this.position.x as double);
       printf("Particle(");
       this.position.log();
       printf(")");
