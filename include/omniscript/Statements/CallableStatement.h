@@ -211,6 +211,17 @@ private:
         SymbolTableType localScope,
         std::shared_ptr<Omniscript::Expression> called
     );
+
+    std::shared_ptr<Omniscript::Expression> handleMemberAccessCall(
+        std::shared_ptr<MemberAccess> memberAccess,
+        SymbolTableType scope
+    );
+    
+    std::shared_ptr<Omniscript::Expression> resolveMethodOverload(
+        const std::vector<std::shared_ptr<Omniscript::Expression>>& overloads,
+        std::shared_ptr<Omniscript::Expression> baseExpr,
+        SymbolTableType scope
+    );
 };
 
 class ObjectConstructorStatement : 

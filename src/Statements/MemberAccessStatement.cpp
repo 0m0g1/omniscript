@@ -69,6 +69,68 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
         return nullptr;
     }
     
+    // Check if this is a method call (has arguments or isCall is true)
+    if (isCall || !arguments.empty()) {
+        DEBUG_LOG("[MemberAccess] Detected method call: " + baseTypeName + "." + memberName);
+        
+        // Look for method with mangled name: TypeName.methodName
+        std::string methodName = baseTypeName + "." + memberName;
+        auto method = scope->get(methodName);
+        
+        if (method) {
+            DEBUG_LOG("[MemberAccess] Found method: " + methodName);
+            // Return a special expression that indicates this should be handled as a method call
+            // We'll create a CallExpression with the base expression as the 'this' argument
+            
+            // Create arguments list with 'this' as first argument
+            std::vector<std::shared_ptr<Omniscript::Expression>> callArgs;
+            callArgs.push_back(baseExpr);
+            
+            // Add other arguments if any
+            for (const auto& arg : arguments) {
+                if (auto argExpr = arg->express(scope)) {
+                    callArgs.push_back(argExpr);
+                }
+            }
+            
+            // Get method type for return type
+            auto methodType = method->getType();
+            auto returnType = methodType->isFunction() ? methodType->getReturnType() : methodType;
+            
+            auto callExpr = std::make_shared<Omniscript::CallExpression>(methodName, callArgs, returnType);
+            callExpr->setPosition(getPosition());
+            return callExpr;
+        } else {
+            // Check for overloaded methods
+            auto overloads = scope->getOverloads(methodName);
+            if (!overloads.empty()) {
+                DEBUG_LOG("[MemberAccess] Found overloaded methods for: " + methodName);
+                // For now, return the first overload - proper overload resolution should happen in Call
+                auto firstOverload = overloads[0];
+                
+                std::vector<std::shared_ptr<Omniscript::Expression>> callArgs;
+                callArgs.push_back(baseExpr);
+                
+                for (const auto& arg : arguments) {
+                    if (auto argExpr = arg->express(scope)) {
+                        callArgs.push_back(argExpr);
+                    }
+                }
+                
+                auto methodType = firstOverload->getType();
+                auto returnType = methodType->isFunction() ? methodType->getReturnType() : methodType;
+                
+                auto callExpr = std::make_shared<Omniscript::CallExpression>(methodName, callArgs, returnType);
+                callExpr->setPosition(getPosition());
+                return callExpr;
+            }
+            
+            console.error("Method '" + methodName + "' not found in scope");
+            return nullptr;
+        }
+    }
+    
+    // Original member access logic for data members
     // Get user-defined type
     auto userType = getUserDefinedType(scope, baseTypeName);
     if (!userType) {

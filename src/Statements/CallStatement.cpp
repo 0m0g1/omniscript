@@ -24,9 +24,15 @@
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
 
+
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG();
+    
+    // Check if expr is a MemberAccess that should be handled as a method call
+    if (auto memberAccess = std::dynamic_pointer_cast<MemberAccess>(expr)) {
+        return handleMemberAccessCall(memberAccess, scope);
+    }
     
     // Resolve target name and context
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
@@ -70,6 +76,100 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     }
     
     return createCallExpression(evaluatedCallee, parameters, localScope, called);
+}
+
+std::shared_ptr<Omniscript::Expression> Call::handleMemberAccessCall(
+    std::shared_ptr<MemberAccess> memberAccess, SymbolTableType scope) {
+    
+    DEBUG_LOG("[Call] Handling member access call");
+    
+    // Get the base expression and type
+    auto [baseExpr, baseTypeName, resolvedObjectName] = memberAccess->resolveBaseExpression(scope);
+    if (!baseExpr) {
+        return nullptr;
+    }
+    
+    // Build method name: TypeName.methodName
+    std::string methodName = baseTypeName + "." + callee;
+    DEBUG_LOG("[Call] Looking for method: " + methodName);
+    
+    // Find the method
+    std::shared_ptr<Omniscript::Expression> method = scope->get(methodName);
+    if (!method) {
+        // Try overload resolution
+        auto overloads = scope->getOverloads(methodName);
+        if (!overloads.empty()) {
+            method = resolveMethodOverload(overloads, baseExpr, scope);
+        }
+    }
+    
+    if (!method) {
+        console.error(formatError("Method '" + methodName + "' not found"));
+        return nullptr;
+    }
+    
+    // Verify it's callable
+    auto callable = std::dynamic_pointer_cast<Omniscript::Callable>(method);
+    if (!callable) {
+        console.error(formatError("'" + methodName + "' is not callable"));
+        return nullptr;
+    }
+    
+    // Prepare arguments with 'this' as first argument
+    std::vector<std::shared_ptr<Statement>> methodArgs;
+    auto thisArg = std::make_shared<ReferenceTo>(resolvedObjectName.empty() ? "this" : resolvedObjectName);
+    thisArg->setType(baseExpr->getType());
+    thisArg->setRootType(baseExpr->getType());
+    methodArgs.push_back(thisArg);
+    
+    // Add the original arguments
+    methodArgs.insert(methodArgs.end(), args.begin(), args.end());
+    
+    // Replace args with method args for processing
+    auto originalArgs = std::move(args);
+    args = std::move(methodArgs);
+    
+    // Get parameters and process
+    auto parameters = callable->cloneParameters();
+    type = callable->getType();
+    if (type->isFunction()) {
+        type = type->getReturnType();
+    }
+    
+    auto localScope = scope->createChildScope("call_" + methodName);
+    if (!processArguments(parameters, localScope, scope)) {
+        return nullptr;
+    }
+    
+    return createCallExpression(methodName, parameters, localScope, method);
+}
+
+std::shared_ptr<Omniscript::Expression> Call::resolveMethodOverload(
+    const std::vector<std::shared_ptr<Omniscript::Expression>>& overloads,
+    std::shared_ptr<Omniscript::Expression> baseExpr,
+    SymbolTableType scope) {
+    
+    DEBUG_LOG("[Call] Resolving method overload from " + std::to_string(overloads.size()) + " candidates");
+    
+    for (auto& overload : overloads) {
+        auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload);
+        if (!funcExpr) continue;
+        
+        auto paramList = funcExpr->getParameters();
+        if (paramList.empty()) continue;
+        
+        // Check if first parameter matches the base expression type (for 'this')
+        auto firstParam = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(paramList[0]);
+        if (!firstParam) continue;
+        
+        if (Omniscript::Type::isSameOrCastableTo(baseExpr->getType(), firstParam->getType())) {
+            // This overload is compatible with the base type
+            DEBUG_LOG("[Call] Found compatible method overload: " + funcExpr->mangledName);
+            return funcExpr;
+        }
+    }
+    
+    return nullptr;
 }
 
 std::string Call::resolveImpliedTargetName(const std::string& targetName) {
