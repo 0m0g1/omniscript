@@ -39,78 +39,105 @@ llvm::Value* IRGenerator::createStructInstance(
     const std::string& structName,
     const std::string& varName,
     const std::vector<llvm::Value*>& args,
-    bool isGlobal)
-{
+    bool isGlobal) {
+    
     llvm::StructType* structType = llvm::StructType::getTypeByName(*Context, structName);
     if (!structType) {
         DEBUG_LOG("Struct type '" + structName + "' does not exist.");
         return nullptr;
     }
 
-    // Ensure the number of arguments matches the number of fields in the struct
-    if (args.size() != structType->getNumElements()) {
-        console.error("Mismatch between number of fields '" + std::to_string(args.size()) + "' and constructor arguments '" + std::to_string(structType->getNumElements()) + "' for struct: " + structName);
+    size_t fieldCount = structType->getNumElements();
+    if (args.size() != fieldCount) {
+        console.error("Mismatch: struct '" + structName + "' expects " +
+                      std::to_string(fieldCount) + " fields, but got " +
+                      std::to_string(args.size()) + " arguments.");
         return nullptr;
     }
 
-    // For initializing fields
-    std::vector<llvm::Constant*> constants;
-    for (size_t i = 0; i < args.size(); ++i) {
-        if (auto* constVal = llvm::dyn_cast<llvm::Constant>(args[i])) {
-            constants.push_back(constVal);
-        } else {
-            // If not constant, still allow the argument to be used in the struct
-            constants.push_back(llvm::Constant::getNullValue(args[i]->getType())); // Fallback null value
-        }
-    }
+    llvm::Module* module = Builder->GetInsertBlock()->getModule();
 
-    llvm::Constant* initializer = llvm::ConstantStruct::get(structType, constants);
-
+    // === Global Instance ===
     if (isGlobal) {
-        // Creating a global variable
-        llvm::Module* module = Builder->GetInsertBlock()->getModule();  // Get module from the builder's block
+        std::vector<llvm::Constant*> initVals;
+        
+        for (size_t i = 0; i < args.size(); ++i) {
+            llvm::Value* arg = args[i];
+            llvm::Type* expectedType = structType->getElementType(i);
+            
+            // Handle the case where arg might be a pointer to a struct that needs to be loaded
+            if (auto* ptrType = llvm::dyn_cast<llvm::PointerType>(arg->getType())) {
+                if (auto* globalVar = llvm::dyn_cast<llvm::GlobalVariable>(arg)) {
+                    // If it's a global variable, use its initializer directly
+                    if (globalVar->hasInitializer()) {
+                        auto* initializer = globalVar->getInitializer();
+                        if (initializer->getType() == expectedType) {
+                            initVals.push_back(initializer);
+                            continue;
+                        }
+                    }
+                }
+            }
+            
+            // Try to cast to constant directly
+            auto* c = llvm::dyn_cast<llvm::Constant>(arg);
+            if (!c) {
+                console.error("Non-constant used in global initializer for field " + std::to_string(i));
+                return nullptr;
+            }
+            
+            // Verify type compatibility
+            if (c->getType() != expectedType) {
+                console.error("Type mismatch for field " + std::to_string(i) + 
+                             " in struct '" + structName + "'");
+                return nullptr;
+            }
+            
+            initVals.push_back(c);
+        }
+
+        llvm::Constant* initializer = llvm::ConstantStruct::get(structType, initVals);
+
         llvm::GlobalVariable* globalVar = new llvm::GlobalVariable(
             *module,
             structType,
-            false,  // isConstant
+            false,
             llvm::GlobalValue::ExternalLinkage,
             initializer,
             varName
         );
-        
-        DEBUG_LOG("Created global struct instance: " + varName);
-        activeScope->set(varName, globalVar);  // Register in active scope
+
+        activeScope->set(varName, globalVar);
         return globalVar;
-
-    } else {
-        // Creating a local variable (on the stack)
-        llvm::Function* currentFunc = Builder->GetInsertBlock()->getParent();
-        llvm::BasicBlock* entryBlock = &currentFunc->getEntryBlock();
-
-        llvm::IRBuilder<> entryBuilder(entryBlock);
-        if (!entryBlock->empty() && entryBlock->getTerminator()) {
-            entryBuilder.SetInsertPoint(entryBlock->getTerminator());
-        } else {
-            entryBuilder.SetInsertPoint(entryBlock);
-        }
-
-        // Create alloca for local variable
-        llvm::AllocaInst* localVar = entryBuilder.CreateAlloca(structType, nullptr, varName);
-
-        // Initialize the fields using the current builder
-        for (size_t i = 0; i < args.size() && i < structType->getNumElements(); ++i) {
-            if (Builder->GetInsertBlock()->getTerminator()) {
-                Builder->SetInsertPoint(Builder->GetInsertBlock()->getTerminator());
-            }
-
-            llvm::Value* fieldPtr = Builder->CreateStructGEP(structType, localVar, i, varName + "_field" + std::to_string(i));
-            Builder->CreateStore(args[i], fieldPtr);
-        }
-
-        DEBUG_LOG("Created local struct instance: " + varName);
-        activeScope->set(varName, localVar);  // Register struct instance in scope
-        return localVar;
     }
+
+    // === Local Instance ===
+    llvm::Function* func = Builder->GetInsertBlock()->getParent();
+    llvm::BasicBlock& entryBlock = func->getEntryBlock();
+
+    llvm::IRBuilder<> entryBuilder(&entryBlock, entryBlock.begin());
+    llvm::AllocaInst* localVar = entryBuilder.CreateAlloca(structType, nullptr, varName);
+
+    for (size_t i = 0; i < fieldCount; ++i) {
+        llvm::Value* fieldPtr = Builder->CreateStructGEP(structType, localVar, i, 
+                                                         varName + "_field" + std::to_string(i));
+        
+        llvm::Value* valueToStore = args[i];
+        llvm::Type* expectedType = structType->getElementType(i);
+        
+        // If the argument is a pointer and we expect a value type, load it first
+        if (valueToStore->getType()->isPointerTy() && !expectedType->isPointerTy()) {
+            // In modern LLVM with opaque pointers, we need to specify the type to load
+            valueToStore = Builder->CreateLoad(expectedType, valueToStore, 
+                                              varName + "_load_field" + std::to_string(i));
+        }
+        
+        Builder->CreateStore(valueToStore, fieldPtr);
+    }
+
+    DEBUG_LOG("Created local struct instance: " + varName);
+    activeScope->set(varName, localVar);
+    return localVar;
 }
 
 llvm::Value* IRGenerator::loadMemberValue(const std::string& objectName, const std::string& memberName) { 

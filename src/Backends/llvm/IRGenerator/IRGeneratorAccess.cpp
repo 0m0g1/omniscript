@@ -88,7 +88,10 @@ llvm::Value* IRGenerator::handleMemberAccess(
     //     return currentPtr;  // Return the pointer if preserving
     // }
     
-    return Builder->CreateLoad(currentType, currentPtr);
+    if (!preservePointer && !currentType->isStructTy()) {
+        return Builder->CreateLoad(currentType, currentPtr);
+    }
+    return currentPtr;
 }
 
 llvm::Value* IRGenerator::handleArrowAccess(
