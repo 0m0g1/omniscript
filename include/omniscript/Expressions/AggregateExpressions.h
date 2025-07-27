@@ -183,15 +183,15 @@ public:
     std::string instanceName;
     std::shared_ptr<Type> instanceType;
 
-    std::vector<std::shared_ptr<MemberExpression>> memberExpressions;  
+    std::vector<std::shared_ptr<MemberExpression>> members;  
 
     InstanceExpression(
         const std::string& baseName,
         const std::string& instanceName,
-        const std::vector<std::shared_ptr<MemberExpression>>& memberExpressions = {}
+        const std::vector<std::shared_ptr<MemberExpression>>& members = {}
     ) : baseName(baseName),
         instanceName(instanceName),
-        memberExpressions(memberExpressions) {
+        members(members) {
 
         this->instanceType = std::make_shared<UserDefinedType>(baseName);
         this->type = instanceType; 
@@ -203,7 +203,7 @@ public:
 
     
     std::shared_ptr<Expression> getField(const std::string& name) const {
-        for (const auto& member : memberExpressions) {
+        for (const auto& member : members) {
             if (member->getType()->getParameterName() == name) {
                 return member;
             }
@@ -213,7 +213,7 @@ public:
 
     
     bool setField(const std::string& name, const std::shared_ptr<Expression>& newValue) {
-        for (auto& member : memberExpressions) {
+        for (auto& member : members) {
             if (member->getType()->getParameterName() == name) {
                 member->value = newValue;  
                 return true;
@@ -224,7 +224,7 @@ public:
 
     std::shared_ptr<Expression> clone() const override {
         std::vector<std::shared_ptr<MemberExpression>> clonedMembers;
-        for (const auto& member : memberExpressions) {
+        for (const auto& member : members) {
             clonedMembers.push_back(std::dynamic_pointer_cast<MemberExpression>(member->clone()));
         }
 

@@ -368,26 +368,41 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
 std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG("Constructing '" + instanceName + "' of type '" + objectType + "'.");
-
-    // std::vector<std::shared_ptr<Omniscript::Expression>> argValues;
-    // for (const auto& arg : constructorArgs) {
-    //     argValues.push_back(arg->express(scope));
-    // }
-
+    
     if (!scope->getType(objectType)) {
         console.error("Object type was not found in the scope");
+        return nullptr;
     }
-
+    
     type = std::make_shared<Omniscript::UserDefinedType>(objectType);
-    auto constructorCall = std::make_shared<Call>(objectType, instanceName, constructorArgs);
+    
+    // Always create instance with default values first (empty args)
+    std::vector<std::shared_ptr<Statement>> emptyArgs = {};
+    auto constructorCall = std::make_shared<Call>(objectType, emptyArgs);
     auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(constructorCall->express(scope));
+    
+    if (!call) {
+        console.error("Failed to create instance of '" + objectType + "'");
+        return nullptr;
+    }
+    
+    // In ObjectConstructorStatement::express()
+    std::string actualInstanceName = instanceName;
+    if (actualInstanceName.empty()) {
+        // Generate a unique name for anonymous instances
+        static int anonymousCounter = 0;
+        actualInstanceName = "__anonymous_" + objectType + "_" + std::to_string(anonymousCounter++);
+    }
 
     auto instance = std::make_shared<Omniscript::InstanceExpression>(
         objectType,
-        instanceName,
+        actualInstanceName,  // Always has a name now
         call->members
     );
 
+    // Store in scope with the actual name
+    scope->set(actualInstanceName, instance);
+    
     instance->instanceType = scope->getType(objectType);
     instance->type = scope->getType(objectType);
     setType(instance->type);
@@ -395,22 +410,45 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
     scope->set(instanceName, instance);
     call->setPosition(getPosition());
     instance->setPosition(getPosition());
-
+    
+    // Check if constructor exists and we have arguments to pass to it
     if (!scope->getOverloads(objectType + ".constructor").empty()) {
-        auto overloads = scope->getOverloads(objectType + ".constructor");
+        DEBUG_LOG("Found constructor for '" + objectType + "', calling with provided arguments");
+        
         std::vector<std::shared_ptr<Omniscript::Expression>> ctorExpressions;
         ctorExpressions.push_back(instance);
-        auto thisArg = std::make_shared<ReferenceTo>(instanceName);
+        
+        // Create 'this' argument for constructor
+        auto thisArg = std::make_shared<ReferenceTo>(actualInstanceName);
         auto thisArgType = scope->getType(objectType);
         thisArg->setType(Omniscript::Type::createPointerType(thisArgType));
         thisArg->setRootType(thisArg->getType());
-        constructorArgs.insert(constructorArgs.begin(), thisArg);
+        
+        // Create copy of constructor args and insert 'this' at the beginning
+        std::vector<std::shared_ptr<Statement>> ctorArgs = constructorArgs;
+        ctorArgs.insert(ctorArgs.begin(), thisArg);
+        
         DEBUG_LOG("The 'this' arg is of instance '" + instanceName + "' and of type '" + thisArg->getType()->toString() + "'.");
-        auto ctorCall = std::make_shared<Call>(objectType + ".constructor", instanceName, constructorArgs)->express(scope);
+        
+        // Call constructor with the provided arguments
+        auto ctorCall = std::make_shared<Call>(objectType + ".constructor", instanceName, ctorArgs)->express(scope);
+        if (!ctorCall) {
+            console.error("Failed to call constructor for '" + objectType + "'");
+            return nullptr;
+        }
+        
         ctorExpressions.push_back(ctorCall);
         auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
         constructionBlock->setPosition(getPosition());
         return constructionBlock;
     }
+    
+    // No constructor found
+    if (!constructorArgs.empty()) {
+        DEBUG_LOG("No constructor found but arguments provided - this might be field initialization");
+        // For now, just return the instance and let the system handle field initialization
+        // The arguments should be used for direct field assignment if possible
+    }
+    
     return instance;
 }

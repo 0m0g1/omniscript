@@ -21,7 +21,7 @@ struct Particle {
    }
 }
 
-let p1 = Particle{};
+let p1 = Particle{100, 300};
 p1.log();
 
 // // which language woud users prefer based of the syntax my language, c, c++, zig, rust? my language can be both high level and low level the user chooses what they want I don't force keep in mind all the null checks are forced during compile time for safety

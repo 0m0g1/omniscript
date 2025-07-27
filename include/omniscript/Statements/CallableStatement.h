@@ -169,7 +169,8 @@ private:
     bool processArguments(
         const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& parameters,
         SymbolTableType localScope,
-        SymbolTableType scope
+        SymbolTableType scope,
+        std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
     );
     
     bool processNamedArguments(
@@ -177,7 +178,8 @@ private:
         SymbolTableType localScope,
         SymbolTableType scope,
         std::unordered_set<std::string>& providedParams,
-        size_t& namedArgsCount
+        size_t& namedArgsCount,
+        std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
     );
     
     bool processPositionalArguments(
@@ -186,7 +188,8 @@ private:
         SymbolTableType scope,
         const std::unordered_set<std::string>& providedParams,
         size_t& positionalArgIndex,
-        size_t namedArgsCount
+        size_t namedArgsCount,
+        std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
     );
     
     bool handleVariadicParameter(
@@ -195,7 +198,8 @@ private:
         SymbolTableType scope,
         int& i,
         size_t& positionalArgIndex,
-        std::shared_ptr<Omniscript::FunctionExpression> calledFunc
+        std::shared_ptr<Omniscript::FunctionExpression> calledFunc,
+        std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
     );
     
     bool processRegularPositionalArgument(
@@ -203,14 +207,17 @@ private:
         std::shared_ptr<Omniscript::FunctionInputExpression> param,
         SymbolTableType localScope,
         SymbolTableType scope,
-        size_t& positionalArgIndex
+        size_t& positionalArgIndex,
+        int paramIndex,
+        std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
     );
     
     std::shared_ptr<Omniscript::Expression> createCallExpression(
         const std::string& evaluatedCallee,
         const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& parameters,
         SymbolTableType localScope,
-        std::shared_ptr<Omniscript::Expression> called
+        std::shared_ptr<Omniscript::Expression> called,
+        const std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
     );
 
     std::shared_ptr<Omniscript::Expression> handleMemberAccessCall(

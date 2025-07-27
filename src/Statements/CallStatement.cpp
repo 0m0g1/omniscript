@@ -24,7 +24,6 @@
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
 
-
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
     DEBUG_LOG();
@@ -71,11 +70,13 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     
     // Process arguments and create call
     auto localScope = scope->createChildScope("call_" + evaluatedCallee);
-    if (!processArguments(parameters, localScope, scope)) {
+    std::vector<std::shared_ptr<Omniscript::Expression>> collectedArgs;
+    
+    if (!processArguments(parameters, localScope, scope, collectedArgs)) {
         return nullptr;
     }
     
-    return createCallExpression(evaluatedCallee, parameters, localScope, called);
+    return createCallExpression(evaluatedCallee, parameters, localScope, called, collectedArgs);
 }
 
 std::shared_ptr<Omniscript::Expression> Call::handleMemberAccessCall(
@@ -155,11 +156,13 @@ std::shared_ptr<Omniscript::Expression> Call::handleMemberAccessCall(
     }
     
     auto localScope = scope->createChildScope("call_" + methodName);
-    if (!processArguments(parameters, localScope, scope)) {
+    std::vector<std::shared_ptr<Omniscript::Expression>> collectedArgs;
+    
+    if (!processArguments(parameters, localScope, scope, collectedArgs)) {
         return nullptr;
     }
     
-    return createCallExpression(methodName, parameters, localScope, method);
+    return createCallExpression(methodName, parameters, localScope, method, collectedArgs);
 }
 
 std::shared_ptr<Omniscript::Expression> Call::resolveMethodOverload(
@@ -453,7 +456,8 @@ std::string Call::getEvaluatedCalleeName(std::shared_ptr<Omniscript::Expression>
 bool Call::processArguments(
     const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& parameters,
     SymbolTableType localScope,
-    SymbolTableType scope) {
+    SymbolTableType scope,
+    std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs) {
     
     std::unordered_set<std::string> providedParams;
     size_t positionalArgIndex = 0;
@@ -462,12 +466,12 @@ bool Call::processArguments(
     DEBUG_LOG("[Call] Processing " + std::to_string(args.size()) + " arguments");
     
     // First pass: named arguments
-    if (!processNamedArguments(parameters, localScope, scope, providedParams, namedArgsCount)) {
+    if (!processNamedArguments(parameters, localScope, scope, providedParams, namedArgsCount, collectedArgs)) {
         return false;
     }
     
     // Second pass: positional arguments and defaults
-    if (!processPositionalArguments(parameters, localScope, scope, providedParams, positionalArgIndex, namedArgsCount)) {
+    if (!processPositionalArguments(parameters, localScope, scope, providedParams, positionalArgIndex, namedArgsCount, collectedArgs)) {
         return false;
     }
     
@@ -479,7 +483,11 @@ bool Call::processNamedArguments(
     SymbolTableType localScope,
     SymbolTableType scope,
     std::unordered_set<std::string>& providedParams,
-    size_t& namedArgsCount) {
+    size_t& namedArgsCount,
+    std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs) {
+    
+    // Initialize collectedArgs with nullptrs for all parameters
+    collectedArgs.resize(parameters.size(), nullptr);
     
     for (const auto& arg : args) {
         if (auto namedArg = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
@@ -487,26 +495,29 @@ bool Call::processNamedArguments(
             const std::string& paramName = namedArg->getName();
             DEBUG_LOG("[Call] Processing named argument '" + paramName + "'");
             
-            bool found = false;
-            for (const auto& param : parameters) {
-                if (param->name == paramName) {
-                    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(namedArg->value)) {
-                        typed->setType(param->getType());
-                        DEBUG_LOG("[Call] Set type for named argument '" + paramName + "' to '" + param->getType()->toString() + "'.");
-                    }
-                    found = true;
+            int paramIndex = -1;
+            for (int i = 0; i < parameters.size(); i++) {
+                if (parameters[i]->name == paramName) {
+                    paramIndex = i;
                     break;
                 }
             }
             
-            if (!found) {
+            if (paramIndex == -1) {
                 DEBUG_LOG("[Call] ERROR: Unknown parameter '" + paramName + "'");
                 console.error(formatError("Unknown parameter '" + paramName + "' for callable '" + callee + "'"));
                 continue;
             }
             
+            auto param = parameters[paramIndex];
+            if (auto typed = std::dynamic_pointer_cast<TypedStatement>(namedArg->value)) {
+                typed->setType(param->getType());
+                DEBUG_LOG("[Call] Set type for named argument '" + paramName + "' to '" + param->getType()->toString() + "'.");
+            }
+            
             auto evaluated = namedArg->value ? namedArg->value->express(scope) : nullptr;
             localScope->set(paramName, evaluated);
+            collectedArgs[paramIndex] = evaluated;
             providedParams.insert(paramName);
             DEBUG_LOG("[Call] Set named parameter '" + paramName + "' in local scope with value '" + 
                       evaluated->toString() + "' type '" + evaluated->getType()->toString() + "'.");
@@ -522,49 +533,75 @@ bool Call::processPositionalArguments(
     SymbolTableType scope,
     const std::unordered_set<std::string>& providedParams,
     size_t& positionalArgIndex,
-    size_t namedArgsCount) {
+    size_t namedArgsCount,
+    std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs) 
+{
+    // First get ALL potential overloads
+    auto overloads = scope->getOverloads(callee);
+    if (overloads.empty()) {
+        overloads = findOverloadsInContext(scope);
+    }
+
+    // Resolve the specific overload to use
+    auto called = resolveOverload(overloads, scope);
     
-    auto calledFunc = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(
-        localScope->getParent()->get(callee));
-    
+    if (!called) {
+        called = scope->get(callee);
+    }
+
+    if (!called) {
+        console.error(formatError("Function or type '" + callee + "' not found."));
+        return false;
+    }
+
     for (int i = 0; i < parameters.size(); i++) {
         auto& param = parameters[i];
         std::string paramName = param->name;
-        
+
+        // Skip parameters that were provided by name
         if (providedParams.count(paramName)) {
             continue;
         }
-        
+
         // Handle variadic parameters
-        if (calledFunc && handleVariadicParameter(parameters, localScope, scope, i, positionalArgIndex, calledFunc)) {
-            continue;
-        }
-        
-        // Handle regular positional arguments
-        if (positionalArgIndex < args.size()) {
-            if (!processRegularPositionalArgument(args[positionalArgIndex], param, localScope, scope, positionalArgIndex)) {
+        if (param->isVariadic) {
+            auto calledFunc = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(called);
+            if (!handleVariadicParameter(parameters, localScope, scope, i, positionalArgIndex, calledFunc, collectedArgs)) {
                 return false;
             }
-        } else if (param->defaultValue) {
+            // After handling variadic, we're done with positional args
+            break;
+        }
+
+        // Handle regular positional arguments
+        if (positionalArgIndex < args.size()) {
+            if (!processRegularPositionalArgument(args[positionalArgIndex], param, 
+                                               localScope, scope, positionalArgIndex, i, collectedArgs)) {
+                return false;
+            }
+            positionalArgIndex++;
+        } 
+        else if (param->defaultValue) {
             DEBUG_LOG("[Call] Using default value for parameter '" + paramName + "'");
             localScope->set(paramName, param->defaultValue);
-        } else {
+            collectedArgs[i] = param->defaultValue;
+        } 
+        else {
             DEBUG_LOG("[Call] ERROR: Missing required parameter '" + paramName + "'");
-            console.error(formatError("Missing required argument for parameter '" + paramName + "'"));
+            console.error(formatError("Missing required argument for parameter '" + 
+                          paramName + "'"));
             return false;
         }
     }
-    
-    // Check for extra arguments
-    if (positionalArgIndex + namedArgsCount > args.size()) {
-        auto func = std::dynamic_pointer_cast<Omniscript::Callable>(localScope->getParent()->get(callee));
-        if (!func || !func->isVarArg) {
-            DEBUG_LOG("[Call] ERROR: Too many arguments provided");
-            console.error(formatError("Too many arguments provided to '" + callee + "'"));
-            return false;
-        }
+
+    // Check for extra arguments (only if no variadic parameter consumed them)
+    if (positionalArgIndex < args.size() && 
+        !(parameters.size() > 0 && parameters.back()->isVariadic)) {
+        DEBUG_LOG("[Call] ERROR: Too many arguments provided");
+        console.error(formatError("Too many arguments provided to '" + callee + "'"));
+        return false;
     }
-    
+
     return true;
 }
 
@@ -574,74 +611,80 @@ bool Call::handleVariadicParameter(
     SymbolTableType scope,
     int& i,
     size_t& positionalArgIndex,
-    std::shared_ptr<Omniscript::FunctionExpression> calledFunc) {
-    
-    int variadicIndex = i;
-    if (!calledFunc->isExtern && !calledFunc->isIntrinsic) {
-        variadicIndex++;
-    }
-    
-    if (variadicIndex >= parameters.size() || !parameters[variadicIndex]->isVariadic) {
+    std::shared_ptr<Omniscript::FunctionExpression> calledFunc,
+    std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs) 
+{
+    // Verify this is actually a variadic parameter
+    if (i >= parameters.size() || !parameters[i]->isVariadic) {
         return false;
     }
-    
-    auto& variadicParam = parameters[variadicIndex];
+
+    auto& variadicParam = parameters[i];
     std::string paramName = variadicParam->name;
-    
     DEBUG_LOG("[Call] Handling variadic parameter '" + paramName + "'");
-    
-    std::vector<std::shared_ptr<Omniscript::Expression>> collectedArgs;
+
+    // Get the expected element type (for arrays, get the element type)
+    auto expectedType = variadicParam->getType();
+    if (expectedType->isArray()) {
+        expectedType = expectedType->getBasePointeeType();
+    }
+
+    std::vector<std::shared_ptr<Omniscript::Expression>> variadicArgs;
     int varArgsCount = 0;
-    
+
+    // Collect all remaining arguments
     while (positionalArgIndex < args.size()) {
-        auto arg = args[positionalArgIndex++];
+        auto arg = args[positionalArgIndex];
         
-        if (std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
-            DEBUG_LOG("[Call] ERROR: Positional argument after named argument in variadic");
-            console.error(formatError("Positional argument after named argument is not allowed."));
+        // Error if named arguments appear in variadic section
+        if (auto namedArg = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
+            console.error(formatError("Named argument '" + namedArg->getName() + 
+                          "' cannot appear after variadic arguments"));
+            positionalArgIndex++;
             continue;
         }
-        
-        auto typed = std::dynamic_pointer_cast<TypedStatement>(arg);
-        if (!typed) {
-            console.error(formatError("Expected typed argument for variadic param '" + paramName + "'"));
-            continue;
-        }
-        
-        auto argType = typed->getRootType() ? typed->getRootType() : typed->getType();
-        if (!argType) {
-            auto tempScope = localScope->createChildScope("temp");
-            argType = (typed->clone()->express(tempScope))->getType();
-            if (!argType) {
-                console.error(formatError("The variadic argument '" + arg->toString() + "' has no type"));
-            }
-        }
-        
+
+        // Evaluate the argument
         auto value = arg->express(scope);
         if (!value || value->getType()->isInvalid()) {
-            console.error(formatError("Invalid value in variadic argument for '" + paramName + "'"));
+            console.error(formatError("Invalid value in variadic argument"));
+            positionalArgIndex++;
             continue;
         }
         
+        variadicArgs.push_back(value);
         varArgsCount++;
-        collectedArgs.push_back(value);
+        positionalArgIndex++;
     }
-    
-    positionalArgIndex++;
-    i++;
-    
-    // External functions don't have an implied count, only an explicit count
-    if (!calledFunc->isExtern) {
-        auto argsCountExpr = std::make_shared<Omniscript::Integer<int>>(varArgsCount);
-        localScope->set(paramName + "_count", argsCountExpr);
+
+    // Add all variadic arguments to collected args
+    for (auto& varArg : variadicArgs) {
+        collectedArgs.push_back(varArg);
     }
-    
-    auto arrayValue = std::make_shared<Omniscript::ArrayExpression>(
-        variadicParam->getType(), collectedArgs, /* isVariadic */ true);
-    localScope->set(paramName, arrayValue);
-    
+
+    // For external functions, we just pass the arguments directly
+    if (calledFunc->isExtern) {
+        // Store the variadic arguments directly in the scope
+        for (size_t j = 0; j < variadicArgs.size(); j++) {
+            localScope->set(paramName + "_" + std::to_string(j), variadicArgs[j]);
+        }
+    } 
+    else {
+        // For non-extern functions, create an array value
+        // auto arrayType = Omniscript::Type::createArrayType(expectedType);
+        // auto arrayValue = std::make_shared<Omniscript::ArrayExpression>(
+        //     arrayType, variadicArgs, /* isVariadic */ true);
+        // localScope->set(paramName, arrayValue);
+
+        // // Store count if needed
+        // if (!calledFunc->isIntrinsic) {
+        //     auto argsCountExpr = std::make_shared<Omniscript::Integer<int>>(varArgsCount);
+        //     localScope->set(paramName + "_count", argsCountExpr);
+        // }
+    }
+
     DEBUG_LOG("[Call] Bound variadic parameter '" + paramName + "' with " + 
-              std::to_string(collectedArgs.size()) + " arguments");
+              std::to_string(variadicArgs.size()) + " arguments");
     
     return true;
 }
@@ -651,47 +694,38 @@ bool Call::processRegularPositionalArgument(
     std::shared_ptr<Omniscript::FunctionInputExpression> param,
     SymbolTableType localScope,
     SymbolTableType scope,
-    size_t& positionalArgIndex) {
-    
+    size_t& positionalArgIndex,
+    int paramIndex,
+    std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs)
+{
+    // Error if named arguments appear in positional section
     if (std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
         DEBUG_LOG("[Call] ERROR: Positional argument after named argument");
         console.error(formatError("Positional argument after named argument is not allowed."));
         return false;
     }
-    
-    if (auto typed = std::dynamic_pointer_cast<TypedStatement>(arg)) {
-        auto argType = typed->getRootType() ? typed->getRootType() : typed->getType();
-        
-        if (!argType) {
-            auto tempScope = localScope->createChildScope("temp");
-            argType = (typed->clone()->express(tempScope))->getType();
-            if (!argType) {
-                console.error(formatError("The argument '" + arg->toString() + "' has no type"));
-            }
-        }
-        
-        if (Omniscript::Type::isSameOrCastableTo(argType, param->getType())) {
-            if (!typed->getType()) {
-                typed->setType(param->getType());
-            }
-        } else {
-            console.error(formatError("Cannot bind argument of type '" + argType->toString() +
-                          "' to parameter '" + param->name + "'; expected '" + param->getType()->toString() + "'"));
-        }
-    }
-    
+
+    // Evaluate the argument
     auto value = arg->express(scope);
     if (!value || value->getType()->isInvalid()) {
         console.error(formatError("Invalid argument for parameter '" + param->name + "'"));
         return false;
     }
-    
+
+    // Check type compatibility
+    if (!Omniscript::Type::isSameOrCastableTo(value->getType(), param->getType())) {
+        console.error(formatError("Cannot bind argument of type '" + 
+                      value->getType()->toString() + "' to parameter '" + 
+                      param->name + "'; expected '" + param->getType()->toString() + "'"));
+        return false;
+    }
+
+    // Store in scope and collected args
     localScope->set(param->name, value);
-    positionalArgIndex++;
-    
+    collectedArgs[paramIndex] = value;
     DEBUG_LOG("[Call] Set positional argument for '" + param->name + "' with value '" + 
               value->toString() + "' and type '" + value->getType()->toString() + "'.");
-    
+
     return true;
 }
 
@@ -699,19 +733,13 @@ std::shared_ptr<Omniscript::Expression> Call::createCallExpression(
     const std::string& evaluatedCallee,
     const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& parameters,
     SymbolTableType localScope,
-    std::shared_ptr<Omniscript::Expression> called) {
+    std::shared_ptr<Omniscript::Expression> called,
+    const std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs) {
     
-    DEBUG_LOG("[Call] Preparing arguments for CallExpression");
+    DEBUG_LOG("[Call] Creating CallExpression with " + std::to_string(collectedArgs.size()) + " collected arguments");
     
-    std::vector<std::shared_ptr<Omniscript::Expression>> finalArgs;
-    int paramIndex = 0;
-    for (const auto& param : parameters) {
-        auto val = localScope->get(param->name);
-        val->name = param->name;
-        DEBUG_LOG("Parameter '" + std::to_string(paramIndex) + "' is '" + val->name + "'.");
-        paramIndex++;
-        finalArgs.push_back(val);
-    }
+    // Use collected args directly instead of processing parameters
+    std::vector<std::shared_ptr<Omniscript::Expression>> finalArgs = collectedArgs;
     
     if (std::dynamic_pointer_cast<Omniscript::FunctionExpression>(called)) {
         DEBUG_LOG("[Call] Returning CallExpression for '" + evaluatedCallee + "' with " + 
@@ -725,12 +753,14 @@ std::shared_ptr<Omniscript::Expression> Call::createCallExpression(
     auto instanceConstructor = std::make_shared<Omniscript::CallExpression>(evaluatedCallee, instanceName, finalArgs);
     int index = 0;
     for (const auto& param : parameters) {
-        auto instanceMember = std::make_shared<Omniscript::MemberExpression>(
-            param->getName(),
-            param->getType(),
-            finalArgs[index]
-        );
-        instanceConstructor->members.push_back(instanceMember);
+        if (index < finalArgs.size()) {
+            auto instanceMember = std::make_shared<Omniscript::MemberExpression>(
+                param->getName(),
+                param->getType(),
+                finalArgs[index]
+            );
+            instanceConstructor->members.push_back(instanceMember);
+        }
         index++;
     }
     

@@ -86,12 +86,65 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return result;
     }
 
-    // Handle ReferenceValue
     if (auto refValue = std::dynamic_pointer_cast<Omniscript::ReferenceExpression>(value)) {
         DEBUG_LOG("Creating reference to variable " + refValue->referentName);
-        return getReferenceToVariable(refValue->referentName);
+        
+        // If we have a referent expression (complex case like "this.position.x")
+        if (refValue->referent) {
+            DEBUG_LOG("Reference has a referent expression, generating its code");
+            
+            // Generate the LLVM value for the referent expression
+            llvm::Value* referentValue = codegen(refValue->referent, scope);
+            if (!referentValue) {
+                console.error("Failed to generate code for referent expression: " + refValue->referent->toString());
+                return nullptr;
+            }
+            
+            // For referent expressions, we want the address, not a copy
+            // If it's already a pointer, return it directly
+            if (referentValue->getType()->isPointerTy()) {
+                DEBUG_LOG("Generated value is already a pointer type, returning directly");
+                return referentValue;
+            } else {
+                console.error("Referent expression should generate a pointer/reference, got value type instead");
+                return nullptr;
+            }
+        }
+        
+        // If we have a referent pointer (indirect reference)
+        if (refValue->referentPtr && *refValue->referentPtr) {
+            DEBUG_LOG("Reference has a referent pointer, generating its code");
+            
+            llvm::Value* referentValue = codegen(*refValue->referentPtr, scope);
+            if (!referentValue) {
+                console.error("Failed to generate code for referent pointer expression");
+                return nullptr;
+            }
+            
+            // For referent pointers, we want the address, not a copy
+            if (referentValue->getType()->isPointerTy()) {
+                DEBUG_LOG("Generated value is already a pointer type, returning directly");
+                return referentValue;
+            } else {
+                console.error("Referent pointer expression should generate a pointer/reference, got value type instead");
+                return nullptr;
+            }
+        }
+        
+        // Fall back to name-based lookup for simple variable references
+        if (!refValue->referentName.empty()) {
+            DEBUG_LOG("Using name-based reference lookup: " + refValue->referentName);
+            if (activeScope->exists(refValue->referentName)) {
+                return activeScope->get(refValue->referentName);
+            }
+            console.error("Cannot get reference to: " + refValue->referentName);
+            return nullptr;
+        }
+        
+        console.error("ReferenceExpression has no valid referent");
+        return nullptr;
     }
-    
+
     if (auto addressOf = std::dynamic_pointer_cast<Omniscript::AddressOfExpression>(value)) {
         DEBUG_LOG("Getting the address of variable " + addressOf->variableName);
         return getAddressOf(addressOf->variableName);
@@ -276,20 +329,29 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
 
     if (auto var = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(value)) {
         DEBUG_LOG("Accessing variable: " + var->variableName);
+        
         if (var->extractValue) {
             DEBUG_LOG("Extracting the value of a nullable");
         }
-        // return getVariable(var->variableName, var->extractValue);
+
         return getVariable(var->variableName, false);
     }
 
     if (auto instance = std::dynamic_pointer_cast<Omniscript::InstanceExpression>(value)) {
         DEBUG_LOG("Creating an instance of '" + instance->baseName + "'.");
+
+        // Check if we already generated this instance
+        if (!instance->instanceName.empty()) {
+            // Try to get existing LLVM value if it exists
+            if (auto existingValue = activeScope->get(instance->instanceName)) {
+                return existingValue;
+            }
+        }
         
         std::vector<llvm::Value*> args;
-        args.reserve(instance->memberExpressions.size()); // Pre-reserve to avoid reallocations
+        args.reserve(instance->members.size()); // Pre-reserve to avoid reallocations
 
-        for (const auto& arg : instance->memberExpressions) {
+        for (const auto& arg : instance->members) {
             DEBUG_LOG(arg->toString());
 
             if (auto member = std::dynamic_pointer_cast<Omniscript::MemberExpression>(arg)) {
@@ -303,7 +365,14 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         }
 
         DEBUG_LOG("Creating an object instance");
-        return createObjectInstance(instance->baseName, instance->instanceName, args, false);
+        auto result = createObjectInstance(instance->baseName, instance->instanceName, args, false);
+        
+        // Store the result if it has a name
+        if (!instance->instanceName.empty()) {
+            activeScope->setConstant(instance->instanceName, result);
+        }
+        
+        return result;
     }
 
     if (auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(value)) {

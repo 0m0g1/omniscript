@@ -29,6 +29,7 @@ void IRGenerator::createStructType(const std::string& name, const std::vector<ll
         console.error("Failed to create struct type: " + name);
         return;
     }
+    
     DEBUG_LOG("Created '" + debugType(structType) + "' struct type");
     activeScope->addType(name, structType);
 
