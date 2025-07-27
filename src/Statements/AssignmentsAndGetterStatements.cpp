@@ -48,12 +48,34 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
 
 std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType scope) {
     Omniscript::setPosition(pos.line, pos.col, pos.filePath);
-    DEBUG_LOG("Getting a reference to '" + name + "'.");
+    
+    if (name.empty() && !referent) {
+        console.error("There is no referent.");
+        return nullptr;
+    }
+    
     // Look up the value in the scope to get the variable
+    if (referent) {
+        DEBUG_LOG("Getting a reference to '" + referent->toString() + "'.");
+        auto referentExpr = referent->express(scope);
+        if (!referentExpr) {
+            console.error("There was an error getting the referent '" + referent->toString() + "'.");
+            return nullptr;
+        }
+        setType(Omniscript::Type::createPointerType(referentExpr->getType()));
+        setRootType(type);
+        auto ref = std::make_shared<Omniscript::ReferenceExpression>(name, referentExpr);
+        ref->type = type;
+        ref->setPosition(getPosition());
+        return ref;
+    }
+    
+    DEBUG_LOG("Getting a reference to '" + name + "'.");
     if (!scope->exists(name)) {
         console.error("Symbol '" + name + "' was not found in the scope");
+        return nullptr;
     }
-
+    
     auto variable = scope->getValue(name);
     if (variable) {
         setType(Omniscript::Type::createPointerType(variable->getType()));
@@ -63,19 +85,23 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
         ref->setPosition(getPosition());
         return ref;
     }
-
-    if (!variable) {
-        auto overloads = scope->getOverloads(name);
-        auto mangledName = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overloads[0])->mangledName;
-        setType(Omniscript::Type::createPointerType((variable->getType())));
-        setRootType(type);
-        auto ref = std::make_shared<Omniscript::ReferenceExpression>(mangledName, variable);
-        ref->setPosition(getPosition());
-        return ref;
+    
+    // If variable is null, try to find function overloads
+    auto overloads = scope->getOverloads(name);
+    if (!overloads.empty()) {
+        auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overloads[0]);
+        if (funcExpr) {
+            setType(Omniscript::Type::createPointerType(funcExpr->getType()));
+            setRootType(type);
+            auto ref = std::make_shared<Omniscript::ReferenceExpression>(funcExpr->mangledName, funcExpr);
+            ref->type = type;
+            ref->setPosition(getPosition());
+            return ref;
+        }
     }
     
-    // If the variable isn't found, handle the error (e.g., return nullptr)
-    console.error("Error: Variable " + name + " not found.\n");
+    // If nothing is found, handle the error
+    console.error("Error: Variable or function '" + name + "' not found.");
     return nullptr;
 }
 

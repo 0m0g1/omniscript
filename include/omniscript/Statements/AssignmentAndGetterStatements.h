@@ -134,10 +134,16 @@ public:
         setName(value);
     }
 
+    ReferenceTo(const std::shared_ptr<Statement>& value) {
+        referent = value;
+    }
+
     std::string getName() const override { return name; }
     std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope);
     std::string toString() const override { return "ReferenceTo: " + name; }
     std::shared_ptr<Statement> clone() const override {
         return std::make_shared<ReferenceTo>(name);
     }
+
+    std::shared_ptr<Statement> referent = nullptr;
 };

@@ -99,8 +99,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     }
     
     DEBUG_LOG("Base type name: " + baseTypeName);
-    
-    // Check if this is a method call (has arguments or isCall is true)  
+
     if (isMethodCall() || !arguments.empty()) {
         DEBUG_LOG("[MemberAccess] Detected method call: " + baseTypeName + "." + memberName);
         
@@ -120,30 +119,48 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
         if (method) {
             DEBUG_LOG("[MemberAccess] Found method: " + methodName);
             
-            // Create arguments list with 'this' as first argument
-            std::vector<std::shared_ptr<Omniscript::Expression>> callArgs;
-            callArgs.push_back(baseExpr);
+            // Create the 'this' argument for the method call
+            std::shared_ptr<Statement> thisArgument;
             
-            // Add other arguments if any
-            for (const auto& arg : arguments) {
-                if (auto argExpr = arg->express(scope)) {
-                    callArgs.push_back(argExpr);
-                }
+            if (object) {
+                // For nested access like this.position.log(), use the object directly
+                // Don't create a MemberAccess with the method name - methods aren't data members!
+                thisArgument = object;
+            } else {
+                // Simple case: just use the object name
+                thisArgument = std::make_shared<GetVariable>(objectName);
             }
             
-            // Get method type for return type
-            auto methodType = method->getType();
-            auto returnType = methodType->isFunction() ? methodType->getReturnType() : methodType;
+            // Wrap it in a ReferenceTo to get the address
+            auto thisRef = std::make_shared<ReferenceTo>(thisArgument);
+            thisRef->setType(Omniscript::Type::createPointerType(baseExpr->getType()));
+            thisRef->setRootType(thisRef->getType());
             
-            auto callExpr = std::make_shared<Omniscript::CallExpression>(methodName, callArgs, returnType);
-            callExpr->setPosition(getPosition());
-            return callExpr;
+            // Insert the object reference as the first argument
+            std::vector<std::shared_ptr<Statement>> methodArgs;
+            methodArgs.push_back(thisRef);
+            
+            // Add the original arguments
+            methodArgs.insert(methodArgs.end(), arguments.begin(), arguments.end());
+            
+            DEBUG_LOG("[MemberAccess] Creating method call with " + std::to_string(methodArgs.size()) + 
+                    " arguments, first arg (this): " + thisRef->toString() + 
+                    " of type: " + thisRef->getType()->toString());
+            
+            // Create a Call statement to handle the method call properly
+            // IMPORTANT: Don't set access context on the method call to avoid contextual name building
+            auto methodCall = std::make_shared<Call>(methodName, methodArgs);
+            // methodCall->setAccessContext(accessContext); // Remove this line!
+            methodCall->setPosition(getPosition());
+            
+            // Express the call to get the final CallExpression
+            return methodCall->express(scope);
         } else {
             console.error("Method '" + methodName + "' not found in scope");
             return nullptr;
         }
     }
-    
+
     // Original member access logic for data members
     // Get user-defined type
     auto userType = getUserDefinedType(scope, baseTypeName);
