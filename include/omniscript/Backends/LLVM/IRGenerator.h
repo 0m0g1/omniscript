@@ -1,5 +1,4 @@
-#ifndef IR_GENERATOR_H
-#define IR_GENERATOR_H
+#pragma once
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
@@ -9,7 +8,6 @@
 #include <omniscript/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/EngineConfigs.h>
-#include <omniscript/debuggingtools/console.h>
 #include <omniscript/Expressions/ClassExpression.h>
 #include <omniscript/Expressions/StructExpression.h>
 #include <omniscript/Expressions/AccessExpressions.h>
@@ -39,6 +37,7 @@
 #include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/Config/llvm-config.h>
 
+namespace Omniscript {
 struct GlobalInit {
     llvm::GlobalVariable* variable;
     llvm::Value* value;
@@ -413,4 +412,4 @@ public:
     llvm::Value* generateCast(llvm::Value* src, llvm::Type* destType);
 };
 
-#endif
+} // namespace omniscript

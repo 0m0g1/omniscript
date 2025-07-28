@@ -1,6 +1,7 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/PosixLLVMResolver.h>
 
+namespace Omniscript {
 llvm::Function* PosixResolver::resolve(IRGenerator& generator, const std::string& name, 
                                      llvm::FunctionType* funcType, LinkDependencies& deps) {
     if (!PlatformInfo::isUnixLike()) {
@@ -69,3 +70,5 @@ std::vector<std::string> PosixResolver::getRequiredLibraries(const std::string& 
     
     return {}; // Unknown function
 }
+
+} // namespace Omniscript

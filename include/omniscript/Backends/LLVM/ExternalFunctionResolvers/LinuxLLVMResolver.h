@@ -3,6 +3,7 @@
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
 
 // Linux-specific resolver
+namespace Omniscript {
 class LinuxResolver : public ExternalFunctionResolver {
 public:
     LinuxResolver(); // Default constructor
@@ -15,3 +16,5 @@ private:
     bool isGlibcFunction(const std::string& name);
     bool isSystemCallWrapper(const std::string& name);
 };
+
+} // namespace Omniscript

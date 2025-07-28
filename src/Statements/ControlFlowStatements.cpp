@@ -13,7 +13,7 @@
 // ============================== Control flow statements  ============================== //
 
 std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (type) {
         DEBUG_LOG("[Return] Creating a return value of kind '" + type->toString() + "'.");
     } else {
@@ -34,7 +34,7 @@ std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType
     }
     
     auto returnstmt = std::make_shared<Omniscript::ReturnExpression>(result, type);
-    returnstmt->setPosition(getPosition());
+    returnstmt->setSpan(getSpan());
     return returnstmt;
 }
 
@@ -44,11 +44,11 @@ std::shared_ptr<Statement> ReturnStatement::evaluate(SymbolTableType scope) {
 
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(result)) {
         auto ret = std::make_shared<ReturnStatement>(result, typed->getType());
-        ret->setPosition(getPosition());
+        ret->setSpan(getSpan());
         return ret;
     }
     auto ret = std::make_shared<ReturnStatement>(result);
-    ret->setPosition(getPosition());
+    ret->setSpan(getSpan());
     return ret;
 }
 
@@ -64,7 +64,7 @@ bool ReturnStatement::isCompileTimeEvaluatable() {
 }
 
 std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     auto localScope = scope->createChildScope("whileloop");
     DEBUG_LOG("Creating a while loop expression");
 
@@ -81,7 +81,7 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
     DEBUG_LOG("Created its body expression: " + bodyExpr->toString() + "'.");
 
     auto whileLoop = std::make_shared<Omniscript::WhileLoopExpression>(conditionExpr, bodyExpr);
-    whileLoop->setPosition(getPosition());
+    whileLoop->setSpan(getSpan());
     return whileLoop;
  }
  
@@ -107,7 +107,7 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
  }
  
 std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     std::vector<std::shared_ptr<Omniscript::Expression>> exprConditions;
     std::vector<std::shared_ptr<Omniscript::Expression>> exprBranches;
  
@@ -136,22 +136,22 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
         elseExpr
     );
 
-    ifExpr->setPosition(getPosition());
+    ifExpr->setSpan(getSpan());
     return ifExpr;
  }
 
 std::shared_ptr<Omniscript::Expression> BreakStatement::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> ContinueStatement::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     auto localScope = scope->createChildScope("forloop");
     DEBUG_LOG("Creating a for loop expression");
     std::shared_ptr<Omniscript::Expression> initializationExpr;
@@ -171,6 +171,6 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
     DEBUG_LOG("Created its body");
 
     auto forExpr = std::make_shared<Omniscript::ForLoopExpression>(initializationExpr, conditionExpr, increamentExpr, bodyExpr);
-    forExpr->setPosition(getPosition());
+    forExpr->setSpan(getSpan());
     return forExpr;
 }

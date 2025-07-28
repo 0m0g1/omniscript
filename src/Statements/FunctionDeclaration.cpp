@@ -184,7 +184,7 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
 }
 
 std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     registerInScope(scope);
     
     if (!isExtern && !isIntrinsic) {
@@ -195,7 +195,7 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
     for (const auto& overload : overloads) {
         if (auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload)) {
             if (mangledName == funcExpr->mangledName) {
-                funcExpr->setPosition(getPosition());
+                funcExpr->setSpan(getSpan());
                 return funcExpr;
             }
         }

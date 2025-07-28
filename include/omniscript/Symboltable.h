@@ -1,5 +1,4 @@
-#ifndef SYMBOLTABLE_H
-#define SYMBOLTABLE_H
+#pragma once
 
 #include <omniscript/omniscript_pch.h>
 
@@ -14,11 +13,11 @@ public:
 
     void setVariable(const std::string& name, T value) {
         if (overloadables_.count(name)) {
-            std::cerr << "Cannot define variable '" << name << "' because an overloaded function exists.\n";
+            DEBUG_LOG("Cannot define variable '" + name + "' because an overloaded function exists.");
             return;
         }
         if (constants_.count(name)) {
-            std::cerr << "Cannot define variable '" << name << "' because a constant exists.\n";
+            DEBUG_LOG("Cannot define variable '" + name + "' because a constant exists.");
             return;
         }
         variables_[name] = value;
@@ -26,15 +25,15 @@ public:
 
     void setConstant(const std::string& name, T value) {
         if (overloadables_.count(name)) {
-            std::cerr << "Cannot define constant '" << name << "' because an overloaded function exists.\n";
+            DEBUG_LOG("Cannot define constant '" + name + "' because an overloaded function exists.");
             return;
         }
         if (variables_.count(name)) {
-            std::cerr << "Cannot define constant '" << name << "' because a variable exists.\n";
+            DEBUG_LOG("Cannot define constant '" + name + "' because a variable exists.");
             return;
         }
         if (constants_.count(name)) {
-            std::cerr << "Constant '" << name << "' already exists.\n";
+            DEBUG_LOG("Constant '" + name + "' already exists.");
             return;
         }
         constants_[name] = value;
@@ -122,11 +121,11 @@ public:
     // ----- Local aliasing -----
     void aliasModule(const std::string& alias, const std::string& fullPath) {
         if (exists(alias)) {
-            std::cerr << "Cannot alias '" << alias << "' because a symbol already exists with that name.\n";
+            DEBUG_LOG("Cannot alias '" + alias + "' because a symbol already exists with that name.");
             return;
         }
         if (!globalModules_.count(fullPath)) {
-            std::cerr << "Cannot alias '" << alias << "' because module path '" << fullPath << "' not found.\n";
+            DEBUG_LOG("Cannot alias '" + alias + "' because module path '" + fullPath + "' not found.");
             return;
         }
         localModuleAliases_[alias] = fullPath;
@@ -154,5 +153,3 @@ private:
     static inline std::unordered_map<std::string, std::shared_ptr<SymbolTable<T, TypeT>>> globalModules_;
     std::unordered_map<std::string, std::string> localModuleAliases_; // alias → full path
 };
-
-#endif // SYMBOLTABLE_H

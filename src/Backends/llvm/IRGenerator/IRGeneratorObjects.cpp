@@ -1,5 +1,6 @@
 #include <omniscript/Backends/llvm/IRGenerator.h>
 
+namespace Omniscript {
 llvm::Value* IRGenerator::createObjectInstance(
     const std::string& typeName,
     const std::string& varName,
@@ -316,3 +317,5 @@ llvm::Value* IRGenerator::generateCast(llvm::Value* src, llvm::Type* destType) {
     console.error("Unsupported cast from '" + debugType(srcType) + "' to '" + debugType(destType) + "'");
     return nullptr;
 }
+
+} // namespace Omniscript

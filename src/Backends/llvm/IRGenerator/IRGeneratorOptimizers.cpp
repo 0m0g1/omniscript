@@ -3,6 +3,7 @@
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/StandardInstrumentations.h>
 
+namespace Omniscript {
 void IRGenerator::setupOptimizationPipeline() {
     DEBUG_LOG("setting up optimization pipeline, (does nothing for now)");
     // This would set up the optimization pipeline based on config
@@ -57,4 +58,6 @@ void IRGenerator::optimizeModule(int level) {
     DEBUG_LOG("Running optimization passes...");
     mpm.run(*Module, mam);
     DEBUG_LOG("Optimization complete");
+}
+
 }

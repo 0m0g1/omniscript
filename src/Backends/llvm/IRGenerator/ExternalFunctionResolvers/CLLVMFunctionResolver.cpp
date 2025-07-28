@@ -8,6 +8,7 @@
     #include <dlfcn.h>
 #endif
 
+namespace Omniscript {
 llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::string& name,
                                         llvm::FunctionType* funcType, LinkDependencies& deps) {
     
@@ -215,3 +216,5 @@ llvm::CallingConv::ID CStdLibResolver::getPlatformCallingConv(const std::string&
             return llvm::CallingConv::C;
     }
 }
+
+} // namespace Omniscript

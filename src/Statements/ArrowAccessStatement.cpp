@@ -34,7 +34,7 @@ std::shared_ptr<Statement> ArrowAccess::clone() const {
 }
 
 std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     // Resolve the pointer expression (handles chaining)
     auto pointerExpr = resolvePointerExpression(scope);
@@ -66,7 +66,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType sco
     );
     
     result->type = type;
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }
 

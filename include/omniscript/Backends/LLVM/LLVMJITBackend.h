@@ -22,6 +22,7 @@
 #include <llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
 
+namespace Omniscript {
 class LLVMJITBackend : public JITBackend {
 private:
     std::unique_ptr<llvm::orc::LLJIT> jit;
@@ -65,3 +66,5 @@ public:
     size_t getCodeCacheSize() const;
     void setCodeCacheLimit(size_t limit);
 };
+
+} // namespace Omniscript

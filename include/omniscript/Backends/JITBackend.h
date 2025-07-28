@@ -2,6 +2,7 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Backend.h>
 
+namespace Omniscript {
 class JITBackend : public Backend {
 public:
     virtual ~JITBackend() = default;
@@ -17,3 +18,5 @@ public:
         std::cout << "[DummyJIT] Simulating execution of " << statements.size() << " statements.\n";
     }
 };
+
+} // namespace Omniscript

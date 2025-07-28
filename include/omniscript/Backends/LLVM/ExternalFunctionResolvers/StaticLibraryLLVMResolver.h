@@ -2,6 +2,7 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 // Generic static library resolver
+namespace Omniscript {
 class StaticLibraryResolver : public ExternalFunctionResolver {
 private:
     std::string specifiedLibraryPath;
@@ -26,3 +27,5 @@ public:
     // Generate linker command preview
     std::string generateLinkerCommand(const LinkDependencies& deps) const;
 };
+
+} //namespace Omniscript

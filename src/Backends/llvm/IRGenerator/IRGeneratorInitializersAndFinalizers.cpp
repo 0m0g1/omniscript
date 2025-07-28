@@ -11,6 +11,7 @@
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
 
+namespace Omniscript {
 void IRGenerator::finalize() {
     // Find the top-level function
     llvm::Function* topFunc = Module->getFunction("__top_level__");
@@ -395,4 +396,6 @@ void IRGenerator::setupExternalResolvers() {
         // Implementation depends on your plugin system
         // loadPluginResolver(plugin);
     }
+}
+
 }

@@ -12,7 +12,7 @@
 
 // ============================== Literals and casting  ============================== //
 std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("");
 
     if (type && type->isUnresolved()) {
@@ -56,7 +56,7 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
         if (!targetType->isNullable()) {
             auto castedStmt = literal->castTo(targetType);
             result = castedStmt->express(scope);
-            result->setPosition(getPosition());
+            result->setSpan(getSpan());
             return result;
         }
     }
@@ -83,12 +83,12 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
         result = std::make_shared<Omniscript::CastExpression>(valueResult, targetType);
     }
 
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }
 
 std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (type && type->isUnresolved()) {
         if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
             type = scope->getType(unresolved->joinedTypeString);
@@ -102,12 +102,12 @@ std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) 
 
     auto result = Omniscript::make_expression<Omniscript::NullPointerExpression>(type);
 
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }
 
 std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (type && type->isUnresolved()) {
         if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
             type = scope->getType(unresolved->joinedTypeString);
@@ -130,12 +130,12 @@ std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
             type ? type : Omniscript::Type::createPrimitiveType(Omniscript::Kind::Void));
     }
 
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }
 
 std::shared_ptr<Omniscript::Expression> PointerLiteral::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     std::shared_ptr<Omniscript::Expression> result;
     
@@ -149,7 +149,7 @@ std::shared_ptr<Omniscript::Expression> PointerLiteral::express(SymbolTableType 
         result = Omniscript::make_expression<Omniscript::RawPointerExpression>(address, ptrType);
     }
 
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }
 
@@ -223,7 +223,7 @@ std::shared_ptr<Literal> PointerLiteral::castTo(std::shared_ptr<Omniscript::Type
 }
 
 std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     std::shared_ptr<Omniscript::Expression> result;
     
@@ -231,7 +231,7 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
         DEBUG_LOG("Creating a 32-bit integer");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Int32);
         result = std::make_shared<Omniscript::Integer<int32_t>>(static_cast<int32_t>(value));
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
         return result;
     }
 
@@ -250,11 +250,11 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
                 auto cast = std::make_shared<Cast>(clone, type);
                 auto castResult = cast->express(scope);
                 result = castResult;
-                result->setPosition(getPosition());
+                result->setSpan(getSpan());
                 return result;
             }
             result = castTo(type)->express(scope);
-            result->setPosition(getPosition());
+            result->setSpan(getSpan());
             return result;
         }
         DEBUG_LOG("Creating an '" + type->toString() + "' integer");
@@ -295,7 +295,7 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
     }
 
     if (result) {
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
         return result;
     }
 
@@ -361,7 +361,7 @@ std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type
 }
 
 std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     std::shared_ptr<Omniscript::Expression> result;
     
@@ -402,11 +402,11 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
                 auto cast = std::make_shared<Cast>(clone, type);
                 auto castResult = cast->express(scope);
                 result = castResult;
-                result->setPosition(getPosition());
+                result->setSpan(getSpan());
                 return result;
             }
             result = castTo(type)->express(scope);
-            result->setPosition(getPosition());
+            result->setSpan(getSpan());
             return result;
         }
         DEBUG_LOG("Creating an '" + type->toString() + "' float.");
@@ -446,7 +446,7 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
     }
 
     if (result) {
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
         return result;
     }
 
@@ -511,26 +511,26 @@ std::shared_ptr<Literal> FloatLiteral::castTo(std::shared_ptr<Omniscript::Type> 
 
 // Arbitrary-precision integer (BigInt)
 std::shared_ptr<Omniscript::Expression> BigInt::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("Creating a big int " + value);
     unsigned bitWidth = BigInt::determineBitWidth(value);
     auto result = std::make_shared<Omniscript::BigInt>(value, bitWidth);
     
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }
 
 std::shared_ptr<Omniscript::Expression> Invalid::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("Creating an invalid");
     auto result = std::make_shared<Omniscript::InvalidExpression>();
     
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }
 
 std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     std::shared_ptr<Omniscript::Expression> result;
     
@@ -539,7 +539,7 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType sco
         DEBUG_LOG("Creating a bool false");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Bool);
         result = std::make_shared<Omniscript::Primitive<bool>>(value); // Default to double (64-bit)
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
         return result;
     }
 
@@ -558,11 +558,11 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType sco
                 auto cast = std::make_shared<Cast>(clone, type);
                 auto castResult = cast->express(scope);
                 result = castResult;
-                result->setPosition(getPosition());
+                result->setSpan(getSpan());
                 return result;
             }
             result = castTo(type)->express(scope);
-            result->setPosition(getPosition());
+            result->setSpan(getSpan());
             return result;
         }
         DEBUG_LOG("Creating an '" + type->toString() + "'.");
@@ -570,7 +570,7 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType sco
 
     result = std::make_shared<Omniscript::Primitive<bool>>(value);
     
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }
 
@@ -618,7 +618,7 @@ std::shared_ptr<Literal> BoolLiteral::castTo(std::shared_ptr<Omniscript::Type> t
 }
 
 std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     std::shared_ptr<Omniscript::Expression> result;
     
@@ -627,7 +627,7 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
         auto utf8 = utf32_to_utf8(std::u32string(1, value));
         result = std::make_shared<Omniscript::Primitive<char>>(utf8[0]);
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
         return result;
     }
 
@@ -640,7 +640,7 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
             auto cast = std::make_shared<Cast>(clone, type);
             auto castResult = cast->express(scope);
             result = castResult;
-            result->setPosition(getPosition());
+            result->setSpan(getSpan());
             return result;
         }
         console.error("The specified type is " + type->toString() + " but '" + std::to_string(static_cast<uint32_t>(value)) + "' is a char.");
@@ -664,7 +664,7 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
     }
 
     if (result) {
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
         return result;
     }
 
@@ -740,13 +740,13 @@ std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Ty
     }
     
     if (result) {
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
     }
     return result;
 }
 
 std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     std::shared_ptr<Omniscript::Expression> result = nullptr;
     
     if (!type) {
@@ -804,7 +804,7 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
     }
     
     if (result) {
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
     }
     return result;
 }
@@ -839,13 +839,13 @@ std::shared_ptr<Literal> StringLiteral::castTo(std::shared_ptr<Omniscript::Type>
     }
     
     if (result) {
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
     }
     return result;
 }
 
 std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("[Array] Creating an array");
     std::shared_ptr<Omniscript::Expression> result = nullptr;
 
@@ -963,7 +963,7 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
     }
     
     if (result) {
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
     }
     return result;
 }

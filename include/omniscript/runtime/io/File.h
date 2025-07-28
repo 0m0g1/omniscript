@@ -2,8 +2,6 @@
 // #define File_H
 
 // #include <omniscript/omniscript_pch.h>
-// #include <omniscript/runtime/object.h>
-// #include <omniscript/debuggingtools/console.h>
 
 // class File : public Object {
 // public:

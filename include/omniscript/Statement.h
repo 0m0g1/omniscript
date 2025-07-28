@@ -7,58 +7,94 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Expression.h>
 #include <omniscript/Symboltable.h>
-#include <omniscript/debuggingtools/console.h>
 #include <omniscript/Expressions/FunctionInputExpression.h>
 
 using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>;
 
 class Statement {
-    public:
-        // enum Type { // implement a statement type for each statement for speed
-        //     Value,
-        //     Assignment,
-        //     ConstantAssignment,
-        //     Return,
-        // }
-    
-        ~Statement() = default;
+public:
+    virtual ~Statement() = default;
 
-        virtual std::shared_ptr<Statement> clone() const { return nullptr; }
+    virtual std::shared_ptr<Statement> clone() const { return nullptr; }
 
-        virtual std::shared_ptr<Statement> evaluate(SymbolTableType scope) { return nullptr; }
-        virtual std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) { return nullptr; }
-        virtual std::string toString() const { return "Statement"; }
+    virtual std::shared_ptr<Statement> evaluate(SymbolTableType scope) { return nullptr; }
+    virtual std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) { return nullptr; }
+    virtual std::string toString() const { return "Statement"; }
 
-        inline void setPosition(Token startToken) {
-            pos.line = startToken.getLine();
-            pos.col = startToken.getColumn();
-            pos.fileName = startToken.getFilePath();
-            pos.filePath = startToken.getFilePath();
-        }
+    // ===== FileSpan Setters =====
 
-        inline void setPosition(int line, int column, const std::string& file, const std::string& path) {
-            pos.line = line;
-            pos.col = column;
-            pos.fileName = file;
-            pos.filePath = path;
-        }
+    // From Token (for start position only)
+    inline void setPosition(const Token& startToken, const Token& endToken) {
+        span.start.line = startToken.getLine();
+        span.start.col = startToken.getColumn();
+        span.start.fileName = startToken.getFilePath();
+        span.start.filePath = startToken.getFilePath();
+        span.end.line = endToken.getLine();
+        span.end.col = endToken.getColumn();
+        span.end.fileName = endToken.getFilePath();
+        span.end.filePath = endToken.getFilePath();
+    }
 
-        inline void setPosition(const Omniscript::filePosition& position) {
-            pos = position;
-        }
+    inline void setStartPosition(const Token& startToken) {
+        span.start.line = startToken.getLine();
+        span.start.col = startToken.getColumn();
+        span.start.fileName = startToken.getFilePath();
+        span.start.filePath = startToken.getFilePath();
+    }
 
-        inline Omniscript::filePosition getPosition() const {
-            return pos;
-        }
+    inline void setEndPosition(const Token& endToken) {
+        span.end.line = endToken.getLine();
+        span.end.col = endToken.getColumn();
+        span.end.fileName = endToken.getFilePath();
+        span.end.filePath = endToken.getFilePath();
+    }
 
-        virtual bool hasSideEffects() { return true; } // Default: assume side effects
-        virtual bool isCompileTimeEvaluatable() {
-            return !hasSideEffects(); // Default logic: only if no side effects
-        }
-        virtual std::string formatError(const std::string& msg) const { return msg; }
+    // From filePosition structs
+    inline void setStartPosition(const Omniscript::filePosition& start) {
+        span.start = start;
+    }
+
+    inline void setEndPosition(const Omniscript::filePosition& end) {
+        span.end = end;
+    }
+
+    // From both positions
+    inline void setPosition(const Omniscript::filePosition& start, const Omniscript::filePosition& end) {
+        span.start = start;
+        span.end = end;
+    }
+
+    // From full FileSpan
+    inline void setSpan(const Omniscript::FileSpan& newSpan) {
+        span = newSpan;
+    }
+
+    // ===== FileSpan Getters =====
+    inline const Omniscript::FileSpan& getSpan() const {
+        return span;
+    }
+
+    inline Omniscript::filePosition getStartPosition() const {
+        return span.start;
+    }
+
+    inline Omniscript::filePosition getEndPosition() const {
+        return span.end;
+    }
+
+    // ===== Semantics =====
+    virtual bool hasSideEffects() { return true; }
+
+    virtual bool isCompileTimeEvaluatable() {
+        return !hasSideEffects();
+    }
+
+    virtual std::string formatError(const std::string& msg) const {
+        return msg;
+    }
 
     protected:
-        Omniscript::filePosition pos;
+        Omniscript::FileSpan span;
 };
 
 class Initializer : public Statement {

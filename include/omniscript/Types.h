@@ -1,11 +1,8 @@
 #pragma once
-#ifndef VALUE_H
-#define VALUE_H
 
-#include <omniscript/tokens.h>
+#include <omniscript/Tokens.h>
 #include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/debuggingtools/console.h>
 #include <omniscript/Target_config.h>
 
 namespace Omniscript {
@@ -869,5 +866,3 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes);
 std::shared_ptr<Type> resolveFunctionType(const std::vector<std::string>& dataTypes, size_t& index);
 
 }
-
-#endif

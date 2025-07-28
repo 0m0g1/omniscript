@@ -14,7 +14,7 @@
 
 // ============================== Binary, Unary and Ternary Expressions ============================== //
 std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableType scope) {
-    Omniscript::setPosition(getPosition());
+    Omniscript::setSpan(getSpan());
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
         stmt->setType(type);
     }
@@ -60,12 +60,12 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
     auto tenaryExpr = std::make_shared<Omniscript::TernaryExpression>(
         condValue, trueValue, falseValue, type
     );
-    tenaryExpr->setPosition(getPosition());
+    tenaryExpr->setSpan(getSpan());
     return tenaryExpr;
 }
 
 std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableType scope) {
-    Omniscript::setPosition(getPosition());
+    Omniscript::setSpan(getSpan());
     DEBUG_LOG();
 
     DEBUG_LOG("Left expression: " + (left ? left->toString() : "null"));
@@ -236,7 +236,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     DEBUG_LOG("The right value is: " + rightValue->toString());
 
     auto binaryExpr = std::make_shared<Omniscript::BinaryExpression>(leftValue, op, rightValue, type);
-    binaryExpr->setPosition(getPosition());
+    binaryExpr->setSpan(getSpan());
     return binaryExpr;
 }
 

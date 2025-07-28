@@ -71,7 +71,7 @@ std::shared_ptr<Statement> Parser::parseEnum() {
     eat(TokenTypes::RightBrace);
     
     auto enumStatement = std::make_shared<EnumConstructor>(enumName, values, hasLookup, isEnumClass);
-    enumStatement->setPosition(startToken);
+    enumStatement->setPosition(startToken, previousToken);
     return enumStatement;
 }
 

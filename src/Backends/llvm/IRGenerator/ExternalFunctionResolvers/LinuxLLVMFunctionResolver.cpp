@@ -1,6 +1,7 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/LinuxLLVMResolver.h>
 
+namespace Omniscript {
 LinuxResolver::LinuxResolver() {
 }
 
@@ -45,3 +46,5 @@ bool LinuxResolver::isSystemCallWrapper(const std::string& name) {
     };
     return syscallWrappers.find(name) != syscallWrappers.end();
 }
+
+} // namespace Omniscript

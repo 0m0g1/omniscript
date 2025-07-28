@@ -1,5 +1,6 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 
+namespace Omniscript {
 void IRGenerator::generateModule(
     const std::string& modulePath,
     const std::string& alias,
@@ -115,4 +116,6 @@ void IRGenerator::importModule(const std::string& modulePath, const std::vector<
     for (const auto& [name, value] : modulePublicSymbols[modulePath]) {
         activeScope->set(name, value);
     }
+}
+
 }

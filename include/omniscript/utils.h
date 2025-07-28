@@ -5,8 +5,7 @@
 //Includes
 // #include <string>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/debuggingtools/console.h>
-#include <omniscript/tokens.h>
+#include <omniscript/Tokens.h>
 
 // Foward declarations
 class Object;

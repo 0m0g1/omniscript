@@ -2,6 +2,7 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 // macOS/iOS resolver
+namespace Omniscript {
 class DarwinResolver : public ExternalFunctionResolver {
 public:
     DarwinResolver(); // Default constructor
@@ -16,3 +17,5 @@ private:
     bool isCocoaFunction(const std::string& name);
     std::string getRequiredFramework(const std::string& name);
 };
+
+} // namespace Omniscript

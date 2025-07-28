@@ -27,21 +27,21 @@ void Initializer::initialize() {
 }
 
 std::shared_ptr<Omniscript::Expression> Initializer::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     return nullptr;
 }  
 
 
 std::shared_ptr<Omniscript::Expression> BlockStatement::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     auto block = std::make_shared<Omniscript::BlockExpression>(expressAsVector(scope));
     block->isGlobal = isGlobal;
-    block->setPosition(getPosition());
+    block->setSpan(getSpan());
     return block;
 }
 
 std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::expressAsVector(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     recursiveInternalUpdate();
     
     std::vector<std::shared_ptr<Omniscript::Expression>> results = {};

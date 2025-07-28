@@ -1,5 +1,4 @@
-#ifndef PARSER_H
-#define PARSER_H
+#pragma once
 
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/lexer.h>
@@ -20,7 +19,7 @@ class Parser {
             executeStatements = state;
         }
 
-        std::vector<std::shared_ptr<Statement>> Parse();
+        std::vector<std::shared_ptr<Statement>> parse();
         
     private:
         
@@ -134,5 +133,3 @@ class Parser {
 
         void eat(TokenTypes expectedType, const std::string& errorMessage = ""); 
 };
-
-#endif

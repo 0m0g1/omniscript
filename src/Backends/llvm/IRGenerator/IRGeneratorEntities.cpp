@@ -1,5 +1,6 @@
 #include <omniscript/Backends/llvm/IRGenerator.h>
 
+namespace Omniscript {
 llvm::Value* IRGenerator::createEnum(
     const std::vector<std::string>& names,
     const std::vector<llvm::Value*>& values,
@@ -186,4 +187,6 @@ llvm::Value* IRGenerator::getEnumValue(const std::string& enumName, const std::s
     // // If no match found, return an error value (-1)
     // return Builder->CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), -1));
     return nullptr;
+}
+
 }

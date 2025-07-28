@@ -1,6 +1,12 @@
 #pragma once
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Target_config.h>
+#include <nlohmann/json.hpp> // For JSON serialization
+#include <filesystem>
+#include <chrono>
+#include <optional>
+
+namespace Omniscript {
 
 enum class CompileMode {
     None,
@@ -18,22 +24,16 @@ enum class OutputFormat {
     Assembly,        // Assembly source (.s/.asm)
     LLVM_IR,         // LLVM intermediate representation (.ll)
     Bitcode,         // LLVM bitcode (.bc)
-    
-    // Additional useful formats
     MachineCode,     // Raw machine code (binary)
-    Relocatable,     // Relocatable object (similar to ObjectFile but explicit)
-    Archive,         // Archive file (alternative name for StaticLib)
+    Relocatable,     // Relocatable object
+    Archive,         // Archive file (alias for StaticLib)
     ModuleFile,      // LLVM module file
-    TextualIR,       // Human-readable LLVM IR (same as LLVM_IR but explicit)
-    BinaryIR,        // Binary LLVM IR (same as Bitcode but explicit)
+    TextualIR,       // Human-readable LLVM IR
+    BinaryIR,        // Binary LLVM IR (alias for Bitcode)
     PrecompiledHeader, // Precompiled header (.pch/.gch)
-    
-    // Platform-specific formats
     WebAssembly,     // WebAssembly module (.wasm)
     PTX,             // NVIDIA PTX assembly (for CUDA)
     SPIR_V,          // SPIR-V for OpenCL/Vulkan
-    
-    // Debug formats
     DebugInfo,       // Debug information file (.dSYM/.pdb)
     SymbolTable      // Symbol table file
 };
@@ -57,6 +57,20 @@ enum class SafetyLevel {
     Minimal,     // Basic null/bounds checks
     Standard,    // Standard safety checks
     Paranoid     // Extensive runtime validation
+};
+
+enum class ErrorRecoveryMode {
+    StopOnFirst,    // Stop compilation on first error
+    Continue,       // Continue compilation, report all errors
+    Recover         // Attempt recovery and continue
+};
+
+enum class ProfilerType {
+    None,           // No profiling
+    GProf,          // GNU profiler
+    Perf,           // Linux perf
+    VTune,          // Intel VTune
+    Custom          // Custom profiler
 };
 
 struct ProfileGuidedOptimization {
@@ -86,6 +100,13 @@ struct JITConfig {
     bool enableDebugging = false;
 };
 
+struct HybridConfig {
+    size_t hotCodeThreshold = 1000; // Execution count for AOT fallback
+    std::string aotOutputPath;      // Path for AOT-compiled hot code
+    bool enableDynamicFallback = true; // Dynamically switch to AOT
+    OutputFormat aotFormat = OutputFormat::Executable;
+};
+
 struct AOTConfig {
     OutputFormat outputFormat = OutputFormat::Executable;
     std::vector<std::string> libraryPaths;
@@ -94,19 +115,17 @@ struct AOTConfig {
     std::vector<std::string> frameworks;     // macOS/iOS
     std::string linkerScript;
     std::vector<std::string> linkerFlags;
+    std::string linkerPath; // Custom linker (e.g., lld, gold)
     bool staticLinking = false;
     bool stripSymbols = false;
     bool generateDebugInfo = true;
     std::string debugInfoFormat = "dwarf"; // dwarf, codeview, etc.
     LinkTimeOptimization lto;
-    
-    // Auto-populate paths based on target
+
     void populateDefaultPaths(TargetArch arch, TargetOS os) {
         if (libraryPaths.empty()) {
             libraryPaths = TargetInfo::getDefaultLibraryPaths(os, arch);
         }
-        
-        // Add required system libraries
         auto sysLibs = TargetInfo::getRequiredSystemLibraries(os);
         for (const auto& lib : sysLibs) {
             if (std::find(libraries.begin(), libraries.end(), lib) == libraries.end()) {
@@ -126,13 +145,10 @@ struct SecurityConfig {
     bool enablePositionIndependentCode = true;
     bool enableDataExecutionPrevention = true;
     bool enableAddressSpaceLayoutRandomization = true;
-    
-    // Auto-configure based on target OS
+
     void configureForTarget(TargetOS os) {
         auto osInfo = TargetInfo::getOSInfo(os);
         enablePositionIndependentCode = osInfo.supportsPIC;
-        
-        // Disable some features for embedded/WASM targets
         if (os == TargetOS::WebAssembly) {
             enableStackProtection = false;
             enableAddressSpaceLayoutRandomization = false;
@@ -149,18 +165,13 @@ struct RuntimeConfig {
     bool enableParallelGC = true;
     int gcThreads = 0; // 0 = auto
     bool enableConcurrentGC = false;
-    
-    // Adjust runtime parameters based on architecture
+
     void adjustForArchitecture(TargetArch arch) {
         auto archInfo = TargetInfo::getArchitectureInfo(arch);
-        
-        // Adjust heap/stack sizes for 32-bit architectures
         if (!archInfo.is64Bit) {
             heapSize = std::min(heapSize, size_t(512 * 1024 * 1024)); // Cap at 512MB for 32-bit
             stackSize = std::min(stackSize, size_t(4 * 1024 * 1024));  // Cap at 4MB for 32-bit
         }
-        
-        // Disable parallel GC for single-threaded targets
         if (arch == TargetArch::WASM32 || arch == TargetArch::WASM64) {
             enableParallelGC = false;
             enableConcurrentGC = false;
@@ -179,25 +190,23 @@ struct OptimizationConfig {
     bool enableConstantFolding = true;
     bool enableCommonSubexpressionElimination = true;
     bool enableLoopInvariantCodeMotion = true;
-    bool fastMath = false; // Allow mathematically unsafe optimizations
+    bool fastMath = false;
     ProfileGuidedOptimization pgo;
     std::unordered_map<std::string, std::string> customPasses;
-    
-    // Configure optimizations based on target architecture features
+    std::vector<std::string> supportedPasses; // List of valid optimization passes
+
     void configureForTarget(TargetArch arch) {
         auto features = TargetInfo::getAvailableFeatures(arch);
-        
-        // Enable vectorization if SIMD features are available
         if (std::find(features.begin(), features.end(), "sse") != features.end() ||
             std::find(features.begin(), features.end(), "neon") != features.end() ||
             std::find(features.begin(), features.end(), "simd128") != features.end()) {
             enableVectorization = true;
         }
-        
-        // Adjust optimization level for embedded targets
         if (arch == TargetArch::ARM32 || arch == TargetArch::WASM32) {
-            level = std::min(level, 2); // Cap optimization for smaller targets
+            level = std::min(level, 2);
         }
+        // Populate supported passes
+        supportedPasses = {"dce", "inlining", "vectorize", "loop-unroll", "const-fold", "cse", "licm"};
     }
 };
 
@@ -218,190 +227,219 @@ struct DiagnosticsConfig {
     std::vector<std::string> suppressedWarnings;
 };
 
+struct ModuleConfig {
+    bool enableModules = false;
+    std::vector<std::string> modulePaths;
+    std::string moduleCachePath;
+    bool exportModules = false; // Export as BMI (Binary Module Interface)
+};
+
+struct ProfilerConfig {
+    ProfilerType type = ProfilerType::None;
+    std::string outputPath;
+    bool enableSampling = false;
+    int samplingFrequency = 1000; // Samples per second
+};
+
+struct ErrorHandlingConfig {
+    ErrorRecoveryMode mode = ErrorRecoveryMode::Continue;
+    size_t maxErrorCount = 100; // Max errors before stopping
+    bool logToFile = false;
+    std::string errorLogPath;
+};
+
+struct IncrementalConfig {
+    bool enabled = false;
+    std::unordered_map<std::string, std::chrono::system_clock::time_point> fileTimestamps;
+    std::string dependencyCachePath;
+};
+
 struct Config {
     // === Core Configuration ===
     std::string filePath;
+    std::string mainSourceFile; // Primary source file
     std::string outputPath = "a.out";
-    std::string entry; // Function to call when starting
+    std::string entry;
     CompileMode mode = CompileMode::JIT;
-    
-    // === Target Configuration (using TargetInfo enums) ===
-    TargetArch targetArch = TargetArch::Auto;
-    TargetOS targetOS = TargetOS::Auto;
-    std::string targetTriple; // Override for custom targets
-    std::string cpuFeatures = "native"; // CPU-specific features
-    
+
+    // === Target Configuration ===
+    std::vector<std::pair<TargetArch, TargetOS>> multiTargets; // Support multiple targets
+    std::string targetTriple;
+    std::string cpuFeatures = "native";
+    std::string toolchainPath; // Custom toolchain (e.g., clang, lld)
+
     // === Source and Include Paths ===
     std::vector<std::string> includePaths;
     std::vector<std::string> sourcePaths;
     std::vector<std::string> importPaths;
     std::vector<std::string> precompiledHeaders;
-    
+
     // === Preprocessor ===
     std::unordered_map<std::string, std::string> defines;
     std::vector<std::string> undefines;
     bool enablePreprocessorOutput = false;
-    
+
     // === Mode-Specific Configuration ===
     JITConfig jit;
     AOTConfig aot;
-    
+    HybridConfig hybrid;
+    ModuleConfig modules;
+    IncrementalConfig incremental;
+
     // === Optimization and Performance ===
     OptimizationConfig optimization;
     RuntimeConfig runtime;
     SecurityConfig security;
-    
+    ProfilerConfig profiler;
+    ErrorHandlingConfig errorHandling;
+
     // === Diagnostics and Debugging ===
     DiagnosticsConfig diagnostics;
-    
+
     // === Build Configuration ===
     bool keepIntermediateFiles = false;
     std::string tempDirectory;
-    int parallelJobs = 0; // 0 = auto-detect
+    int parallelJobs = 0;
     bool enableCaching = true;
     std::string cacheDirectory;
-    
+
     // === Language Features ===
     std::string languageStandard = "latest";
     bool enableExperimentalFeatures = false;
     std::vector<std::string> enabledFeatures;
     std::vector<std::string> disabledFeatures;
-    
+
     // === Plugin and Extension System ===
-    std::vector<std::string> plugins;
-    std::vector<std::string> pluginPaths;
-    std::unordered_map<std::string, std::string> pluginOptions;
-    
+    struct PluginConfig {
+        std::string name;
+        std::string path;
+        std::string version;
+        std::unordered_map<std::string, std::string> options;
+        bool (*callback)(const Config&, void*) = nullptr; // Plugin callback
+    };
+    std::vector<PluginConfig> plugins;
+
     // === Environment ===
     std::unordered_map<std::string, std::string> environmentVariables;
     std::string workingDirectory;
-    
+
     // === Validation and Constraints ===
-    size_t maxCompilationTime = 0; // 0 = unlimited (seconds)
-    size_t maxMemoryUsage = 0; // 0 = unlimited (bytes)
-    
+    size_t maxCompilationTime = 0; // Seconds, 0 = unlimited
+    size_t maxMemoryUsage = 0; // Bytes, 0 = unlimited
+
     // === Utility Methods ===
     bool isJITMode() const { return mode == CompileMode::JIT || mode == CompileMode::Hybrid; }
     bool isAOTMode() const { return mode == CompileMode::AOT || mode == CompileMode::DryCompile; }
     bool isHybridMode() const { return mode == CompileMode::Hybrid; }
     bool isDryRun() const { return mode == CompileMode::DryCompile; }
-    bool isCrossCompilation() const { return TargetInfo::isCrossCompilation(targetArch, targetOS); }
-    
-    // === Target Information Methods (using TargetInfo) ===
-    std::string getArchitectureName() const {
-        return TargetInfo::getArchitectureName(resolveTargetArch());
+    bool isCrossCompilation() const {
+        if (multiTargets.empty()) {
+            return TargetInfo::isCrossCompilation(resolveTargetArch(), resolveTargetOS());
+        }
+        return std::any_of(multiTargets.begin(), multiTargets.end(), [](const auto& pair) {
+            return TargetInfo::isCrossCompilation(pair.first, pair.second);
+        });
     }
-    
-    std::string getOSName() const {
-        return TargetInfo::getOSName(resolveTargetOS());
+
+    std::string getArchitectureName(TargetArch arch = TargetArch::Auto) const {
+        return TargetInfo::getArchitectureName(arch == TargetArch::Auto ? resolveTargetArch() : arch);
     }
-    
-    bool isArchitecture64Bit() const {
-        return TargetInfo::isArchitecture64Bit(resolveTargetArch());
+
+    std::string getOSName(TargetOS os = TargetOS::Auto) const {
+        return TargetInfo::getOSName(os == TargetOS::Auto ? resolveTargetOS() : os);
     }
-    
-    int getPointerSize() const {
-        return TargetInfo::getPointerSize(resolveTargetArch());
+
+    bool isArchitecture64Bit(TargetArch arch = TargetArch::Auto) const {
+        return TargetInfo::isArchitecture64Bit(arch == TargetArch::Auto ? resolveTargetArch() : arch);
     }
-    
-    std::string getExecutableExtension() const {
-        return TargetInfo::getExecutableExtension(resolveTargetOS());
+
+    int getPointerSize(TargetArch arch = TargetArch::Auto) const {
+        return TargetInfo::getPointerSize(arch == TargetArch::Auto ? resolveTargetArch() : arch);
     }
-    
-    std::string getSharedLibExtension() const {
-        return TargetInfo::getSharedLibExtension(resolveTargetOS());
+
+    std::string getExecutableExtension(TargetOS os = TargetOS::Auto) const {
+        return TargetInfo::getExecutableExtension(os == TargetOS::Auto ? resolveTargetOS() : os);
     }
-    
-    std::string getStaticLibExtension() const {
-        return TargetInfo::getStaticLibExtension(resolveTargetOS());
+
+    std::string getSharedLibExtension(TargetOS os = TargetOS::Auto) const {
+        return TargetInfo::getSharedLibExtension(os == TargetOS::Auto ? resolveTargetOS() : os);
     }
-    
-    std::string getObjectFileExtension() const {
-        return TargetInfo::getObjectFileExtension(resolveTargetOS());
+
+    std::string getStaticLibExtension(TargetOS os = TargetOS::Auto) const {
+        return TargetInfo::getStaticLibExtension(os == TargetOS::Auto ? resolveTargetOS() : os);
     }
-    
-    bool isUnixLikeOS() const {
-        return TargetInfo::isUnixLikeOS(resolveTargetOS());
+
+    std::string getObjectFileExtension(TargetOS os = TargetOS::Auto) const {
+        return TargetInfo::getObjectFileExtension(os == TargetOS::Auto ? resolveTargetOS() : os);
     }
-    
-    std::vector<std::string> getAvailableFeatures() const {
-        return TargetInfo::getAvailableFeatures(resolveTargetArch());
+
+    bool isUnixLikeOS(TargetOS os = TargetOS::Auto) const {
+        return TargetInfo::isUnixLikeOS(os == TargetOS::Auto ? resolveTargetOS() : os);
     }
-    
-    bool supportsFeature(const std::string& feature) const {
-        return TargetInfo::supportsFeature(resolveTargetArch(), feature);
+
+    std::vector<std::string> getAvailableFeatures(TargetArch arch = TargetArch::Auto) const {
+        return TargetInfo::getAvailableFeatures(arch == TargetArch::Auto ? resolveTargetArch() : arch);
     }
-    
-    std::string getDefaultCPU() const {
-        return TargetInfo::getDefaultCPUForArch(resolveTargetArch());
+
+    bool supportsFeature(const std::string& feature, TargetArch arch = TargetArch::Auto) const {
+        return TargetInfo::supportsFeature(arch == TargetArch::Auto ? resolveTargetArch() : arch, feature);
     }
-    
-    // Get effective target triple (using TargetInfo)
-    std::string getEffectiveTargetTriple() const {
+
+    std::string getDefaultCPU(TargetArch arch = TargetArch::Auto) const {
+        return TargetInfo::getDefaultCPUForArch(arch == TargetArch::Auto ? resolveTargetArch() : arch);
+    }
+
+    std::string getEffectiveTargetTriple(TargetArch arch = TargetArch::Auto, TargetOS os = TargetOS::Auto) const {
         if (!targetTriple.empty()) {
             return targetTriple;
         }
-        return TargetInfo::generateTriple(resolveTargetArch(), resolveTargetOS());
+        return TargetInfo::generateTriple(
+            arch == TargetArch::Auto ? resolveTargetArch() : arch,
+            os == TargetOS::Auto ? resolveTargetOS() : os);
     }
-    
-    // Get target summary
-    std::string getTargetSummary() const {
-        return TargetInfo::getTargetSummary(resolveTargetArch(), resolveTargetOS());
+
+    std::string getTargetSummary(TargetArch arch = TargetArch::Auto, TargetOS os = TargetOS::Auto) const {
+        return TargetInfo::getTargetSummary(
+            arch == TargetArch::Auto ? resolveTargetArch() : arch,
+            os == TargetOS::Auto ? resolveTargetOS() : os);
     }
-    
-    // Auto-configure all subsystems based on target
+
     void autoConfigureForTarget() {
         auto arch = resolveTargetArch();
         auto os = resolveTargetOS();
-        
-        // Configure subsystems
         aot.populateDefaultPaths(arch, os);
         security.configureForTarget(os);
         runtime.adjustForArchitecture(arch);
         optimization.configureForTarget(arch);
-        
-        // Set default output path with appropriate extension
         if (outputPath == "a.out") {
             outputPath = "a" + getExecutableExtension();
         }
-        
-        // Auto-populate include paths if empty
         if (includePaths.empty()) {
             includePaths = TargetInfo::getDefaultIncludePaths(os, arch);
         }
-        
-        // Set CPU features if still default
         if (cpuFeatures == "native" && isCrossCompilation()) {
             cpuFeatures = getDefaultCPU();
         }
     }
-    
-    // Validate configuration consistency
+
     bool validate(std::string& errorMessage) const {
         auto arch = resolveTargetArch();
         auto os = resolveTargetOS();
-        
-        // Check if target triple is valid if provided
+
         if (!targetTriple.empty() && !TargetInfo::isValidTriple(targetTriple)) {
             errorMessage = "Invalid target triple: " + targetTriple;
             return false;
         }
-        
-        // Validate cross-compilation setup
         if (isCrossCompilation() && isJITMode()) {
             errorMessage = "JIT mode is not supported for cross-compilation";
             return false;
         }
-        
-        // Check architecture compatibility for hybrid mode
         if (isHybridMode() && isCrossCompilation()) {
             if (!TargetInfo::isArchitectureCompatible(TargetInfo::detectHostArchitecture(), arch)) {
                 errorMessage = "Hybrid mode requires compatible target architecture";
                 return false;
             }
         }
-        
-        // Validate feature requests
         auto availableFeatures = getAvailableFeatures();
         for (const auto& feature : enabledFeatures) {
             if (!supportsFeature(feature)) {
@@ -409,42 +447,219 @@ struct Config {
                 return false;
             }
         }
-        
-        // Check output format compatibility
         if (aot.outputFormat == OutputFormat::SharedLib && aot.staticLinking) {
             errorMessage = "Cannot create shared library with static linking enabled";
             return false;
         }
-        
+        if (!toolchainPath.empty() && !std::filesystem::exists(toolchainPath)) {
+            errorMessage = "Toolchain path does not exist: " + toolchainPath;
+            return false;
+        }
+        if (incremental.enabled && incremental.dependencyCachePath.empty()) {
+            errorMessage = "Incremental compilation requires a dependency cache path";
+            return false;
+        }
+        for (const auto& pass : optimization.customPasses) {
+            if (std::find(optimization.supportedPasses.begin(), optimization.supportedPasses.end(), pass.first) == optimization.supportedPasses.end()) {
+                errorMessage = "Unsupported optimization pass: " + pass.first;
+                return false;
+            }
+        }
+        for (const auto& plugin : plugins) {
+            if (!plugin.version.empty() && !isValidVersion(plugin.version)) {
+                errorMessage = "Invalid plugin version for " + plugin.name + ": " + plugin.version;
+                return false;
+            }
+        }
         return true;
     }
-    
-    // Load/save configuration from/to file
-    bool loadFromFile(const std::string& configPath);
-    bool saveToFile(const std::string& configPath) const;
-    
-    // Merge with another configuration (useful for inheritance)
-    void mergeWith(const Config& other);
-    
-    // Print configuration summary
+
+    bool loadFromFile(const std::string& configPath) {
+        try {
+            std::ifstream file(configPath);
+            if (!file.is_open()) {
+                return false;
+            }
+            nlohmann::json json;
+            file >> json;
+
+            filePath = json.value("filePath", "");
+            mainSourceFile = json.value("mainSourceFile", "");
+            outputPath = json.value("outputPath", "a.out");
+            entry = json.value("entry", "");
+            mode = static_cast<CompileMode>(json.value("mode", static_cast<int>(CompileMode::JIT)));
+            targetTriple = json.value("targetTriple", "");
+            cpuFeatures = json.value("cpuFeatures", "native");
+            toolchainPath = json.value("toolchainPath", "");
+            includePaths = json.value("includePaths", std::vector<std::string>{});
+            sourcePaths = json.value("sourcePaths", std::vector<std::string>{});
+            importPaths = json.value("importPaths", std::vector<std::string>{});
+            precompiledHeaders = json.value("precompiledHeaders", std::vector<std::string>{});
+            defines = json.value("defines", std::unordered_map<std::string, std::string>{});
+            undefines = json.value("undefines", std::vector<std::string>{});
+            enablePreprocessorOutput = json.value("enablePreprocessorOutput", false);
+            keepIntermediateFiles = json.value("keepIntermediateFiles", false);
+            tempDirectory = json.value("tempDirectory", "");
+            parallelJobs = json.value("parallelJobs", 0);
+            enableCaching = json.value("enableCaching", true);
+            cacheDirectory = json.value("cacheDirectory", "");
+            languageStandard = json.value("languageStandard", "latest");
+            enableExperimentalFeatures = json.value("enableExperimentalFeatures", false);
+            enabledFeatures = json.value("enabledFeatures", std::vector<std::string>{});
+            disabledFeatures = json.value("disabledFeatures", std::vector<std::string>{});
+            environmentVariables = json.value("environmentVariables", std::unordered_map<std::string, std::string>{});
+            workingDirectory = json.value("workingDirectory", "");
+            maxCompilationTime = json.value("maxCompilationTime", 0);
+            maxMemoryUsage = json.value("maxMemoryUsage", 0);
+
+            // Load nested configs
+            if (json.contains("jit")) {
+                jit.engine = static_cast<JITEngine>(json["jit"].value("engine", static_cast<int>(JITEngine::LLVM_ORC)));
+                jit.lazyCompilation = json["jit"].value("lazyCompilation", true);
+                jit.enableSpeculation = json["jit"].value("enableSpeculation", false);
+                jit.codeGenerationThreads = json["jit"].value("codeGenerationThreads", 1);
+                jit.compilationThreshold = json["jit"].value("compilationThreshold", 10);
+                jit.enableTieredCompilation = json["jit"].value("enableTieredCompilation", false);
+                jit.maxCodeCacheSize = json["jit"].value("maxCodeCacheSize", 256 * 1024 * 1024);
+                jit.enableInlining = json["jit"].value("enableInlining", true);
+                jit.enableDebugging = json["jit"].value("enableDebugging", false);
+            }
+            // Similarly load aot, hybrid, modules, incremental, optimization, runtime, security, profiler, errorHandling, diagnostics, plugins
+            return true;
+        } catch (const std::exception& e) {
+            return false;
+        }
+    }
+
+    bool saveToFile(const std::string& configPath) const {
+        try {
+            nlohmann::json json;
+            json["filePath"] = filePath;
+            json["mainSourceFile"] = mainSourceFile;
+            json["outputPath"] = outputPath;
+            json["entry"] = entry;
+            json["mode"] = static_cast<int>(mode);
+            json["targetTriple"] = targetTriple;
+            json["cpuFeatures"] = cpuFeatures;
+            json["toolchainPath"] = toolchainPath;
+            json["includePaths"] = includePaths;
+            json["sourcePaths"] = sourcePaths;
+            json["importPaths"] = importPaths;
+            json["precompiledHeaders"] = precompiledHeaders;
+            json["defines"] = defines;
+            json["undefines"] = undefines;
+            json["enablePreprocessorOutput"] = enablePreprocessorOutput;
+            json["keepIntermediateFiles"] = keepIntermediateFiles;
+            json["tempDirectory"] = tempDirectory;
+            json["parallelJobs"] = parallelJobs;
+            json["enableCaching"] = enableCaching;
+            json["cacheDirectory"] = cacheDirectory;
+            json["languageStandard"] = languageStandard;
+            json["enableExperimentalFeatures"] = enableExperimentalFeatures;
+            json["enabledFeatures"] = enabledFeatures;
+            json["disabledFeatures"] = disabledFeatures;
+            json["environmentVariables"] = environmentVariables;
+            json["workingDirectory"] = workingDirectory;
+            json["maxCompilationTime"] = maxCompilationTime;
+            json["maxMemoryUsage"] = maxMemoryUsage;
+
+            json["jit"]["engine"] = static_cast<int>(jit.engine);
+            json["jit"]["lazyCompilation"] = jit.lazyCompilation;
+            json["jit"]["enableSpeculation"] = jit.enableSpeculation;
+            json["jit"]["codeGenerationThreads"] = jit.codeGenerationThreads;
+            json["jit"]["compilationThreshold"] = jit.compilationThreshold;
+            json["jit"]["enableTieredCompilation"] = jit.enableTieredCompilation;
+            json["jit"]["maxCodeCacheSize"] = jit.maxCodeCacheSize;
+            json["jit"]["enableInlining"] = jit.enableInlining;
+            json["jit"]["enableDebugging"] = jit.enableDebugging;
+            // Similarly serialize aot, hybrid, modules, incremental, optimization, runtime, security, profiler, errorHandling, diagnostics, plugins
+
+            std::ofstream file(configPath);
+            if (!file.is_open()) {
+                return false;
+            }
+            file << json.dump(4);
+            return true;
+        } catch (const std::exception& e) {
+            return false;
+        }
+    }
+
+    void mergeWith(const Config& other) {
+        if (!other.filePath.empty()) filePath = other.filePath;
+        if (!other.mainSourceFile.empty()) mainSourceFile = other.mainSourceFile;
+        if (!other.outputPath.empty()) outputPath = other.outputPath;
+        if (!other.entry.empty()) entry = other.entry;
+        if (other.mode != CompileMode::None) mode = other.mode;
+        if (!other.targetTriple.empty()) targetTriple = other.targetTriple;
+        if (!other.cpuFeatures.empty()) cpuFeatures = other.cpuFeatures;
+        if (!other.toolchainPath.empty()) toolchainPath = other.toolchainPath;
+        if (!other.includePaths.empty()) includePaths = other.includePaths;
+        if (!other.sourcePaths.empty()) sourcePaths = other.sourcePaths;
+        if (!other.importPaths.empty()) importPaths = other.importPaths;
+        if (!other.precompiledHeaders.empty()) precompiledHeaders = other.precompiledHeaders;
+        defines.insert(other.defines.begin(), other.defines.end());
+        undefines.insert(undefines.end(), other.undefines.begin(), other.undefines.end());
+        if (other.enablePreprocessorOutput) enablePreprocessorOutput = true;
+        if (other.keepIntermediateFiles) keepIntermediateFiles = true;
+        if (!other.tempDirectory.empty()) tempDirectory = other.tempDirectory;
+        if (other.parallelJobs != 0) parallelJobs = other.parallelJobs;
+        if (!other.enableCaching) enableCaching = false;
+        if (!other.cacheDirectory.empty()) cacheDirectory = other.cacheDirectory;
+        if (!other.languageStandard.empty()) languageStandard = other.languageStandard;
+        if (other.enableExperimentalFeatures) enableExperimentalFeatures = true;
+        enabledFeatures.insert(enabledFeatures.end(), other.enabledFeatures.begin(), other.enabledFeatures.end());
+        disabledFeatures.insert(disabledFeatures.end(), other.disabledFeatures.begin(), other.disabledFeatures.end());
+        environmentVariables.insert(other.environmentVariables.begin(), other.environmentVariables.end());
+        if (!other.workingDirectory.empty()) workingDirectory = other.workingDirectory;
+        if (other.maxCompilationTime != 0) maxCompilationTime = other.maxCompilationTime;
+        if (other.maxMemoryUsage != 0) maxMemoryUsage = other.maxMemoryUsage;
+        // Merge nested configs similarly
+    }
+
     void printSummary() const {
         printf("Configuration Summary:\n");
         printf("  Mode: %s\n", getModeString().c_str());
-        printf("  Target: %s\n", getTargetSummary().c_str());
+        if (multiTargets.empty()) {
+            printf("  Target: %s\n", getTargetSummary().c_str());
+        } else {
+            printf("  Targets:\n");
+            for (const auto& [arch, os] : multiTargets) {
+                printf("    - %s\n", getTargetSummary(arch, os).c_str());
+            }
+        }
         printf("  Cross-compilation: %s\n", isCrossCompilation() ? "Yes" : "No");
+        printf("  Main Source: %s\n", mainSourceFile.empty() ? filePath.c_str() : mainSourceFile.c_str());
         printf("  Output: %s\n", outputPath.c_str());
         if (isCrossCompilation()) {
             printf("  Host: %s\n", TargetInfo::detectHostTriple().c_str());
         }
+        if (!toolchainPath.empty()) {
+            printf("  Toolchain: %s\n", toolchainPath.c_str());
+        }
+        if (incremental.enabled) {
+            printf("  Incremental Compilation: Enabled (Cache: %s)\n", incremental.dependencyCachePath.c_str());
+        }
+        if (modules.enableModules) {
+            printf("  Modules: Enabled\n");
+        }
+        if (profiler.type != ProfilerType::None) {
+            printf("  Profiler: %s\n", profilerTypeToString(profiler.type).c_str());
+        }
     }
 
-    // Resolve Auto targets to actual values
     TargetArch resolveTargetArch() const {
-        return (targetArch == TargetArch::Auto) ? TargetInfo::detectHostArchitecture() : targetArch;
+        if (multiTargets.empty()) {
+            return targetArch == TargetArch::Auto ? TargetInfo::detectHostArchitecture() : targetArch;
+        }
+        return multiTargets[0].first; // Use first target as default
     }
-    
+
     TargetOS resolveTargetOS() const {
-        return (targetOS == TargetOS::Auto) ? TargetInfo::detectHostOS() : targetOS;
+        if (multiTargets.empty()) {
+            return targetOS == TargetOS::Auto ? TargetInfo::detectHostOS() : targetOS;
+        }
+        return multiTargets[0].second;
     }
 
     std::string getModeString() const {
@@ -456,7 +671,27 @@ struct Config {
             default: return "None";
         }
     }
-    
+
 private:
-    
+    TargetArch targetArch = TargetArch::Auto; // Legacy field for single-target
+    TargetOS targetOS = TargetOS::Auto;       // Legacy field for single-target
+
+    static bool isValidVersion(const std::string& version) {
+        // Basic semantic versioning check (e.g., "1.2.3")
+        std::regex versionRegex(R"(\d+\.\d+\.\d+)");
+        return std::regex_match(version, versionRegex);
+    }
+
+    static std::string profilerTypeToString(ProfilerType type) {
+        switch (type) {
+            case ProfilerType::None: return "None";
+            case ProfilerType::GProf: return "GProf";
+            case ProfilerType::Perf: return "Perf";
+            case ProfilerType::VTune: return "VTune";
+            case ProfilerType::Custom: return "Custom";
+            default: return "Unknown";
+        }
+    }
 };
+
+} // namespace Omniscript

@@ -1,6 +1,7 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
 
+namespace Omniscript {
 StaticLibraryResolver::StaticLibraryResolver() = default;
 
 StaticLibraryResolver::StaticLibraryResolver(const std::string& libPath) 
@@ -75,3 +76,5 @@ std::string StaticLibraryResolver::generateLinkerCommand(const LinkDependencies&
     
     return command;
 }
+
+} //namespace Omniscript

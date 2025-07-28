@@ -2,6 +2,7 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 // Smart resolver that automatically selects the best resolver for the platform
+namespace Omniscript {
 class SmartPlatformResolver : public ExternalFunctionResolver {
 public:
     SmartPlatformResolver();
@@ -18,3 +19,5 @@ private:
     void initializePlatformResolvers();
     ExternalFunctionResolver* findBestResolver(const std::string& name);
 };
+
+} // namespae Omniscript

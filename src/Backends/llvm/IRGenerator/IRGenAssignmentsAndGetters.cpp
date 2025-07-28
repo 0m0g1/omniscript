@@ -2,6 +2,7 @@
 #include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
 
+namespace Omniscript {
 llvm::Value* IRGenerator::assignVariable(
     std::shared_ptr<Omniscript::VariableAssignment> statement,
     SymbolTableType scope
@@ -344,4 +345,6 @@ llvm::Value* IRGenerator::getReferenceToVariable(const std::string& varname) {
     // // Return the pointer/alloca directly
     console.error("Cannot get reference to: " + varname);
     return nullptr;
+}
+
 }

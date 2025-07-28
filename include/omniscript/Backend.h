@@ -4,6 +4,7 @@
 #include <omniscript/Statement.h>
 #include <omniscript/EngineConfigs.h>
 
+namespace Omniscript {
 class Backend {
 public:
     virtual ~Backend() = default;
@@ -15,3 +16,5 @@ public:
         const Config& config
     ) = 0;
 };
+
+} // namespace Omniscript

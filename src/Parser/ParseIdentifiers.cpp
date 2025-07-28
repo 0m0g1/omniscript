@@ -22,7 +22,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     
     while (true) {
         Token startToken = currentToken;
-        expr->setPosition(startToken);
+        expr->setPosition(startToken, previousToken);
         
         if (currentToken.getType() == TokenTypes::LeftParen) {
             // Function/method call

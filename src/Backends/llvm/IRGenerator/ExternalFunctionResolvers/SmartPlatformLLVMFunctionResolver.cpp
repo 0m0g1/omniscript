@@ -11,6 +11,7 @@
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
 
+namespace Omniscript {
 SmartPlatformResolver::SmartPlatformResolver() {
     initializePlatformResolvers();
 }
@@ -98,4 +99,5 @@ ExternalFunctionResolver* SmartPlatformResolver::findBestResolver(const std::str
     }
     
     return nullptr;
+}
 }

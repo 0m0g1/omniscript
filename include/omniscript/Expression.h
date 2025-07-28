@@ -1,11 +1,8 @@
 #pragma once
-#ifndef Expression_H
-#define Expression_H
 
-#include <omniscript/tokens.h>
+#include <omniscript/Tokens.h>
 #include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/debuggingtools/console.h>
 #include <omniscript/Types.h>
 
 struct MemberModifiers {
@@ -143,30 +140,24 @@ public:
     std::shared_ptr<Type> type = Type::createInvalid();  
     std::shared_ptr<Type> rootType = Type::createInvalid();
     
-    inline void setPosition(Token startToken) {
-        pos.line = startToken.getLine();
-        pos.col = startToken.getColumn();
-        pos.fileName = startToken.getFilePath();
-        pos.filePath = startToken.getFilePath();
+    inline void setStartPosition(const filePosition& pos) {
+        span.start = pos;
     }
 
-    inline void setPosition(int line, int column, const std::string& file, const std::string& path) {
-        pos.line = line;
-        pos.col = column;
-        pos.fileName = file;
-        pos.filePath = path;
+    inline void setEndPosition(const filePosition& pos) {
+        span.end = pos;
     }
 
-    inline void setPosition(const Omniscript::filePosition& position) {
-        pos = position;
+    inline void setSpan(const FileSpan& s) {
+        span = s;
     }
 
-    inline Omniscript::filePosition getPosition() const {
-        return pos;
+    inline const FileSpan& getSpan() const {
+        return span;
     }
 
     protected:
-        Omniscript::filePosition pos;
+        FileSpan span;
 };
 
 template <typename T>
@@ -222,5 +213,3 @@ struct TypeExpression : public Expression {
 };
 
 }
-
-#endif

@@ -25,7 +25,7 @@
 
 
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG();
     
     // Check if expr is a MemberAccess that should be handled as a method call
@@ -745,7 +745,7 @@ std::shared_ptr<Omniscript::Expression> Call::createCallExpression(
         DEBUG_LOG("[Call] Returning CallExpression for '" + evaluatedCallee + "' with " + 
                   std::to_string(finalArgs.size()) + " args");
         auto callExpr = std::make_shared<Omniscript::CallExpression>(evaluatedCallee, finalArgs, type);
-        callExpr->setPosition(getPosition());
+        callExpr->setSpan(getSpan());
         return callExpr;
     }
     
@@ -764,7 +764,7 @@ std::shared_ptr<Omniscript::Expression> Call::createCallExpression(
         index++;
     }
     
-    instanceConstructor->setPosition(getPosition());
+    instanceConstructor->setSpan(getSpan());
     return instanceConstructor;
 }
 

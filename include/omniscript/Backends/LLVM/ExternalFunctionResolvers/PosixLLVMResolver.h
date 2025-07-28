@@ -2,6 +2,7 @@
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/PosixLLVMResolver.h>
 
 // POSIX/Unix resolver (Linux, macOS, BSD)
+namespace Omniscript {
 class PosixResolver : public ExternalFunctionResolver {
 public:
     llvm::Function* resolve(IRGenerator& generator, const std::string& name, 
@@ -13,3 +14,5 @@ private:
     bool isMathFunction(const std::string& name);
     std::vector<std::string> getRequiredLibraries(const std::string& name);
 };
+
+} // namespace Omniscript

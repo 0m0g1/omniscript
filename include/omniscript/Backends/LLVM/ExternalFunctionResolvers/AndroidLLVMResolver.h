@@ -2,6 +2,7 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 // Android resolver
+namespace Omniscript {
 class AndroidResolver : public ExternalFunctionResolver {
 public:
     llvm::Function* resolve(IRGenerator& generator, const std::string& name, 
@@ -13,3 +14,5 @@ private:
     bool isJNIFunction(const std::string& name);
     std::string getRequiredLibrary(const std::string& name);
 };
+
+} // namespace Omniscript

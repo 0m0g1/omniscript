@@ -10,20 +10,20 @@
 #include <omniscript/Expressions/EntityExpressions.h>
 
 std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     auto integer = std::make_shared<IntegerLiteral>(valueIndex)->express(scope);
-    integer->setPosition(getPosition());
+    integer->setSpan(getSpan());
     return integer;
 }
 
 std::shared_ptr<Omniscript::Expression> EnumConstructor::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     auto expr = std::make_shared<Omniscript::EnumExpression>(name, hasLookup, isEnumClass);
     
     for (const auto& val : values) {
         expr->addEntry(val->getIndex(), val->getName(), val->express(scope));
     }
 
-    expr->setPosition(getPosition());
+    expr->setSpan(getSpan());
     return expr;
 }

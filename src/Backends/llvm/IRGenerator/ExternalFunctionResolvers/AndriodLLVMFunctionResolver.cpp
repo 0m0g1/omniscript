@@ -2,6 +2,7 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/AndroidLLVMResolver.h>
 
+namespace Omniscript {
 llvm::Function* AndroidResolver::resolve(IRGenerator& generator, const std::string& name, 
                                        llvm::FunctionType* funcType, LinkDependencies& deps) {
     if (PlatformInfo::getCurrentPlatform() != PlatformInfo::Android) {
@@ -58,3 +59,5 @@ std::string AndroidResolver::getRequiredLibrary(const std::string& name) {
     
     return "";
 }
+
+} //namespace Omniscript

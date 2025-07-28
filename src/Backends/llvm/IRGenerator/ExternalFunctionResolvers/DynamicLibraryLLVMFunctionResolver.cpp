@@ -2,6 +2,7 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
 
+namespace Omniscript {
 DynamicLibraryResolver::DynamicLibraryResolver(const std::string& libPath) 
     : libPath_(normalizePath(libPath)) {
     std::string error;
@@ -56,3 +57,5 @@ std::string DynamicLibraryResolver::normalizePath(const std::string& path) {
     
     return normalized;
 }
+
+} // namespace Omniscript

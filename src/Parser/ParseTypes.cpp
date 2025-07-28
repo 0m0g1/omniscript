@@ -368,7 +368,7 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
     }
 
     auto typeDecl = std::make_shared<TypeDeclaration>(typeName, type);
-    typeDecl->setPosition(startToken);
+    typeDecl->setPosition(startToken, previousToken);
     return typeDecl;
 }
 

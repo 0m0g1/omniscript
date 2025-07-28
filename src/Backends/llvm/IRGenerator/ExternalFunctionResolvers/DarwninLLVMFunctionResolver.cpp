@@ -2,6 +2,7 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DarwinLLVMResolver.h>
 
+namespace Omniscript {
 DarwinResolver::DarwinResolver() {
 }
 
@@ -70,4 +71,5 @@ std::string DarwinResolver::getRequiredFramework(const std::string& name) {
     }
     
     return "";
+}
 }

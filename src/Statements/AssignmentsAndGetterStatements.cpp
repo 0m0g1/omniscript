@@ -12,7 +12,7 @@
 
 
 std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     std::shared_ptr<Omniscript::Expression> referent = scope->getValue(name);
 
     DEBUG_LOG("Getting the address of '" + name + "'.");
@@ -42,12 +42,12 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
     }
 
     auto addrOf = std::make_shared<Omniscript::AddressOfExpression>(name, referent);
-    addrOf->setPosition(getPosition());
+    addrOf->setSpan(getSpan());
     return addrOf;
 }
 
 std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     if (name.empty() && !referent) {
         console.error("There is no referent.");
@@ -66,7 +66,7 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
         setRootType(type);
         auto ref = std::make_shared<Omniscript::ReferenceExpression>(name, referentExpr);
         ref->type = type;
-        ref->setPosition(getPosition());
+        ref->setSpan(getSpan());
         return ref;
     }
     
@@ -82,7 +82,7 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
         setRootType(type);
         auto ref = std::make_shared<Omniscript::ReferenceExpression>(name, variable);
         ref->type = type;
-        ref->setPosition(getPosition());
+        ref->setSpan(getSpan());
         return ref;
     }
     
@@ -95,7 +95,7 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
             setRootType(type);
             auto ref = std::make_shared<Omniscript::ReferenceExpression>(funcExpr->mangledName, funcExpr);
             ref->type = type;
-            ref->setPosition(getPosition());
+            ref->setSpan(getSpan());
             return ref;
         }
     }
@@ -107,7 +107,7 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
 
 // Get Variable
 std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG();
     DEBUG_LOG("Getting symbol '" + name + "'.");
     DEBUG_LOG(getContextAsString());
@@ -167,7 +167,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
                 auto val = std::make_shared<Omniscript::VariableAccessExpression>(resolvedName, symbolType);
                 auto result = std::make_shared<Omniscript::NullableExpression>(val);
                 // By default, nullCaseHandled == false here, which is correct
-                result->setPosition(getPosition());
+                result->setSpan(getSpan());
                 return result;
             }
             DEBUG_LOG("The casted type is '" + type->toString() + "'.");
@@ -180,12 +180,12 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
     auto varAccess = std::make_shared<Omniscript::VariableAccessExpression>(resolvedName, type);
     varAccess->value = expr;
     // varAccess->isVolatileAccess;
-    varAccess->setPosition(getPosition());
+    varAccess->setSpan(getSpan());
     return varAccess;
 }
 
 std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (type && type->isUnresolved()) {
         if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
             type = scope->getType(unresolved->joinedTypeString);
@@ -344,7 +344,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 );
     } else {
         DEBUG_LOG("No type was deduced for variable '" + variable + "'.\n It had a value and no type or multiple types. Returning its result.");
-        result->setPosition(getPosition());
+        result->setSpan(getSpan());
         return result;
     }
 
@@ -366,7 +366,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     assignment->isGlobal = isGlobal;
     assignment->isConstant = isConstant;
     assignment->isVolatile = isVolatile;
-    assignment->setPosition(getPosition());
+    assignment->setSpan(getSpan());
     assignment->isExtern = isExtern;
     assignment->externName = assignment->getName();
     assignment->windowsDynamic  = libraryPaths.windowsDynamic;   // e.g., "lib/foo.dll"

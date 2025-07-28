@@ -1,5 +1,6 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 
+namespace Omniscript {
 llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type) {
     // Resolve the base type kind
     llvm::Type* llvmType = nullptr;
@@ -255,3 +256,5 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Omniscript::Type> type)
 
     return llvmType;
 }
+
+} // namespace Omniscript

@@ -1,6 +1,7 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/WebAssemblyLLVMResolver.h>
 
+namespace Omniscript {
 llvm::Function* WebAssemblyResolver::resolve(IRGenerator& generator, const std::string& name, 
                                             llvm::FunctionType* funcType, LinkDependencies& deps) {
     if (PlatformInfo::getCurrentPlatform() != PlatformInfo::WebAssembly) {
@@ -58,3 +59,5 @@ void WebAssemblyResolver::applyWasmAttributes(llvm::Function* func, const std::s
         func->addFnAttr("wasm-import-name", name);
     }
 }
+
+} // namespace Omniscript

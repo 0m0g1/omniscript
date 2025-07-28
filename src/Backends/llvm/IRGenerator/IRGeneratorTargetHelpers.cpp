@@ -1,6 +1,7 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/CPUFeatures.h>
 
+namespace Omniscript {
 bool IRGenerator::supportsAVX512() {
     // llvm::StringMap<bool> Features;
     // llvm::sys::getHostCPUFeatures(Features);
@@ -178,3 +179,5 @@ bool IRGenerator::validateTargetTripleCompatibility(const std::string& triple, c
     
     return true;
 }
+
+} // namespace Omniscript

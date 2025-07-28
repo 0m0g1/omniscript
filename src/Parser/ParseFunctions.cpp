@@ -121,7 +121,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         function->isExtern = true;
         function->libraryPaths = libraryPaths;
         function->externName = functionName;
-        function->setPosition(startToken);
+        function->setPosition(startToken, previousToken);
 
         return function;
 
@@ -187,7 +187,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
 
         eat(TokenTypes::RightBrace);
         auto block = std::make_shared<BlockStatement>(functions);
-        block->setPosition(startToken);
+        block->setPosition(startToken, previousToken);
         return block;
     }
 
@@ -206,7 +206,7 @@ std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
     std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
     function->isIntrinsic = true;
     function->intrinsicName = functionName;
-    function->setPosition(startToken);
+    function->setPosition(startToken, previousToken);
 
     return function;
 }
@@ -308,7 +308,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                     monomorphizedFunctions.push_back(func);
                 }
                 auto block = std::make_shared<BlockStatement>(monomorphizedFunctions);
-                block->setPosition(startToken);
+                block->setPosition(startToken, previousToken);
                 return block;
             }
         }
@@ -362,14 +362,14 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
         }
 
         auto block = std::make_shared<BlockStatement>(monomorphizedFunctions);
-        block->setPosition(startToken);
+        block->setPosition(startToken, previousToken);
         return block;
     }
 
     // Normal function without generics
     returnType = Omniscript::resolveType(returnDataType);
     auto function = std::make_shared<FunctionDeclaration>(name, parameters, body, returnType);
-    function->setPosition(startToken);
+    function->setPosition(startToken, previousToken);
     return function;
 }
 

@@ -10,19 +10,19 @@ struct Position {
 
 struct Particle {
    position = Position{5, 10};
-   constructor(x: float, y: float) => void {
-      this.position.x = x;
-      this.position.y = y;
-   }
+   // constructor(x: float, y: float) => void {
+   //    this.position.x = x;
+   //    this.position.y = y;
+   // }
    log() => void {
       printf("Particle(");
-      this.position.log();
+      // this.position.log();
       printf(")");
    }
 }
 
 let p1 = Particle{100, 300};
-p1.log();
+// p1.log();
 
 // // which language woud users prefer based of the syntax my language, c, c++, zig, rust? my language can be both high level and low level the user chooses what they want I don't force keep in mind all the null checks are forced during compile time for safety
 // // Import standard file I/O module

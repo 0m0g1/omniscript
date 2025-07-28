@@ -164,9 +164,9 @@ class Token {
         }
         std::u32string getU32Value() const {return u32Value;}
         TokenTypes type;
-        int getLine() {return line;}
-        int getColumn() {return column;}
-        int getPosition() {return position;}
+        int getLine() const {return line;}
+        int getColumn() const {return column;}
+        int getPosition() const {return position;}
         std::string getFilePath() const { return filePath; }
 
         // Comparison operators

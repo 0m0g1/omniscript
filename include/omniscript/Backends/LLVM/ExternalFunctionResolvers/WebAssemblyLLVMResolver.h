@@ -2,6 +2,7 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 // WebAssembly resolver
+namespace Omniscript {
 class WebAssemblyResolver : public ExternalFunctionResolver {
 public:
     llvm::Function* resolve(IRGenerator& generator, const std::string& name, 
@@ -13,3 +14,5 @@ private:
     bool isWebAPIFunction(const std::string& name);
     void applyWasmAttributes(llvm::Function* func, const std::string& name);
 };
+
+} // namespace Omniscript

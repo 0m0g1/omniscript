@@ -1,6 +1,7 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Expressions/BlockExpression.h>
 
+namespace Omniscript {
 llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* expectedReturnType) {
     llvm::Function* currentFunction = Builder->GetInsertBlock()->getParent();
     if (!currentFunction) {
@@ -344,4 +345,6 @@ llvm::Value* IRGenerator::createIfStatement(
     }
 
     return nullptr;
+}
+
 }

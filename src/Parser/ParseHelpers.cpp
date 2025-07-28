@@ -60,7 +60,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
         parameter->isVariadic = isVariadic;
         parameter->setType(paramType);
         parameters.push_back(parameter);
-        parameter->setPosition(startToken);
+        parameter->setPosition(startToken, previousToken);
 
         if (currentToken.getType() == TokenTypes::Comma) {
             eat(TokenTypes::Comma);
@@ -128,7 +128,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
         } else {
             break;
         }
-        args[argCount]->setPosition(startToken);
+        args[argCount]->setPosition(startToken, previousToken);
         argCount++;
     }
 

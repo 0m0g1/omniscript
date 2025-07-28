@@ -25,7 +25,7 @@ public:
         : NamedStatement(other), TypedStatement(other),
           defaultValue(other.defaultValue ? other.defaultValue->clone() : nullptr) 
     {
-        setPosition(other.getPosition());
+        setSpan(other.getSpan());
     }
 
     std::string getName() const override { return name; }

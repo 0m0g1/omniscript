@@ -7,31 +7,9 @@
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 
-// built - in objects
-// // #include <omniscript/runtime/Function.h>
-// #include <omniscript/runtime/Class.h>
-// #include <omniscript/runtime/Namespace.h>
-// #include <omniscript/runtime/Enum.h>
-// #include <omniscript/runtime/Number.h>
-// #include <omniscript/runtime/String.h>
-
-
-// Environment Objects
-// #include <omniscript/runtime/graphics/canvas.h>
-// // #include <omniscript/runtime/audio/AudioAccess.h>
-// #include <omniscript/runtime/Http/Http.h>
-// #include <omniscript/runtime/io/console.h>
-// #include <omniscript/runtime/io/FileAccess.h>
-// #include <omniscript/runtime/Math/Math.h>
-// #include <omniscript/runtime/Time/Time.h>
-// #include <omniscript/runtime/Json/Json.h>
-// #include <omniscript/runtime/Date/Date.h>
-// #include <omniscript/runtime/Path/Path.h>
-// #include <omniscript/runtime/OS/OS.h>
-
 
 // Entry point for parsing the program
-std::vector<std::shared_ptr<Statement>> Parser::Parse() {
+std::vector<std::shared_ptr<Statement>> Parser::parse() {
     initializeEnvironment();
     parseProgram(); // Start parsing the program
     return this->statements;
@@ -44,17 +22,7 @@ void Parser::initializeEnvironment() {
 }
 
 void Parser::initializeBuiltInObjects() {
-    // // scope.addObject("canvas", std::make_shared<CanvasObject>());
-    // // scope.addObject("AudioAccess", std::make_shared<AudioAccess>());
-    // scope.addObject("HTTP", std::make_shared<HTTP>());
-    // scope.addObject("console", std::make_shared<ConsoleObject>());
-    // scope.addObject("FileAccess", std::make_shared<FileAccess>());
-    // scope.addObject("Math", std::make_shared<Math>());
-    // scope.addObject("Time", std::make_shared<Time>());
-    // scope.addObject("JSON", std::make_shared<JSON>());
-    // scope.addObject("Date", std::make_shared<Date>());
-    // scope.addObject("Path", std::make_shared<Path>());
-    // scope.addObject("OS", std::make_shared<OS>());
+
 }
 
 void Parser::initializeConstants() {
@@ -82,7 +50,7 @@ void Parser::parseProgram() {
 }
 
 void Parser::eat(TokenTypes expectedType, const std::string& err) {
-    Omniscript::setPosition(currentToken.getLine(), currentToken.getColumn(), currentToken.getFilePath());
+    Omniscript::setSpanFromPosition(currentToken.getLine(), currentToken.getColumn(), currentToken.getFilePath());
     if (currentToken.getType() == expectedType) {
         previousToken = currentToken;
         currentToken = lexer.getNextToken(); // Move to the next token

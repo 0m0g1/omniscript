@@ -24,7 +24,7 @@
 
 // ============================== Prototypes  ============================== //
 std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("[Parameter] Creating parameter '" + name + "' of kind " + (type ? type->toString() : "undefined"));
     
     if (type && type->isUnresolved()) {
@@ -118,12 +118,12 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
     auto param = std::make_shared<Omniscript::FunctionInputExpression>(name, type, result, isConstant);
     type = param->type;
     param->isVariadic = isVariadic;
-    param->setPosition(getPosition());
+    param->setSpan(getSpan());
     return param;
 }
 
 std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (type && type->isUnresolved()) {
         if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
             type = scope->getType(unresolved->joinedTypeString);
@@ -147,7 +147,7 @@ std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableTy
     }
     DEBUG_LOG("[Argument] The value for argument '" + name + "' is " + result->toString());
     auto arg = std::make_shared<Omniscript::FunctionInputExpression>(name, type, result);
-    arg->setPosition(getPosition());
+    arg->setSpan(getSpan());
     return arg;
 }
 
@@ -160,12 +160,12 @@ std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
 }
 
 std::shared_ptr<Omniscript::Expression> ClassMember::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("[ConstructStructPrototype] Constructing a struct expression");
 
     std::vector<std::shared_ptr<Omniscript::Expression>> fields;
@@ -228,7 +228,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     );
 
     scope->set(getName(), structExpr);
-    structExpr->setPosition(getPosition());
+    structExpr->setSpan(getSpan());
 
     // Phase 2: Compile methods and build method expressions
     for (const auto& field : methodDeclr) {
@@ -255,7 +255,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
 }
 
 std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG();
     DEBUG_LOG("[ConstructClassPrototype] Constructing a class '" + getName() + "'.");
 
@@ -361,12 +361,12 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
     }
 
     classExpr->parameters = structExpr->parameters;
-    classExpr->setPosition(getPosition());
+    classExpr->setSpan(getSpan());
     return classExpr;
 }
  
 std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("Constructing '" + instanceName + "' of type '" + objectType + "'.");
     
     if (!scope->getType(objectType)) {
@@ -408,8 +408,8 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
     setType(instance->type);
     setRootType(type);
     scope->set(instanceName, instance);
-    call->setPosition(getPosition());
-    instance->setPosition(getPosition());
+    call->setSpan(getSpan());
+    instance->setSpan(getSpan());
     
     // Check if constructor exists and we have arguments to pass to it
     if (!scope->getOverloads(objectType + ".constructor").empty()) {
@@ -439,7 +439,7 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
         
         ctorExpressions.push_back(ctorCall);
         auto constructionBlock = std::make_shared<Omniscript::BlockExpression>(ctorExpressions);
-        constructionBlock->setPosition(getPosition());
+        constructionBlock->setSpan(getSpan());
         return constructionBlock;
     }
     

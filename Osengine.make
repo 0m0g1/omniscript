@@ -82,17 +82,22 @@ OBJECTS :=
 
 GENERATED += $(OBJDIR)/AccessStatements.o
 GENERATED += $(OBJDIR)/AndriodLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/Application.o
 GENERATED += $(OBJDIR)/ArrowAccessStatement.o
 GENERATED += $(OBJDIR)/AssignmentsAndGetterStatements.o
 GENERATED += $(OBJDIR)/CLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/CallStatement.o
+GENERATED += $(OBJDIR)/Compiler.o
+GENERATED += $(OBJDIR)/Console.o
 GENERATED += $(OBJDIR)/ControlFlowStatements.o
 GENERATED += $(OBJDIR)/Core.o
 GENERATED += $(OBJDIR)/DarwninLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/Engine.o
 GENERATED += $(OBJDIR)/EngineConfigs.o
 GENERATED += $(OBJDIR)/EntityStatements.o
 GENERATED += $(OBJDIR)/ExpressionStatements.o
+GENERATED += $(OBJDIR)/FileSpan.o
 GENERATED += $(OBJDIR)/FunctionDeclaration.o
 GENERATED += $(OBJDIR)/IRGenAssignmentsAndGetters.o
 GENERATED += $(OBJDIR)/IRGenControlFlow.o
@@ -148,23 +153,28 @@ GENERATED += $(OBJDIR)/Target_config.o
 GENERATED += $(OBJDIR)/Tokens.o
 GENERATED += $(OBJDIR)/TypeStatements.o
 GENERATED += $(OBJDIR)/Types.o
+GENERATED += $(OBJDIR)/Utils.o
 GENERATED += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/WindowsApiLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/main.o
-GENERATED += $(OBJDIR)/utils.o
 OBJECTS += $(OBJDIR)/AccessStatements.o
 OBJECTS += $(OBJDIR)/AndriodLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/Application.o
 OBJECTS += $(OBJDIR)/ArrowAccessStatement.o
 OBJECTS += $(OBJDIR)/AssignmentsAndGetterStatements.o
 OBJECTS += $(OBJDIR)/CLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/CallStatement.o
+OBJECTS += $(OBJDIR)/Compiler.o
+OBJECTS += $(OBJDIR)/Console.o
 OBJECTS += $(OBJDIR)/ControlFlowStatements.o
 OBJECTS += $(OBJDIR)/Core.o
 OBJECTS += $(OBJDIR)/DarwninLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/Engine.o
 OBJECTS += $(OBJDIR)/EngineConfigs.o
 OBJECTS += $(OBJDIR)/EntityStatements.o
 OBJECTS += $(OBJDIR)/ExpressionStatements.o
+OBJECTS += $(OBJDIR)/FileSpan.o
 OBJECTS += $(OBJDIR)/FunctionDeclaration.o
 OBJECTS += $(OBJDIR)/IRGenAssignmentsAndGetters.o
 OBJECTS += $(OBJDIR)/IRGenControlFlow.o
@@ -220,10 +230,10 @@ OBJECTS += $(OBJDIR)/Target_config.o
 OBJECTS += $(OBJDIR)/Tokens.o
 OBJECTS += $(OBJDIR)/TypeStatements.o
 OBJECTS += $(OBJDIR)/Types.o
+OBJECTS += $(OBJDIR)/Utils.o
 OBJECTS += $(OBJDIR)/WebAssemblyLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/WindowsApiLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/main.o
-OBJECTS += $(OBJDIR)/utils.o
 
 # Rules
 # #############################################
@@ -287,6 +297,9 @@ endif
 # File Rules
 # #############################################
 
+$(OBJDIR)/Application.o: src/Application.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/JITBackend.o: src/Backends/JITBackend.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
@@ -380,10 +393,22 @@ $(OBJDIR)/LLVMExternalFunctionResolver.o: src/Backends/llvm/LLVMExternalFunction
 $(OBJDIR)/LLVMJITBackend.o: src/Backends/llvm/LLVMJITBackend.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Compiler.o: src/Compiler.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Console.o: src/Console.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Core.o: src/Core.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Engine.o: src/Engine.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/EngineConfigs.o: src/EngineConfigs.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/FileSpan.o: src/FileSpan.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/LexLiterals.o: src/Lexer/LexLiterals.cpp
@@ -497,10 +522,10 @@ $(OBJDIR)/Tokens.o: src/Tokens.cpp
 $(OBJDIR)/Types.o: src/Types.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/main.o: src/main.cpp
+$(OBJDIR)/Utils.o: src/Utils.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/utils.o: src/utils.cpp
+$(OBJDIR)/main.o: src/main.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 

@@ -48,11 +48,11 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
                 typeDecl->setIsAliasing(originalTypeName);
                 pointerTypeDecl->setIsAliasing(originalTypeName);
             }
-            typeDecl->setPosition(getPosition());
-            pointerTypeDecl->setPosition(getPosition());
+            typeDecl->setSpan(getSpan());
+            pointerTypeDecl->setSpan(getSpan());
             std::vector<std::shared_ptr<Omniscript::Expression>> declarations = {pointerTypeDecl, typeDecl};
             auto block = std::make_shared<Omniscript::BlockExpression>(declarations);
-            block->setPosition(getPosition());
+            block->setSpan(getSpan());
             typeDeclExpr = block;
 
             scope->addType(name, typePointer);
@@ -62,7 +62,7 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
             if (isAliasingOtherType) {
                 typeDecl->setIsAliasing(originalTypeName);
             }
-            typeDecl->setPosition(getPosition());
+            typeDecl->setSpan(getSpan());
             typeDeclExpr = typeDecl;
             scope->addType(name, type);
         }

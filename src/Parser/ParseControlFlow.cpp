@@ -38,7 +38,7 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
     DEBUG_LOG("Parsed the for loops body");
 
     auto forLoop = std::make_shared<ForLoop>(initialization, condition, increment, body);
-    forLoop->setPosition(startToken);
+    forLoop->setPosition(startToken, previousToken);
     return forLoop;
 }
 
@@ -50,7 +50,7 @@ std::shared_ptr<Statement> Parser::parseContinue() {
     }
     eat(currentToken.getType());
     auto continueStmt = std::make_shared<ContinueStatement>();
-    continueStmt->setPosition(startToken);
+    continueStmt->setPosition(startToken, previousToken);
     return continueStmt;
 }
 
@@ -98,7 +98,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
     }
 
     auto statement = std::make_shared<IfStatement>(conditions, bodies, elseBody);
-    statement->setPosition(startToken);
+    statement->setPosition(startToken, previousToken);
     DEBUG_LOG("Parsed IfStatement with " + std::to_string(conditions.size()) + " branches");
     return statement;
 }
@@ -115,7 +115,7 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
 
     DEBUG_LOG("Parsed while statement");
     auto whileLoop = std::make_shared<WhileStatement>(condition, body);
-    whileLoop->setPosition(startToken);
+    whileLoop->setPosition(startToken, previousToken);
     return whileLoop;
 }
 
@@ -132,6 +132,6 @@ std::shared_ptr<Statement> Parser::parseReturnStatement() {
         result = std::make_shared<ReturnStatement>();
     }
 
-    result->setPosition(startToken);
+    result->setPosition(startToken, previousToken);
     return result;
 }

@@ -86,6 +86,16 @@
         "xutility": "cpp",
         "filesystem": "cpp",
         "*.inc": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "any": "cpp",
+        "codecvt": "cpp",
+        "csignal": "cpp",
+        "cstdarg": "cpp",
+        "execution": "cpp",
+        "expected": "cpp",
+        "ranges": "cpp",
+        "span": "cpp",
+        "valarray": "cpp",
+        "*.def": "cpp"
     }
 }

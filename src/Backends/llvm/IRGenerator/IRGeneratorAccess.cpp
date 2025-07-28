@@ -1,5 +1,6 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 
+namespace Omniscript {
 llvm::Value* IRGenerator::handleAccessExpression(
     std::shared_ptr<Omniscript::AccessExpression> expr, 
     SymbolTableType scope
@@ -223,4 +224,6 @@ llvm::Value* IRGenerator::handleIndexAccess(
 
     // Load the value
     return Builder->CreateLoad(resolveLLVMType(expr->getType()), elementPtr, "load.index");
+}
+
 }

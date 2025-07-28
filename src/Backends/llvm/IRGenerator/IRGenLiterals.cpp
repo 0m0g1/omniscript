@@ -2,6 +2,7 @@
 #include <omniscript/Expressions/CastExpression.h>
 #include <omniscript/Expressions/LiteralExpressions.h>
 
+namespace Omniscript {
 llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expression> value, SymbolTableType scope) {
     if (auto integer8 = std::dynamic_pointer_cast<Omniscript::Integer<int8_t>>(value)) {
         return create8BitInteger(integer8->getValue());
@@ -443,3 +444,4 @@ void IRGenerator::createFixedArrayInPlace(
     DEBUG_LOG("Finished creating fixed array in-place");
 }
 
+}

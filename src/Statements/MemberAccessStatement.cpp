@@ -58,7 +58,7 @@ std::shared_ptr<Statement> MemberAccess::evaluate(SymbolTableType scope) {
 }
 
 std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     // Validate access context chain
     validateAccessChain(scope);
@@ -151,7 +151,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             // IMPORTANT: Don't set access context on the method call to avoid contextual name building
             auto methodCall = std::make_shared<Call>(methodName, methodArgs);
             // methodCall->setAccessContext(accessContext); // Remove this line!
-            methodCall->setPosition(getPosition());
+            methodCall->setSpan(getSpan());
             
             // Express the call to get the final CallExpression
             return methodCall->express(scope);
@@ -186,7 +186,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
         memberIndex, type, assignmentExpr
     );
     result->type = type;
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }
 

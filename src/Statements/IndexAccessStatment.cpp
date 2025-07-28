@@ -33,7 +33,7 @@ std::shared_ptr<Statement> IndexAccess::clone() const {
 }
 
 std::shared_ptr<Omniscript::Expression> IndexAccess::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     // Resolve container expression (handles chaining)
     auto containerExpr = resolveContainerExpression(scope);
@@ -67,7 +67,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::express(SymbolTableType sco
     );
     
     result->type = type;
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }
 

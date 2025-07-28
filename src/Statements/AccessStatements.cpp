@@ -64,7 +64,7 @@ void Access::verifyMemberAccessibility() {
 }
 
 std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     // Evaluate the pointer expression recursively
     auto pointerExpr = pointer->express(scope);
     if (!pointerExpr) {
@@ -137,6 +137,6 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
     );
 
     result->type = type;
-    result->setPosition(getPosition());
+    result->setSpan(getSpan());
     return result;
 }

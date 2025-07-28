@@ -2,6 +2,7 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 
 // Windows-specific resolvers
+namespace Omniscript {
 class WindowsAPIResolver : public ExternalFunctionResolver {
 public:
     WindowsAPIResolver(); // Default constructor
@@ -28,3 +29,5 @@ private:
     static bool functionExistsInLibrary(const std::string& functionName, const std::string& libraryPath);
 
 };
+
+} // namespace Omniscript

@@ -26,7 +26,7 @@ std::shared_ptr<Statement> Parser::parseInclude() {
     eat(TokenTypes::Semicolon);
 
     auto include = std::make_shared<IncludeStatement>(includePath);
-    include->setPosition(startToken);
+    include->setPosition(startToken, previousToken);
     return include;
 }
 
@@ -120,7 +120,7 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
     eat(TokenTypes::Semicolon);
 
     auto import = std::make_shared<ImportModule>(moduleName, alias, importedAliases, path, importAll);
-    import->setPosition(startToken);
+    import->setPosition(startToken, previousToken);
     return import;
 }
 
@@ -226,7 +226,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
 
     eat(TokenTypes::EOI, "There can only be one module per file and nothing declared after the module.");
     auto module = std::make_shared<CreateModule>(moduleName, members);
-    module->setPosition(startToken);
+    module->setPosition(startToken, previousToken);
     if (auto ctxAware = std::dynamic_pointer_cast<ContextAwareStatement>(module)) {
         ctxAware->pushContext(moduleName);
     }

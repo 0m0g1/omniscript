@@ -3,6 +3,7 @@
 #include <llvm/IR/Function.h>
 #include <llvm/Support/DynamicLibrary.h>
 
+namespace Omniscript {
 class IRGenerator;
 
 class LinkDependencies {
@@ -84,6 +85,7 @@ public:
     static bool isApple();
 };
 
+} // namespace Omniscript
 
 // Usage example for extending to new platforms:
 // class CustomGameConsoleResolver : public ExternalFunctionResolver {

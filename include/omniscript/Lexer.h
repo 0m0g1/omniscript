@@ -1,7 +1,4 @@
-//The lexer class
-
-#ifndef Lexer_H
-#define Lexer_H
+#pragma once
 
 //Includes
 // #include <vector>
@@ -33,5 +30,3 @@ class Lexer {
         //Helper functions
         char peek(int n = 1) const; //Look at next character without moving there
 };
-
-#endif

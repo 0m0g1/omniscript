@@ -1,7 +1,7 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
-
 #include <llvm/IR/Verifier.h>
 
+namespace Omniscript {
 void IRGenerator::printAssembly(llvm::Module* module) {
     // Initialize targets
     auto targetTriple = llvm::sys::getDefaultTargetTriple();
@@ -106,4 +106,6 @@ void IRGenerator::setupDebugInfo() {
     //     "",  // flags
     //     0    // runtime version
     // );
+}
+
 }

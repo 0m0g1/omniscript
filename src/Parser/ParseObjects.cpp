@@ -202,7 +202,7 @@ std::shared_ptr<Statement> Parser::parseClass() {
     }    
 
     auto classStatement = std::make_shared<ConstructClassPrototype>(className, parentClasses, members);
-    classStatement->setPosition(startToken);
+    classStatement->setPosition(startToken, previousToken);
     return classStatement;
 }
 
@@ -261,6 +261,6 @@ std::shared_ptr<Statement> Parser::parseStruct() {
     eat(TokenTypes::RightBrace);
 
     auto structStatement = std::make_shared<ConstructStructPrototype>(structName, body);
-    structStatement->setPosition(startToken);
+    structStatement->setPosition(startToken, previousToken);
     return structStatement;
 }

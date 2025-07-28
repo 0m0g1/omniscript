@@ -18,7 +18,7 @@
 #include <omniscript/Expressions/BlockExpression.h>
 
 std::shared_ptr<Omniscript::Expression> IncludeStatement::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     return nullptr;
 }
 
@@ -54,7 +54,7 @@ std::vector<std::shared_ptr<Statement>> IncludeStatement::getStatements() {
 }
 
 std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG();
     DEBUG_LOG("Creating module '" + modulePath + "'.");
 
@@ -187,7 +187,7 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
 }
 
 std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType scope) { 
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (path.empty()) {
         console.error("ImportModule::codegen - Module path is empty.");
     }
@@ -262,7 +262,7 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
 
     
     auto mod = moduleStmt->express(scope);
-    mod->setPosition(getPosition());
+    mod->setSpan(getSpan());
     return mod;
 }
 
@@ -319,11 +319,11 @@ std::shared_ptr<Omniscript::Expression> ImportModule::generateModuleExpression(s
 }
 
 std::shared_ptr<Omniscript::Expression> ModuleMember::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos.line, pos.col, pos.filePath);
+    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (auto assignment = std::dynamic_pointer_cast<Assignment>(value)) {
         assignment->setGlobalVisibilityTo(true);
     }
     auto val = value->express(scope);
-    val->setPosition(getPosition());
+    val->setSpan(getSpan());
     return val;
 }

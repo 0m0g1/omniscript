@@ -15,6 +15,7 @@
     #include <sys/stat.h>
 #endif
 
+namespace Omniscript {
 void IRGenerator::createEntryFunction() {
     DEBUG_LOG("creating the entry function '__top_level'.");
     // Always create __top_level__ as the entry point
@@ -1012,3 +1013,5 @@ void IRGenerator::generateFunctionBody(
 
     Builder->restoreIP(savedIP); 
 }
+
+} // namespace Omniscript
