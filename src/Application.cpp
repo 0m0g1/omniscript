@@ -30,7 +30,8 @@ Application::~Application() noexcept {
 
 int Application::run() noexcept {
     OMNISCRIPT_PROFILE_FUNCTION();
-    if (!config_) OMNISCRIPT_UNLIKELY {
+    if (!config_) {
+        OMNISCRIPT_UNLIKELY
         console.error("Configuration error: " + config_.error());
         error::globalErrorCollector.addError(error::Severity::Fatal, config_.error(), "Configuration");
         logErrors(*config_);
@@ -38,7 +39,8 @@ int Application::run() noexcept {
     }
 
     auto result = Engine::run(*config_);
-    if (!result) OMNISCRIPT_UNLIKELY {
+    if (!result) {
+        OMNISCRIPT_UNLIKELY
         console.error("Execution failed: " + result.error());
         error::globalErrorCollector.addError(error::Severity::Error, result.error(), "Execution");
         logErrors(*config_);
@@ -58,7 +60,8 @@ int Application::run() noexcept {
     displayProfilerResults(*config_);
     logErrors(*config_);
 
-    if (error::globalErrorCollector.hasFatalErrors()) OMNISCRIPT_UNLIKELY {
+    if (error::globalErrorCollector.hasFatalErrors()) {
+        OMNISCRIPT_UNLIKELY
         console.error("Fatal errors encountered during execution:");
         for (const auto& err : error::globalErrorCollector.getErrors()) {
             if (err.severity == error::Severity::Fatal) {

@@ -1,6 +1,6 @@
 #include <omniscript/Backends/llvm/IRGenerator.h>
 
-namespace Omniscrip {
+namespace Omniscript {
 llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes op, bool isPostfix) {
     if (!operand) {
         console.error("Invalid unary operation");

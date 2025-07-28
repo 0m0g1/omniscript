@@ -252,7 +252,7 @@ bool BinaryExpression::isCompileTimeEvaluatable() {
 }
 
 std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType scope) {
-    Omniscript::setPosition(pos);
+    Omniscript::setSpan(getSpan());
     if (operand) {
         DEBUG_LOG("Creating a unary expression " + operand->toString());
     } else {
@@ -282,6 +282,6 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
     bool isPrefix = position == Position::Prefix;
 
     auto unaryExpr = std::make_shared<Omniscript::UnaryExpression>(op, operandValue, type, isPrefix);
-    unaryExpr->setPosition(pos);
+    unaryExpr->setSpan(getSpan());
     return unaryExpr;
 }

@@ -270,7 +270,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         }
 
         DEBUG_LOG("Evaluating " + statement->toString());
-        Omniscript::setPosition(statement->getStartPosition());
+        Omniscript::setSpan(statement->getSpan());
         auto expr = statement->express(scope);
         if (!expr) {
             if (config.errorHandling.mode == ErrorRecoveryMode::StopOnFirst) {

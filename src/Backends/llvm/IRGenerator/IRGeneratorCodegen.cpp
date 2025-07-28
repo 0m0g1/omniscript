@@ -12,8 +12,8 @@
 #include <omniscript/Expressions/ControlFlowExpressions.h>
 
 namespace Omniscript {
-llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value, SymbolTableType scope) {
-    Omniscript::setPosition(value->getStartPosition());
+llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTableType scope) {
+    setSpan(value->getSpan());
     DEBUG_LOG();
     if (!value) {
         console.error("There is no value to be codegened.");
@@ -31,12 +31,12 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     // Handle VariableAssignment
-    if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(value)) {
+    if (auto varAssign = std::dynamic_pointer_cast<VariableAssignment>(value)) {
         DEBUG_LOG("Assigning variable " + varAssign->variableName + " of type " + varAssign->getType()->toString());
         return assignVariable(varAssign, scope);
     }
 
-    if (auto castExpr = std::dynamic_pointer_cast<Omniscript::CastExpression>(value)) {
+    if (auto castExpr = std::dynamic_pointer_cast<CastExpression>(value)) {
         DEBUG_LOG("Generating cast from type " + castExpr->targetExpr->getType()->toString() + " to " + castExpr->type->toString());
 
         llvm::Value* src = codegen(castExpr->targetExpr, scope);
@@ -46,7 +46,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return generateCast(src, destType);
     }
 
-    if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableExpression>(value)) {
+    if (auto nullable = std::dynamic_pointer_cast<NullableExpression>(value)) {
         DEBUG_LOG("Generating nullable expression");
 
         if (nullable->isNull()) {
@@ -88,23 +88,23 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
     }
 
     // Handle ReferenceValue
-    if (auto refValue = std::dynamic_pointer_cast<Omniscript::ReferenceExpression>(value)) {
+    if (auto refValue = std::dynamic_pointer_cast<ReferenceExpression>(value)) {
         DEBUG_LOG("Creating reference to variable " + refValue->referentName);
         return getReferenceToVariable(refValue->referentName);
     }
     
-    if (auto addressOf = std::dynamic_pointer_cast<Omniscript::AddressOfExpression>(value)) {
+    if (auto addressOf = std::dynamic_pointer_cast<AddressOfExpression>(value)) {
         DEBUG_LOG("Getting the address of variable " + addressOf->variableName);
         return getAddressOf(addressOf->variableName);
     }
 
-    if (auto null = std::dynamic_pointer_cast<Omniscript::NullExpression>(value)) {
+    if (auto null = std::dynamic_pointer_cast<NullExpression>(value)) {
         DEBUG_LOG("Creating a null value");
         auto innerType = resolveLLVMType(null->getType());
         return createNullValue(innerType);
     }
 
-    else if (auto rawPtr = std::dynamic_pointer_cast<Omniscript::RawPointerExpression>(value)) {
+    else if (auto rawPtr = std::dynamic_pointer_cast<RawPointerExpression>(value)) {
         DEBUG_LOG("Creating raw pointer from address: " + std::to_string(rawPtr->address));
         
         // Get the LLVM type for the pointee
@@ -121,13 +121,13 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return createRawPointer(rawPtr->address, pointeeType);
     }
     
-    if (auto block = std::dynamic_pointer_cast<Omniscript::BlockExpression>(value)) {
+    if (auto block = std::dynamic_pointer_cast<BlockExpression>(value)) {
         DEBUG_LOG("Evaluating a block value — First pass (registration)");
 
         for (const auto& expr : block->values) {
-            if (auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(expr)) {
+            if (auto structExpr = std::dynamic_pointer_cast<StructExpression>(expr)) {
                 codegen(expr, scope);
-            } else if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr)) {
+            } else if (auto func = std::dynamic_pointer_cast<FunctionExpression>(expr)) {
                 DEBUG_LOG("Processing function declaration: " + func->name + " (mangled: " + func->mangledName + ")");
                 llvm::Type* returnType = resolveLLVMType(func->returnType);
 
@@ -158,15 +158,15 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         }
 
         for (const auto& expr : block->values) {
-            if (auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(value)) {
+            if (auto structExpr = std::dynamic_pointer_cast<StructExpression>(value)) {
                 continue;
             }
 
-            if (std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr)) {
+            if (std::dynamic_pointer_cast<FunctionExpression>(expr)) {
                 continue;
             }
 
-            if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(expr)) {
+            if (auto ret = std::dynamic_pointer_cast<ReturnExpression>(expr)) {
                 if (ret->getType()) {
                     if (!ret->getType()->isVoidLike()) {
                         return codegen(expr, scope);
@@ -176,7 +176,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
                 }
             } 
 
-            if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(expr)) {
+            if (auto varAssign = std::dynamic_pointer_cast<VariableAssignment>(expr)) {
                 if (!varAssign->isStatic) {
                     varAssign->isGlobal = block->isGlobal;
                 }
@@ -188,14 +188,14 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return nullptr;
     }
 
-    if (auto nullpointer = std::dynamic_pointer_cast<Omniscript::NullPointerExpression>(value)) {
+    if (auto nullpointer = std::dynamic_pointer_cast<NullPointerExpression>(value)) {
         DEBUG_LOG("Creating a null pointer of type " + nullpointer->getType()->toString());
         DEBUG_LOG("Creating a null pointer of root type " + nullpointer->getRootType()->toString());
         auto pointeeType = resolveLLVMType(nullpointer->getRootType()->getPointeeType());
         return createNullPointer(pointeeType);
     }
 
-    if (auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(value)) {
+    if (auto func = std::dynamic_pointer_cast<FunctionExpression>(value)) {
         DEBUG_LOG("Creating an overload for function " + func->name + " with mangled name '" + func->mangledName + "'");
         llvm::Type* returnType = resolveLLVMType(func->returnType);
         if (func->isExtern) {
@@ -232,7 +232,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         userDefinedFunctions.push_back(func);
     }
 
-    if (auto ret = std::dynamic_pointer_cast<Omniscript::ReturnExpression>(value)) {
+    if (auto ret = std::dynamic_pointer_cast<ReturnExpression>(value)) {
         DEBUG_LOG("Creating a return statement of kind '" + ret->getType()->toString() + "'.");
 
         llvm::Type* type = resolveLLVMType(ret->getType());
@@ -243,7 +243,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return createReturn(val, type);
     }
 
-    if (auto unary = std::dynamic_pointer_cast<Omniscript::UnaryExpression>(value)) {
+    if (auto unary = std::dynamic_pointer_cast<UnaryExpression>(value)) {
         DEBUG_LOG("Creating a unary expression");
         llvm::Value* operandVal = codegen(unary->operand, scope);
         if (!operandVal) {
@@ -252,7 +252,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return createUnaryExpression(operandVal, unary->op.getType(), unary->isPrefix);
     }
 
-    if (auto binary = std::dynamic_pointer_cast<Omniscript::BinaryExpression>(value)) {
+    if (auto binary = std::dynamic_pointer_cast<BinaryExpression>(value)) {
         DEBUG_LOG("Creating a binary expression: " + binary->left->toString() + " " + binary->op.getValue() + " " + binary->right->toString());
         llvm::Value* lhs = codegen(binary->left, scope);
         llvm::Value* rhs = codegen(binary->right, scope);
@@ -266,7 +266,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return createBinaryExpression(lhs, binary->op.getType(), rhs);
     }
 
-    if (auto ternary = std::dynamic_pointer_cast<Omniscript::TernaryExpression>(value)) {
+    if (auto ternary = std::dynamic_pointer_cast<TernaryExpression>(value)) {
         DEBUG_LOG("Creating a ternary expression");
         llvm::Value* cond = codegen(ternary->condition, scope);
         llvm::Value* truthy = codegen(ternary->truthy, scope);
@@ -275,7 +275,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return createTernaryExpression(cond, truthy, falsey);
     }
 
-    if (auto var = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(value)) {
+    if (auto var = std::dynamic_pointer_cast<VariableAccessExpression>(value)) {
         DEBUG_LOG("Accessing variable: " + var->variableName);
         
         if (var->extractValue) {
@@ -285,7 +285,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return getVariable(var->variableName, false);
     }
 
-    if (auto instance = std::dynamic_pointer_cast<Omniscript::InstanceExpression>(value)) {
+    if (auto instance = std::dynamic_pointer_cast<InstanceExpression>(value)) {
         DEBUG_LOG("Creating an instance of '" + instance->baseName + "'.");
 
         // Check if we already generated this instance
@@ -302,7 +302,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         for (const auto& arg : instance->members) {
             DEBUG_LOG(arg->toString());
 
-            if (auto member = std::dynamic_pointer_cast<Omniscript::MemberExpression>(arg)) {
+            if (auto member = std::dynamic_pointer_cast<MemberExpression>(arg)) {
                 if (auto value = codegen(member->value, scope)) {
                     args.push_back(value);
                 }
@@ -323,7 +323,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return result;
     }
 
-    if (auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(value)) {
+    if (auto call = std::dynamic_pointer_cast<CallExpression>(value)) {
         DEBUG_LOG("Calling " + call->calleeName);
         
         std::vector<llvm::Value*> args;
@@ -332,7 +332,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         for (const auto& arg : call->args) {
             DEBUG_LOG(arg->toString());
 
-            if (auto arr = std::dynamic_pointer_cast<Omniscript::ArrayExpression>(arg); arr && arr->isVariadicArray) {
+            if (auto arr = std::dynamic_pointer_cast<ArrayExpression>(arg); arr && arr->isVariadicArray) {
                 // If variadic, reserve space ahead (optional perf tweak)
                 args.reserve(args.size() + arr->elements.size());
 
@@ -361,14 +361,14 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return createObjectInstance(call->calleeName, call->instanceName, args, call->isGlobal);
     }
 
-    if (auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(value)) {
+    if (auto structExpr = std::dynamic_pointer_cast<StructExpression>(value)) {
         std::vector<llvm::Type*> fieldTypes;
         fieldTypes.reserve(structExpr->parameters.size());
         
         int methodsCount = structExpr->parameters.size();
 
         for (const auto& field : structExpr->parameters) {
-            if (auto input = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(field)) {
+            if (auto input = std::dynamic_pointer_cast<FunctionInputExpression>(field)) {
                 llvm::Type* llvmFieldType = resolveLLVMType(input->getType());
                 if (!llvmFieldType) {
                     console.error("Failed to generate type for field '" + input->name + "' in struct '" + structExpr->name + "'.");
@@ -389,7 +389,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
             methods.reserve(methodsCount);
     
             for (const auto& field : structExpr->parameters) {
-                if (auto method = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(field)) {
+                if (auto method = std::dynamic_pointer_cast<FunctionExpression>(field)) {
                     llvm::Type* returnType = resolveLLVMType(method->returnType);
                     llvm::Function* methd = registerFunction(method->mangledName, returnType, method->parameters, scope);
                     methods.emplace_back(methd);
@@ -398,7 +398,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
             
             int methodIndex = 0;
             for (const auto& field : structExpr->parameters) {
-                if (auto method = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(field)) {
+                if (auto method = std::dynamic_pointer_cast<FunctionExpression>(field)) {
                     generateFunctionBody(
                         method->mangledName,
                         methods[methodIndex],
@@ -414,16 +414,16 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return nullptr;
     }
 
-    if (auto classExpr = std::dynamic_pointer_cast<Omniscript::ClassExpression>(value)) {
+    if (auto classExpr = std::dynamic_pointer_cast<ClassExpression>(value)) {
         return codegen(classExpr->structExpr, scope);
     }
 
-    if (auto ifExpr = std::dynamic_pointer_cast<Omniscript::IfExpression>(value)) {
+    if (auto ifExpr = std::dynamic_pointer_cast<IfExpression>(value)) {
         DEBUG_LOG("Creating an if expression");
         return createIfStatement(ifExpr->conditions, ifExpr->bodies, ifExpr->elseBody, scope);
     }
 
-    if (auto enumExpr = std::dynamic_pointer_cast<Omniscript::EnumExpression>(value)) {
+    if (auto enumExpr = std::dynamic_pointer_cast<EnumExpression>(value)) {
         DEBUG_LOG("Processing EnumExpression for enum '" + enumExpr->enumName + "'");
     
         std::vector<std::string> names;
@@ -457,26 +457,26 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         }
     }
     
-    if (auto forExpr = std::dynamic_pointer_cast<Omniscript::ForLoopExpression>(value)) {
+    if (auto forExpr = std::dynamic_pointer_cast<ForLoopExpression>(value)) {
         DEBUG_LOG("Processing ForLoopExpression");
         return createForLoop(forExpr, scope);
     }
 
-    if (auto whileExpr = std::dynamic_pointer_cast<Omniscript::WhileLoopExpression>(value)) {
+    if (auto whileExpr = std::dynamic_pointer_cast<WhileLoopExpression>(value)) {
         DEBUG_LOG("Processing WhileLoopExpression");
         return createWhileLoop(whileExpr, scope);
     }
 
     // Handle access expressions recursively
-    if (auto accessExpr = std::dynamic_pointer_cast<Omniscript::AccessExpression>(value)) {
+    if (auto accessExpr = std::dynamic_pointer_cast<AccessExpression>(value)) {
         return handleAccessExpression(accessExpr, scope);
     }
 
-    if (auto moduleExpr = std::dynamic_pointer_cast<Omniscript::ModuleExpression>(value)) {
+    if (auto moduleExpr = std::dynamic_pointer_cast<ModuleExpression>(value)) {
         DEBUG_LOG("Processing ModuleExpression: " + moduleExpr->name);
     
         // Create a new scope for the module
-        auto moduleScope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>(scope);
+        auto moduleScope = std::make_shared<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>>(scope);
     
         // Store generated IR values for module members
         std::unordered_map<std::string, llvm::Value*> memberIRValues;
@@ -505,7 +505,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Omniscript::Expression> value,
         return moduleInstance;
     } 
     
-    if (auto typeDecl = std::dynamic_pointer_cast<Omniscript::TypeDeclarationExpression>(value)) {
+    if (auto typeDecl = std::dynamic_pointer_cast<TypeDeclarationExpression>(value)) {
         if (!typeDecl->isAliasing()) {
             llvm::Type* resolvedType = resolveLLVMType(typeDecl->getType());
             activeScope->addType(typeDecl->typeName, resolvedType);

@@ -25,6 +25,7 @@
     #include <unistd.h>
 #endif
 
+namespace Omniscript {
 IRGenerator::IRGenerator(const Config& configs) {
     this->configs = configs;
     Context = std::make_unique<llvm::LLVMContext>();
@@ -229,3 +230,5 @@ void IRGenerator::finalizeGlobalInitializers() {
 bool IRGenerator::currentBlockHasTerminator() const {
     return Builder->GetInsertBlock()->getTerminator() != nullptr;
 }
+
+} // namespace Omniscript

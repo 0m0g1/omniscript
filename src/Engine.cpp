@@ -1,3 +1,4 @@
+#include <omniscript/main.h>
 #include <omniscript/Engine.h>
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>
@@ -64,7 +65,7 @@ Engine::ArgumentParser::argHandlers = {
         } else {
             args = args.subspan(1);
         }
-        config.profiler.enableProfiling = true;
+        config.diagnostics.enableProfiling = true;
         return ParseResult::Success;
     }},
     {"--error-log", [](Config& config, std::span<char*>& args) {
@@ -196,11 +197,11 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
         } else if (arg == "--verbose") {
             config.diagnostics.verbose = true;
         } else if (arg == "--execute") {
-            config.mode = CompilationMode::JIT;
+            config.mode = CompileMode::JIT;
         } else if (arg == "--make") {
-            config.mode = CompilationMode::AOT;
+            config.mode = CompileMode::AOT;
         } else if (arg == "--dry") {
-            config.mode = CompilationMode::DryCompile;
+            config.mode = CompileMode::DryCompile;
         } else if (arg == "--version") {
             printVersion();
             std::exit(0);
@@ -249,8 +250,8 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
         return std::unexpected("File path is required. Use '-' to read from stdin.");
     }
 
-    if (config.mode == CompilationMode::None) {
-        config.mode = CompilationMode::JIT;
+    if (config.mode == CompileMode::None) {
+        config.mode = CompileMode::JIT;
     }
 
     if (config.mainSourceFile.empty() && !config.sourcePaths.empty()) {
@@ -289,11 +290,11 @@ Engine::run(const Config& config) noexcept {
         Lexer lexer(*sourceResult, source);
         Parser parser(lexer);
         parser.setDebugMode(config.diagnostics.debugMode);
-        auto parsed = parser.Parse();
+        auto parsed = parser.parse();
         statements.insert(statements.end(), parsed.begin(), parsed.end());
-        for (const auto& err : parser.getErrors()) {
-            error::globalErrorCollector.addError(error::Severity::Error, err.message, err.context);
-        }
+        // for (const auto& err : parser.getErrors()) {
+        //     error::globalErrorCollector.addError(error::Severity::Error, err.message, err.context);
+        // }
     }
     parseTimer.~ScopedTimer();
 
@@ -324,7 +325,7 @@ Engine::run(const Config& config) noexcept {
             return std::unexpected("Compilation failed: " + compileResult.error());
         }
         currentStats_.compileTime = compileResult->totalTime;
-        if (config.mode == CompilationMode::AOT) {
+        if (config.mode == CompileMode::AOT) {
             console.log("Compilation done. Output emitted to: " + config.outputPath);
         } else if (config.isDryRun()) {
             console.log("Dry compilation complete. Output written to: " + config.outputPath);
@@ -348,27 +349,32 @@ Engine::run(const Config& config) noexcept {
 
 std::expected<size_t, std::string> Engine::parseSizeString(std::string_view sizeStr) noexcept {
     OMNISCRIPT_PROFILE_FUNCTION();
-    if (sizeStr.empty()) OMNISCRIPT_UNLIKELY {
+    if (sizeStr.empty()) {
+        OMNISCRIPT_UNLIKELY
         return std::unexpected("Empty size string");
     }
     if (sizeStr.back() >= '0' && sizeStr.back() <= '9') {
         try {
             return std::stoull(std::string(sizeStr));
-        } catch (...) OMNISCRIPT_UNLIKELY {
+        } catch (...)  {
+            OMNISCRIPT_UNLIKELY
             return std::unexpected("Invalid numeric value");
         }
     }
     auto suffixPos = sizeStr.find_first_not_of("0123456789.");
-    if (suffixPos == 0) OMNISCRIPT_UNLIKELY {
+    if (suffixPos == 0) {
+        OMNISCRIPT_UNLIKELY
         return std::unexpected("Invalid size string: no numeric part");
     }
     double value;
     try {
         value = std::stod(std::string(sizeStr.substr(0, suffixPos)));
-    } catch (...) OMNISCRIPT_UNLIKELY {
+    } catch (...) {
+        OMNISCRIPT_UNLIKELY 
         return std::unexpected("Invalid numeric value");
     }
-    if (value < 0) OMNISCRIPT_UNLIKELY {
+    if (value < 0) {
+        OMNISCRIPT_UNLIKELY 
         return std::unexpected("Size cannot be negative");
     }
     size_t multiplier = 1;
@@ -393,7 +399,8 @@ std::expected<size_t, std::string> Engine::parseSizeString(std::string_view size
         }
     }
     double result = value * multiplier;
-    if (result > static_cast<double>(SIZE_MAX)) OMNISCRIPT_UNLIKELY {
+    if (result > static_cast<double>(SIZE_MAX)) {
+        OMNISCRIPT_UNLIKELY
         return std::unexpected("Size value too large");
     }
     return static_cast<size_t>(result);
@@ -401,7 +408,8 @@ std::expected<size_t, std::string> Engine::parseSizeString(std::string_view size
 
 TargetArch Engine::parseTargetArch(std::string_view arch) noexcept {
     auto it = ArgumentParser::archMap.find(arch);
-    if (it != ArgumentParser::archMap.end()) OMNISCRIPT_LIKELY {
+    if (it != ArgumentParser::archMap.end()) {
+        OMNISCRIPT_LIKELY
         return it->second;
     }
     console.warn("Unknown architecture '" + std::string(arch) + "', using auto-detection");
@@ -410,7 +418,8 @@ TargetArch Engine::parseTargetArch(std::string_view arch) noexcept {
 
 TargetOS Engine::parseTargetOS(std::string_view os) noexcept {
     auto it = ArgumentParser::osMap.find(os);
-    if (it != ArgumentParser::osMap.end()) OMNISCRIPT_LIKELY {
+    if (it != ArgumentParser::osMap.end()) {
+        OMNISCRIPT_LIKELY
         return it->second;
     }
     console.warn("Unknown operating system '" + std::string(os) + "', using auto-detection");
@@ -443,7 +452,8 @@ GCStrategy Engine::parseGCStrategy(std::string_view gc) noexcept {
 
 SafetyLevel Engine::parseSafetyLevel(std::string_view safety) noexcept {
     auto it = ArgumentParser::safetyMap.find(safety);
-    if (it != ArgumentParser::safetyMap.end()) OMNISCRIPT_LIKELY {
+    if (it != ArgumentParser::safetyMap.end()) {
+        OMNISCRIPT_LIKELY
         return it->second;
     }
     return SafetyLevel::Standard;
@@ -459,16 +469,19 @@ std::expected<std::string, std::string> Engine::readSourceCode(const Config& con
             return buffer.str();
         } else {
             fs::path path(filePath);
-            if (!fs::exists(path)) OMNISCRIPT_UNLIKELY {
+            if (!fs::exists(path)) {
+                OMNISCRIPT_UNLIKELY
                 return std::unexpected("File not found: " + filePath);
             }
             auto fileSize = fs::file_size(path);
-            if (fileSize == 0) OMNISCRIPT_UNLIKELY {
+            if (fileSize == 0) {
+                OMNISCRIPT_UNLIKELY 
                 return std::string{};
             }
             if (fileSize < 1024 * 1024) {
                 std::ifstream file(filePath, std::ios::binary);
-                if (!file) OMNISCRIPT_UNLIKELY {
+                if (!file) {
+                    OMNISCRIPT_UNLIKELY 
                     return std::unexpected("Cannot open file: " + filePath);
                 }
                 std::string content;
@@ -480,7 +493,8 @@ std::expected<std::string, std::string> Engine::readSourceCode(const Config& con
                 return content;
             } else {
                 std::ifstream file(filePath, std::ios::binary);
-                if (!file) OMNISCRIPT_UNLIKELY {
+                if (!file) {
+                    OMNISCRIPT_UNLIKELY 
                     return std::unexpected("Cannot open file: " + filePath);
                 }
                 std::ostringstream buffer;
@@ -488,7 +502,8 @@ std::expected<std::string, std::string> Engine::readSourceCode(const Config& con
                 return buffer.str();
             }
         }
-    } catch (const std::exception& e) OMNISCRIPT_UNLIKELY {
+    } catch (const std::exception& e) {
+        OMNISCRIPT_UNLIKELY
         return std::unexpected("I/O error: " + std::string(e.what()));
     }
 }
@@ -774,7 +789,7 @@ Engine::ParseResult Engine::handleSecurityArgs(Config& config, std::span<char*>&
 }
 
 Engine::ParseResult Engine::handleLinkingArgs(Config& config, std::span<char*>& args) noexcept {
-    config.mode = CompilationMode::AOT;
+    config.mode = CompileMode::AOT;
     if (args[0] == "--emit-staticlib") {
         config.aot.outputFormat = OutputFormat::StaticLib;
     } else if (args[0] == "--emit-sharedlib") {
