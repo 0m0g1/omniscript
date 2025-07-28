@@ -5,6 +5,7 @@
 #include <libloaderapi.h>
 #endif
 
+namespace Omniscript {
 WindowsAPIResolver::WindowsAPIResolver() {
 }
 
@@ -275,3 +276,5 @@ bool WindowsAPIResolver::functionExistsInLibrary(const std::string& functionName
     return false;
 #endif
 }
+
+} // namespace Omniscript

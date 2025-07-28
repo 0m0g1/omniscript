@@ -16,6 +16,8 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/TargetParser/Host.h>
 #include <llvm/Linker/Linker.h>
+#include <llvm/Transforms/Utils/Cloning.h>
+#include <llvm/Transforms/Utils/ValueMapper.h>
 
 #ifdef _WIN32
     #define popen _popen
@@ -229,6 +231,104 @@ void IRGenerator::finalizeGlobalInitializers() {
 
 bool IRGenerator::currentBlockHasTerminator() const {
     return Builder->GetInsertBlock()->getTerminator() != nullptr;
+}
+
+std::unique_ptr<llvm::Module> IRGenerator::cloneModule() {
+    if (!Module) {
+        throw std::runtime_error(formatError("No module to clone"));
+    }
+
+    // Create a new module with a cloned name
+    std::string cloneName = Module->getName().str() + "_clone";
+    auto clonedModule = std::make_unique<llvm::Module>(cloneName, *Context);
+
+    // Copy module-level attributes
+    clonedModule->setDataLayout(Module->getDataLayout());
+    clonedModule->setTargetTriple(Module->getTargetTriple());
+    clonedModule->setModuleInlineAsm(Module->getModuleInlineAsm());
+
+    // Value mapping for resolving references during cloning
+    llvm::ValueToValueMapTy valueMap;
+    
+    // Clone all globals, functions, and aliases
+    for (auto& globalVar : Module->globals()) {
+        llvm::GlobalVariable* newGlobal = new llvm::GlobalVariable(
+            *clonedModule,
+            globalVar.getValueType(),
+            globalVar.isConstant(),
+            globalVar.getLinkage(),
+            nullptr, // initializer set later
+            globalVar.getName()
+        );
+        newGlobal->copyAttributesFrom(&globalVar);
+        valueMap[&globalVar] = newGlobal;
+    }
+
+    // Clone function declarations
+    for (auto& func : Module->functions()) {
+        llvm::Function* newFunc = llvm::Function::Create(
+            func.getFunctionType(),
+            func.getLinkage(),
+            func.getName(),
+            clonedModule.get()
+        );
+        newFunc->copyAttributesFrom(&func);
+        
+        // Map parameters
+        auto newArgIt = newFunc->arg_begin();
+        for (auto& arg : func.args()) {
+            newArgIt->setName(arg.getName());
+            valueMap[&arg] = &(*newArgIt);
+            ++newArgIt;
+        }
+        valueMap[&func] = newFunc;
+    }
+
+    // Clone function bodies and global initializers
+    for (auto& func : Module->functions()) {
+        if (!func.isDeclaration()) {
+            auto* newFunc = llvm::cast<llvm::Function>(valueMap[&func]);
+            
+            // Clone basic blocks
+            for (auto& bb : func) {
+                llvm::BasicBlock* newBB = llvm::BasicBlock::Create(
+                    *Context, bb.getName(), newFunc);
+                valueMap[&bb] = newBB;
+            }
+            
+            // Clone instructions
+            for (auto& bb : func) {
+                auto* newBB = llvm::cast<llvm::BasicBlock>(valueMap[&bb]);
+                for (auto& inst : bb) {
+                    llvm::Instruction* newInst = inst.clone();
+                    newInst->insertInto(newBB, newBB->end());
+                    valueMap[&inst] = newInst;
+                }
+            }
+        }
+    }
+
+    // Set global initializers
+    for (auto& globalVar : Module->globals()) {
+        if (globalVar.hasInitializer()) {
+            auto* newGlobal = llvm::cast<llvm::GlobalVariable>(valueMap[&globalVar]);
+            newGlobal->setInitializer(llvm::cast<llvm::Constant>(
+                llvm::MapValue(globalVar.getInitializer(), valueMap)));
+        }
+    }
+
+    // Remap all values in the cloned module
+    for (auto& func : clonedModule->functions()) {
+        if (!func.isDeclaration()) {
+            std::vector<llvm::BasicBlock*> blocks;
+            for (auto& bb : func) {
+                blocks.push_back(&bb);
+            }
+            llvm::remapInstructionsInBlocks(blocks, valueMap);
+        }
+    }
+
+    return clonedModule;
 }
 
 } // namespace Omniscript

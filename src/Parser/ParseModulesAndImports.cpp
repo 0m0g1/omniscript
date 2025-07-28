@@ -167,7 +167,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
 
             Lexer lexer(sourceCode);
             Parser parser(lexer);
-            std::vector<std::shared_ptr<Statement>> moduleStatements = parser.Parse();
+            std::vector<std::shared_ptr<Statement>> moduleStatements = parser.parse();
 
             auto importStmt = std::make_shared<ImportModule>(
                 /* moduleName */ moduleAlias,

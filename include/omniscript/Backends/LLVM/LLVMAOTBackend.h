@@ -17,24 +17,22 @@ namespace Omniscript {
 
 class LLVMAOTBackend : public AOTBackend {
 public:
-
     LLVMAOTBackend();
     void execute(const std::vector<std::shared_ptr<Statement>>& statements, const Config& config) override;
     void initialize() override;
     void emitToFile(const Config& config) override;
-        
+
 private:
-    
     std::shared_ptr<IRGenerator> irGen;
-    std::vector<std::pair<std::string, std::shared_ptr<llvm::TargetMachine>>> targetMachines; // Multi-target support
+    std::vector<std::pair<std::string, std::shared_ptr<llvm::TargetMachine>>> targetMachines;
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope;
     std::string outputPath;
     LinkDependencies linkerDependencies;
-    std::unordered_map<std::string, std::chrono::system_clock::time_point> fileCache; // Incremental compilation
-    std::mutex cacheMutex; // Thread-safe cache access
-    std::chrono::system_clock::time_point compilationStartTime; // Time tracking
-    size_t peakMemoryUsage = 0; // Memory tracking
-    bool profilerInitialized = false; // Profiler state
+    std::unordered_map<std::string, std::chrono::system_clock::time_point> fileCache;
+    std::mutex cacheMutex;
+    std::chrono::system_clock::time_point compilationStartTime;
+    size_t peakMemoryUsage = 0;
+    bool profilerInitialized = false;
 
     // Emission methods
     void emitObjectFile(const std::string& objFile, const std::shared_ptr<llvm::TargetMachine>& tm);
@@ -83,14 +81,18 @@ private:
 
     // Utility methods
     std::filesystem::path getTemporaryPath(const Config& config, const std::string& extension);
-    void updateFileCache(const Config& config); // Incremental compilation
-    bool isFileUpToDate(const std::string& filePath); // Incremental compilation
-    void initializeProfiler(const Config& config); // Profiler setup
-    void finalizeProfiler(const Config& config); // Profiler cleanup
-    void executePluginCallbacks(const Config& config, const std::string& stage); // Plugin integration
-    void trackMemoryUsage(const Config& config); // Memory constraint enforcement
-    bool checkTimeLimit(const Config& config); // Time constraint enforcement
-    void logError(const Config& config, const std::string& message); // Error handling
+    void updateFileCache(const Config& config);
+    bool isFileUpToDate(const std::string& filePath);
+    bool areAllFilesUpToDate(const Config& config);
+    void loadFileCache(const std::string& cacheFilePath);
+    void saveFileCache(const std::string& cacheFilePath);
+    void optimizeModule(const Config& config); // For compatibility, though unused
+    void initializeProfiler(const Config& config);
+    void finalizeProfiler(const Config& config);
+    void executePluginCallbacks(const Config& config, const std::string& stage);
+    void trackMemoryUsage(const Config& config);
+    bool checkTimeLimit(const Config& config);
+    void logError(const Config& config, const std::string& message);
 };
 
 } // namespace Omniscript

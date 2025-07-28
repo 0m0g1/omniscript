@@ -11,6 +11,7 @@
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/StaticLibraryLLVMResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/DynamicLibraryLLVMResolver.h>
 
+namespace Omniscript {
 bool ExternalFunctionResolver::isSystemLibrary(const std::string& libPath) {
     static const std::unordered_set<std::string> systemLibs = {
         // Windows System Libraries (.lib for static, .dll for dynamic)
@@ -562,6 +563,7 @@ std::string PlatformInfo::getPlatformString() {
         case WebAssembly: return "wasm";
         default: return "unknown";
     }
+    return "unknown";
 }
 
 std::string PlatformInfo::getArchString() {
@@ -575,4 +577,7 @@ std::string PlatformInfo::getArchString() {
         case WebAsm: return "WebAssembly";
         default: return "Unknown";
     }
+    return "Unknown";
+}
+
 }

@@ -62,7 +62,7 @@ std::shared_ptr<Statement> Parser::parseBreak() {
     }
     eat(currentToken.getType());
     auto breakStmt = std::make_shared<BreakStatement>();
-    breakStmt->setPosition(currentToken);
+    breakStmt->setPosition(startToken, previousToken);
     return breakStmt;
 }
 

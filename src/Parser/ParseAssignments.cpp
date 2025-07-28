@@ -176,7 +176,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                     declarations.push_back(constant);
                 } else {
                     auto assignment = std::make_shared<AssignVariable>(variableName, currentType, currentValue);
-                    assignment->setPosition(startToken, previouseToken);
+                    assignment->setPosition(startToken, previousToken);
                     declarations.push_back(assignment);
                 }
             }

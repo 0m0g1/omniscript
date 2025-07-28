@@ -36,7 +36,7 @@ std::vector<std::shared_ptr<Statement>> IncludeStatement::getStatements() {
 
     Lexer lexer(sourceCode, path);
     Parser parser(lexer);
-    std::vector<std::shared_ptr<Statement>> parsedStatements = parser.Parse();
+    std::vector<std::shared_ptr<Statement>> parsedStatements = parser.parse();
 
     std::vector<std::shared_ptr<Statement>> finalStatements;
 
@@ -204,7 +204,7 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
 
     Lexer lexer(sourceCode, path);
     Parser parser(lexer);
-    std::vector<std::shared_ptr<Statement>> statements = parser.Parse();
+    std::vector<std::shared_ptr<Statement>> statements = parser.parse();
 
     // Find the module we're importing
     std::shared_ptr<Statement> moduleStmt;

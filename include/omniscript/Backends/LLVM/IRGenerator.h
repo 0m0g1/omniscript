@@ -114,7 +114,9 @@ public:
     std::unique_ptr<llvm::LLVMContext> getContext() { return std::move(Context); }
     llvm::IRBuilder<>* getBuilder() { return Builder.get(); }
     std::unique_ptr<llvm::TargetMachine> targetMachine;
-    
+    Config getConfig() const { return configs; }
+    std::unique_ptr<llvm::Module> cloneModule();
+
     // Access to link dependencies for the backend
     const LinkDependencies& getLinkDependencies() const { return linkerDependencies; }
     LinkDependencies& getLinkDependencies() { return linkerDependencies; }

@@ -1,4 +1,5 @@
 #include <omniscript/utils.h>
+#include <omniscript/Console.h>
 #include <omniscript/omniscript_pch.h>
 
 //Converts a string to lower case
