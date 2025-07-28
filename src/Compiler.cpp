@@ -143,4 +143,162 @@ Compiler::compile(const std::vector<std::shared_ptr<Statement>>& statements,
     return lastStats_;
 }
 
+// Fixed method implementations with correct signatures
+
+size_t Compiler::getCurrentMemoryUsage() noexcept {
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+        return pmc.WorkingSetSize;
+    }
+#elif __linux__
+    std::ifstream status("/proc/self/status");
+    std::string line;
+    while (std::getline(status, line)) {
+        if (line.substr(0, 6) == "VmRSS:") {
+            size_t pos = line.find_first_of("0123456789");
+            if (pos != std::string::npos) {
+                return std::stoull(line.substr(pos)) * 1024;
+            }
+        }
+    }
+#elif __APPLE__
+    struct mach_task_basic_info info;
+    mach_msg_type_number_t info_count = MACH_TASK_BASIC_INFO_COUNT;
+    if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
+                  (task_info_t)&info, &info_count) == KERN_SUCCESS) {
+        return info.resident_size;
+    }
+#endif
+    return 0;
+}
+
+void Compiler::cleanupResources() noexcept {
+    try {
+        jitBackend_.reset();
+        aotBackend_.reset();
+        validationCache_.clear();
+    } catch (...) {
+        // Ignore exceptions to maintain noexcept
+    }
+}
+
+void Compiler::updateProgress(const CompileCallback& callback, 
+                            std::string_view phase, 
+                            double progress) const noexcept {
+    if (callback) {
+        try {
+            callback(std::string(phase), progress);
+        } catch (...) {
+            // Ignore exceptions to maintain noexcept
+        }
+    }
+}
+
+void Compiler::loadCache(const Config& config) noexcept {
+    if (!config.incremental.enabled) {
+        return;
+    }
+    try {
+        // TODO: Implement cache loading logic
+        // Note: If your IncrementalConfig doesn't have cacheDir, you'll need to add it
+        // For now, this is a stub implementation
+    } catch (...) {
+        // Ignore exceptions to maintain noexcept
+    }
+}
+
+bool Compiler::validateTargetConfiguration(const Config& config, std::string& error) const noexcept {
+    try {
+        // Check if your Config struct has a 'target' member with 'architecture'
+        // If not, adjust this to match your actual Config structure
+        // For example, if you only have targetOS:
+        if (config.targetOS.empty()) {
+            error = "Target OS not specified";
+            return false;
+        }
+        
+        // Add more validation based on your actual Config structure
+        return true;
+    } catch (...) {
+        error = "Validation failed due to exception";
+        return false;
+    }
+}
+
+void Compiler::printTargetInfo(const Config& config) const noexcept {
+    try {
+        if (config.diagnostics.debugMode) {
+            std::cout << "=== Compiler Target Info ===" << std::endl;
+            std::cout << "Target OS: " << config.targetOS << std::endl;
+            std::cout << "Compile Mode: " << (config.mode == CompileMode::JIT ? "JIT" : "AOT") << std::endl;
+            std::cout << "Optimization Level: " << config.optimization.level << std::endl;
+        }
+    } catch (...) {
+        // Ignore exceptions to maintain noexcept
+    }
+}
+
+std::expected<void, std::string> Compiler::initializeBackend(const Config& config) noexcept {
+    try {
+        if (config.mode == CompileMode::JIT || config.isHybridMode()) {
+            if (!jitBackend_) {
+                jitBackend_ = std::make_unique<LLVMJITBackend>();
+            }
+        }
+        
+        if (config.mode == CompileMode::AOT || config.isHybridMode()) {
+            if (!aotBackend_) {
+                aotBackend_ = std::make_unique<LLVMAOTBackend>();
+            }
+        }
+        
+        return {}; // Success - return void
+    } catch (const std::exception& e) {
+        return std::unexpected(std::string("Backend initialization failed: ") + e.what());
+    } catch (...) {
+        return std::unexpected("Backend initialization failed: Unknown error");
+    }
+}
+
+void Compiler::trackMemoryUsage() noexcept {
+    try {
+        auto current = getCurrentMemoryUsage();
+        // Fixed: Use the correct member name from CompilationStats
+        if (current > lastStats_.memoryPeakUsage) {
+            lastStats_.memoryPeakUsage = current;
+        }
+    } catch (...) {
+        // Ignore exceptions to maintain noexcept
+    }
+}
+
+void Compiler::saveCache(const Config& config) noexcept {
+    if (!config.incremental.enabled) {
+        return;
+    }
+    try {
+        // TODO: Implement cache saving logic
+        // Note: If your IncrementalConfig doesn't have cacheDir, you'll need to add it
+    } catch (...) {
+        // Ignore exceptions to maintain noexcept
+    }
+}
+
+std::expected<Compiler::CompilationStats, std::string> 
+Compiler::compileParallel(const std::vector<std::shared_ptr<Statement>>& statements,
+                         const Config& config,
+                         size_t threadCount) noexcept {
+    try {
+        // TODO: Implement true parallel compilation
+        // For now, fall back to single-threaded compilation
+        CompileCallback emptyCallback;
+        return compile(statements, config, emptyCallback);
+    } catch (const std::exception& e) {
+        return std::unexpected(std::string("Parallel compilation failed: ") + e.what());
+    } catch (...) {
+        return std::unexpected("Parallel compilation failed: Unknown error");
+    }
+}
+
 } // namespace Omniscript
