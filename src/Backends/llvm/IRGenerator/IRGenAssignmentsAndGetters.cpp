@@ -48,16 +48,6 @@ llvm::Value* IRGenerator::assignVariable(
             default: break;
         }
 
-        // Special handling for system libraries
-        // if (genericStatic.empty() && genericDynamic.empty()) {
-        //     if (targetOS == TargetOS::Windows && WindowsAPIResolver::isLikelyWindowsAPIVariable(externName)) {
-        //         std::string detectedLib = WindowsAPIResolver::getRequiredLibraryForVariable(externName);
-        //         genericStatic = detectedLib + ".lib";
-        //         genericDynamic = detectedLib + ".dll";
-        //         console.info("Auto-detected Windows API variable '" + externName + "' in library: " + detectedLib);
-        //     }
-        // }
-
         // Check symbol existence in libraries
         bool staticExists = false;
         bool dynamicExists = false;
@@ -68,7 +58,20 @@ llvm::Value* IRGenerator::assignVariable(
             } else if (fileExists(genericStatic)) {
                 staticExists = symbolExistsInStaticLib(genericStatic, externName);
                 if (!staticExists) {
-                    console.warn("Symbol '" + externName + "' not found in static library: " + genericStatic);
+                    std::string suggestion = Omniscript::Console::formatString(
+                        "To resolve this:\n"
+                        "1. Verify symbol '%s' exists in static library '%s'\n"
+                        "2. Check library documentation for symbol availability\n"
+                        "3. Ensure correct library is linked",
+                        externName.c_str(), genericStatic.c_str()
+                    );
+                    console.reportError(
+                        Omniscript::Console::RUNTIME_ERROR,
+                        Omniscript::Console::formatString("Symbol '%s' not found in static library: '%s'",
+                                         externName.c_str(), genericStatic.c_str()),
+                        suggestion,
+                        statement->getSpan()
+                    );
                 }
             }
         }
@@ -77,18 +80,57 @@ llvm::Value* IRGenerator::assignVariable(
             if (fileExists(genericDynamic)) {
                 dynamicExists = symbolExistsInDLL(genericDynamic, externName);
                 if (!dynamicExists) {
-                    console.error("Symbol '" + externName + "' not found in dynamic library: " + genericDynamic);
+                    std::string suggestion = Omniscript::Console::formatString(
+                        "To resolve this:\n"
+                        "1. Verify symbol '%s' exists in dynamic library '%s'\n"
+                        "2. Check library documentation for symbol availability\n"
+                        "3. Ensure correct library is linked",
+                        externName.c_str(), genericDynamic.c_str()
+                    );
+                    console.reportError(
+                        Omniscript::Console::RUNTIME_ERROR,
+                        Omniscript::Console::formatString("Symbol '%s' not found in dynamic library: '%s'",
+                                         externName.c_str(), genericDynamic.c_str()),
+                        suggestion,
+                        statement->getSpan()
+                    );
                 }
             }
             std::string error;
             auto dynLib = llvm::sys::DynamicLibrary::getPermanentLibrary(genericDynamic.c_str(), &error);
             if (!dynLib.isValid()) {
-                console.error("Failed to load dynamic library " + genericDynamic + ": " + error + "\n");
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify dynamic library '%s' exists and is accessible\n"
+                    "2. Check file permissions\n"
+                    "3. Ensure correct library path is specified",
+                    genericDynamic.c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::RUNTIME_ERROR,
+                    Omniscript::Console::formatString("Failed to load dynamic library '%s': %s",
+                                     genericDynamic.c_str(), error.c_str()),
+                    suggestion,
+                    statement->getSpan()
+                );
             }
         }
 
         if (!staticExists && !dynamicExists) {
-            console.error("External variable '" + externName + "' not found in any specified libraries");
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Verify external variable '%s' is defined in specified libraries\n"
+                "2. Check static library '%s' or dynamic library '%s'\n"
+                "3. Ensure correct library paths are provided",
+                externName.c_str(), genericStatic.c_str(), genericDynamic.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("External variable '%s' not found in any specified libraries",
+                                 externName.c_str()),
+                suggestion,
+                statement->getSpan()
+            );
             return nullptr;
         }
 
@@ -128,7 +170,20 @@ llvm::Value* IRGenerator::assignVariable(
             if (newValue->getType() != type && !llvm::isa<llvm::AllocaInst>(newValue)) {
                 newValue = generateCast(newValue, type);
                 if (!newValue) {
-                    console.error("Failed to cast value when reassigning '" + name + "'");
+                    std::string suggestion = Omniscript::Console::formatString(
+                        "To resolve this:\n"
+                        "1. Verify value type is compatible with variable '%s' type '%s'\n"
+                        "2. Check expression type\n"
+                        "3. Ensure proper type casting",
+                        name.c_str(), debugType(type).c_str()
+                    );
+                    console.reportError(
+                        Omniscript::Console::TYPE_ERROR,
+                        Omniscript::Console::formatString("Failed to cast value when reassigning '%s'",
+                                         name.c_str()),
+                        suggestion,
+                        statement->getSpan()
+                    );
                     return nullptr;
                 }
             }
@@ -162,7 +217,20 @@ llvm::Value* IRGenerator::assignVariable(
                     for (const auto& elem : arrayLit->elements) {
                         auto* val = llvm::dyn_cast<llvm::Constant>(codegen(elem, scope));
                         if (!val) {
-                            console.error("Global array '" + name + "' has non-constant initializer element.");
+                            std::string suggestion = Omniscript::Console::formatString(
+                                "To resolve this:\n"
+                                "1. Ensure array elements for '%s' are constant expressions\n"
+                                "2. Check array initialization syntax\n"
+                                "3. Verify element types",
+                                name.c_str()
+                            );
+                            console.reportError(
+                                Omniscript::Console::TYPE_ERROR,
+                                Omniscript::Console::formatString("Global array '%s' has non-constant initializer element",
+                                                 name.c_str()),
+                                suggestion,
+                                statement->getSpan()
+                            );
                             return nullptr;
                         }
                         elements.push_back(val);
@@ -230,7 +298,20 @@ llvm::Value* IRGenerator::assignVariable(
             if (initValue->getType() != type && !llvm::isa<llvm::AllocaInst>(initValue)) {
                 initValue = generateCast(initValue, type);
                 if (!initValue) {
-                    console.error("Failed to cast initializer for variable '" + name + "'");
+                    std::string suggestion = Omniscript::Console::formatString(
+                        "To resolve this:\n"
+                        "1. Verify initializer type is compatible with variable '%s' type '%s'\n"
+                        "2. Check initializer expression\n"
+                        "3. Ensure proper type casting",
+                        name.c_str(), debugType(type).c_str()
+                    );
+                    console.reportError(
+                        Omniscript::Console::TYPE_ERROR,
+                        Omniscript::Console::formatString("Failed to cast initializer for variable '%s'",
+                                         name.c_str()),
+                        suggestion,
+                        statement->getSpan()
+                    );
                     return nullptr;
                 }
             }
@@ -289,7 +370,6 @@ llvm::Value* IRGenerator::reassign(const std::string& name, llvm::Value* newValu
     return newValue;
 }
 
-
 llvm::Value* IRGenerator::createDynamicConstant(const std::string& name, llvm::Value* value) {
     activeScope->setConstant(name, value);
     return value;
@@ -313,11 +393,23 @@ llvm::Value* IRGenerator::assignDynamicVariable(const std::string& name, llvm::V
     return newValue;
 }
 
-
 llvm::Value* IRGenerator::getDynamicVariable(const std::string& name) {
     llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(activeScope->get(name));
     if (!alloca) {
-        throw std::runtime_error("Variable is not an AllocaInst: " + name);
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify variable '%s' is defined as a local variable\n"
+            "2. Check variable declaration\n"
+            "3. Ensure variable is in scope",
+            name.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Variable '%s' is not an AllocaInst", name.c_str()),
+            suggestion,
+            FileSpan() // Default span as no statement context
+        );
+        return nullptr;
     }
     return Builder->CreateLoad(alloca->getAllocatedType(), alloca, name);
 }
@@ -342,8 +434,19 @@ llvm::Value* IRGenerator::getReferenceToVariable(const std::string& varname) {
         return activeScope->get(varname);
     }
     
-    // // Return the pointer/alloca directly
-    console.error("Cannot get reference to: " + varname);
+    std::string suggestion = Omniscript::Console::formatString(
+        "To resolve this:\n"
+        "1. Verify variable '%s' is defined in scope\n"
+        "2. Check for correct variable declaration\n"
+        "3. Ensure variable is accessible",
+        varname.c_str()
+    );
+    console.reportError(
+        Omniscript::Console::RUNTIME_ERROR,
+        Omniscript::Console::formatString("Cannot get reference to: '%s'", varname.c_str()),
+        suggestion,
+        FileSpan() // Default span as no statement context
+    );
     return nullptr;
 }
 

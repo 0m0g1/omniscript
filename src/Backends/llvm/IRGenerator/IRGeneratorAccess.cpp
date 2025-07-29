@@ -11,6 +11,23 @@ llvm::Value* IRGenerator::handleAccessExpression(
     // Handle variable access case
     if (auto varAcc = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(expr->expr)) {
         baseValue = activeScope->get(varAcc->variableName);
+        if (!baseValue) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Verify variable '%s' is defined in scope '%s'\n"
+                "2. Check variable declaration\n"
+                "3. Ensure variable is accessible",
+                varAcc->variableName.c_str(), scope->getName().c_str()
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("Variable '%s' not found in scope",
+                                 varAcc->variableName.c_str()),
+                suggestion,
+                varAcc->getSpan()
+            );
+            return nullptr;
+        }
     } 
     // Handle nested member access in arrow access case (like std.Math->pi)
     else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::ArrowAccessExpression>(expr)) {
@@ -20,8 +37,38 @@ llvm::Value* IRGenerator::handleAccessExpression(
             if (auto innerVarAcc = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(memberAccess->expr)) {
                 DEBUG_LOG("Getting " + innerVarAcc->variableName);
                 memberBaseValue = activeScope->get(innerVarAcc->variableName);
+                if (!memberBaseValue) {
+                    std::string suggestion = Omniscript::Console::formatString(
+                        "To resolve this:\n"
+                        "1. Verify variable '%s' is defined in scope '%s'\n"
+                        "2. Check variable declaration\n"
+                        "3. Ensure variable is accessible",
+                        innerVarAcc->variableName.c_str(), scope->getName().c_str()
+                    );
+                    console.reportError(
+                        Omniscript::Console::RUNTIME_ERROR,
+                        Omniscript::Console::formatString("Variable '%s' not found in scope for member access",
+                                         innerVarAcc->variableName.c_str()),
+                        suggestion,
+                        innerVarAcc->getSpan()
+                    );
+                    return nullptr;
+                }
             } else {
                 memberBaseValue = codegen(memberAccess->expr, scope);
+                if (!memberBaseValue) {
+                    std::string suggestion = "To resolve this:\n"
+                                           "1. Verify member access base expression is valid\n"
+                                           "2. Check expression syntax and scope\n"
+                                           "3. Add debug output for base expression evaluation";
+                    console.reportError(
+                        Omniscript::Console::RUNTIME_ERROR,
+                        "Failed to evaluate base expression for member access",
+                        suggestion,
+                        memberAccess->expr->getSpan()
+                    );
+                    return nullptr;
+                }
             }
             
             // Process member access with pointer preservation
@@ -29,15 +76,37 @@ llvm::Value* IRGenerator::handleAccessExpression(
         } else {
             // Regular arrow access case (ptr->member)
             baseValue = codegen(arrowAccess->expr, scope);
+            if (!baseValue) {
+                std::string suggestion = "To resolve this:\n"
+                                       "1. Verify arrow access base expression is valid\n"
+                                       "2. Check expression syntax and scope\n"
+                                       "3. Add debug output for base expression evaluation";
+                console.reportError(
+                    Omniscript::Console::RUNTIME_ERROR,
+                    "Failed to evaluate base expression for arrow access",
+                    suggestion,
+                    arrowAccess->expr->getSpan()
+                );
+                return nullptr;
+            }
         }
     }
     // All other cases
     else {
         baseValue = codegen(expr->expr, scope);
-    }
-
-    if (!baseValue) {
-        return nullptr;
+        if (!baseValue) {
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Verify base expression is valid\n"
+                                   "2. Check expression syntax and scope\n"
+                                   "3. Add debug output for expression evaluation";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to evaluate base expression for access",
+                suggestion,
+                expr->expr->getSpan()
+            );
+            return nullptr;
+        }
     }
 
     // Handle the current access expression
@@ -54,7 +123,16 @@ llvm::Value* IRGenerator::handleAccessExpression(
         return handleIndexAccess(indexAccess, baseValue, scope);
     }
 
-    console.error("Unknown access expression type");
+    std::string suggestion = "To resolve this:\n"
+                           "1. Verify access expression type is supported\n"
+                           "2. Check for correct expression type (Member, Arrow, Dereference, or Index)\n"
+                           "3. Ensure proper type casting or expression setup";
+    console.reportError(
+        Omniscript::Console::RUNTIME_ERROR,
+        "Unknown access expression type",
+        suggestion,
+        expr->getSpan()
+    );
     return nullptr;
 }
 
@@ -67,27 +145,66 @@ llvm::Value* IRGenerator::handleMemberAccess(
     llvm::Type* currentType = activeScope->getType(expr->baseType);
     llvm::Value* currentPtr = baseValue;
 
-    int fieldIndex = expr->index;
-
     if (!currentType->isStructTy()) {
-        console.error("Member access requires an aggregate type (struct or class), not a '" + debugType(currentType) + "'.");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify type '%s' is a struct or class\n"
+            "2. Check type declaration in scope '%s'\n"
+            "3. Ensure member access is valid for this type",
+            expr->baseType.c_str(), scope->getName().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Member access requires an aggregate type (struct or class), not a '%s'",
+                             debugType(currentType).c_str()),
+            suggestion,
+            expr->getSpan()
+        );
         return nullptr;
     }
 
     auto* structType = llvm::cast<llvm::StructType>(currentType);
+    int fieldIndex = expr->index;
+
+    if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify field index %d is valid for struct '%s'\n"
+            "2. Check struct definition\n"
+            "3. Ensure correct member is accessed",
+            fieldIndex, expr->baseType.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Invalid field index %d for struct '%s'",
+                             fieldIndex, expr->baseType.c_str()),
+            suggestion,
+            expr->getSpan()
+        );
+        return nullptr;
+    }
+
     currentPtr = Builder->CreateStructGEP(structType, currentPtr, fieldIndex);
     currentType = structType->getElementType(fieldIndex);
     
     if (expr->isSetter()) {
         llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
+        if (!valueToStore) {
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Verify assignment value expression is valid\n"
+                                   "2. Check assignment expression syntax\n"
+                                   "3. Add debug output for assignment codegen";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to generate code for member assignment value",
+                suggestion,
+                expr->assignmentValue->getSpan()
+            );
+            return nullptr;
+        }
         Builder->CreateStore(valueToStore, currentPtr);
         return valueToStore;
     }
-
-    // // Only load if we're not preserving pointers AND it's not a setter
-    // if (!preservePointer) {
-    //     return currentPtr;  // Return the pointer if preserving
-    // }
     
     if (!preservePointer && !currentType->isStructTy()) {
         return Builder->CreateLoad(currentType, currentPtr);
@@ -102,7 +219,16 @@ llvm::Value* IRGenerator::handleArrowAccess(
 ) {
     // Validate base value is a pointer
     if (!baseValue->getType()->isPointerTy()) {
-        console.error("Arrow access requires pointer type");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure base expression for arrow access is a pointer type\n"
+                               "2. Check expression type\n"
+                               "3. Verify pointer declaration";
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            "Arrow access requires pointer type",
+            suggestion,
+            expr->getSpan()
+        );
         return nullptr;
     }
 
@@ -117,7 +243,16 @@ llvm::Value* IRGenerator::handleArrowAccess(
 
     // Validate we're accessing a struct
     if (!pointeeType->isStructTy()) {
-        console.error("Arrow access requires pointer to struct type");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure arrow access points to a struct type\n"
+                               "2. Check pointee type definition\n"
+                               "3. Verify struct declaration";
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            "Arrow access requires pointer to struct type",
+            suggestion,
+            expr->getSpan()
+        );
         return nullptr;
     }
 
@@ -126,7 +261,19 @@ llvm::Value* IRGenerator::handleArrowAccess(
 
     // Validate field index
     if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
-        console.error("Invalid struct field index");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify field index %d is valid for struct\n"
+            "2. Check struct definition\n"
+            "3. Ensure correct field is accessed",
+            fieldIndex
+        );
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Invalid struct field index %d", fieldIndex),
+            suggestion,
+            expr->getSpan()
+        );
         return nullptr;
     }
 
@@ -137,6 +284,19 @@ llvm::Value* IRGenerator::handleArrowAccess(
     // Handle setter case
     if (expr->isSetter()) {
         llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
+        if (!valueToStore) {
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Verify assignment value expression is valid\n"
+                                   "2. Check assignment expression syntax\n"
+                                   "3. Add debug output for assignment codegen";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to generate code for arrow access assignment value",
+                suggestion,
+                expr->assignmentValue->getSpan()
+            );
+            return nullptr;
+        }
         // Verify type compatibility
         if (valueToStore->getType() != fieldType) {
             valueToStore = Builder->CreateBitOrPointerCast(valueToStore, fieldType);
@@ -156,13 +316,31 @@ llvm::Value* IRGenerator::handleDereference(
 ) {
     llvm::Type* ptrType = baseValue->getType();
     if (!ptrType->isPointerTy()) {
-        console.error("Dereference requires pointer type");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure base expression for dereference is a pointer type\n"
+                               "2. Check expression type\n"
+                               "3. Verify pointer declaration";
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            "Dereference requires pointer type",
+            suggestion,
+            expr->getSpan()
+        );
         return nullptr;
     }
 
     llvm::PointerType* pointerType = llvm::dyn_cast<llvm::PointerType>(ptrType);
     if (!pointerType) {
-        console.error("Base value is not a pointer.");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure base value is a valid pointer\n"
+                               "2. Check pointer type definition\n"
+                               "3. Verify pointer initialization";
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            "Base value is not a pointer",
+            suggestion,
+            expr->getSpan()
+        );
         return nullptr;
     }
 
@@ -172,7 +350,19 @@ llvm::Value* IRGenerator::handleDereference(
     if (expr->valueExpr) {
         // This is a dereference assignment (*ptr = value)
         llvm::Value* valueToStore = codegen(expr->valueExpr, scope);
-        if (!valueToStore) return nullptr;
+        if (!valueToStore) {
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Verify dereference assignment value is valid\n"
+                                   "2. Check assignment expression syntax\n"
+                                   "3. Add debug output for assignment codegen";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to generate code for dereference assignment value",
+                suggestion,
+                expr->valueExpr->getSpan()
+            );
+            return nullptr;
+        }
         
         if (valueToStore->getType() != pointeeType) {
             valueToStore = Builder->CreateBitCast(valueToStore, pointeeType, "bitcast.store");
@@ -192,17 +382,47 @@ llvm::Value* IRGenerator::handleIndexAccess(
 ) {
     // Evaluate the index expression
     llvm::Value* indexValue = codegen(expr->indexExpr, scope);
-    if (!indexValue) return nullptr;
+    if (!indexValue) {
+        std::string suggestion = "To resolve this:\n"
+                               "1. Verify index expression is valid\n"
+                               "2. Check index expression syntax\n"
+                               "3. Add debug output for index codegen";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            "Failed to generate code for index expression",
+            suggestion,
+            expr->indexExpr->getSpan()
+        );
+        return nullptr;
+    }
 
     llvm::Type* baseType = baseValue->getType();
     if (!baseType->isPointerTy() && !baseType->isArrayTy()) {
-        console.error("Index access requires pointer or array type");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure base expression for index access is a pointer or array type\n"
+                               "2. Check base type definition\n"
+                               "3. Verify array or pointer declaration";
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            "Index access requires pointer or array type",
+            suggestion,
+            expr->getSpan()
+        );
         return nullptr;
     }
 
     llvm::PointerType* pointerType = llvm::dyn_cast<llvm::PointerType>(baseType);
     if (!pointerType) {
-        console.error("Base value is neither pointer nor array.");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure base value is a valid pointer or array\n"
+                               "2. Check base type declaration\n"
+                               "3. Verify array or pointer initialization";
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            "Base value is neither pointer nor array",
+            suggestion,
+            expr->getSpan()
+        );
         return nullptr;
     }
 
@@ -216,7 +436,19 @@ llvm::Value* IRGenerator::handleIndexAccess(
 
     if (expr->isSetter()) {
         llvm::Value* valueToStore = codegen(expr->assignmentValue, scope);
-        if (!valueToStore) return nullptr;
+        if (!valueToStore) {
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Verify index assignment value is valid\n"
+                                   "2. Check assignment expression syntax\n"
+                                   "3. Add debug output for assignment codegen";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to generate code for index assignment value",
+                suggestion,
+                expr->assignmentValue->getSpan()
+            );
+            return nullptr;
+        }
         
         Builder->CreateStore(valueToStore, elementPtr);
         return valueToStore;

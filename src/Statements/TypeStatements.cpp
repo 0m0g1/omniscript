@@ -16,7 +16,21 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
 
     if (auto storedType = scope->getType(name)) {
         if (!storedType->isInvalid()) {
-            console.error("Type '" + name + "' already exists in scope '" + scope->getName() + "' with type '" + storedType->toString() + "'.");
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Use a different type name instead of '%s'\n"
+                "2. Check for duplicate type declarations\n"
+                "3. Verify scope hierarchy",
+                name.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                Omniscript::Console::formatString("Type '%s' already exists in scope '%s' with type '%s'",
+                                 name.c_str(), scope->getName().c_str(), storedType->toString().c_str()),
+                suggestion,
+                getSpan()
+            );
+            return nullptr;
         }
     }
 
@@ -24,9 +38,37 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
         if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
             originalType = scope->getType(unresolved->joinedTypeString);
             if (!originalType) {
-                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify type '%s' is defined in scope '%s'\n"
+                    "2. Check for correct namespace imports\n"
+                    "3. Ensure type is declared before use",
+                    unresolved->joinedTypeString.c_str(), scope->getName().c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Type '%s' does not exist in scope '%s'",
+                                     unresolved->joinedTypeString.c_str(), scope->getName().c_str()),
+                    suggestion,
+                    getSpan()
+                );
+                return nullptr;
             } else if (originalType->isInvalid()) {
-                console.error("Cannot alias invalid type '" + unresolved->joinedTypeString + "' as '" + name + "'.");
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Ensure type '%s' is valid before aliasing\n"
+                    "2. Check original type declaration\n"
+                    "3. Verify type initialization",
+                    unresolved->joinedTypeString.c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Cannot alias invalid type '%s' as '%s'",
+                                     unresolved->joinedTypeString.c_str(), name.c_str()),
+                    suggestion,
+                    getSpan()
+                );
+                return nullptr;
             }
             isAliasingOtherType = true;
             originalTypeName = unresolved->joinedTypeString;
@@ -68,7 +110,6 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
         }
     }
     DEBUG_LOG("Declared type: '" + type->toString() + "' in scope as '" + name + "'.");
-
 
     return typeDeclExpr;
 }

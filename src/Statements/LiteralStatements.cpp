@@ -10,7 +10,6 @@
 #include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Expressions/CastExpression.h>
 
-// ============================== Literals and casting  ============================== //
 std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("");
@@ -21,7 +20,21 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
             rootType = type;
             targetType = type;
             if (!type) {
-                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify type '%s' is defined in the current scope\n"
+                    "2. Check for correct namespace imports\n"
+                    "3. Ensure type is declared before use",
+                    unresolved->joinedTypeString.c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Type '%s' does not exist in scope '%s'",
+                                     unresolved->joinedTypeString.c_str(), scope->getName().c_str()),
+                    suggestion,
+                    getSpan()
+                );
+                return nullptr;
             }
         }
     }
@@ -38,13 +51,31 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
         } else {
             DEBUG_LOG("[Cast] Casting a '" + value->toString() + "' to a '" + targetType->toString() + "'.");
         }
-
     } else {
         if (value) {
-            console.error("Cannot cast " + value->toString() + " it has no type.");
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Ensure the value has a defined type\n"
+                                   "2. Check for proper variable declaration\n"
+                                   "3. Verify type annotations are correct";
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                "Cannot cast " + value->toString() + " it has no type",
+                suggestion,
+                getSpan()
+            );
         } else {
-            console.error("There is no value to cast.");
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Provide a valid expression to cast\n"
+                                   "2. Check for null or undefined values\n"
+                                   "3. Add debug output to trace value source";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "There is no value to cast",
+                suggestion,
+                getSpan()
+            );
         }
+        return nullptr;
     }
 
     extendContextOf(value);
@@ -71,7 +102,7 @@ std::shared_ptr<Omniscript::Expression> Cast::express(SymbolTableType scope) {
         }
         // If we're casting a null literal (e.g., NullExpression or NullPointerExpression)
         else if (std::dynamic_pointer_cast<Omniscript::NullExpression>(valueResult) ||
-            std::dynamic_pointer_cast<Omniscript::NullPointerExpression>(valueResult)) {
+                 std::dynamic_pointer_cast<Omniscript::NullPointerExpression>(valueResult)) {
             result = std::make_shared<Omniscript::NullableExpression>();
         }
         // Wrap any expression in a NullableExpression
@@ -94,7 +125,21 @@ std::shared_ptr<Omniscript::Expression> Nullptr::express(SymbolTableType scope) 
             type = scope->getType(unresolved->joinedTypeString);
             rootType = type;
             if (!type) {
-                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify type '%s' is defined in the current scope\n"
+                    "2. Check for correct namespace imports\n"
+                    "3. Ensure type is declared before use",
+                    unresolved->joinedTypeString.c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Type '%s' does not exist in scope '%s'",
+                                     unresolved->joinedTypeString.c_str(), scope->getName().c_str()),
+                    suggestion,
+                    getSpan()
+                );
+                return nullptr;
             }
         }
     }
@@ -113,12 +158,26 @@ std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
             type = scope->getType(unresolved->joinedTypeString);
             rootType = type;
             if (!type) {
-                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify type '%s' is defined in the current scope\n"
+                    "2. Check for correct namespace imports\n"
+                    "3. Ensure type is declared before use",
+                    unresolved->joinedTypeString.c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Type '%s' does not exist in scope '%s'",
+                                     unresolved->joinedTypeString.c_str(), scope->getName().c_str()),
+                    suggestion,
+                    getSpan()
+                );
+                return nullptr;
             }
         }
     }
     std::shared_ptr<Omniscript::Expression> result;
-    
+
     if (type->isNullable()) {
         auto nullable = std::dynamic_pointer_cast<Omniscript::NullableType>(type);
         auto nullableExpr = std::make_shared<Omniscript::NullableExpression>();
@@ -136,9 +195,9 @@ std::shared_ptr<Omniscript::Expression> Null::express(SymbolTableType scope) {
 
 std::shared_ptr<Omniscript::Expression> PointerLiteral::express(SymbolTableType scope) {
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
-    
+
     std::shared_ptr<Omniscript::Expression> result;
-    
+
     // Handle null pointer case
     if (address == 0) {
         result = Omniscript::make_expression<Omniscript::NullPointerExpression>(type->getPointeeType());
@@ -161,7 +220,7 @@ std::shared_ptr<Literal> PointerLiteral::castTo(std::shared_ptr<Omniscript::Type
         return std::make_shared<Nullptr>(targetType);
     }
 
-    // Get current pointee type (defaults to void if unspecified) 
+    // Get current pointee type (defaults to void if unspecified)
     auto currentPointeeType = type ? type->getPointeeType() : Omniscript::Type::createPrimitiveType(Kind::Void);
 
     // Case 1: Casting to another pointer type
@@ -189,22 +248,34 @@ std::shared_ptr<Literal> PointerLiteral::castTo(std::shared_ptr<Omniscript::Type
                 targetPointeeType);
         }
 
-        console.error("Invalid pointer cast from " + currentPointeeType->toString() +
-                      "* to " + targetPointeeType->toString() + "*");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify compatibility between '%s' and '%s'\n"
+            "2. Check for valid type conversions\n"
+            "3. Consider using an intermediate cast",
+            currentPointeeType->toString().c_str(),
+            targetPointeeType->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Invalid pointer cast from %s* to %s*",
+                             currentPointeeType->toString().c_str(), targetPointeeType->toString().c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
-    // Case 2: Casting to integer (address as numeric value) 
+    // Case 2: Casting to integer (address as numeric value)
     else if (targetType->isInteger()) {
         return std::make_shared<IntegerLiteral>(static_cast<int64_t>(address));
     }
-    // Case 3: Casting to boolean (null check) 
+    // Case 3: Casting to boolean (null check)
     else if (targetType->isBool()) {
         return std::make_shared<BoolLiteral>(address != 0);
     }
     // Case 4: Casting to nullable pointer type
     else if (auto nullable = std::dynamic_pointer_cast<Omniscript::NullableType>(targetType)) {
         if (nullable->innerType->isPointer()) {
-
             if (address == 0) {
                 return std::make_shared<Nullptr>(targetType);
             }
@@ -218,15 +289,28 @@ std::shared_ptr<Literal> PointerLiteral::castTo(std::shared_ptr<Omniscript::Type
         }
     }
 
-    console.error("Invalid cast from pointer to " + targetType->toString());
+    std::string suggestion = Omniscript::Console::formatString(
+        "To resolve this:\n"
+        "1. Verify target type '%s' is valid for pointer casting\n"
+        "2. Check for supported cast operations\n"
+        "3. Ensure correct type hierarchy",
+        targetType->toString().c_str()
+    );
+    console.reportError(
+        Omniscript::Console::TYPE_ERROR,
+        Omniscript::Console::formatString("Invalid cast from pointer to %s",
+                         targetType->toString().c_str()),
+        suggestion,
+        getSpan()
+    );
     return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType scope) {
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
-    
+
     std::shared_ptr<Omniscript::Expression> result;
-    
+
     if (!type) {
         DEBUG_LOG("Creating a 32-bit integer");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Int32);
@@ -238,7 +322,21 @@ std::shared_ptr<Omniscript::Expression> IntegerLiteral::express(SymbolTableType 
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Int8);
 
     if (!Omniscript::Type::isSameOrCastableTo(typeToCastFrom, type)) {
-        console.error("The specified type is '" + type->toString() + "' but '" + std::to_string(value) + "' is an integer.");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Ensure type '%s' is compatible with integer values\n"
+            "2. Check for valid integer type casts\n"
+            "3. Verify type annotations",
+            type->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("The specified type is '%s' but '%s' is an integer",
+                             type->toString().c_str(), std::to_string(value).c_str()),
+            suggestion,
+            getSpan()
+        );
+        return nullptr;
     } else {
         if (!type->isInteger()) {
             DEBUG_LOG("Casting integer to '" + type->toString() + "'.");
@@ -355,16 +453,29 @@ std::shared_ptr<Literal> IntegerLiteral::castTo(std::shared_ptr<Omniscript::Type
         return std::make_shared<CharacterLiteral>(static_cast<char32_t>(value));
 
     default:
-        console.error("Cannot cast an int to a '" + targetType->toString() + "'.");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify target type '%s' is valid for integer casting\n"
+            "2. Check for supported cast operations\n"
+            "3. Ensure correct type hierarchy",
+            targetType->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Cannot cast an int to a '%s'",
+                             targetType->toString().c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
 }
 
 std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType scope) {
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
-    
+
     std::shared_ptr<Omniscript::Expression> result;
-    
+
     // Default to 128-bit float if type is not specified
     if (!type) {
         if (isFloat16) {
@@ -389,8 +500,21 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
     }
 
     if (!Omniscript::Type::isSameOrCastableTo(rootType, type)) {
-        console.error("The specified type is " + type->toString() +
-                      " but '" + /* custom __float128 to string needed here */ "' is a float.");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Ensure type '%s' is compatible with float values\n"
+            "2. Check for valid float type casts\n"
+            "3. Verify type annotations",
+            type->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("The specified type is '%s' but value is a float",
+                             type->toString().c_str()),
+            suggestion,
+            getSpan()
+        );
+        return nullptr;
     } else {
         if (!type->isFloat()) {
             DEBUG_LOG("Casting float to '" + type->toString() + "'.");
@@ -418,7 +542,7 @@ std::shared_ptr<Omniscript::Expression> FloatLiteral::express(SymbolTableType sc
             DEBUG_LOG("Creating a 16-bit float (__fp16 for ARM)");
             result = std::make_shared<Omniscript::Float<__fp16>>(static_cast<__fp16>(value));
         }
-    #elif defined(__x86_64__) || defined(__i386__) 
+    #elif defined(__x86_64__) || defined(__i386__)
         if (type->isFloat(16)) {
             DEBUG_LOG("Creating a 16-bit float (_Float16 for x86)");
             result = std::make_shared<Omniscript::Float<_Float16>>(static_cast<_Float16>(value));
@@ -504,7 +628,20 @@ std::shared_ptr<Literal> FloatLiteral::castTo(std::shared_ptr<Omniscript::Type> 
         return std::make_shared<BoolLiteral>(value != 0.0);
 
     default:
-        console.error("Cannot cast an float to a '" + targetType->toString() + "'.");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify target type '%s' is valid for float casting\n"
+            "2. Check for supported cast operations\n"
+            "3. Ensure correct type hierarchy",
+            targetType->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Cannot cast a float to a '%s'",
+                             targetType->toString().c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
 }
@@ -515,7 +652,7 @@ std::shared_ptr<Omniscript::Expression> BigInt::express(SymbolTableType scope) {
     DEBUG_LOG("Creating a big int " + value);
     unsigned bitWidth = BigInt::determineBitWidth(value);
     auto result = std::make_shared<Omniscript::BigInt>(value, bitWidth);
-    
+
     result->setSpan(getSpan());
     return result;
 }
@@ -524,21 +661,20 @@ std::shared_ptr<Omniscript::Expression> Invalid::express(SymbolTableType scope) 
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("Creating an invalid");
     auto result = std::make_shared<Omniscript::InvalidExpression>();
-    
+
     result->setSpan(getSpan());
     return result;
 }
 
 std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType scope) {
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
-    
+
     std::shared_ptr<Omniscript::Expression> result;
-    
-    // DEBUG_LOG("Bool value " + value);
+
     if (!type) {
         DEBUG_LOG("Creating a bool false");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Bool);
-        result = std::make_shared<Omniscript::Primitive<bool>>(value); // Default to double (64-bit)
+        result = std::make_shared<Omniscript::Primitive<bool>>(value);
         result->setSpan(getSpan());
         return result;
     }
@@ -546,7 +682,21 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType sco
     auto typeToCastFrom = std::make_shared<Omniscript::Type>(Omniscript::Kind::Bool);
 
     if (!Omniscript::Type::isSameOrCastableTo(typeToCastFrom, type)) {
-        console.error("The specified type is " + type->toString() + " but '" + std::to_string(value) + "' is a bool.");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Ensure type '%s' is compatible with boolean values\n"
+            "2. Check for valid boolean type casts\n"
+            "3. Verify type annotations",
+            type->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("The specified type is '%s' but '%s' is a bool",
+                             type->toString().c_str(), std::to_string(value).c_str()),
+            suggestion,
+            getSpan()
+        );
+        return nullptr;
     } else {
         if (!type->isBool()) {
             DEBUG_LOG("Casting bool to '" + type->toString() + "'.");
@@ -569,7 +719,7 @@ std::shared_ptr<Omniscript::Expression> BoolLiteral::express(SymbolTableType sco
     }
 
     result = std::make_shared<Omniscript::Primitive<bool>>(value);
-    
+
     result->setSpan(getSpan());
     return result;
 }
@@ -612,16 +762,29 @@ std::shared_ptr<Literal> BoolLiteral::castTo(std::shared_ptr<Omniscript::Type> t
         return lit;
     }
     default:
-        console.error("Cannot cast a bool to a '" + targetType->toString() + "'.");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify target type '%s' is valid for boolean casting\n"
+            "2. Check for supported cast operations\n"
+            "3. Ensure correct type hierarchy",
+            targetType->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Cannot cast a bool to a '%s'",
+                             targetType->toString().c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
 }
 
 std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableType scope) {
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
-    
+
     std::shared_ptr<Omniscript::Expression> result;
-    
+
     if (!type) {
         DEBUG_LOG("Creating a char literal");
         type = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
@@ -643,7 +806,21 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
             result->setSpan(getSpan());
             return result;
         }
-        console.error("The specified type is " + type->toString() + " but '" + std::to_string(static_cast<uint32_t>(value)) + "' is a char.");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Ensure type '%s' is compatible with character values\n"
+            "2. Check for valid character type casts\n"
+            "3. Verify type annotations",
+            type->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("The specified type is '%s' but '%s' is a char",
+                             type->toString().c_str(), std::to_string(static_cast<uint32_t>(value)).c_str()),
+            suggestion,
+            getSpan()
+        );
+        return nullptr;
     } else {
         DEBUG_LOG("Creating a '" + type->toString() + "' value.");
     }
@@ -651,7 +828,7 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
     if (type->isChar(8)) {
         DEBUG_LOG("Creating UTF-8 char");
         std::string utf8_value = utf32_to_utf8(std::u32string(1, value));
-        result = std::make_shared<Omniscript::Primitive<char>>(utf8_value[0]); // assumes single-char utf8
+        result = std::make_shared<Omniscript::Primitive<char>>(utf8_value[0]);
     }
     else if (type->isChar(16)) {
         DEBUG_LOG("Creating UTF-16 char");
@@ -674,7 +851,7 @@ std::shared_ptr<Omniscript::Expression> CharacterLiteral::express(SymbolTableTyp
 std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
     using Kind = Omniscript::Kind;
     std::shared_ptr<Literal> result = nullptr;
-    
+
     switch (targetType->getKind()) {
     case Kind::Char:
     case Kind::Char16:
@@ -735,10 +912,23 @@ std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Ty
         break;
     }
     default:
-        console.error("Cannot cast a char to a '" + targetType->toString() + "'.");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify target type '%s' is valid for character casting\n"
+            "2. Check for supported cast operations\n"
+            "3. Ensure correct type hierarchy",
+            targetType->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Cannot cast a char to a '%s'",
+                             targetType->toString().c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
-    
+
     if (result) {
         result->setSpan(getSpan());
     }
@@ -748,7 +938,7 @@ std::shared_ptr<Literal> CharacterLiteral::castTo(std::shared_ptr<Omniscript::Ty
 std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType scope) {
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     std::shared_ptr<Omniscript::Expression> result = nullptr;
-    
+
     if (!type) {
         DEBUG_LOG("Creating UTF-8 string");
         type = rootType;
@@ -764,17 +954,42 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
             typed->setType(nullable->innerType);
             auto cast = std::make_shared<Cast>(clone, type);
             result = cast->express(scope);
-            // Note: cast->express() will handle its own position setting
             return result;
         }
-        console.error("Cannot cast a char* to a " + type->toString());
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Ensure type '%s' is a pointer type for string literals\n"
+            "2. Check for valid string type casts\n"
+            "3. Verify type annotations",
+            type->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Cannot cast a char* to a %s",
+                             type->toString().c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
     else {
         std::shared_ptr<Omniscript::Type> pointeeType = type->getPointeeType();
 
         if (!Omniscript::Type::isSameOrCastableTo(rootType, type)) {
-            console.error("The specified type is " + type->toString() + " but a UTF-8 string was given.");
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Ensure type '%s' is compatible with string literals\n"
+                "2. Check for valid string type casts\n"
+                "3. Verify type annotations",
+                type->toString().c_str()
+            );
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                Omniscript::Console::formatString("The specified type is '%s' but a UTF-8 string was given",
+                                 type->toString().c_str()),
+                suggestion,
+                getSpan()
+            );
             return nullptr;
         } else {
             DEBUG_LOG("Creating a '" + type->toString() + "' string literal.");
@@ -802,7 +1017,7 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
             result = std::make_shared<Omniscript::StringExpression<std::u32string>>(value);
         }
     }
-    
+
     if (result) {
         result->setSpan(getSpan());
     }
@@ -812,21 +1027,32 @@ std::shared_ptr<Omniscript::Expression> StringLiteral::express(SymbolTableType s
 std::shared_ptr<Literal> StringLiteral::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
     using Kind = Omniscript::Kind;
     std::shared_ptr<Literal> result = nullptr;
-    
+
     switch (targetType->getKind()) {
     case Kind::String:
     case Kind::Utf8:
     case Kind::Utf16:
     case Kind::Utf32:
-        result = std::make_shared<StringLiteral>(value); // Already a UTF-32 string
+        result = std::make_shared<StringLiteral>(value);
         break;
     case Kind::Char:
     case Kind::Char16:
     case Kind::Char32: {
         if (!value.empty()) {
-            auto val = std::make_shared<CharacterLiteral>(value[0]); // char32_t
+            auto val = std::make_shared<CharacterLiteral>(value[0]);
             val->setType(targetType);
             result = val;
+        } else {
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Ensure the string is not empty\n"
+                                   "2. Check for valid character extraction\n"
+                                   "3. Verify string initialization";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Cannot cast an empty string to a character type",
+                suggestion,
+                getSpan()
+            );
         }
         break;
     }
@@ -834,10 +1060,23 @@ std::shared_ptr<Literal> StringLiteral::castTo(std::shared_ptr<Omniscript::Type>
         result = std::make_shared<BoolLiteral>(!value.empty());
         break;
     default:
-        console.error("Cannot cast a char* to a '" + targetType->toString() + "'.");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify target type '%s' is valid for string casting\n"
+            "2. Check for supported cast operations\n"
+            "3. Ensure correct type hierarchy",
+            targetType->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Cannot cast a char* to a '%s'",
+                             targetType->toString().c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
-    
+
     if (result) {
         result->setSpan(getSpan());
     }
@@ -863,7 +1102,16 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
         }
 
         if (values.empty()) {
-            console.error("Cannot infer array type from empty initializer.");
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Ensure the array initializer contains valid expressions\n"
+                                   "2. Check for proper expression definitions\n"
+                                   "3. Add debug output to trace initializer values";
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                "Cannot infer array type from empty initializer",
+                suggestion,
+                getSpan()
+            );
             return nullptr;
         }
 
@@ -875,14 +1123,24 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
                 continue;
             }
             if (Omniscript::Type::isSameOrCastableTo(currentType, bestType)) {
-                // current can be casted to best -> OK
                 continue;
             } else if (Omniscript::Type::isSameOrCastableTo(bestType, currentType)) {
-                // new type is better
                 bestType = currentType;
             } else {
-                console.error("Cannot infer a common array type between '" +
-                              bestType->toString() + "' and '" + currentType->toString() + "'");
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Ensure types '%s' and '%s' are compatible\n"
+                    "2. Check for valid type conversions\n"
+                    "3. Consider explicit type casting",
+                    bestType->toString().c_str(), currentType->toString().c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Cannot infer a common array type between '%s' and '%s'",
+                                     bestType->toString().c_str(), currentType->toString().c_str()),
+                    suggestion,
+                    getSpan()
+                );
                 return nullptr;
             }
         }
@@ -896,8 +1154,20 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
             } else if (Omniscript::Type::isSameOrCastableTo(valType, bestType)) {
                 castedValues.push_back(std::make_shared<Omniscript::CastExpression>(val, bestType));
             } else {
-                console.error("Cannot cast array element of type '" + valType->toString() +
-                              "' to inferred type '" + bestType->toString() + "'");
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Ensure element type '%s' can be cast to '%s'\n"
+                    "2. Check for valid type conversions\n"
+                    "3. Verify array element types",
+                    valType->toString().c_str(), bestType->toString().c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Cannot cast array element of type '%s' to inferred type '%s'",
+                                     valType->toString().c_str(), bestType->toString().c_str()),
+                    suggestion,
+                    getSpan()
+                );
                 return nullptr;
             }
         }
@@ -932,9 +1202,21 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
             } else if (Omniscript::Type::isSameOrCastableTo(actualType, expectedElementType)) {
                 values.push_back(std::make_shared<Omniscript::CastExpression>(val, expectedElementType));
             } else {
-                console.error("Element " + std::to_string(n) +
-                              " has type " + actualType->toString() +
-                              " but expected " + expectedElementType->toString());
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Ensure element type '%s' matches or is castable to '%s'\n"
+                    "2. Check for valid type conversions\n"
+                    "3. Verify array element types",
+                    actualType->toString().c_str(), expectedElementType->toString().c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Element %s has type '%s' but expected '%s'",
+                                     std::to_string(n).c_str(), actualType->toString().c_str(),
+                                     expectedElementType->toString().c_str()),
+                    suggestion,
+                    getSpan()
+                );
                 return nullptr;
             }
 
@@ -942,7 +1224,21 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
         }
 
         if (n != type->fixedSize) {
-            console.error("Array expects '" + std::to_string(type->fixedSize) + "' elements or less but got '" + std::to_string(n) + "' instead.");
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Ensure array has exactly %s elements\n"
+                "2. Check array initializer syntax\n"
+                "3. Verify array size declaration",
+                std::to_string(type->fixedSize).c_str()
+            );
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                Omniscript::Console::formatString("Array expects '%s' elements or less but got '%s' instead",
+                                 std::to_string(type->fixedSize).c_str(), std::to_string(n).c_str()),
+                suggestion,
+                getSpan()
+            );
+            return nullptr;
         }
 
         result = std::make_shared<Omniscript::FixedArrayExpression>(values, expectedElementType);
@@ -958,10 +1254,23 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
         return nullptr;
     }
     else {
-        DEBUG_LOG("[Array] The array has a declared type: '" + type->toString() + "'");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Ensure type '%s' is a valid array type\n"
+            "2. Check for correct array type declaration\n"
+            "3. Verify type compatibility",
+            type->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("The array has an invalid declared type: '%s'",
+                             type->toString().c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
-    
+
     if (result) {
         result->setSpan(getSpan());
     }
@@ -969,59 +1278,19 @@ std::shared_ptr<Omniscript::Expression> Array::express(SymbolTableType scope) {
 }
 
 std::shared_ptr<Literal> Array::castTo(std::shared_ptr<Omniscript::Type> targetType) const {
-    // using Kind = Omniscript::Kind;
-
-    // if (!targetType) {
-    //     console.error("Target type for array cast is null.");
-    //     return nullptr;
-    // }
-
-    // std::vector<std::shared_ptr<Statement>> values;
-
-    // // --- Handle string conversions ---
-    // if (targetType->isString()) {
-    //     std::ostringstream stream;
-
-    //     for (size_t i = 0; i < intialValues.size(); ++i) {
-
-    //     }
-
-    //     std::string result = stream.str();
-    //     std::u32string resultUtf32(result.begin(), result.end());
-
-    //     auto strLiteral = std::make_shared<StringLiteral>(resultUtf32);
-    //     strLiteral->setType(targetType);
-    //     return strLiteral;
-    // }
-
-    // // --- Handle casting to another fixed array ---
-    // if (targetType->isFixedArray()) {
-    //     auto targetElemType = targetType->elementType;
-
-    //     if (targetType->getFixedSize() != values.size()) {
-    //         console.error("Cannot cast fixed array: size mismatch.");
-    //         return nullptr;
-    //     }
-
-    //     std::vector<std::shared_ptr<Omniscript::Expression>> castedValues;
-    //     for (const auto& val : values) {
-    //         if (!val) continue;
-
-    //         auto casted = val->castTo(targetElemType);
-    //         if (!casted) {
-    //             console.error("Failed to cast array element to target type " + targetElemType->toString());
-    //             return nullptr;
-    //         }
-
-    //         castedValues.push_back(casted);
-    //     }
-
-    //     auto newArray = std::make_shared<FixedArrayExpression>(castedValues, targetElemType);
-    //     newArray->setType(targetType);
-    // return newArray;
-    //     return nullptr;
-    // }
-
-    console.error("Cannot cast array to type '" + targetType->toString() + "'.");
+    std::string suggestion = Omniscript::Console::formatString(
+        "To resolve this:\n"
+        "1. Verify target type '%s' is valid for array casting\n"
+        "2. Check for supported array cast operations\n"
+        "3. Ensure correct type hierarchy",
+        targetType->toString().c_str()
+    );
+    console.reportError(
+        Omniscript::Console::TYPE_ERROR,
+        Omniscript::Console::formatString("Cannot cast array to type '%s'",
+                         targetType->toString().c_str()),
+        suggestion,
+        getSpan()
+    );
     return nullptr;
 }

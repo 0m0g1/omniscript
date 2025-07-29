@@ -36,7 +36,8 @@ public:
         PARSE_ERROR,
         LINK_ERROR,
         IO_ERROR,
-        INTERNAL_ERROR
+        INTERNAL_ERROR,
+        FATAL_ERROR
     };
 
     static Console& instance();

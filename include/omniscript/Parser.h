@@ -131,5 +131,6 @@ class Parser {
         std::shared_ptr<Statement> parseTypeDeclaration();                  
         std::shared_ptr<Statement> parseUsingAlias();                  
 
-        void eat(TokenTypes expectedType, const std::string& errorMessage = ""); 
+        void eat(TokenTypes expectedType, const std::string& errorMessage = "");
+        void eat(TokenTypes expectedType, const std::function<void()>& errorHandler);
 };

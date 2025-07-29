@@ -2,6 +2,7 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/utils.h>
+#include <omniscript/Core.h>
 
 Token Lexer::getNumberLiterals(char &currentChar) {
     if (std::isdigit(currentChar) || (currentChar == '.' && std::isdigit(peek())) ||

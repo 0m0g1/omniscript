@@ -1,4 +1,3 @@
-#include <omniscript/main.h>
 #include <omniscript/Engine.h>
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>

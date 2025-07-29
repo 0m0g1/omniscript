@@ -13,21 +13,74 @@
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 
-
 std::shared_ptr<Statement> Parser::parseExternFunction() {
     Token startToken = currentToken;
-    eat(TokenTypes::Extern);
+    Omniscript::FileSpan span;
+    span.start.line = startToken.getLine();
+    span.start.col = startToken.getColumn();
+    span.start.filePath = startToken.getFilePath();
+
+    eat(TokenTypes::Extern, [&]() {
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Start extern declaration with 'extern' keyword\n"
+            "2. Check for correct syntax\n"
+            "3. Expected token: 'extern', found '%s'",
+            getTokenTypeName(currentToken.getType()).c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SYNTAX_ERROR,
+            Omniscript::Console::formatString("Expected 'extern' keyword, found '%s'", 
+                getTokenTypeName(currentToken.getType()).c_str()),
+            suggestion,
+            span
+        );
+    });
 
     FunctionDeclaration::LibraryPaths libraryPaths;
     std::vector<std::string> paths;
 
     // Parse first path
+    if (currentToken.getType() != TokenTypes::StringLiteral) {
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Provide a valid library path as a string literal\n"
+            "2. Check extern declaration syntax\n"
+            "3. Expected token: string literal, found '%s'",
+            getTokenTypeName(currentToken.getType()).c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SYNTAX_ERROR,
+            Omniscript::Console::formatString("Expected string literal for library path, found '%s'", 
+                getTokenTypeName(currentToken.getType()).c_str()),
+            suggestion,
+            span
+        );
+        return nullptr;
+    }
     paths.push_back(currentToken.getValue());
     eat(TokenTypes::StringLiteral);
 
     // Parse additional paths
     while (currentToken.getType() == TokenTypes::Comma) {
         eat(TokenTypes::Comma);
+        if (currentToken.getType() != TokenTypes::StringLiteral) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Provide a valid library path as a string literal after comma\n"
+                "2. Check extern declaration syntax\n"
+                "3. Expected token: string literal, found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                Omniscript::Console::formatString("Expected string literal for library path, found '%s'", 
+                    getTokenTypeName(currentToken.getType()).c_str()),
+                suggestion,
+                span
+            );
+            return nullptr;
+        }
         paths.push_back(currentToken.getValue());
         eat(TokenTypes::StringLiteral);
     }
@@ -42,7 +95,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         else if (lowerPath.ends_with(".so")) libType = "shared";
         else if (lowerPath.ends_with(".dylib")) libType = "dylib";
         else if (lowerPath.ends_with(".a") || lowerPath.ends_with(".lib")) libType = "static";
-        else libType = "extensionless"; // Accept "kernel32", "glfw", etc.
+        else libType = "extensionless";
 
         std::string platform = "generic";
         if (lowerPath.find("win") != std::string::npos || 
@@ -106,29 +159,69 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         libraryPaths.windowsDynamic.empty() && libraryPaths.windowsStatic.empty() &&
         libraryPaths.linuxShared.empty() && libraryPaths.linuxStatic.empty() &&
         libraryPaths.macosShared.empty() && libraryPaths.macosStatic.empty()) {
-        console.error("No valid library paths found in extern declaration");
+        console.reportError(
+            Omniscript::Console::SYNTAX_ERROR,
+            "No valid library paths found in extern declaration",
+            "To resolve this:\n1. Provide at least one valid library path\n2. Ensure paths are string literals\n3. Check for supported extensions (.dll, .so, .dylib, .a, .lib)",
+            span
+        );
         return nullptr;
     }
 
     if (currentToken.getType() == TokenTypes::Function) {
         eat(TokenTypes::Function);
         std::string functionName = currentToken.getValue();
-        eat(TokenTypes::Identifier);
+        eat(TokenTypes::Identifier, [&]() {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Provide a valid function name after 'fn'\n"
+                "2. Check extern function syntax\n"
+                "3. Expected token: identifier, found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                Omniscript::Console::formatString("Expected identifier for function name, found '%s'", 
+                    getTokenTypeName(currentToken.getType()).c_str()),
+                suggestion,
+                span
+            );
+        });
 
         auto function = std::dynamic_pointer_cast<FunctionDeclaration>(
             parseLambdaFunction(functionName));
+        if (!function) {
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                "Failed to parse extern function declaration",
+                "To resolve this:\n1. Verify lambda function syntax\n2. Check parameter and return type syntax\n3. Ensure proper function body",
+                span
+            );
+            return nullptr;
+        }
         
         function->isExtern = true;
         function->libraryPaths = libraryPaths;
         function->externName = functionName;
         function->setPosition(startToken, previousToken);
+        function->setSpan(span);
+
+        span.end.line = previousToken.getLine();
+        span.end.col = previousToken.getColumn();
+        span.end.filePath = previousToken.getFilePath();
 
         return function;
 
     } else if (currentToken.getType() == TokenTypes::Let || currentToken.getType() == TokenTypes::Const) {
         auto assignment = std::dynamic_pointer_cast<AssignVariable>(parseAssignment());
         if (!assignment) {
-            console.error("Invalid assignment after let / const in external declaration");
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                "Invalid assignment after let/const in extern declaration",
+                "To resolve this:\n1. Verify assignment syntax\n2. Check for valid variable declaration\n3. Ensure proper initialization",
+                span
+            );
+            return nullptr;
         }
         assignment->isExtern = true;
         assignment->externName = assignment->getName();
@@ -141,6 +234,13 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         assignment->libraryPaths.genericDynamic  = libraryPaths.genericDynamic;   // fallback .so/.dll/.dylib
         assignment->libraryPaths.genericStatic   = libraryPaths.genericStatic;    // fallback .a/.lib
 
+        assignment->setPosition(startToken, previousToken);
+        assignment->setSpan(span);
+
+        span.end.line = previousToken.getLine();
+        span.end.col = previousToken.getColumn();
+        span.end.filePath = previousToken.getFilePath();
+
         return assignment;
     } else if (currentToken.getType() == TokenTypes::LeftBrace) {
         eat(TokenTypes::LeftBrace);
@@ -150,21 +250,53 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
             if (currentToken.getType() == TokenTypes::Function) {
                 eat(TokenTypes::Function);
                 std::string functionName = currentToken.getValue();
-                eat(TokenTypes::Identifier);
+                eat(TokenTypes::Identifier, [&]() {
+                    std::string suggestion = Omniscript::Console::formatString(
+                        "To resolve this:\n"
+                        "1. Provide a valid function name after 'fn'\n"
+                        "2. Check extern function syntax\n"
+                        "3. Expected token: identifier, found '%s'",
+                        getTokenTypeName(currentToken.getType()).c_str()
+                    );
+                    console.reportError(
+                        Omniscript::Console::SYNTAX_ERROR,
+                        Omniscript::Console::formatString("Expected identifier for function name, found '%s'", 
+                            getTokenTypeName(currentToken.getType()).c_str()),
+                        suggestion,
+                        span
+                    );
+                });
     
                 auto function = std::dynamic_pointer_cast<FunctionDeclaration>(
                     parseLambdaFunction(functionName));
+                if (!function) {
+                    console.reportError(
+                        Omniscript::Console::SYNTAX_ERROR,
+                        "Failed to parse extern function in block",
+                        "To resolve this:\n1. Verify lambda function syntax\n2. Check parameter and return type syntax\n3. Ensure proper function body",
+                        span
+                    );
+                    return nullptr;
+                }
                 
                 function->isExtern = true;
                 function->libraryPaths = libraryPaths;
                 function->externName = functionName;
+                function->setPosition(startToken, previousToken);
+                function->setSpan(span);
     
                 functions.push_back(function);
                 
             } else if (currentToken.getType() == TokenTypes::Let || currentToken.getType() == TokenTypes::Const) {
                 auto assignment = std::dynamic_pointer_cast<AssignVariable>(parseAssignment());
                 if (!assignment) {
-                    console.error("Invalid assignment after let / const in external declaration");
+                    console.reportError(
+                        Omniscript::Console::SYNTAX_ERROR,
+                        "Invalid assignment after let/const in extern block",
+                        "To resolve this:\n1. Verify assignment syntax\n2. Check for valid variable declaration\n3. Ensure proper initialization",
+                        span
+                    );
+                    return nullptr;
                 }
                 assignment->isExtern = true;
                 assignment->externName = assignment->getName();
@@ -177,7 +309,19 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                 assignment->libraryPaths.genericDynamic  = libraryPaths.genericDynamic;   // fallback .so/.dll/.dylib
                 assignment->libraryPaths.genericStatic   = libraryPaths.genericStatic;    // fallback .a/.lib
 
+                assignment->setPosition(startToken, previousToken);
+                assignment->setSpan(span);
+
                 functions.push_back(assignment);
+            } else {
+                console.reportError(
+                    Omniscript::Console::SYNTAX_ERROR,
+                    Omniscript::Console::formatString("Expected 'fn', 'let', or 'const' in extern block, found '%s'", 
+                        getTokenTypeName(currentToken.getType()).c_str()),
+                    "To resolve this:\n1. Use 'fn' for function declarations or 'let'/'const' for variable declarations\n2. Check extern block syntax\n3. Ensure valid declarations",
+                    span
+                );
+                return nullptr;
             }
 
             if (currentToken.getType() == TokenTypes::Semicolon) {
@@ -185,28 +329,109 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
             }
         }
 
-        eat(TokenTypes::RightBrace);
+        eat(TokenTypes::RightBrace, [&]() {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Close extern block with '}'\n"
+                "2. Check for matching braces\n"
+                "3. Expected token: '}', found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                Omniscript::Console::formatString("Expected '}' to close extern block, found '%s'", 
+                    getTokenTypeName(currentToken.getType()).c_str()),
+                suggestion,
+                span
+            );
+        });
+
+        span.end.line = previousToken.getLine();
+        span.end.col = previousToken.getColumn();
+        span.end.filePath = previousToken.getFilePath();
+
         auto block = std::make_shared<BlockStatement>(functions);
         block->setPosition(startToken, previousToken);
+        block->setSpan(span);
         return block;
     }
 
-    console.error("Expected function declaration or block after extern library paths");
+    console.reportError(
+        Omniscript::Console::SYNTAX_ERROR,
+        Omniscript::Console::formatString("Expected 'fn', 'let', 'const', or '{' after extern library paths, found '%s'", 
+            getTokenTypeName(currentToken.getType()).c_str()),
+        "To resolve this:\n1. Use 'fn' for function declarations, 'let'/'const' for variables, or '{' for a block\n2. Check extern declaration syntax\n3. Ensure valid declarations",
+        span
+    );
     return nullptr;
 }
 
 std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
     Token startToken = currentToken;
-    eat(TokenTypes::Intrinsic);
+    Omniscript::FileSpan span;
+    span.start.line = startToken.getLine();
+    span.start.col = startToken.getColumn();
+    span.start.filePath = startToken.getFilePath();
+
+    eat(TokenTypes::Intrinsic, [&]() {
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Start intrinsic declaration with 'intrinsic' keyword\n"
+            "2. Check for correct syntax\n"
+            "3. Expected token: 'intrinsic', found '%s'",
+            getTokenTypeName(currentToken.getType()).c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SYNTAX_ERROR,
+            Omniscript::Console::formatString("Expected 'intrinsic' keyword, found '%s'", 
+                getTokenTypeName(currentToken.getType()).c_str()),
+            suggestion,
+            span
+        );
+    });
+
     if (currentToken.getType() == TokenTypes::Function) {
         eat(TokenTypes::Function);
     }
+
     std::string functionName = currentToken.getValue();
-    eat(TokenTypes::Identifier);
-    std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(parseLambdaFunction(functionName));
+    eat(TokenTypes::Identifier, [&]() {
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Provide a valid function name after 'intrinsic'\n"
+            "2. Check intrinsic function syntax\n"
+            "3. Expected token: identifier, found '%s'",
+            getTokenTypeName(currentToken.getType()).c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SYNTAX_ERROR,
+            Omniscript::Console::formatString("Expected identifier for intrinsic function name, found '%s'", 
+                getTokenTypeName(currentToken.getType()).c_str()),
+            suggestion,
+            span
+        );
+    });
+
+    std::shared_ptr<FunctionDeclaration> function = std::dynamic_pointer_cast<FunctionDeclaration>(
+        parseLambdaFunction(functionName));
+    if (!function) {
+        console.reportError(
+            Omniscript::Console::SYNTAX_ERROR,
+            "Failed to parse intrinsic function declaration",
+            "To resolve this:\n1. Verify lambda function syntax\n2. Check parameter and return type syntax\n3. Ensure proper function body",
+            span
+        );
+        return nullptr;
+    }
+
     function->isIntrinsic = true;
     function->intrinsicName = functionName;
     function->setPosition(startToken, previousToken);
+    function->setSpan(span);
+
+    span.end.line = previousToken.getLine();
+    span.end.col = previousToken.getColumn();
+    span.end.filePath = previousToken.getFilePath();
 
     return function;
 }
@@ -224,13 +449,47 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     std::shared_ptr<Omniscript::Type> type
 ) {
     Token startToken = currentToken;
+    Omniscript::FileSpan span;
+    span.start.line = startToken.getLine();
+    span.start.col = startToken.getColumn();
+    span.start.filePath = startToken.getFilePath();
 
     std::string name = definedName;
     
     if (name.empty()) {
-        eat(TokenTypes::Function);
+        eat(TokenTypes::Function, [&]() {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Start function declaration with 'fn' keyword\n"
+                "2. Check for correct syntax\n"
+                "3. Expected token: 'fn', found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                Omniscript::Console::formatString("Expected 'fn' keyword, found '%s'", 
+                    getTokenTypeName(currentToken.getType()).c_str()),
+                suggestion,
+                span
+            );
+        });
         name = currentToken.getValue();
-        eat(TokenTypes::Identifier);
+        eat(TokenTypes::Identifier, [&]() {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Provide a valid function name after 'fn'\n"
+                "2. Check function declaration syntax\n"
+                "3. Expected token: identifier, found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                Omniscript::Console::formatString("Expected identifier for function name, found '%s'", 
+                    getTokenTypeName(currentToken.getType()).c_str()),
+                suggestion,
+                span
+            );
+        });
     }
     
     DEBUG_LOG("Parsing function " + name);
@@ -249,13 +508,29 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     if (type) {
         auto param = std::make_shared<ParameterStatement>("this", nullptr, true);
         param->setType(Omniscript::Type::createPointerType(type));
+        param->setSpan(span);
         parameters.insert(parameters.begin(), std::dynamic_pointer_cast<Statement>(param));
     }
 
     std::shared_ptr<Omniscript::Type> returnType = nullptr;
     std::vector<std::string> returnDataType;
     if (currentToken.getType() != TokenTypes::LeftBrace) {
-        eat(TokenTypes::Arrow);
+        eat(TokenTypes::Arrow, [&]() {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Use '=>' for return type\n"
+                "2. Check function declaration syntax\n"
+                "3. Expected token: '=>', found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                Omniscript::Console::formatString("Expected '=>' for return type, found '%s'", 
+                    getTokenTypeName(currentToken.getType()).c_str()),
+                suggestion,
+                span
+            );
+        });
         returnDataType = parseType();
         returnType = Omniscript::resolveType(returnDataType);
     } else {
@@ -266,26 +541,37 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
 
     if (currentToken.getType() == TokenTypes::LeftBrace) {
         body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
+        if (!body) {
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                "Failed to parse function body",
+                "To resolve this:\n1. Verify block syntax\n2. Check for valid block structure\n3. Ensure block starts with '{'",
+                span
+            );
+            return nullptr;
+        }
     } else {
         body = BlockStatement::create();
     }
 
+    span.end.line = previousToken.getLine();
+    span.end.col = previousToken.getColumn();
+    span.end.filePath = previousToken.getFilePath();
+
     if (!types.empty()) {
         std::vector<std::shared_ptr<Statement>> monomorphizedFunctions;
 
-        // Special case: Single type parameter with simple alternatives (like i8 | i32)
+        // Special case: Single type parameter with simple alternatives
         if (types.size() == 1 && !types[0].second.empty()) {
             const auto& typeParam = types[0];
             const auto& constraints = typeParam.second;
 
-            // Check if all constraints are simple types (not variant/any)
             bool allSimple = std::all_of(constraints.begin(), constraints.end(),
                 [](const std::vector<std::string>& c) {
                     return c.size() == 1 && c[0] != "any" && c[0] != "variant";
                 });
 
             if (allSimple) {
-                // Generate one function for each constraint
                 for (const auto& constraint : constraints) {
                     std::vector<std::pair<std::string, std::vector<std::string>>> selectedTypes = {
                         {typeParam.first, constraint}
@@ -294,7 +580,6 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                     std::string specializedName = generateSpecializedNameForDecleration(name, selectedTypes);
                     
                     std::vector<std::shared_ptr<Statement>> clonedParameters;
-
                     for (const auto& param : parameters) {
                         clonedParameters.push_back(param->clone());
                     }
@@ -304,16 +589,19 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                     
                     func->addGenericParam(typeParam.first);
                     func->bindGeneric(typeParam.first, Omniscript::resolveType(constraint));
+                    func->setPosition(startToken, previousToken);
+                    func->setSpan(span);
                     
                     monomorphizedFunctions.push_back(func);
                 }
                 auto block = std::make_shared<BlockStatement>(monomorphizedFunctions);
                 block->setPosition(startToken, previousToken);
+                block->setSpan(span);
                 return block;
             }
         }
 
-        // General case: Use cartesian product for multiple type parameters or complex constraints
+        // General case: Use cartesian product for multiple type parameters
         std::vector<size_t> indices(types.size(), 0);
         std::vector<size_t> sizes;
         for (const auto& type : types) {
@@ -322,7 +610,6 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
 
         bool done = false;
         while (!done) {
-            // Generate one combination
             std::vector<std::pair<std::string, std::vector<std::string>>> selectedTypes;
             for (size_t i = 0; i < types.size(); ++i) {
                 const auto& type = types[i];
@@ -347,9 +634,10 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                 }
             }
 
+            func->setPosition(startToken, previousToken);
+            func->setSpan(span);
             monomorphizedFunctions.push_back(func);
 
-            // Increment the index vector
             for (size_t i = types.size(); i-- > 0;) {
                 indices[i]++;
                 if (indices[i] < sizes[i]) {
@@ -363,6 +651,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
 
         auto block = std::make_shared<BlockStatement>(monomorphizedFunctions);
         block->setPosition(startToken, previousToken);
+        block->setSpan(span);
         return block;
     }
 
@@ -370,6 +659,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     returnType = Omniscript::resolveType(returnDataType);
     auto function = std::make_shared<FunctionDeclaration>(name, parameters, body, returnType);
     function->setPosition(startToken, previousToken);
+    function->setSpan(span);
     return function;
 }
 
@@ -458,7 +748,7 @@ bool Parser::checkIfLambdaExpression() {
                                     }
                                 }
                                 
-                                // Skip over parameter type (simplified - would need recursive parsing for complex types)
+                                // Skip over parameter type
                                 while (lexer.peekToken(i).getType() == TokenTypes::Identifier ||
                                        lexer.peekToken(i).getType() == TokenTypes::Multiply ||
                                        lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
@@ -471,11 +761,33 @@ bool Parser::checkIfLambdaExpression() {
                                         if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
                                             lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                                             i++; // consume size
+                                        } else {
+                                            std::string suggestion = "To resolve this:\n"
+                                                                   "1. Provide a valid array size (integer or identifier)\n"
+                                                                   "2. Check array syntax\n"
+                                                                   "3. Ensure correct bracket usage";
+                                            console.reportError(
+                                                Omniscript::Console::SYNTAX_ERROR,
+                                                Omniscript::Console::formatString("Expected integer or identifier for array size, got '%s'",
+                                                                 getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                                suggestion
+                                            );
+                                            return false;
                                         }
                                         if (lexer.peekToken(i).getType() == TokenTypes::RightBracket) {
                                             i++; // consume ']'
                                         } else {
-                                            return false; // Invalid array syntax
+                                            std::string suggestion = "To resolve this:\n"
+                                                                   "1. Close array type with ']'\n"
+                                                                   "2. Check for matching brackets\n"
+                                                                   "3. Verify array syntax";
+                                            console.reportError(
+                                                Omniscript::Console::SYNTAX_ERROR,
+                                                Omniscript::Console::formatString("Expected ']' to close array type, got '%s'",
+                                                                 getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                                suggestion
+                                            );
+                                            return false;
                                         }
                                     } else {
                                         i++;
@@ -486,7 +798,17 @@ bool Parser::checkIfLambdaExpression() {
                                 if (lexer.peekToken(i).getType() == TokenTypes::Comma) {
                                     i++; // consume ','
                                 } else if (lexer.peekToken(i).getType() != TokenTypes::RightParen) {
-                                    return false; // Expected comma or closing paren
+                                    std::string suggestion = "To resolve this:\n"
+                                                           "1. Use ',' to separate parameters or ')' to close parameter list\n"
+                                                           "2. Check function parameter syntax\n"
+                                                           "3. Ensure valid parameter declarations";
+                                    console.reportError(
+                                        Omniscript::Console::SYNTAX_ERROR,
+                                        Omniscript::Console::formatString("Expected ',' or ')', got '%s'",
+                                                         getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                        suggestion
+                                    );
+                                    return false;
                                 }
                             }
                             
@@ -503,7 +825,7 @@ bool Parser::checkIfLambdaExpression() {
                                     i += 2; // consume '=' and '>'
                                 }
                                 
-                                // Skip over return type (simplified)
+                                // Skip over return type
                                 while (lexer.peekToken(i).getType() == TokenTypes::Identifier ||
                                        lexer.peekToken(i).getType() == TokenTypes::Multiply ||
                                        lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
@@ -516,11 +838,33 @@ bool Parser::checkIfLambdaExpression() {
                                         if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
                                             lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                                             i++; // consume size
+                                        } else {
+                                            std::string suggestion = "To resolve this:\n"
+                                                                   "1. Provide a valid array size (integer or identifier)\n"
+                                                                   "2. Check array syntax\n"
+                                                                   "3. Ensure correct bracket usage";
+                                            console.reportError(
+                                                Omniscript::Console::SYNTAX_ERROR,
+                                                Omniscript::Console::formatString("Expected integer or identifier for array size, got '%s'",
+                                                                 getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                                suggestion
+                                            );
+                                            return false;
                                         }
                                         if (lexer.peekToken(i).getType() == TokenTypes::RightBracket) {
                                             i++; // consume ']'
                                         } else {
-                                            return false; // Invalid array syntax
+                                            std::string suggestion = "To resolve this:\n"
+                                                                   "1. Close array type with ']'\n"
+                                                                   "2. Check for matching brackets\n"
+                                                                   "3. Verify array syntax";
+                                            console.reportError(
+                                                Omniscript::Console::SYNTAX_ERROR,
+                                                Omniscript::Console::formatString("Expected ']' to close array type, got '%s'",
+                                                                 getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                                suggestion
+                                            );
+                                            return false;
                                         }
                                     } else {
                                         i++;
@@ -530,53 +874,85 @@ bool Parser::checkIfLambdaExpression() {
                         }
                     } else {
                         // Parse regular types (non-function types)
-                        
-                        // Parse prefix modifiers (*, &, ?)
                         while (lexer.peekToken(i).getType() == TokenTypes::Multiply ||
                                lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
                                lexer.peekToken(i).getType() == TokenTypes::QuestionMark) {
                             i++;
                         }
                         
-                        // Parse the main identifier (required for basic types)
                         if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                             i++;
                             
-                            // Handle dotted identifiers (e.g., std.vector)
                             while (lexer.peekToken(i).getType() == TokenTypes::Dot) {
                                 i++; // consume '.'
                                 if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                                     i++; // consume identifier
                                 } else {
-                                    return false; // Invalid dotted identifier
+                                    std::string suggestion = "To resolve this:\n"
+                                                           "1. Provide a valid identifier after '.'\n"
+                                                           "2. Check dotted type syntax (e.g., std.vector)\n"
+                                                           "3. Ensure type is defined";
+                                    console.reportError(
+                                        Omniscript::Console::SYNTAX_ERROR,
+                                        Omniscript::Console::formatString("Expected identifier after '.', got '%s'",
+                                                         getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                        suggestion
+                                    );
+                                    return false;
                                 }
                             }
                         } else {
-                            return false; // Expected type identifier
+                            std::string suggestion = "To resolve this:\n"
+                                                   "1. Provide a valid type identifier\n"
+                                                   "2. Check type annotation syntax\n"
+                                                   "3. Ensure type is defined";
+                            console.reportError(
+                                Omniscript::Console::SYNTAX_ERROR,
+                                Omniscript::Console::formatString("Expected type identifier, got '%s'",
+                                                 getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                suggestion
+                            );
+                            return false;
                         }
                         
-                        // Parse suffix modifiers (*, &, ?)
                         while (lexer.peekToken(i).getType() == TokenTypes::Multiply ||
                                lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
                                lexer.peekToken(i).getType() == TokenTypes::QuestionMark) {
                             i++;
                         }
                         
-                        // Parse array brackets
                         while (lexer.peekToken(i).getType() == TokenTypes::LeftBracket) {
                             i++; // consume '['
-                            
                             if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
                                 lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                                 i++; // consume size
                             } else {
-                                return false; // Invalid array syntax
+                                std::string suggestion = "To resolve this:\n"
+                                                       "1. Provide a valid array size (integer or identifier)\n"
+                                                       "2. Check array syntax\n"
+                                                       "3. Ensure correct bracket usage";
+                                console.reportError(
+                                    Omniscript::Console::SYNTAX_ERROR,
+                                    Omniscript::Console::formatString("Expected integer or identifier for array size, got '%s'",
+                                                     getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                    suggestion
+                                );
+                                return false;
                             }
-                            
                             if (lexer.peekToken(i).getType() == TokenTypes::RightBracket) {
                                 i++; // consume ']'
                             } else {
-                                return false; // Missing closing bracket
+                                std::string suggestion = "To resolve this:\n"
+                                                       "1. Close array type with ']'\n"
+                                                       "2. Check for matching brackets\n"
+                                                       "3. Verify array syntax";
+                                console.reportError(
+                                    Omniscript::Console::SYNTAX_ERROR,
+                                    Omniscript::Console::formatString("Expected ']' to close array type, got '%s'",
+                                                     getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                    suggestion
+                                );
+                                return false;
                             }
                         }
                     }
@@ -585,30 +961,56 @@ bool Parser::checkIfLambdaExpression() {
                 // Check for default value
                 if (lexer.peekToken(i).getType() == TokenTypes::Assign) {
                     i++; // consume '='
-                    
-                    // Parse default value (simplified - could be more complex expressions)
                     if (lexer.peekToken(i).getType() == TokenTypes::IntegerLiteral ||
                         lexer.peekToken(i).getType() == TokenTypes::FloatLiteral ||
                         lexer.peekToken(i).getType() == TokenTypes::StringLiteral ||
                         lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                         i++;
                     } else {
-                        return false; // Invalid default value
+                        std::string suggestion = "To resolve this:\n"
+                                               "1. Provide a valid default value (integer, float, string, or identifier)\n"
+                                               "2. Check default value syntax\n"
+                                               "3. Ensure valid expression";
+                        console.reportError(
+                            Omniscript::Console::SYNTAX_ERROR,
+                            Omniscript::Console::formatString("Expected valid default value, got '%s'",
+                                             getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                            suggestion
+                        );
+                        return false;
                     }
                 }
                 
-                // Handle comma-separated parameters
                 if (lexer.peekToken(i).getType() == TokenTypes::Comma) {
                     i++; // consume ','
                 } else if (lexer.peekToken(i).getType() != TokenTypes::RightParen) {
-                    return false; // Expected comma or closing paren
+                    std::string suggestion = "To resolve this:\n"
+                                           "1. Use ',' to separate parameters or ')' to close parameter list\n"
+                                           "2. Check parameter syntax\n"
+                                           "3. Ensure valid parameter declarations";
+                    console.reportError(
+                        Omniscript::Console::SYNTAX_ERROR,
+                        Omniscript::Console::formatString("Expected ',' or ')', got '%s'",
+                                         getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                        suggestion
+                    );
+                    return false;
                 }
             } else {
-                return false; // Expected parameter name
+                std::string suggestion = "To resolve this:\n"
+                                       "1. Provide a valid parameter name\n"
+                                       "2. Check parameter syntax\n"
+                                       "3. Ensure valid identifier";
+                console.reportError(
+                    Omniscript::Console::SYNTAX_ERROR,
+                    Omniscript::Console::formatString("Expected parameter name, got '%s'",
+                                     getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                    suggestion
+                );
+                return false;
             }
         }
         
-        // Check for closing paren and arrow
         if (lexer.peekToken(i).getType() == TokenTypes::RightParen) {
             i++; // consume ')'
             
@@ -616,16 +1018,13 @@ bool Parser::checkIfLambdaExpression() {
             if (lexer.peekToken(i).getType() == TokenTypes::Colon) {
                 i++; // consume ':'
                 
-                // Parse return type (same logic as parameter types)
                 if (lexer.peekToken(i).getType() == TokenTypes::Function) {
-                    // Handle function return type (simplified)
                     while (lexer.peekToken(i).getType() != TokenTypes::Arrow &&
                            lexer.peekToken(i).getType() != TokenTypes::EOI &&
                            lexer.peekToken(i).getType() != TokenTypes::LeftBrace) {
                         i++;
                     }
                 } else {
-                    // Parse regular return type
                     while (lexer.peekToken(i).getType() == TokenTypes::Multiply ||
                            lexer.peekToken(i).getType() == TokenTypes::BitwiseAnd ||
                            lexer.peekToken(i).getType() == TokenTypes::QuestionMark) {
@@ -634,17 +1033,36 @@ bool Parser::checkIfLambdaExpression() {
                     
                     if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                         i++;
-                        
                         while (lexer.peekToken(i).getType() == TokenTypes::Dot) {
                             i++; // consume '.'
                             if (lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                                 i++; // consume identifier
                             } else {
-                                return false; // Invalid dotted identifier
+                                std::string suggestion = "To resolve this:\n"
+                                                       "1. Provide a valid identifier after '.'\n"
+                                                       "2. Check dotted type syntax (e.g., std.vector)\n"
+                                                       "3. Ensure type is defined";
+                                console.reportError(
+                                    Omniscript::Console::SYNTAX_ERROR,
+                                    Omniscript::Console::formatString("Expected identifier after '.', got '%s'",
+                                                     getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                    suggestion
+                                );
+                                return false;
                             }
                         }
                     } else {
-                        return false; // Expected return type identifier
+                        std::string suggestion = "To resolve this:\n"
+                                               "1. Provide a valid return type identifier\n"
+                                               "2. Check return type syntax\n"
+                                               "3. Ensure type is defined";
+                        console.reportError(
+                            Omniscript::Console::SYNTAX_ERROR,
+                            Omniscript::Console::formatString("Expected return type identifier, got '%s'",
+                                             getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                            suggestion
+                        );
+                        return false;
                     }
                     
                     while (lexer.peekToken(i).getType() == TokenTypes::Multiply ||
@@ -659,21 +1077,52 @@ bool Parser::checkIfLambdaExpression() {
                             lexer.peekToken(i).getType() == TokenTypes::Identifier) {
                             i++; // consume size
                         } else {
-                            return false; // Invalid array syntax
+                            std::string suggestion = "To resolve this:\n"
+                                                   "1. Provide a valid array size (integer or identifier)\n"
+                                                   "2. Check array syntax\n"
+                                                   "3. Ensure correct bracket usage";
+                            console.reportError(
+                                Omniscript::Console::SYNTAX_ERROR,
+                                Omniscript::Console::formatString("Expected integer or identifier for array size, got '%s'",
+                                                 getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                suggestion
+                            );
+                            return false;
                         }
                         if (lexer.peekToken(i).getType() == TokenTypes::RightBracket) {
                             i++; // consume ']'
                         } else {
-                            return false; // Missing closing bracket
+                            std::string suggestion = "To resolve this:\n"
+                                                   "1. Close array type with ']'\n"
+                                                   "2. Check for matching brackets\n"
+                                                   "3. Verify array syntax";
+                            console.reportError(
+                                Omniscript::Console::SYNTAX_ERROR,
+                                Omniscript::Console::formatString("Expected ']' to close array type, got '%s'",
+                                                 getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                                suggestion
+                            );
+                            return false;
                         }
                     }
                 }
             }
             
-            // Check for arrow operator
             if (lexer.peekToken(i).getType() == TokenTypes::Arrow) {
                 return true;
             }
+        } else {
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Close parameter list with ')'\n"
+                                   "2. Check for matching parentheses\n"
+                                   "3. Verify parameter syntax";
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                Omniscript::Console::formatString("Expected ')', got '%s'",
+                                 getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
+                suggestion
+            );
+            return false;
         }
     }
     

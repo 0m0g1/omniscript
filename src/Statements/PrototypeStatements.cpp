@@ -21,7 +21,6 @@
 #include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
-
 // ============================== Prototypes  ============================== //
 std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableType scope) {
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
@@ -31,6 +30,23 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
         if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
             type = scope->getType(unresolved->joinedTypeString);
             rootType = type;
+            if (!type) {
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify type '%s' is defined in scope '%s'\n"
+                    "2. Check for correct namespace imports\n"
+                    "3. Ensure type is declared before use",
+                    unresolved->joinedTypeString.c_str(), scope->getName().c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Type '%s' does not exist in scope '%s'",
+                                     unresolved->joinedTypeString.c_str(), scope->getName().c_str()),
+                    suggestion,
+                    getSpan()
+                );
+                return nullptr;
+            }
         }
     }
 
@@ -59,7 +75,21 @@ std::shared_ptr<Omniscript::Expression> ParameterStatement::express(SymbolTableT
                 auto result = clone->express(scope);
                 auto resultType = result->getType();
                 isValidDefaultValue = true;
-                // console.error("The the default value " + defaultValue->toString() + " of parameter '" + name + "' has no type.");
+                // Previously: console.error("The the default value " + defaultValue->toString() + " of parameter '" + name + "' has no type.");
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Ensure default value '%s' has a defined type\n"
+                    "2. Check for proper type annotations\n"
+                    "3. Verify expression initialization",
+                    defaultValue->toString().c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("The default value '%s' of parameter '%s' has no type",
+                                     defaultValue->toString().c_str(), name.c_str()),
+                    suggestion,
+                    defaultValue->getSpan()
+                );
             }
         } else {
             isValidDefaultValue = false;
@@ -129,7 +159,21 @@ std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableTy
             type = scope->getType(unresolved->joinedTypeString);
             rootType = type;
             if (!type) {
-                console.error("Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'.");
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify type '%s' is defined in scope '%s'\n"
+                    "2. Check for correct namespace imports\n"
+                    "3. Ensure type is declared before use",
+                    unresolved->joinedTypeString.c_str(), scope->getName().c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Type '%s' does not exist in scope '%s'",
+                                     unresolved->joinedTypeString.c_str(), scope->getName().c_str()),
+                    suggestion,
+                    getSpan()
+                );
+                return nullptr;
             }
         }
     }
@@ -152,11 +196,7 @@ std::shared_ptr<Omniscript::Expression> ArgumentStatement::express(SymbolTableTy
 }
 
 std::shared_ptr<Statement> ParameterStatement::getDefaultValue() {
-    // if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(defaultValue)) {
-    //     stmt->setType(type);
-    // }
     return defaultValue;
-    // return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> ClassMember::express(SymbolTableType scope) {
@@ -188,6 +228,23 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
                 }
 
                 std::shared_ptr<Omniscript::Expression> fieldExpr = paramDecl->express(localScope);
+                if (!fieldExpr) {
+                    std::string suggestion = Omniscript::Console::formatString(
+                        "To resolve this:\n"
+                        "1. Verify field '%s' is correctly defined\n"
+                        "2. Check field type and default value\n"
+                        "3. Add debug output for field expression",
+                        fieldName.c_str()
+                    );
+                    console.reportError(
+                        Omniscript::Console::RUNTIME_ERROR,
+                        Omniscript::Console::formatString("Failed to evaluate field '%s' in struct '%s'",
+                                         fieldName.c_str(), name.c_str()),
+                        suggestion,
+                        paramDecl->getSpan()
+                    );
+                    return nullptr;
+                }
     
                 fields.push_back(fieldExpr);
                 fieldExpr->getType()->parameterName = fieldName;
@@ -197,9 +254,18 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
 
         } else {
             if (auto method = std::dynamic_pointer_cast<FunctionDeclaration>(field)) {
-                    methodDeclr.push_back(method);
+                methodDeclr.push_back(method);
             } else {
-                console.warn("Skipping non-method and non-field declaration in struct body");
+                std::string suggestion = "To resolve this:\n"
+                                       "1. Ensure struct body contains only fields or methods\n"
+                                       "2. Check for valid struct member declarations\n"
+                                       "3. Verify syntax of struct body";
+                console.reportError(
+                    Omniscript::Console::SEMANTIC_ERROR,
+                    "Skipping non-method and non-field declaration in struct body",
+                    suggestion,
+                    field->getSpan()
+                );
             }
         }
     }
@@ -240,6 +306,23 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
 
         // Compile the method to an expression (LLVM function pointer, etc.)
         std::shared_ptr<Omniscript::Expression> method = field->express(scope);
+        if (!method) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Verify method in struct '%s' is correctly defined\n"
+                "2. Check method body and parameters\n"
+                "3. Add debug output for method compilation",
+                name.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("Failed to compile method in struct '%s'",
+                                 name.c_str()),
+                suggestion,
+                field->getSpan()
+            );
+            return nullptr;
+        }
         methods.push_back(method);
     }
     
@@ -250,6 +333,7 @@ std::shared_ptr<Omniscript::Expression> ConstructStructPrototype::express(Symbol
     }
     
     auto block = std::make_shared<Omniscript::BlockExpression>(stmts);
+    block->setSpan(getSpan());
 
     return block;
 }
@@ -299,6 +383,23 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
         structExpr->elementNames.push_back(fieldName);
 
         std::shared_ptr<Omniscript::Expression> fieldExpr = param->express(localScope);
+        if (!fieldExpr) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Verify field '%s' in class '%s' is correctly defined\n"
+                "2. Check field type and default value\n"
+                "3. Add debug output for field expression",
+                fieldName.c_str(), name.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("Failed to evaluate field '%s' in class '%s'",
+                                 fieldName.c_str(), name.c_str()),
+                suggestion,
+                param->getSpan()
+            );
+            return nullptr;
+        }
         fields.push_back(fieldExpr);
         fieldExpr->getType()->parameterName = fieldName;
         classType->paramTypes.push_back(fieldExpr->getType());
@@ -335,7 +436,20 @@ std::shared_ptr<Omniscript::Expression> ConstructClassPrototype::express(SymbolT
 
             auto methodExpr = func->express(scope); // Retrieve compiled function expression
             if (!methodExpr) {
-                console.error("Failed to generate function expression for: " + funcName);
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify method '%s' in class '%s' is correctly defined\n"
+                    "2. Check method body and parameters\n"
+                    "3. Add debug output for method compilation",
+                    funcName.c_str(), name.c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::RUNTIME_ERROR,
+                    Omniscript::Console::formatString("Failed to generate function expression for: '%s'",
+                                     funcName.c_str()),
+                    suggestion,
+                    func->getSpan()
+                );
                 continue;
             }
 
@@ -370,7 +484,20 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
     DEBUG_LOG("Constructing '" + instanceName + "' of type '" + objectType + "'.");
     
     if (!scope->getType(objectType)) {
-        console.error("Object type was not found in the scope");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify type '%s' is defined in scope '%s'\n"
+            "2. Check for correct namespace imports\n"
+            "3. Ensure type is declared before use",
+            objectType.c_str(), scope->getName().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Object type '%s' was not found in the scope",
+                             objectType.c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
     
@@ -382,7 +509,20 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
     auto call = std::dynamic_pointer_cast<Omniscript::CallExpression>(constructorCall->express(scope));
     
     if (!call) {
-        console.error("Failed to create instance of '" + objectType + "'");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify type '%s' has a valid default constructor\n"
+            "2. Check constructor accessibility\n"
+            "3. Add debug output for constructor call",
+            objectType.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Failed to create instance of '%s'",
+                             objectType.c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
     
@@ -433,7 +573,20 @@ std::shared_ptr<Omniscript::Expression> ObjectConstructorStatement::express(Symb
         // Call constructor with the provided arguments
         auto ctorCall = std::make_shared<Call>(objectType + ".constructor", instanceName, ctorArgs)->express(scope);
         if (!ctorCall) {
-            console.error("Failed to call constructor for '" + objectType + "'");
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Verify constructor for '%s' accepts provided arguments\n"
+                "2. Check argument types and count\n"
+                "3. Add debug output for constructor arguments",
+                objectType.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("Failed to call constructor for '%s'",
+                                 objectType.c_str()),
+                suggestion,
+                getSpan()
+            );
             return nullptr;
         }
         

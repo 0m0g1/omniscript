@@ -49,6 +49,23 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
             type = scope->getType(unresolved->joinedTypeString);
             returnType = type;
             rootType = type;
+            if (!type) {
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify type '%s' is defined in scope '%s'\n"
+                    "2. Check for correct namespace imports\n"
+                    "3. Ensure type is declared before use",
+                    unresolved->joinedTypeString.c_str(), scope->getName().c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    Omniscript::Console::formatString("Return type '%s' does not exist in scope '%s'",
+                                     unresolved->joinedTypeString.c_str(), scope->getName().c_str()),
+                    suggestion,
+                    getSpan()
+                );
+                return;
+            }
         }
     } else if (type->isGeneric()) {
         type = resolveGeneric(type->getName());
@@ -80,6 +97,23 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
             }
         }
         auto result = param->express(localScope);
+        if (!result) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Verify parameter '%s' is correctly defined\n"
+                "2. Check parameter type and initialization\n"
+                "3. Add debug output for parameter expression",
+                param->toString().c_str()
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("Failed to evaluate parameter '%s'",
+                                 param->toString().c_str()),
+                suggestion,
+                param->getSpan()
+            );
+            return;
+        }
         if (auto paramStmt = std::dynamic_pointer_cast<ParameterStatement>(param)) {
             if (paramStmt->isVariadic) {
                 isVarArg = true;
@@ -91,7 +125,7 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
                 std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(result)->isConstant = false;
             }
         }
-        argValues.push_back(result);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+        argValues.push_back(result);
         DEBUG_LOG("[Function] Parameter '" + result->name + "' has type " + result->getType()->toString());
         paramIndex++;
     }
@@ -101,13 +135,9 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
         holder->inheritGenericsFrom(*this);
     }
     
-    // auto bod = body->resolveExpressions(localScope);
     extendContextOf(body);
     
     std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = {};
-    // for (auto& stmt : body->statements) {
-    //     functionBody.push_back(stmt->express(localScope));
-    // }
 
     std::string mangledName = (name == "main" ? "main" : generateMangledName());
 
@@ -156,10 +186,10 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
                     for (const auto& parameter : funcExpr->parameters) {
                         auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(parameter);
                         if (param->isVariadic) {
-                            // overide the variadics name with a static array
+                            // override the variadic's name with a static array
                             auto argsCount = std::make_shared<Omniscript::Integer<int>>(0);
                             auto argsArray = std::make_shared<Omniscript::ArrayExpression>(param->getType());
-                            DEBUG_LOG("The variadic paramter's name is '" + param->getName() + "' of type '" + param->getType()->toString() + "'.");
+                            DEBUG_LOG("The variadic parameter's name is '" + param->getName() + "' of type '" + param->getType()->toString() + "'.");
                             localScope->set(param->getName() + "_count", argsCount);
                             localScope->set(param->getName(), argsArray);
                             break;
@@ -169,6 +199,23 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
                 if (mangledName == funcExpr->mangledName) {
                     body->isGlobal = false;
                     std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
+                    if (functionBody.empty()) {
+                        std::string suggestion = Omniscript::Console::formatString(
+                            "To resolve this:\n"
+                            "1. Verify function body for '%s' contains valid statements\n"
+                            "2. Check for correct block syntax\n"
+                            "3. Add debug output to trace body evaluation",
+                            name.c_str()
+                        );
+                        console.reportError(
+                            Omniscript::Console::RUNTIME_ERROR,
+                            Omniscript::Console::formatString("Failed to evaluate function body for '%s'",
+                                             name.c_str()),
+                            suggestion,
+                            body->getSpan()
+                        );
+                        return;
+                    }
                     funcExpr->body = functionBody;
                 }
             }
@@ -176,7 +223,41 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
     } else {
         body->isGlobal = false;
         auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(scope->get(name));
+        if (!funcExpr) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Ensure function '%s' is registered in scope '%s'\n"
+                "2. Check for correct function declaration\n"
+                "3. Verify scope hierarchy",
+                name.c_str(), scope->getName().c_str()
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("Function '%s' not found in scope '%s'",
+                                 name.c_str(), scope->getName().c_str()),
+                suggestion,
+                getSpan()
+            );
+            return;
+        }
         std::vector<std::shared_ptr<Omniscript::Expression>> functionBody = body->expressAsVector(localScope);
+        if (functionBody.empty()) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Verify function body for '%s' contains valid statements\n"
+                "2. Check for correct block syntax\n"
+                "3. Add debug output to trace body evaluation",
+                name.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("Failed to evaluate function body for '%s'",
+                                 name.c_str()),
+                suggestion,
+                body->getSpan()
+            );
+            return;
+        }
         funcExpr->body = functionBody;
     }
 
@@ -201,7 +282,20 @@ std::shared_ptr<Omniscript::Expression> FunctionDeclaration::express(SymbolTable
         }
     }
     
-    console.error("Failed compiling an overload '" + mangledName + "' for function / method '" + name + "'.");
+    std::string suggestion = Omniscript::Console::formatString(
+        "To resolve this:\n"
+        "1. Verify function '%s' is correctly defined\n"
+        "2. Check for matching mangled name '%s'\n"
+        "3. Ensure function is registered in scope '%s'",
+        name.c_str(), mangledName.c_str(), scope->getName().c_str()
+    );
+    console.reportError(
+        Omniscript::Console::RUNTIME_ERROR,
+        Omniscript::Console::formatString("Failed compiling an overload '%s' for function / method '%s'",
+                         mangledName.c_str(), name.c_str()),
+        suggestion,
+        getSpan()
+    );
     return nullptr;
 }
 
@@ -252,18 +346,4 @@ void FunctionDeclaration::setReturnTypesInStatement(
             setReturnTypesInStatement(subStmt, returnType);
         }
     }
-    // else if (auto ifStmt = std::dynamic_pointer_cast<IfStatement>(stmt)) {
-    //     if (ifStmt->thenBranch)
-    //         setReturnTypesInStatement(ifStmt->thenBranch, returnType);
-    //     if (ifStmt->elseBranch)
-    //         setReturnTypesInStatement(ifStmt->elseBranch, returnType);
-    // }
-    // else if (auto whileStmt = std::dynamic_pointer_cast<WhileStatement>(stmt)) {
-    //     if (whileStmt->body)
-    //         setReturnTypesInStatement(whileStmt->body, returnType);
-    // }
-    // else if (auto forStmt = std::dynamic_pointer_cast<ForStatement>(stmt)) {
-    //     if (forStmt->body)
-    //         setReturnTypesInStatement(forStmt->body, returnType);
-    // }
 }

@@ -2,106 +2,145 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/utils.h>
+#include <omniscript/Core.h>
 
 Token Lexer::getNextToken() {
+    Omniscript::FileSpan span;
+    span.start.line = line;
+    span.start.col = column;
+    span.start.filePath = sourceFilePath;
+
     // Skip white spaces and track lines/columns
     while (currentPosition < source.length() && std::isspace(source[currentPosition])) {
         if (source[currentPosition] == '\n') {
             line++;
-            column = 1; // Reset column for new line
-            // Check if there were any non-space characters before the newline
-            if (column > 1) {
-                currentPosition++;
-                return Token(TokenTypes::Newline, "", line, column, sourceFilePath);
-            }
+            column = 1;
+            currentPosition++;
+            span.end.line = line;
+            span.end.col = column;
+            span.end.filePath = sourceFilePath;
+            return Token(TokenTypes::Newline, "", line, column, sourceFilePath);
         } else {
-            column++; // Increment column for every space
+            column++;
+            currentPosition++;
         }
-        currentPosition++;
     }
 
     // Check if we are at the end of the file
     if (currentPosition >= source.length()) {
+        span.end.line = line;
+        span.end.col = column;
+        span.end.filePath = sourceFilePath;
         return Token(TokenTypes::EOI, "", line, column, sourceFilePath);
     }
 
     char currentChar = source[currentPosition];
 
-     // Handle single-line comments (//)
+    // Handle single-line comments (//)
     if (currentChar == '/' && peek() == '/') {
+        currentPosition += 2; // Skip //
+        column += 2;
         while (currentPosition < source.length() && source[currentPosition] != '\n') {
-            currentPosition++;  // Skip the characters in the comment
+            currentPosition++;
             column++;
         }
-        return getNextToken();  // Continue to the next token after skipping the comment
+        span.end.line = line;
+        span.end.col = column;
+        span.end.filePath = sourceFilePath;
+        return getNextToken(); // Recursive call to get the next token
     }
 
     // Handle multi-line comments (/* */), including nested comments
     if (currentChar == '/' && peek() == '*') {
         int nestingDepth = 1;
         currentPosition += 2; // Skip the initial /*
+        column += 2;
 
         while (nestingDepth > 0 && currentPosition < source.length()) {
             if (source[currentPosition] == '/' && peek() == '*') {
                 nestingDepth++;
                 currentPosition += 2;
+                column += 2;
             } else if (source[currentPosition] == '*' && peek() == '/') {
                 nestingDepth--;
                 currentPosition += 2;
+                column += 2;
             } else {
                 if (source[currentPosition] == '\n') {
                     line++;
                     column = 1;
+                    if (currentPosition + 1 < source.length() && source[currentPosition] == '\r' && source[currentPosition + 1] == '\n') {
+                        currentPosition++;
+                    }
                 } else {
                     column++;
                 }
                 currentPosition++;
             }
 
-            // Error if end of file reached without closing the comment
             if (nestingDepth > 0 && currentPosition >= source.length()) {
-                throw std::runtime_error("Error: Unclosed multi-line comment at line " + std::to_string(line));
+                span.end.line = line;
+                span.end.col = column;
+                span.end.filePath = sourceFilePath;
+                console.reportError(
+                    Omniscript::Console::SYNTAX_ERROR,
+                    "Unclosed multi-line comment",
+                    "To resolve this:\n1. Close the comment with '*/'\n2. Check for unterminated comments\n3. Ensure all comments are properly closed",
+                    span
+                );
+                return Token(TokenTypes::Invalid, "", line, column, sourceFilePath);
             }
         }
-        
-        return getNextToken();  // Continue to the next token after skipping the comment
+
+        span.end.line = line;
+        span.end.col = column;
+        span.end.filePath = sourceFilePath;
+        return getNextToken(); // Recursive call to get the next token
     }
 
     currentChar = source[currentPosition];
 
     bool isRawStringPrefix = currentChar == 'r' &&
-                         (peek() == '\'' || peek() == '\"' || peek() == '`');
+                            (peek() == '\'' || peek() == '\"' || peek() == '`');
 
     // Check for identifiers and keywords
-    if ((std::isalpha(currentChar) || currentChar == '_') && !isRawStringPrefix) { // If the current character is an alphabetical [A-Z][a-z]
-        std::string raw_identifier; // Identifier as given in the input could be in any case
+    if ((std::isalpha(currentChar) || currentChar == '_') && !isRawStringPrefix) {
+        std::string raw_identifier;
+        size_t startColumn = column;
 
-        // Check if an identifier's character is a letter, number, underscore and it is not a fullstop
-        // Full stops will be the beginning of a method call or a reference to a property
         while (currentPosition < source.length() &&
-                (std::isalpha(source[currentPosition]) ||
+               (std::isalpha(source[currentPosition]) ||
                 std::isdigit(source[currentPosition]) ||
-                source[currentPosition] == '_') && (source[currentPosition] != '.')) {
+                source[currentPosition] == '_') && 
+               source[currentPosition] != '.') {
             raw_identifier += source[currentPosition];
             currentPosition++;
-            column++; // Increment column for each character in identifier
+            column++;
         }
 
-        std::string identifier = toLowerCaseString(raw_identifier); // Convert to lowercase
+        std::string identifier = toLowerCaseString(raw_identifier);
 
-        // Return the corresponding token for keywords
-        // Special cases first
+        // Special case for "else if"
         if (identifier == "else") {
             if (peek() == 'i' && peek(2) == 'f') {
-                currentPosition += 3; // Skip "i" and "f"
+                currentPosition += 3;
                 column += 3;
-                return Token(TokenTypes::Else_if, "else if", line, column, sourceFilePath);
+                span.end.line = line;
+                span.end.col = column;
+                span.end.filePath = sourceFilePath;
+                return Token(TokenTypes::Else_if, "else if", line, startColumn, sourceFilePath);
             }
-            return Token(TokenTypes::Else, "else", line, column, sourceFilePath);
+            span.end.line = line;
+            span.end.col = column;
+            span.end.filePath = sourceFilePath;
+            return Token(TokenTypes::Else, "else", line, startColumn, sourceFilePath);
         }
 
         if (identifier == "type" && peekToken(1).getType() == TokenTypes::Identifier) {
-            return Token(TokenTypes::Type, "type", line, column, sourceFilePath);
+            span.end.line = line;
+            span.end.col = column;
+            span.end.filePath = sourceFilePath;
+            return Token(TokenTypes::Type, "type", line, startColumn, sourceFilePath);
         }
 
         // Main keyword map
@@ -115,7 +154,7 @@ Token Lexer::getNextToken() {
             {"function", TokenTypes::Function},
             {"fn", TokenTypes::Function},
             {"let", TokenTypes::Let},
-            {"var", TokenTypes::Let}, // Assuming var = let in your language
+            {"var", TokenTypes::Let},
             {"namespace", TokenTypes::Namespace},
             {"using", TokenTypes::Using},
             {"new", TokenTypes::New},
@@ -149,26 +188,56 @@ Token Lexer::getNextToken() {
             {"as", TokenTypes::As}
         };
 
-        // Lookup
         auto it = keywordMap.find(identifier);
+        span.end.line = line;
+        span.end.col = column;
+        span.end.filePath = sourceFilePath;
         if (it != keywordMap.end()) {
-            return Token(it->second, identifier, line, column, sourceFilePath);
+            return Token(it->second, identifier, line, startColumn, sourceFilePath);
         }
 
-        // Otherwise treat it as an identifier token
-        return Token(TokenTypes::Identifier, raw_identifier, line, column, sourceFilePath);
+        return Token(TokenTypes::Identifier, raw_identifier, line, startColumn, sourceFilePath);
     }
 
     // Check for string and char literals
     Token stringToken = getStringToken(currentChar);
     if (stringToken.getType() != TokenTypes::Invalid) {
+        // Update line and column from stringToken
+        line = stringToken.getLine();
+        column = stringToken.getColumn();
         return stringToken;
     }
 
+    // Check for number literals
     Token numberLiteral = getNumberLiterals(currentChar);
     if (numberLiteral.getType() != TokenTypes::Invalid) {
+        // Update line and column from numberLiteral
+        line = numberLiteral.getLine();
+        column = numberLiteral.getColumn();
         return numberLiteral;
     }
 
-    return getOperator(currentChar);
+    // Check for operators
+    Token operatorToken = getOperator(currentChar);
+    if (operatorToken.getType() != TokenTypes::Invalid) {
+        // Update line and column from operatorToken
+        line = operatorToken.getLine();
+        column = operatorToken.getColumn();
+        return operatorToken;
+    }
+
+    // Handle unexpected character
+    currentPosition++;
+    column++;
+    span.end.line = line;
+    span.end.col = column;
+    span.end.filePath = sourceFilePath;
+    console.reportError(
+        Omniscript::Console::SYNTAX_ERROR,
+        Omniscript::Console::formatString("Unexpected character '%c' at line %zu, column %zu",
+            currentChar, line, column),
+        "To resolve this:\n1. Check for valid tokens\n2. Ensure correct syntax\n3. Remove or correct unexpected characters",
+        span
+    );
+    return Token(TokenTypes::Invalid, std::string(1, currentChar), line, column, sourceFilePath);
 }

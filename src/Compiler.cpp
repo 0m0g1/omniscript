@@ -1,4 +1,3 @@
-#include <omniscript/main.h>
 #include <omniscript/Compiler.h>
 #include <omniscript/Engine.h>
 #include <omniscript/EngineConfigs.h>
@@ -210,15 +209,34 @@ void Compiler::loadCache(const Config& config) noexcept {
 
 bool Compiler::validateTargetConfiguration(const Config& config, std::string& error) const noexcept {
     try {
-        // Check if your Config struct has a 'target' member with 'architecture'
-        // If not, adjust this to match your actual Config structure
-        // For example, if you only have targetOS:
-        if (config.targetOS.empty()) {
-            error = "Target OS not specified";
+        // Validate target architecture
+        if (config.targetArch == TargetArch::Auto) {
+            // Auto is fine, will be resolved later
+        }
+        
+        // Validate target OS
+        if (config.targetOS == TargetOS::Auto) {
+            // Auto is fine, will be resolved later
+        }
+        
+        // Validate output path
+        if (config.outputPath.empty()) {
+            error = "Output path not specified";
             return false;
         }
         
-        // Add more validation based on your actual Config structure
+        // Validate compile mode
+        if (config.mode == CompileMode::None) {
+            error = "Compile mode not specified";
+            return false;
+        }
+        
+        // Validate source files for non-JIT modes
+        if (config.mode != CompileMode::JIT && config.filePath.empty() && config.sourcePaths.empty()) {
+            error = "No source files specified for compilation";
+            return false;
+        }
+        
         return true;
     } catch (...) {
         error = "Validation failed due to exception";
@@ -230,9 +248,15 @@ void Compiler::printTargetInfo(const Config& config) const noexcept {
     try {
         if (config.diagnostics.debugMode) {
             std::cout << "=== Compiler Target Info ===" << std::endl;
-            std::cout << "Target OS: " << config.targetOS << std::endl;
-            std::cout << "Compile Mode: " << (config.mode == CompileMode::JIT ? "JIT" : "AOT") << std::endl;
+            std::cout << "Architecture: " << config.getArchitectureName() << std::endl;
+            std::cout << "Target OS: " << config.getOSName() << std::endl;
+            std::cout << "Compile Mode: " << config.getModeString() << std::endl;
             std::cout << "Optimization Level: " << config.optimization.level << std::endl;
+            std::cout << "Output Path: " << config.outputPath << std::endl;
+            if (!config.targetTriple.empty()) {
+                std::cout << "Target Triple: " << config.targetTriple << std::endl;
+            }
+            std::cout << "CPU Features: " << config.cpuFeatures << std::endl;
         }
     } catch (...) {
         // Ignore exceptions to maintain noexcept

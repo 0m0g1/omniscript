@@ -101,7 +101,16 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveContainerExpression(
         DEBUG_LOG("Resolving chained index access: " + indexAcc->toString());
         auto baseExpr = indexAcc->express(scope);
         if (!baseExpr) {
-            console.error("Failed to evaluate chained index access base expression");
+            std::string suggestion = "To resolve chained index access:\n"
+                                   "1. Check each index in the chain is valid\n"
+                                   "2. Verify intermediate arrays are initialized\n"
+                                   "3. Add debug output for each access step";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to evaluate chained index access base expression",
+                suggestion,
+                indexAcc->getSpan()
+            );
             return nullptr;
         }
         return baseExpr;
@@ -112,7 +121,16 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveContainerExpression(
         DEBUG_LOG("Resolving member access as container: " + memberAcc->toString());
         auto baseExpr = memberAcc->express(scope);
         if (!baseExpr) {
-            console.error("Failed to evaluate member access container expression");
+            std::string suggestion = "To resolve member access:\n"
+                                   "1. Verify the base object exists\n"
+                                   "2. Check member accessibility\n"
+                                   "3. Ensure proper initialization";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to evaluate member access container expression",
+                suggestion,
+                memberAcc->getSpan()
+            );
             return nullptr;
         }
         return baseExpr;
@@ -123,7 +141,16 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveContainerExpression(
         DEBUG_LOG("Resolving arrow access as container: " + arrowAcc->toString());
         auto baseExpr = arrowAcc->express(scope);
         if (!baseExpr) {
-            console.error("Failed to evaluate arrow access container expression");
+            std::string suggestion = "To resolve arrow access:\n"
+                                   "1. Verify the pointer is initialized\n"
+                                   "2. Check pointer type compatibility\n"
+                                   "3. Add debug output before access";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to evaluate arrow access container expression",
+                suggestion,
+                arrowAcc->getSpan()
+            );
             return nullptr;
         }
         return baseExpr;
@@ -132,7 +159,16 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveContainerExpression(
     // General case - evaluate the container expression
     auto containerExpr = expr->express(scope);
     if (!containerExpr) {
-        console.error("Failed to evaluate container expression for index access");
+        std::string suggestion = "To resolve container expression:\n"
+                               "1. Check variable is declared\n"
+                               "2. Verify proper initialization\n"
+                               "3. Add debug output before access";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            "Failed to evaluate container expression for index access",
+            suggestion,
+            expr->getSpan()
+        );
         return nullptr;
     }
     
@@ -146,7 +182,16 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveIndexExpression(Symb
         DEBUG_LOG("Resolving member access as index: " + memberAcc->toString());
         auto indexExpr = memberAcc->express(scope);
         if (!indexExpr) {
-            console.error("Failed to evaluate member access index expression");
+            std::string suggestion = "To resolve member access index:\n"
+                                   "1. Verify the base object exists\n"
+                                   "2. Check member accessibility\n"
+                                   "3. Ensure proper initialization";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to evaluate member access index expression",
+                suggestion,
+                memberAcc->getSpan()
+            );
             return nullptr;
         }
         return indexExpr;
@@ -156,7 +201,16 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveIndexExpression(Symb
         DEBUG_LOG("Resolving arrow access as index: " + arrowAcc->toString());
         auto indexExpr = arrowAcc->express(scope);
         if (!indexExpr) {
-            console.error("Failed to evaluate arrow access index expression");
+            std::string suggestion = "To resolve arrow access index:\n"
+                                   "1. Verify the pointer is initialized\n"
+                                   "2. Check pointer type compatibility\n"
+                                   "3. Add debug output before access";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to evaluate arrow access index expression",
+                suggestion,
+                arrowAcc->getSpan()
+            );
             return nullptr;
         }
         return indexExpr;
@@ -165,15 +219,38 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveIndexExpression(Symb
     // General case - evaluate the index expression
     auto indexExprValue = index->express(scope);
     if (!indexExprValue) {
-        console.error("Failed to evaluate index expression");
+        std::string suggestion = "To resolve index expression:\n"
+                               "1. Check index expression is valid\n"
+                               "2. Verify proper initialization\n"
+                               "3. Add debug output for index value";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            "Failed to evaluate index expression",
+            suggestion,
+            index->getSpan()
+        );
         return nullptr;
     }
     
     // Validate that index is numeric type
     auto indexType = indexExprValue->getType();
-    // Todo:: Add an is numeric type flag
     if (!indexType->isInteger() && !indexType->isFloat()) {
-        console.error("Index must be a numeric type, got: " + indexType->toString());
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Use a numeric type for indexing\n"
+            "2. Available conversions:\n"
+            " - Explicit cast: `(%s)value`\n"
+            " - Ensure index is an integer or float\n"
+            "3. Verify index expression type",
+            indexType->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Index must be a numeric type, got: '%s'",
+                             indexType->toString().c_str()),
+            suggestion,
+            index->getSpan()
+        );
         return nullptr;
     }
     
@@ -187,7 +264,16 @@ std::shared_ptr<Omniscript::Type> IndexAccess::validateAndGetElementType(
     if (containerType->isArray()) {
         auto elementType = containerType->elementType;
         if (!elementType) {
-            console.error("Array type missing element type information");
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Ensure array type is properly defined\n"
+                                   "2. Check array declaration for element type\n"
+                                   "3. Verify type imports";
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                "Array type missing element type information",
+                suggestion,
+                getSpan()
+            );
             return nullptr;
         }
         DEBUG_LOG("Array element type: " + elementType->toString());
@@ -197,15 +283,36 @@ std::shared_ptr<Omniscript::Type> IndexAccess::validateAndGetElementType(
     if (containerType->isPointer()) {
         auto pointeeType = containerType->getBasePointeeType();
         if (!pointeeType) {
-            console.error("Pointer type missing pointee type information");
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Ensure pointer type is properly defined\n"
+                                   "2. Check pointer declaration for pointee type\n"
+                                   "3. Verify type imports";
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                "Pointer type missing pointee type information",
+                suggestion,
+                getSpan()
+            );
             return nullptr;
         }
         DEBUG_LOG("Pointer pointee type: " + pointeeType->toString());
         return pointeeType;
     }
     
-    console.error("Index access requires an array or pointer type, got: " + 
-                 containerType->toString());
+    std::string suggestion = Omniscript::Console::formatString(
+        "To resolve this:\n"
+        "1. Declare as array or pointer: `%s`\n"
+        "2. Check container type declaration\n"
+        "3. Verify type compatibility",
+        containerType->toString().c_str()
+    );
+    console.reportError(
+        Omniscript::Console::TYPE_ERROR,
+        Omniscript::Console::formatString("Index access requires an array or pointer type, got: '%s'",
+                         containerType->toString().c_str()),
+        suggestion,
+        getSpan()
+    );
     return nullptr;
 }
 
@@ -222,15 +329,40 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::processAssignment(SymbolTab
     
     auto assignmentExpr = assignmentValue->express(scope);
     if (!assignmentExpr) {
-        console.error("Failed to evaluate assignment expression");
+        std::string suggestion = "To resolve assignment:\n"
+                               "1. Check right-hand expression validity\n"
+                               "2. Verify type compatibility\n"
+                               "3. Add debug output for the value";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            "Failed to evaluate assignment expression",
+            suggestion,
+            assignmentValue->getSpan()
+        );
         return nullptr;
     }
     
     // Validate assignment type compatibility
     if (type && assignmentExpr->getType()) {
         if (!Omniscript::Type::isSameOrCastableTo(assignmentExpr->getType(), type)) {
-            console.error("Cannot assign " + assignmentExpr->getType()->toString() + 
-                         " to " + type->toString());
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Check type requirements\n"
+                "2. Available conversions:\n"
+                " - Explicit cast: `(%s)value`\n"
+                " - Conversion method: `value.to_%s()`\n"
+                "3. Verify source type implements required traits",
+                type->toString().c_str(),
+                type->toString().c_str()
+            );
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                Omniscript::Console::formatString("Cannot assign '%s' to '%s'",
+                                 assignmentExpr->getType()->toString().c_str(),
+                                 type->toString().c_str()),
+                suggestion,
+                assignmentValue->getSpan()
+            );
             return nullptr;
         }
     }

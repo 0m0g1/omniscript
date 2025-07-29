@@ -3,6 +3,8 @@
 
 namespace Omniscript {
 // filePosition method definitions
+FileSpan currentSpan;
+
 std::string filePosition::toString() const {
     return filePath + ":" + std::to_string(line) + ":" + std::to_string(col);
 }

@@ -214,9 +214,21 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
 
     size_t errorCount = 0;
     for (const auto& statement : statements) {
-        if (!checkTimeLimit(config) || peakMemoryUsage > config.maxMemoryUsage) {
-            logError(config, "Compilation aborted: Time or memory limit exceeded");
-            throw std::runtime_error("Compilation limits exceeded");
+        
+        checkTimeLimit(config);
+        
+        if (peakMemoryUsage > config.maxMemoryUsage) {
+            std::string message = Omniscript::Console::formatString(
+                "Compilation stopped because the program used %d MB of memory, exceeding your limit of %d MB.",
+                peakMemoryUsage / (1024 * 1024), config.maxMemoryUsage / (1024 * 1024)
+            );
+            std::string suggestion = "To fix this:\n"
+                                    "1. Increase the memory limit with `--heap-size [size]MB` (e.g., `--heap-size 1024MB`).\n"
+                                    "2. Simplify your code by reducing large arrays or structs.\n"
+                                    "3. Check for infinite loops or recursive functions that might consume too much memory.\n"
+                                    "See compiler options at: https://github.com/0m0g1/omniscript/blob/main/docs/Compiler.md";
+            console.reportError(Omniscript::Console::ErrorType::RUNTIME_ERROR, message, suggestion);
+            throw std::runtime_error("Compilation memory limit exceeded");
         }
 
         DEBUG_LOG("Evaluating " + statement->toString());
@@ -613,7 +625,20 @@ bool LLVMJITBackend::checkTimeLimit(const Config& config) {
     }
     auto now = std::chrono::system_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - compilationStartTime).count();
-    return elapsed < static_cast<long>(config.maxCompilationTime);
+    if (elapsed >= static_cast<long>(config.maxCompilationTime)) {
+        std::string message = Console::formatString(
+            "Compilation stopped because it took %ld seconds, exceeding your limit of %u seconds.",
+            elapsed, config.maxCompilationTime
+        );
+        std::string suggestion = "To fix this:\n"
+                                "1. Increase the time limit with `--max-compilation-time [seconds]` (e.g., `--max-compilation-time 30`).\n"
+                                "2. Simplify your code to reduce complexity (e.g., fewer nested structs or functions).\n"
+                                "3. Use `--parallel-jobs [n]` to speed up compilation with multiple threads.\n"
+                                "See compiler options at: https://omniscript.dev/docs";
+        console.reportError(Console::ErrorType::RUNTIME_ERROR, message, suggestion);
+        throw std::runtime_error("Compilation time limit exceeded");
+    }
+    return true;
 }
 
 } // namespace Omniscript

@@ -217,8 +217,11 @@ void LLVMAOTBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
 
     size_t errorCount = 0;
     for (const auto& statement : statements) {
-        if (!checkTimeLimit(config) || peakMemoryUsage > config.maxMemoryUsage) {
-            logError(config, "Compilation aborted: Time or memory limit exceeded");
+        
+        checkTimeLimit(config); 
+        
+        if (config.maxMemoryUsage > 0 && peakMemoryUsage > config.maxMemoryUsage) {
+            logError(config, "Compilation aborted: memory limit exceeded");
             throw std::runtime_error("Compilation limits exceeded");
         }
 
@@ -1012,7 +1015,19 @@ bool LLVMAOTBackend::checkTimeLimit(const Config& config) {
     }
     auto now = std::chrono::system_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - compilationStartTime).count();
-    return elapsed < static_cast<long>(config.maxCompilationTime);
+    if (elapsed >= static_cast<long>(config.maxCompilationTime)) {
+        std::string message = Console::formatString(
+            "Compilation stopped because it took %ld seconds, exceeding your limit of %u seconds.",
+            elapsed, config.maxCompilationTime
+        );
+        std::string suggestion = "To fix this:\n"
+                                "1. Increase the time limit with `--max-compilation-time [seconds]` (e.g., `--max-compilation-time 30`).\n"
+                                "2. Simplify your code to reduce complexity (e.g., fewer nested structs or functions).\n"
+                                "3. Use `--parallel-jobs [n]` to speed up compilation with multiple threads.\n"
+                                "See compiler options at: https://omniscript.dev/docs";
+        console.reportError(Console::ErrorType::RUNTIME_ERROR, message, suggestion);
+    }
+    return true;
 }
 
 void LLVMAOTBackend::logError(const Config& config, const std::string& message) {

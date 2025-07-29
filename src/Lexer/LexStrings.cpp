@@ -1,10 +1,15 @@
-
+#include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/utils.h>
 
 Token Lexer::getStringToken(char &currentChar) {
+    Omniscript::FileSpan span;
+    span.start.line = line;
+    span.start.col = column;
+    span.start.filePath = sourceFilePath;
+
     bool isRawString = false;
     if (currentChar == 'r') {
         char next = peek();
@@ -16,7 +21,7 @@ Token Lexer::getStringToken(char &currentChar) {
         }
     }
 
-    if (currentChar == '\"' || currentChar == '\'' || currentChar == '`') { // Both single and double quotes
+    if (currentChar == '\"' || currentChar == '\'' || currentChar == '`') {
         char quoteType = currentChar;
         std::string literalValue;
         size_t startLine = line;
@@ -27,13 +32,15 @@ Token Lexer::getStringToken(char &currentChar) {
     
         bool isTemplate = (quoteType == '`') && !isRawString;
         bool isString = (quoteType == '\"');
-
         bool hasContent = false;
 
         auto finalizeToken = [&](TokenTypes type) {
             std::u32string u32chars = utf8_to_utf32(literalValue);
             auto tok = Token(type, literalValue, startLine, startColumn, sourceFilePath);
             tok.setU32Value(u32chars);
+            span.end.line = line;
+            span.end.col = column;
+            span.end.filePath = sourceFilePath;
             return tok;
         };
 
@@ -42,7 +49,6 @@ Token Lexer::getStringToken(char &currentChar) {
 
             // Check for closing quote (only if not template with ${)
             if (currentChar == quoteType) {
-                // Count preceding backslashes to determine if escaped
                 int backslashCount = 0;
                 int i = currentPosition - 1;
                 while (i >= 0 && source[i] == '\\') {
@@ -50,32 +56,34 @@ Token Lexer::getStringToken(char &currentChar) {
                     i--;
                 }
 
-                // If even number of backslashes, quote is not escaped
                 if (backslashCount % 2 == 0) {
-                    currentPosition++; // Skip closing quote
+                    currentPosition++;
                     column++;
                     
                     if (quoteType == '\'') {
-                        // Character literal validation
                         std::u32string u32chars = utf8_to_utf32(literalValue);
                         if (u32chars.size() > 1) {
-                            // throw std::runtime_error("Invalid character literal at line " + std::to_string(line));
+                            span.end.line = line;
+                            span.end.col = column;
+                            span.end.filePath = sourceFilePath;
+                            console.reportError(
+                                Omniscript::Console::SYNTAX_ERROR,
+                                "Invalid character literal: too many characters",
+                                "To resolve this:\n1. Ensure character literal contains exactly one character\n2. Check single-quote syntax\n3. Use double quotes for strings",
+                                span
+                            );
                             return finalizeToken(TokenTypes::StringLiteral);
                         }
                         return finalizeToken(TokenTypes::Character);
-                    }
-                    else if (quoteType == '`') {
+                    } else if (quoteType == '`') {
                         return finalizeToken(TokenTypes::TemplateTail);
-                    }
-                    else {
+                    } else {
                         return finalizeToken(TokenTypes::StringLiteral);
                     }
                 }
             }
 
-            // Special handling for raw strings
             if (isRawString) {
-                // Raw strings ignore escape sequences
                 if (currentChar == quoteType) {
                     currentPosition++;
                     column++;
@@ -83,60 +91,53 @@ Token Lexer::getStringToken(char &currentChar) {
                                     (quoteType == '\'' ? TokenTypes::Character : TokenTypes::StringLiteral));
                 }
                 
-                // Still need to handle template expressions in raw templates
                 if (isTemplate && currentChar == '$' && peek() == '{') {
                     currentPosition += 2;
                     column += 2;
                     return finalizeToken(hasContent ? TokenTypes::TemplateMiddle : TokenTypes::TemplateHead);
                 }
                 
-                // Process character normally (no escape handling)
                 literalValue += currentChar;
                 hasContent = true;
                 currentPosition++;
+                column++;
                 continue;
             }
 
-            // Check for embedded expressions in templates
-            if (isTemplate && source[currentPosition] == '$' && (currentPosition + 1) < source.length() && source[currentPosition + 1] == '{') {
+            if (isTemplate && currentChar == '$' && peek() == '{') {
                 currentPosition += 2;
                 column += 2;
                 return finalizeToken(hasContent ? TokenTypes::TemplateMiddle : TokenTypes::TemplateHead);
             }
 
-           if (currentChar == '\n' || currentChar == '\r') {                
+            if (currentChar == '\n' || currentChar == '\r') {                
                 if (isTemplate) {
-                    // For backtick strings: KEEP the newline but skip leading whitespace
-                    literalValue += '\n'; // Normalize to LF
+                    literalValue += '\n';
                     line++;
                     column = 1;
                     
-                    // Skip CRLF if present
                     if (currentChar == '\r' && currentPosition + 1 < source.length() && source[currentPosition + 1] == '\n') {
                         currentPosition++;
                     }
-                    currentPosition++; // Skip the newline
+                    currentPosition++;
                     
-                    // Skip leading spaces/tabs after the newline
                     while (currentPosition < source.length()) {
                         char nextChar = source[currentPosition];
                         if (nextChar == ' ' || nextChar == '\t') {
                             currentPosition++;
                             column++;
                         } else {
-                            break; // Stop at first non-whitespace character
+                            break;
                         }
                     }
                 } else {
-                    // For normal strings: REMOVE the newline and all following whitespace
                     currentPosition++;
                     if (currentChar == '\r' && currentPosition < source.length() && source[currentPosition] == '\n') {
-                        currentPosition++; // Skip LF in CRLF
+                        currentPosition++;
                     }
                     line++;
                     column = 1;
                     
-                    // Skip all whitespace after newline
                     while (currentPosition < source.length()) {
                         char nextChar = source[currentPosition];
                         if (nextChar == ' ' || nextChar == '\t') {
@@ -147,49 +148,52 @@ Token Lexer::getStringToken(char &currentChar) {
                         }
                     }
                 }
-                continue; // Skip adding newline/whitespace to `literalValue` (except for template newlines)
+                continue;
             }
 
-            // Handle escape sequences
-            if (source[currentPosition] == '\\') {
+            if (currentChar == '\\') {
                 if (currentPosition + 1 >= source.length()) {
-                    throw std::runtime_error(
-                        "Unterminated escape sequence at line " + std::to_string(line));
+                    span.end.line = line;
+                    span.end.col = column;
+                    span.end.filePath = sourceFilePath;
+                    console.reportError(
+                        Omniscript::Console::SYNTAX_ERROR,
+                        "Unterminated escape sequence",
+                        "To resolve this:\n1. Complete the escape sequence\n2. Check for valid escape characters\n3. Ensure proper string termination",
+                        span
+                    );
+                    return finalizeToken(TokenTypes::Invalid);
                 }
 
-                {
-                    // Check if this is the last character before a newline
-                    size_t nextPos = currentPosition + 1;
-                    bool isBackslashAtEndOfLine = false;
-                    
-                    // Skip whitespace after the backslash
-                    while (nextPos < source.length()) {
-                        char nextChar = source[nextPos];
-                        if (nextChar == ' ' || nextChar == '\t') {
-                            nextPos++; // Skip spaces/tabs
-                        }
-                        else if (nextChar == '\n' || nextChar == '\r') {
-                            isBackslashAtEndOfLine = true;
-                            break;
-                        }
-                        else {
-                            break; // Not a newline, treat as normal escape
-                        }
-                    }
-
-                    if (isBackslashAtEndOfLine) {
-                    //     // Literal backslash (no escape behavior)
-                    //     literalValue += '\\';
-                        currentPosition = nextPos; // Skip to newline
-                        continue;
+                size_t nextPos = currentPosition + 1;
+                bool isBackslashAtEndOfLine = false;
+                
+                while (nextPos < source.length()) {
+                    char nextChar = source[nextPos];
+                    if (nextChar == ' ' || nextChar == '\t') {
+                        nextPos++;
+                    } else if (nextChar == '\n' || nextChar == '\r') {
+                        isBackslashAtEndOfLine = true;
+                        break;
+                    } else {
+                        break;
                     }
                 }
 
-                char next = source[currentPosition+1];
+                if (isBackslashAtEndOfLine) {
+                    currentPosition = nextPos;
+                    if (currentChar == '\r' && currentPosition < source.length() && source[currentPosition] == '\n') {
+                        currentPosition++;
+                    }
+                    line++;
+                    column = 1;
+                    continue;
+                }
+
+                char next = source[currentPosition + 1];
                 currentPosition += 2;
                 column += 2;
 
-                // Add template-specific escapes
                 if (isTemplate && (next == '`' || next == '$' || next == '{')) {
                     literalValue += next;
                     hasContent = true;
@@ -197,106 +201,136 @@ Token Lexer::getStringToken(char &currentChar) {
                 }
 
                 switch (next) {
-                // Simple single‐character escapes
-                case 'n':  literalValue += '\n'; break;
-                case 't':  literalValue += '\t'; break;
-                case 'r':  literalValue += '\r'; break;
-                case 'b':  literalValue += '\b'; break;
-                case 'f':  literalValue += '\f'; break;
-                case 'v':  literalValue += '\v'; break;
-                case 'a':  literalValue += '\a'; break;
-                case '\\': literalValue += '\\'; break;
-                case '\'': literalValue += '\''; break;
-                case '\"': literalValue += '\"'; break;
-                case '?':  literalValue += '\?'; break;
-
-                // Null / octal: up to three octal digits [0–7]
-                case '0': case '1': case '2': case '3':
-                case '4': case '5': case '6': case '7': {
-                    int val = next - '0';
-                    // Read up to 3 octal digits total (first one is already read)
-                    // two more octal digits
-                    for (int i = 0; i < 2 && currentPosition < source.length(); ++i) {
-                    char c = source[currentPosition];
-                    if (c >= '0' && c <= '7') {
-                        val = val * 8 + (c - '0');
-                        ++currentPosition; ++column;
-                    } else break;
-                    }
-                    literalValue += static_cast<char>(val);
-                    break;
-                }
-
-                // Hex: \xhh… (any number of hex digits, but typically up to 2)
-                case 'x': {
-                    int val = 0;
-                    int digits = 0;
-                    while (currentPosition < source.length()) {
-                    char c = source[currentPosition];
-                    if (isdigit(c) || (tolower(c) >= 'a' && tolower(c) <= 'f')) {
-                        val = val * 16 + (isdigit(c) ? (c - '0') : (tolower(c) - 'a' + 10));
-                        ++currentPosition; ++column; ++digits;
-                    } else break;
-                    }
-                    if (digits == 0)
-                    throw std::runtime_error(
-                        "Invalid hex escape (\\x) at line " + std::to_string(line));
-                    literalValue += static_cast<char>(val);
-                    break;
-                }
-
-                // Unicode: \uNNNN (4 hex digits), \UNNNNNNNN (8 hex digits)
-                case 'u': case 'U': {
-                    int needed = (next == 'u' ? 4 : 8);
-                    if (currentPosition + needed > source.length())
-                        throw std::runtime_error("Invalid Unicode escape at line " + std::to_string(line));
-                    unsigned int codepoint = 0;
-                    for (int i = 0; i < needed; ++i) {
-                        char c = source[currentPosition++];
-                        ++column;
-                        if (isdigit(c) || (tolower(c) >= 'a' && tolower(c) <= 'f')) {
-                            codepoint = codepoint * 16 +
-                            (isdigit(c) ? (c - '0') : (tolower(c) - 'a' + 10));
-                        } else {
-                            throw std::runtime_error("Invalid Unicode digit in \\u/\\U at line " + std::to_string(line));
+                    case 'n': literalValue += '\n'; break;
+                    case 't': literalValue += '\t'; break;
+                    case 'r': literalValue += '\r'; break;
+                    case 'b': literalValue += '\b'; break;
+                    case 'f': literalValue += '\f'; break;
+                    case 'v': literalValue += '\v'; break;
+                    case 'a': literalValue += '\a'; break;
+                    case '\\': literalValue += '\\'; break;
+                    case '\'': literalValue += '\''; break;
+                    case '\"': literalValue += '\"'; break;
+                    case '?': literalValue += '\?'; break;
+                    case '0': case '1': case '2': case '3':
+                    case '4': case '5': case '6': case '7': {
+                        int val = next - '0';
+                        for (int i = 0; i < 2 && currentPosition < source.length(); ++i) {
+                            char c = source[currentPosition];
+                            if (c >= '0' && c <= '7') {
+                                val = val * 8 + (c - '0');
+                                ++currentPosition;
+                                ++column;
+                            } else {
+                                break;
+                            }
                         }
+                        literalValue += static_cast<char>(val);
+                        break;
                     }
-                    // Now encode codepoint as UTF‑8:
-                    if (codepoint <= 0x7F) {
-                        literalValue += static_cast<char>(codepoint);
-                    } else if (codepoint <= 0x7FF) {
-                        literalValue += static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F));
-                        literalValue += static_cast<char>(0x80 | (codepoint & 0x3F));
-                    } else if (codepoint <= 0xFFFF) {
-                        literalValue += static_cast<char>(0xE0 | ((codepoint >> 12) & 0x0F));
-                        literalValue += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-                        literalValue += static_cast<char>(0x80 | (codepoint & 0x3F));
-                    } else {
-                        literalValue += static_cast<char>(0xF0 | ((codepoint >> 18) & 0x07));
-                        literalValue += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
-                        literalValue += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-                        literalValue += static_cast<char>(0x80 | (codepoint & 0x3F));
+                    case 'x': {
+                        int val = 0;
+                        int digits = 0;
+                        while (currentPosition < source.length()) {
+                            char c = source[currentPosition];
+                            if (isdigit(c) || (tolower(c) >= 'a' && tolower(c) <= 'f')) {
+                                val = val * 16 + (isdigit(c) ? (c - '0') : (tolower(c) - 'a' + 10));
+                                ++currentPosition;
+                                ++column;
+                                ++digits;
+                            } else {
+                                break;
+                            }
+                        }
+                        if (digits == 0) {
+                            span.end.line = line;
+                            span.end.col = column;
+                            span.end.filePath = sourceFilePath;
+                            console.reportError(
+                                Omniscript::Console::SYNTAX_ERROR,
+                                "Invalid hex escape sequence (\\x)",
+                                "To resolve this:\n1. Provide valid hex digits after \\x\n2. Check escape sequence syntax\n3. Ensure at least one hex digit",
+                                span
+                            );
+                            return finalizeToken(TokenTypes::Invalid);
+                        }
+                        literalValue += static_cast<char>(val);
+                        break;
                     }
-                    break;
+                    case 'u': case 'U': {
+                        int needed = (next == 'u' ? 4 : 8);
+                        if (currentPosition + needed > source.length()) {
+                            span.end.line = line;
+                            span.end.col = column;
+                            span.end.filePath = sourceFilePath;
+                            console.reportError(
+                                Omniscript::Console::SYNTAX_ERROR,
+                                "Invalid Unicode escape sequence",
+                                "To resolve this:\n1. Provide correct number of hex digits for \\u (4) or \\U (8)\n2. Check Unicode escape syntax\n3. Ensure sufficient characters",
+                                span
+                            );
+                            return finalizeToken(TokenTypes::Invalid);
+                        }
+                        unsigned int codepoint = 0;
+                        for (int i = 0; i < needed; ++i) {
+                            char c = source[currentPosition++];
+                            ++column;
+                            if (isdigit(c) || (tolower(c) >= 'a' && tolower(c) <= 'f')) {
+                                codepoint = codepoint * 16 +
+                                    (isdigit(c) ? (c - '0') : (tolower(c) - 'a' + 10));
+                            } else {
+                                span.end.line = line;
+                                span.end.col = column;
+                                span.end.filePath = sourceFilePath;
+                                console.reportError(
+                                    Omniscript::Console::SYNTAX_ERROR,
+                                    Omniscript::Console::formatString("Invalid Unicode digit in \\%c at position %d", next, i + 1),
+                                    "To resolve this:\n1. Use valid hex digits in Unicode escape\n2. Check Unicode escape syntax\n3. Ensure all digits are valid",
+                                    span
+                                );
+                                return finalizeToken(TokenTypes::Invalid);
+                            }
+                        }
+                        if (codepoint <= 0x7F) {
+                            literalValue += static_cast<char>(codepoint);
+                        } else if (codepoint <= 0x7FF) {
+                            literalValue += static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F));
+                            literalValue += static_cast<char>(0x80 | (codepoint & 0x3F));
+                        } else if (codepoint <= 0xFFFF) {
+                            literalValue += static_cast<char>(0xE0 | ((codepoint >> 12) & 0x0F));
+                            literalValue += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+                            literalValue += static_cast<char>(0x80 | (codepoint & 0x3F));
+                        } else {
+                            literalValue += static_cast<char>(0xF0 | ((codepoint >> 18) & 0x07));
+                            literalValue += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+                            literalValue += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+                            literalValue += static_cast<char>(0x80 | (codepoint & 0x3F));
+                        }
+                        break;
+                    }
+                    default:
+                        span.end.line = line;
+                        span.end.col = column;
+                        span.end.filePath = sourceFilePath;
+                        console.reportError(
+                            Omniscript::Console::SYNTAX_ERROR,
+                            Omniscript::Console::formatString("Unknown escape sequence \\%c", next),
+                            "To resolve this:\n1. Use valid escape characters (e.g., \\n, \\t, \\uXXXX)\n2. Check escape sequence syntax\n3. Remove invalid escapes",
+                            span
+                        );
+                        literalValue += '\\';
+                        literalValue += next;
+                        break;
                 }
-
-                default:
-                    break;
-                    // console.error(
-                    // "Unknown escape sequence \\" + std::string(1,next)
-                    // + " at line " + std::to_string(line));
-                }
+                hasContent = true;
             } else {
                 char c = source[currentPosition];
                 literalValue += c;
                 hasContent = true;
                 currentPosition++;
-
-                // Update line/column for newlines
                 if (c == '\n' || c == '\r') {
                     line++;
                     column = 1;
-                    // Handle CRLF as single newline
                     if (c == '\r' && currentPosition < source.length() && source[currentPosition] == '\n') {
                         currentPosition++;
                     }
@@ -306,15 +340,21 @@ Token Lexer::getStringToken(char &currentChar) {
             }
         }
         
-        // Check for unterminated literal
-        if (currentPosition >= source.length()) {
-            std::string typeName;
-            if (quoteType == '\'') typeName = "character";
-            else if (quoteType == '\"') typeName = "string";
-            else typeName = "template";
-            throw std::runtime_error("Unterminated " + typeName + " literal at line " + std::to_string(startLine));
-        }
+        span.end.line = line;
+        span.end.col = column;
+        span.end.filePath = sourceFilePath;
+        console.reportError(
+            Omniscript::Console::SYNTAX_ERROR,
+            Omniscript::Console::formatString("Unterminated %s literal at line %zu", 
+                (quoteType == '\'' ? "character" : (quoteType == '`' ? "template" : "string")), startLine),
+            "To resolve this:\n1. Close the literal with matching quote\n2. Check for unterminated strings\n3. Ensure proper string termination",
+            span
+        );
+        return finalizeToken(TokenTypes::Invalid);
     }
 
-    return Token(TokenTypes::Invalid);
-} 
+    span.end.line = line;
+    span.end.col = column;
+    span.end.filePath = sourceFilePath;
+    return Token(TokenTypes::Invalid, "", line, column, sourceFilePath);
+}

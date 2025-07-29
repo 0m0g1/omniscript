@@ -23,7 +23,6 @@
 #include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
-
 std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG();
@@ -45,7 +44,19 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     // Find the callable
     std::shared_ptr<Omniscript::Expression> called = findCallable(contextualName, scope);
     if (!called) {
-        console.error(formatError("Callable '" + callee + "' not found in scope " + scope->getName()));
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify function '%s' is defined\n"
+            "2. Check for correct scope or namespace\n"
+            "3. Ensure proper import or module inclusion",
+            callee.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SEMANTIC_ERROR,
+            Omniscript::Console::formatString("Callable '%s' not found in scope '%s'", 
+                callee.c_str(), scope->getName().c_str()),
+            suggestion
+        );
         return nullptr;
     }
     
@@ -56,8 +67,21 @@ std::shared_ptr<Omniscript::Expression> Call::express(SymbolTableType scope) {
     // Verify callable and extract parameters
     auto callable = std::dynamic_pointer_cast<Omniscript::Callable>(called);
     if (!callable) {
-        console.error(formatError("'" + evaluatedCallee + "' is not callable; it is of kind '" + 
-                      (called->getType() ? called->getType()->toString() : "null") + "'."));
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Ensure '%s' is a function or callable object\n"
+            "2. Check for naming conflicts\n"
+            "3. Verify type definitions",
+            evaluatedCallee.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("'%s' is not callable; it is of kind '%s'", 
+                evaluatedCallee.c_str(),
+                (called->getType() ? called->getType()->toString().c_str() : "null")),
+            suggestion,
+            this->getSpan()
+        );
         return nullptr;
     }
     
@@ -87,7 +111,16 @@ std::shared_ptr<Omniscript::Expression> Call::handleMemberAccessCall(
     // First, evaluate the member access to get its expression and type
     auto memberExpr = memberAccess->express(scope);
     if (!memberExpr) {
-        console.error(formatError("Failed to evaluate member access expression"));
+        std::string suggestion = "To resolve this:\n"
+                               "1. Verify the base object exists\n"
+                               "2. Check member accessibility\n"
+                               "3. Ensure proper initialization";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            "Failed to evaluate member access expression",
+            suggestion,
+            memberAccess->getSpan()
+        );
         return nullptr;
     }
     
@@ -104,7 +137,16 @@ std::shared_ptr<Omniscript::Expression> Call::handleMemberAccessCall(
     }
     
     if (baseTypeName.empty()) {
-        console.error(formatError("Could not determine base type for member access"));
+        std::string suggestion = "To resolve this:\n"
+                               "1. Check type definition is complete\n"
+                               "2. Verify proper type imports\n"
+                               "3. Ensure correct type hierarchy";
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            "Could not determine base type for member access",
+            suggestion,
+            memberAccess->getSpan()
+        );
         return nullptr;
     }
     
@@ -123,14 +165,38 @@ std::shared_ptr<Omniscript::Expression> Call::handleMemberAccessCall(
     }
     
     if (!method) {
-        console.error(formatError("Method '" + methodName + "' not found"));
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Check method '%s' exists in type '%s'\n"
+            "2. Verify method visibility\n"
+            "3. Check for correct namespace or imports",
+            callee.c_str(), baseTypeName.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SEMANTIC_ERROR,
+            Omniscript::Console::formatString("Method '%s' not found", methodName.c_str()),
+            suggestion,
+            this->getSpan()
+        );
         return nullptr;
     }
     
     // Verify it's callable
     auto callable = std::dynamic_pointer_cast<Omniscript::Callable>(method);
     if (!callable) {
-        console.error(formatError("'" + methodName + "' is not callable"));
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Ensure '%s' is a method or callable\n"
+            "2. Check for naming conflicts\n"
+            "3. Verify type definitions",
+            methodName.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("'%s' is not callable", methodName.c_str()),
+            suggestion,
+            this->getSpan()
+        );
         return nullptr;
     }
     
@@ -190,6 +256,20 @@ std::shared_ptr<Omniscript::Expression> Call::resolveMethodOverload(
         }
     }
     
+    std::string suggestion = Omniscript::Console::formatString(
+        "To resolve this:\n"
+        "1. Check method signature compatibility\n"
+        "2. Verify base type '%s' has the method\n"
+        "3. Ensure correct parameter types",
+        baseExpr->getType()->toString().c_str()
+    );
+    console.reportError(
+        Omniscript::Console::TYPE_ERROR,
+        Omniscript::Console::formatString("No compatible method overload found for base type '%s'", 
+            baseExpr->getType()->toString().c_str()),
+        suggestion,
+        this->getSpan()
+    );
     return nullptr;
 }
 
@@ -198,7 +278,16 @@ std::string Call::resolveImpliedTargetName(const std::string& targetName) {
         if (!accessContext.empty()) {
             return accessContext.back();
         } else {
-            console.error("Accessing 'this' outside of any valid context");
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Ensure 'this' is used within a valid class/struct context\n"
+                                   "2. Check for proper instance scope\n"
+                                   "3. Verify method is called within a member function";
+            console.reportError(
+                Omniscript::Console::SEMANTIC_ERROR,
+                "Accessing 'this' outside of any valid context",
+                suggestion,
+                this->getSpan()
+            );
             return "";
         }
     }
@@ -257,6 +346,20 @@ std::string Call::buildContextualName(const std::string& targetName, const std::
                     contextualName += accessContext[i];
                 }
             } else {
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify object '%s' is defined\n"
+                    "2. Check scope accessibility\n"
+                    "3. Ensure proper initialization",
+                    actualTargetName.c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::SEMANTIC_ERROR,
+                    Omniscript::Console::formatString("Object '%s' not found in scope", 
+                        actualTargetName.c_str()),
+                    suggestion,
+                    this->getSpan()
+                );
                 contextualName += accessContext[i];
             }
         } else {
@@ -320,7 +423,23 @@ std::shared_ptr<Omniscript::Expression> Call::findCallable(const std::string& co
     }
     
     // Fall back to direct lookup
-    return scope->get(callee);
+    auto result = scope->get(callee);
+    if (!result) {
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify function '%s' is defined\n"
+            "2. Check for correct scope or namespace\n"
+            "3. Ensure proper import or module inclusion",
+            callee.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SEMANTIC_ERROR,
+            Omniscript::Console::formatString("Callable '%s' not found", callee.c_str()),
+            suggestion,
+            this->getSpan()
+        );
+    }
+    return result;
 }
 
 std::vector<std::shared_ptr<Omniscript::Expression>> Call::findOverloadsInContext(SymbolTableType scope) {
@@ -365,7 +484,16 @@ std::shared_ptr<Omniscript::Expression> Call::resolveOverload(
         for (const auto& param : paramList) {
             auto casted = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(param);
             if (!casted) {
-                console.error(formatError("Failed to cast parameter to FunctionInputExpression."));
+                std::string suggestion = "To resolve this:\n"
+                                       "1. Check parameter definitions\n"
+                                       "2. Verify function signature\n"
+                                       "3. Ensure correct type casting";
+                console.reportError(
+                    Omniscript::Console::INTERNAL_ERROR,
+                    "Failed to cast parameter to FunctionInputExpression",
+                    suggestion,
+                    this->getSpan()
+                );
                 continue;
             }
             inputParams.push_back(casted);
@@ -383,6 +511,19 @@ std::shared_ptr<Omniscript::Expression> Call::resolveOverload(
         }
     }
     
+    std::string suggestion = Omniscript::Console::formatString(
+        "To resolve this:\n"
+        "1. Check function signature for '%s'\n"
+        "2. Verify parameter types match\n"
+        "3. Ensure correct argument count",
+        callee.c_str()
+    );
+    console.reportError(
+        Omniscript::Console::TYPE_ERROR,
+        Omniscript::Console::formatString("No matching overload found for '%s'", callee.c_str()),
+        suggestion,
+        this->getSpan()
+    );
     return nullptr;
 }
 
@@ -504,9 +645,25 @@ bool Call::processNamedArguments(
             }
             
             if (paramIndex == -1) {
-                DEBUG_LOG("[Call] ERROR: Unknown parameter '" + paramName + "'");
-                console.error(formatError("Unknown parameter '" + paramName + "' for callable '" + callee + "'"));
-                continue;
+                std::string availableParams;
+                for (const auto& param : parameters) {
+                    availableParams += " - " + param->name + "\n";
+                }
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Check parameter name spelling\n"
+                    "2. Available parameters:\n%s"
+                    "3. Verify function signature",
+                    availableParams.c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::SEMANTIC_ERROR,
+                    Omniscript::Console::formatString("Unknown parameter '%s' for callable '%s'", 
+                        paramName.c_str(), callee.c_str()),
+                    suggestion,
+                    namedArg->getSpan()
+                );
+                return false;
             }
             
             auto param = parameters[paramIndex];
@@ -516,6 +673,20 @@ bool Call::processNamedArguments(
             }
             
             auto evaluated = namedArg->value ? namedArg->value->express(scope) : nullptr;
+            if (!evaluated) {
+                std::string suggestion = "To resolve this:\n"
+                                       "1. Verify argument expression is valid\n"
+                                       "2. Check for proper initialization\n"
+                                       "3. Add debug output for argument value";
+                console.reportError(
+                    Omniscript::Console::RUNTIME_ERROR,
+                    Omniscript::Console::formatString("Failed to evaluate named argument '%s'", 
+                        paramName.c_str()),
+                    suggestion,
+                    namedArg->getSpan()
+                );
+                return false;
+            }
             localScope->set(paramName, evaluated);
             collectedArgs[paramIndex] = evaluated;
             providedParams.insert(paramName);
@@ -550,7 +721,19 @@ bool Call::processPositionalArguments(
     }
 
     if (!called) {
-        console.error(formatError("Function or type '" + callee + "' not found."));
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify function '%s' is defined\n"
+            "2. Check for correct scope or namespace\n"
+            "3. Ensure proper import or module inclusion",
+            callee.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SEMANTIC_ERROR,
+            Omniscript::Console::formatString("Function or type '%s' not found", callee.c_str()),
+            suggestion,
+            this->getSpan()
+        );
         return false;
     }
 
@@ -587,9 +770,20 @@ bool Call::processPositionalArguments(
             collectedArgs[i] = param->defaultValue;
         } 
         else {
-            DEBUG_LOG("[Call] ERROR: Missing required parameter '" + paramName + "'");
-            console.error(formatError("Missing required argument for parameter '" + 
-                          paramName + "'"));
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Provide a value for parameter '%s'\n"
+                "2. Check function signature\n"
+                "3. Consider using a default value",
+                paramName.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SEMANTIC_ERROR,
+                Omniscript::Console::formatString("Missing required argument for parameter '%s'", 
+                    paramName.c_str()),
+                suggestion,
+                this->getSpan()
+            );
             return false;
         }
     }
@@ -597,8 +791,23 @@ bool Call::processPositionalArguments(
     // Check for extra arguments (only if no variadic parameter consumed them)
     if (positionalArgIndex < args.size() && 
         !(parameters.size() > 0 && parameters.back()->isVariadic)) {
-        DEBUG_LOG("[Call] ERROR: Too many arguments provided");
-        console.error(formatError("Too many arguments provided to '" + callee + "'"));
+        std::string expectedParams;
+        for (const auto& param : parameters) {
+            expectedParams += " - " + param->name + "\n";
+        }
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Check number of arguments required\n"
+            "2. Expected parameters:\n%s"
+            "3. Verify function signature",
+            expectedParams.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SEMANTIC_ERROR,
+            Omniscript::Console::formatString("Too many arguments provided to '%s'", callee.c_str()),
+            suggestion,
+            this->getSpan()
+        );
         return false;
     }
 
@@ -616,6 +825,16 @@ bool Call::handleVariadicParameter(
 {
     // Verify this is actually a variadic parameter
     if (i >= parameters.size() || !parameters[i]->isVariadic) {
+        std::string suggestion = "To resolve this:\n"
+                               "1. Verify variadic parameter declaration\n"
+                               "2. Check function signature\n"
+                               "3. Ensure correct parameter index";
+        console.reportError(
+            Omniscript::Console::INTERNAL_ERROR,
+            "Invalid variadic parameter access",
+            suggestion,
+            this->getSpan()
+        );
         return false;
     }
 
@@ -638,8 +857,20 @@ bool Call::handleVariadicParameter(
         
         // Error if named arguments appear in variadic section
         if (auto namedArg = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
-            console.error(formatError("Named argument '" + namedArg->getName() + 
-                          "' cannot appear after variadic arguments"));
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Place named arguments before variadic arguments\n"
+                "2. Check argument order\n"
+                "3. Verify function signature for '%s'",
+                callee.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SEMANTIC_ERROR,
+                Omniscript::Console::formatString("Named argument '%s' cannot appear after variadic arguments", 
+                    namedArg->getName().c_str()),
+                suggestion,
+                namedArg->getSpan()
+            );
             positionalArgIndex++;
             continue;
         }
@@ -647,7 +878,39 @@ bool Call::handleVariadicParameter(
         // Evaluate the argument
         auto value = arg->express(scope);
         if (!value || value->getType()->isInvalid()) {
-            console.error(formatError("Invalid value in variadic argument"));
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Verify argument expression is valid\n"
+                                   "2. Check for proper initialization\n"
+                                   "3. Add debug output for argument value";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Invalid value in variadic argument",
+                suggestion,
+                arg->getSpan()
+            );
+            positionalArgIndex++;
+            continue;
+        }
+        
+        // Check type compatibility
+        if (!Omniscript::Type::isSameOrCastableTo(value->getType(), expectedType)) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Check type requirements\n"
+                "2. Available conversions:\n"
+                " - Explicit cast: `(%s)value`\n"
+                " - Conversion method: `value.to_%s()`\n"
+                "3. Verify source type implements required traits",
+                expectedType->toString().c_str(),
+                expectedType->toString().c_str()
+            );
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                Omniscript::Console::formatString("Variadic argument type '%s' does not match expected type '%s'", 
+                    value->getType()->toString().c_str(), expectedType->toString().c_str()),
+                suggestion,
+                arg->getSpan()
+            );
             positionalArgIndex++;
             continue;
         }
@@ -700,23 +963,56 @@ bool Call::processRegularPositionalArgument(
 {
     // Error if named arguments appear in positional section
     if (std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
-        DEBUG_LOG("[Call] ERROR: Positional argument after named argument");
-        console.error(formatError("Positional argument after named argument is not allowed."));
+        std::string suggestion = "To resolve this:\n"
+                               "1. Place named arguments before positional arguments\n"
+                               "2. Check argument order\n"
+                               "3. Verify function signature";
+        console.reportError(
+            Omniscript::Console::SEMANTIC_ERROR,
+            "Positional argument after named argument is not allowed",
+            suggestion,
+            arg->getSpan()
+        );
         return false;
     }
 
     // Evaluate the argument
     auto value = arg->express(scope);
     if (!value || value->getType()->isInvalid()) {
-        console.error(formatError("Invalid argument for parameter '" + param->name + "'"));
+        std::string suggestion = "To resolve this:\n"
+                               "1. Verify argument expression is valid\n"
+                               "2. Check for proper initialization\n"
+                               "3. Add debug output for argument value";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Invalid argument for parameter '%s'", 
+                param->name.c_str()),
+            suggestion,
+            arg->getSpan()
+        );
         return false;
     }
 
     // Check type compatibility
     if (!Omniscript::Type::isSameOrCastableTo(value->getType(), param->getType())) {
-        console.error(formatError("Cannot bind argument of type '" + 
-                      value->getType()->toString() + "' to parameter '" + 
-                      param->name + "'; expected '" + param->getType()->toString() + "'"));
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Check type requirements\n"
+            "2. Available conversions:\n"
+            " - Explicit cast: `(%s)value`\n"
+            " - Conversion method: `value.to_%s()`\n"
+            "3. Verify source type implements required traits",
+            param->getType()->toString().c_str(),
+            param->getType()->toString().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Cannot bind argument of type '%s' to parameter '%s'; expected '%s'", 
+                value->getType()->toString().c_str(), param->name.c_str(), 
+                param->getType()->toString().c_str()),
+            suggestion,
+            arg->getSpan()
+        );
         return false;
     }
 
@@ -779,12 +1075,25 @@ std::string Call::resolveFunctionOverload(
 
     if (overloads.empty()) {
         DEBUG_LOG("[OverloadResolver] No overloads found for '" + calleeName + "'");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify function '%s' is defined\n"
+            "2. Check for correct scope or namespace\n"
+            "3. Ensure proper import or module inclusion",
+            calleeName.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SEMANTIC_ERROR,
+            Omniscript::Console::formatString("No overloads found for '%s'", calleeName.c_str()),
+            suggestion
+        );
         return "";
     }
 
     for (const auto& overload : overloads) {
         auto funcExpr = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(overload);
         if (!funcExpr) {
+            DEBUG_LOG("[OverloadResolver] Skipping non-function overload for '" + calleeName + "'");
             continue;
         }
 
@@ -792,7 +1101,19 @@ std::string Call::resolveFunctionOverload(
         std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>> inputParams;
         for (const auto& param : paramList) {
             auto casted = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(param);
-            if (!casted) continue;
+            if (!casted) {
+                std::string suggestion = "To resolve this:\n"
+                                       "1. Check parameter definitions\n"
+                                       "2. Verify function signature\n"
+                                       "3. Ensure correct type casting";
+                console.reportError(
+                    Omniscript::Console::INTERNAL_ERROR,
+                    Omniscript::Console::formatString("Failed to cast parameter to FunctionInputExpression for '%s'", 
+                        funcExpr->mangledName.c_str()),
+                    suggestion
+                );
+                continue;
+            }
             inputParams.push_back(casted);
         }
 
@@ -801,10 +1122,38 @@ std::string Call::resolveFunctionOverload(
             std::shared_ptr<Omniscript::Expression> result;
             if (auto namedArg = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
                 result = namedArg->value->express(scope);
+                if (!result) {
+                    std::string suggestion = "To resolve this:\n"
+                                           "1. Verify named argument '%s' is valid\n"
+                                           "2. Check for proper initialization\n"
+                                           "3. Add debug output for argument value";
+                    console.reportError(
+                        Omniscript::Console::RUNTIME_ERROR,
+                        Omniscript::Console::formatString("Failed to evaluate named argument '%s' for '%s'", 
+                            namedArg->getName().c_str(), calleeName.c_str()),
+                        suggestion,
+                        namedArg->getSpan()
+                    );
+                    continue;
+                }
                 evaluatedArgs.push_back(std::make_shared<Omniscript::FunctionInputExpression>(
                     namedArg->getName(), result->getType(), result));
             } else {
                 result = arg->express(scope);
+                if (!result) {
+                    std::string suggestion = "To resolve this:\n"
+                                           "1. Verify argument expression is valid\n"
+                                           "2. Check for proper initialization\n"
+                                           "3. Add debug output for argument value";
+                    console.reportError(
+                        Omniscript::Console::RUNTIME_ERROR,
+                        Omniscript::Console::formatString("Failed to evaluate argument for '%s'", 
+                            calleeName.c_str()),
+                        suggestion,
+                        arg->getSpan()
+                    );
+                    continue;
+                }
                 evaluatedArgs.push_back(std::make_shared<Omniscript::FunctionInputExpression>(
                     "", result->getType(), result));
             }
@@ -818,6 +1167,18 @@ std::string Call::resolveFunctionOverload(
         }
     }
 
+    std::string suggestion = Omniscript::Console::formatString(
+        "To resolve this:\n"
+        "1. Check function signature for '%s'\n"
+        "2. Verify argument types and count\n"
+        "3. Ensure correct parameter order",
+        calleeName.c_str()
+    );
+    console.reportError(
+        Omniscript::Console::TYPE_ERROR,
+        Omniscript::Console::formatString("No matching overload found for '%s'", calleeName.c_str()),
+        suggestion
+    );
     return "";
 }
 
@@ -858,6 +1219,31 @@ bool Call::matchArgumentsToParameters(
         if (param->isVariadic) {
             DEBUG_LOG("[Call] Parameter is variadic: " + paramName);
             while (positionalIndex < positionalArgs.size()) {
+                auto arg = positionalArgs[positionalIndex];
+                auto argType = (arg->defaultValue->getRootType()->isInvalid() ? 
+                              arg->defaultValue->getType() : 
+                              arg->defaultValue->getRootType());
+                auto expectedType = param->getType()->isArray() ? param->getType()->getBasePointeeType() : param->getType();
+                
+                if (!Omniscript::Type::isSameOrCastableTo(argType, expectedType)) {
+                    std::string suggestion = Omniscript::Console::formatString(
+                        "To resolve this:\n"
+                        "1. Check type requirements for variadic parameter\n"
+                        "2. Available conversions:\n"
+                        " - Explicit cast: `(%s)value`\n"
+                        " - Conversion method: `value.to_%s()`\n"
+                        "3. Verify source type implements required traits",
+                        expectedType->toString().c_str(),
+                        expectedType->toString().c_str()
+                    );
+                    console.reportError(
+                        Omniscript::Console::TYPE_ERROR,
+                        Omniscript::Console::formatString("Variadic argument type '%s' does not match expected type '%s' for parameter '%s'", 
+                            argType->toString().c_str(), expectedType->toString().c_str(), paramName.c_str()),
+                        suggestion
+                    );
+                    return false;
+                }
                 positionalIndex++;
             }
             break;
@@ -874,7 +1260,19 @@ bool Call::matchArgumentsToParameters(
             DEBUG_LOG("[Call] No argument provided for '" + paramName + "', using default value");
             continue;
         } else {
-            DEBUG_LOG("[Call] Missing required argument for parameter: " + paramName);
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Provide a value for parameter '%s'\n"
+                "2. Check function signature\n"
+                "3. Consider using a default value",
+                paramName.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SEMANTIC_ERROR,
+                Omniscript::Console::formatString("Missing required argument for parameter '%s'", 
+                    paramName.c_str()),
+                suggestion
+            );
             return false;
         }
 
@@ -883,22 +1281,66 @@ bool Call::matchArgumentsToParameters(
                                matchingArg->defaultValue->getRootType());
         
         if (!Omniscript::Type::isSameOrCastableTo(matchingArgType, param->getType())) {
-            DEBUG_LOG("[Call] Type mismatch for parameter: " + paramName);
-            DEBUG_LOG("[Call] Expected type: '" + param->getType()->toString() + "' got '" + 
-                      matchingArgType->toString() + "'");
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Check type requirements\n"
+                "2. Available conversions:\n"
+                " - Explicit cast: `(%s)value`\n"
+                " - Conversion method: `value.to_%s()`\n"
+                "3. Verify source type implements required traits",
+                param->getType()->toString().c_str(),
+                param->getType()->toString().c_str()
+            );
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                Omniscript::Console::formatString("Cannot bind argument of type '%s' to parameter '%s'; expected '%s'", 
+                    matchingArgType->toString().c_str(), paramName.c_str(), 
+                    param->getType()->toString().c_str()),
+                suggestion
+            );
             return false;
         }
     }
 
     for (const auto& [name, _] : namedArgs) {
         if (matchedNames.count(name) == 0) {
-            DEBUG_LOG("[Call] Unused named argument: " + name);
+            std::string availableParams;
+            for (const auto& param : params) {
+                availableParams += " - " + param->name + "\n";
+            }
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Check parameter name spelling\n"
+                "2. Available parameters:\n%s"
+                "3. Verify function signature",
+                availableParams.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SEMANTIC_ERROR,
+                Omniscript::Console::formatString("Unused named argument '%s'", name.c_str()),
+                suggestion
+            );
             return false;
         }
     }
 
     if (positionalIndex < positionalArgs.size()) {
-        DEBUG_LOG("[Call] Too many positional arguments left unmatched (and no variadic parameter found)");
+        std::string expectedParams;
+        for (const auto& param : params) {
+            expectedParams += " - " + param->name + "\n";
+        }
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Check number of arguments required\n"
+            "2. Expected parameters:\n%s"
+            "3. Verify function signature",
+            expectedParams.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::SEMANTIC_ERROR,
+            "Too many positional arguments provided",
+            suggestion
+        );
         return false;
     }
 

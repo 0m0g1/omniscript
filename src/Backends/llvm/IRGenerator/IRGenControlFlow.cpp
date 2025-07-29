@@ -5,12 +5,30 @@ namespace Omniscript {
 llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* expectedReturnType) {
     llvm::Function* currentFunction = Builder->GetInsertBlock()->getParent();
     if (!currentFunction) {
-        console.error("Return statement outside function");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure return statement is within a function body\n"
+                               "2. Check for correct function declaration\n"
+                               "3. Verify code structure";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            "Return statement outside function",
+            suggestion,
+            FileSpan() // Default span as no statement context
+        );
         return nullptr;
     }
 
     if (!Module) {
-        console.error("LLVM Module is null");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Verify LLVM module is properly initialized\n"
+                               "2. Check module creation in IRGenerator setup\n"
+                               "3. Ensure module is not null before codegen";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            "LLVM Module is null",
+            suggestion,
+            FileSpan() // Default span as no statement context
+        );
         return nullptr;
     }
     
@@ -22,19 +40,56 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
 
     if (currentFunction->getReturnType()->isVoidTy()) {
         if (returnValue) {
-            console.error("Void function cannot return a value");
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Remove return value for void function '%s'\n"
+                "2. Use return without a value\n"
+                "3. Verify function signature",
+                currentFunction->getName().str().c_str()
+            );
+            console.reportError(
+                Omniscript::Console::TYPE_ERROR,
+                "Void function cannot return a value",
+                suggestion,
+                FileSpan() // Default span as no statement context
+            );
         }
         return Builder->CreateRetVoid();
     }
 
     if (!returnValue) {
-        console.error("Non-void function must return a value");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Provide a return value for non-void function '%s'\n"
+            "2. Check function return type\n"
+            "3. Ensure return expression is valid",
+            currentFunction->getName().str().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            "Non-void function must return a value",
+            suggestion,
+            FileSpan() // Default span as no statement context
+        );
+        return nullptr;
     }
 
     if (returnValue->getType() != expectedReturnType) {
-        console.error("Return type mismatch: expected " + 
-            debugType(expectedReturnType) + ", got " + 
-            debugType(returnValue->getType()));
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Ensure return value type matches expected type '%s'\n"
+            "2. Check expression type for '%s'\n"
+            "3. Consider explicit type casting",
+            debugType(expectedReturnType).c_str(), debugType(returnValue->getType()).c_str()
+        );
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            Omniscript::Console::formatString("Return type mismatch: expected '%s', got '%s'",
+                             debugType(expectedReturnType).c_str(), debugType(returnValue->getType()).c_str()),
+            suggestion,
+            FileSpan() // Default span as no statement context
+        );
+        return nullptr;
     }
 
     return Builder->CreateRet(returnValue);
@@ -53,12 +108,40 @@ llvm::Value* IRGenerator::createForLoop(
     if (forExpr->initializer) {
         auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(forExpr->initializer);
         if (!varAssign || varAssign->isGlobal) {
-            console.error("Expected local variable assignment in for initializer.");
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Ensure for loop initializer is a local variable assignment\n"
+                                   "2. Check initializer syntax\n"
+                                   "3. Verify variable is not declared as global";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Expected local variable assignment in for initializer",
+                suggestion,
+                forExpr->getSpan()
+            );
+            popScope();
+            return nullptr;
         }
 
         loopVarName = varAssign->variableName;
         initialValue = codegen(forExpr->initializer, localScope);
-        if (!initialValue) return nullptr;
+        if (!initialValue) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Verify initializer for variable '%s' is valid\n"
+                "2. Check initializer expression\n"
+                "3. Add debug output for initializer codegen",
+                loopVarName.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("Failed to generate initializer for variable '%s'",
+                                 loopVarName.c_str()),
+                suggestion,
+                forExpr->initializer->getSpan()
+            );
+            popScope();
+            return nullptr;
+        }
     }
 
     llvm::Function* function = Builder->GetInsertBlock()->getParent();
@@ -75,17 +158,23 @@ llvm::Value* IRGenerator::createForLoop(
     // === Condition block ===
     Builder->SetInsertPoint(condBlock);
 
-    // llvm::PHINode* phi = nullptr;
-    // if (!loopVarName.empty()) {
-    //     phi = Builder->CreatePHI(initialValue->getType(), 2, loopVarName);
-    //     phi->addIncoming(initialValue, preheaderBlock);
-    //     activeScope->set(loopVarName, phi);
-    // }
-
     llvm::Value* condValue = nullptr;
     if (forExpr->condition) {
         condValue = codegen(forExpr->condition, localScope);
-        if (!condValue) return nullptr;
+        if (!condValue) {
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Verify for loop condition is valid\n"
+                                   "2. Check condition expression syntax\n"
+                                   "3. Add debug output for condition codegen";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to generate condition for for loop",
+                suggestion,
+                forExpr->condition->getSpan()
+            );
+            popScope();
+            return nullptr;
+        }
 
         if (condValue->getType()->isIntegerTy()) {
             condValue = Builder->CreateICmpNE(
@@ -127,12 +216,21 @@ llvm::Value* IRGenerator::createForLoop(
     llvm::Value* incrementValue = nullptr;
     if (forExpr->increment) {
         incrementValue = codegen(forExpr->increment, localScope);
-        if (!incrementValue) return nullptr;
+        if (!incrementValue) {
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Verify for loop increment is valid\n"
+                                   "2. Check increment expression syntax\n"
+                                   "3. Add debug output for increment codegen";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to generate increment for for loop",
+                suggestion,
+                forExpr->increment->getSpan()
+            );
+            popScope();
+            return nullptr;
+        }
     }
-
-    // if (phi && incrementValue) {
-    //     phi->addIncoming(incrementValue, Builder->GetInsertBlock());
-    // }
 
     Builder->CreateBr(condBlock);
 
@@ -178,8 +276,16 @@ llvm::Value* IRGenerator::createWhileLoop(
             "whilecond"
         );
     } else {
-        // Fallback or error
-        console.error("Invalid condition type in while loop");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure while loop condition has a valid type (integer or floating-point)\n"
+                               "2. Check condition expression\n"
+                               "3. Verify condition type compatibility";
+        console.reportError(
+            Omniscript::Console::TYPE_ERROR,
+            "Invalid condition type in while loop",
+            suggestion,
+            whileExpr->condition ? whileExpr->condition->getSpan() : FileSpan()
+        );
         return nullptr;
     }
 
@@ -216,6 +322,17 @@ llvm::Value* IRGenerator::createIfStatement(
     std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope)
 {
     if (conditions.empty() || conditions.size() != bodies.size()) {
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure if statement has at least one condition and matching body\n"
+                               "2. Verify conditions and bodies vectors have equal size\n"
+                               "3. Check if statement syntax";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Invalid if statement: %d conditions, %d bodies",
+                             conditions.size(), bodies.size()),
+            suggestion,
+            conditions.empty() ? FileSpan() : conditions[0]->getSpan()
+        );
         return nullptr;
     }
 
@@ -236,7 +353,22 @@ llvm::Value* IRGenerator::createIfStatement(
     for (size_t i = 0; i < conditions.size(); ++i) {
         llvm::BasicBlock* condBlock = Builder->GetInsertBlock();
         llvm::Value* condValue = codegen(conditions[i], localScope);
-        if (!condValue) return nullptr;
+        if (!condValue) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Verify condition #%d is valid\n"
+                "2. Check condition expression syntax\n"
+                "3. Add debug output for condition codegen",
+                i + 1
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("Failed to generate code for condition #%d", i + 1),
+                suggestion,
+                conditions[i]->getSpan()
+            );
+            return nullptr;
+        }
 
         if (condValue->getType()->isIntegerTy()) {
             unsigned bitWidth = condValue->getType()->getIntegerBitWidth();
@@ -253,7 +385,7 @@ llvm::Value* IRGenerator::createIfStatement(
         llvm::BasicBlock* elseBlock;
         
         if (i == conditions.size() - 1 && !elseBody) {
-            elseBlock = mergeBlock; // add if else body here
+            elseBlock = mergeBlock;
             mergeBlockUsed = true;
         } else {
             elseBlock = llvm::BasicBlock::Create(context, "else");
@@ -274,7 +406,6 @@ llvm::Value* IRGenerator::createIfStatement(
             if (thenValue) incomingValues.push_back(thenValue);
         } else if (thenValue) {
             // Do not push the block because it won’t reach merge
-            // Possibly track that this branch returned and skip PHI creation later
         }
 
         if (i == conditions.size() - 1 && !elseBody) {
@@ -298,6 +429,19 @@ llvm::Value* IRGenerator::createIfStatement(
     // Handle final else block if provided
     if (elseBody) {
         llvm::Value* elseValue = codegen(elseBody, localScope);
+        if (!elseValue && !std::dynamic_pointer_cast<Omniscript::BlockExpression>(elseBody)) {
+            std::string suggestion = "To resolve this:\n"
+                                   "1. Verify else block expression is valid\n"
+                                   "2. Check else body syntax\n"
+                                   "3. Add debug output for else block codegen";
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                "Failed to generate code for else block",
+                suggestion,
+                elseBody->getSpan()
+            );
+            return nullptr;
+        }
 
         // Set insert point to current block *before* emitting the branch
         llvm::BasicBlock* currentBlock = Builder->GetInsertBlock();
@@ -331,7 +475,16 @@ llvm::Value* IRGenerator::createIfStatement(
 
         for (auto val : incomingValues) {
             if (val->getType() != incomingValues[0]->getType()) {
-                console.error("Mismatched PHI types in if-statement");
+                std::string suggestion = "To resolve this:\n"
+                                       "1. Ensure all branches return compatible types\n"
+                                       "2. Check return expressions in each branch\n"
+                                       "3. Verify type consistency across if/else blocks";
+                console.reportError(
+                    Omniscript::Console::TYPE_ERROR,
+                    "Mismatched PHI types in if-statement",
+                    suggestion,
+                    conditions[0]->getSpan()
+                );
                 return nullptr;
             }
         }

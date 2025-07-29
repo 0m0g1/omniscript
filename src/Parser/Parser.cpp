@@ -7,11 +7,27 @@
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 
-
 // Entry point for parsing the program
 std::vector<std::shared_ptr<Statement>> Parser::parse() {
+    Omniscript::FileSpan span;
+    span.start.line = currentToken.getLine();
+    span.start.col = currentToken.getColumn();
+    span.start.filePath = currentToken.getFilePath();
+
     initializeEnvironment();
     parseProgram(); // Start parsing the program
+
+    span.end.line = previousToken.getLine();
+    span.end.col = previousToken.getColumn();
+    span.end.filePath = previousToken.getFilePath();
+
+    // Set spans on all statements
+    // for (auto& stmt : statements) {
+    //     if (stmt && !stmt->hasSpan()) {
+    //         stmt->setSpan(span);
+    //     }
+    // }
+
     return this->statements;
 }
 
@@ -22,26 +38,45 @@ void Parser::initializeEnvironment() {
 }
 
 void Parser::initializeBuiltInObjects() {
-
+    // Placeholder for future initialization logic
 }
 
 void Parser::initializeConstants() {
-
+    // Placeholder for future initialization logic
 }
 
 void Parser::initializeFunctions() {
-
+    // Placeholder for future initialization logic
 }
 
 void Parser::parseProgram() {
+    Omniscript::FileSpan span;
+    span.start.line = currentToken.getLine();
+    span.start.col = currentToken.getColumn();
+    span.start.filePath = currentToken.getFilePath();
+
     DEBUG_LOG();
     DEBUG_LOG("Parsing the script");
     DEBUG_LOG("==================");
     DEBUG_LOG();
     
     while (currentToken.getType() != TokenTypes::EOI) {
-        statements.push_back(parseStatement());
+        auto stmt = parseStatement();
+        if (!stmt) {
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                "Failed to parse statement",
+                "To resolve this:\n1. Verify statement syntax\n2. Check for valid statement types\n3. Ensure proper declaration",
+                span
+            );
+            continue; // Continue to avoid crashing, but report error
+        }
+        statements.push_back(stmt);
     }
+
+    span.end.line = previousToken.getLine();
+    span.end.col = previousToken.getColumn();
+    span.end.filePath = previousToken.getFilePath();
     
     DEBUG_LOG();
     DEBUG_LOG("Done parsing the script");
@@ -50,37 +85,115 @@ void Parser::parseProgram() {
 }
 
 void Parser::eat(TokenTypes expectedType, const std::string& err) {
-    Omniscript::setSpanFromPosition(currentToken.getLine(), currentToken.getColumn(), currentToken.getFilePath());
+    Omniscript::FileSpan span;
+    span.start.line = currentToken.getLine();
+    span.start.col = currentToken.getColumn();
+    span.start.filePath = currentToken.getFilePath();
+
     if (currentToken.getType() == expectedType) {
         previousToken = currentToken;
-        currentToken = lexer.getNextToken(); // Move to the next token
+        currentToken = lexer.getNextToken();
+        span.end.line = previousToken.getLine();
+        span.end.col = previousToken.getColumn();
+        span.end.filePath = previousToken.getFilePath();
     } else {
-        std::string errorMessage = "[Parser Error]\nExpected token type: " 
-        + getTokenTypeName(expectedType) 
-        + " at line: " + std::to_string(currentToken.getLine()) 
-        + " column: " + std::to_string(currentToken.getColumn()) 
-        + " got token type " + getTokenTypeName(currentToken.getType()) 
-        + " instead.\n";
+        std::string errorMessage = Omniscript::Console::formatString(
+            "Expected token type: %s, found '%s'",
+            getTokenTypeName(expectedType).c_str(),
+            getTokenTypeName(currentToken.getType()).c_str()
+        );
+        std::string suggestion = "To resolve this:\n1. Ensure the correct token is used\n2. Check syntax around line " +
+            std::to_string(currentToken.getLine()) + ", column " + std::to_string(currentToken.getColumn()) + "\n3. " + err;
 
-        
-        if (err != "") {
-            errorMessage += "\n\n" + err;
-        }
-        
-        console.error(errorMessage);
+        console.reportError(
+            Omniscript::Console::SYNTAX_ERROR,
+            errorMessage,
+            suggestion,
+            span
+        );
+        eat(currentToken.getType());
     }
 }
 
-// TODO: Omniscript automatically skips all new lines
+void Parser::eat(TokenTypes expectedType, const std::function<void()>& errorHandler) {
+    Omniscript::FileSpan span;
+    span.start.line = currentToken.getLine();
+    span.start.col = currentToken.getColumn();
+    span.start.filePath = currentToken.getFilePath();
+
+    if (currentToken.getType() == expectedType) {
+        previousToken = currentToken;
+        currentToken = lexer.getNextToken();
+        span.end.line = previousToken.getLine();
+        span.end.col = previousToken.getColumn();
+        span.end.filePath = previousToken.getFilePath();
+    } else {
+        errorHandler();
+        eat(currentToken.getType());
+    }
+}
+
 void Parser::expectSemicolonOrNewLine() {
+    Omniscript::FileSpan span;
+    span.start.line = currentToken.getLine();
+    span.start.col = currentToken.getColumn();
+    span.start.filePath = currentToken.getFilePath();
+
     if (currentToken.getType() == TokenTypes::Semicolon) {
-        eat(TokenTypes::Semicolon);
+        eat(TokenTypes::Semicolon, [&]() {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. End statement with ';'\n"
+                "2. Check for proper termination\n"
+                "3. Expected token: ';', found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                Omniscript::Console::formatString("Expected ';' to end statement, found '%s'", 
+                    getTokenTypeName(currentToken.getType()).c_str()),
+                suggestion,
+                span
+            );
+        });
         if (currentToken.getType() == TokenTypes::Newline) {
-            eat(TokenTypes::Newline);
+            eat(TokenTypes::Newline, [&]() {
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Ensure newline follows semicolon if present\n"
+                    "2. Check statement termination\n"
+                    "3. Expected token: newline, found '%s'",
+                    getTokenTypeName(currentToken.getType()).c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::SYNTAX_ERROR,
+                    Omniscript::Console::formatString("Expected newline after semicolon, found '%s'", 
+                        getTokenTypeName(currentToken.getType()).c_str()),
+                    suggestion,
+                    span
+                );
+            });
         }
     } else {
-        eat(TokenTypes::Newline);
+        eat(TokenTypes::Newline, [&]() {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. End statement with newline or ';'\n"
+                "2. Check statement termination\n"
+                "3. Expected token: newline, found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()
+            );
+            console.reportError(
+                Omniscript::Console::SYNTAX_ERROR,
+                Omniscript::Console::formatString("Expected newline to end statement, found '%s'", 
+                    getTokenTypeName(currentToken.getType()).c_str()),
+                suggestion,
+                span
+            );
+        });
     }
-}
 
-//Parsing starts at ParseStatement
+    span.end.line = previousToken.getLine();
+    span.end.col = previousToken.getColumn();
+    span.end.filePath = previousToken.getFilePath();
+}

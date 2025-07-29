@@ -17,6 +17,7 @@
 #include <omniscript/Expressions/AggregateExpressions.h>
 #include <omniscript/Expressions/BlockExpression.h>
 
+namespace Omniscript {
 std::shared_ptr<Omniscript::Expression> IncludeStatement::express(SymbolTableType scope) {
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     return nullptr;
@@ -24,13 +25,34 @@ std::shared_ptr<Omniscript::Expression> IncludeStatement::express(SymbolTableTyp
 
 std::vector<std::shared_ptr<Statement>> IncludeStatement::getStatements() {
     if (path.empty()) {
-        console.error("IncludeStatement::express - Include path is empty.");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure the include directive specifies a valid file path\n"
+                               "2. Check for correct file path syntax\n"
+                               "3. Verify the file exists in the include directory";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            "Include path is empty",
+            suggestion,
+            getSpan()
+        );
         return {};
     }
 
     std::string sourceCode = readFile(path);
     if (sourceCode.empty()) {
-        console.error("IncludeStatement::express - Failed to read file: " + path);
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify the file '%s' exists\n"
+            "2. Check file permissions\n"
+            "3. Ensure correct file path is provided",
+            path.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Failed to read file: '%s'", path.c_str()),
+            suggestion,
+            getSpan()
+        );
         return {};
     }
 
@@ -61,7 +83,6 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     std::vector<std::shared_ptr<Omniscript::Expression>> expressions;
     std::vector<std::shared_ptr<Omniscript::ModuleMemberExpression>> members;
 
-    // auto moduleScope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>(nullptr, modulePath);
     auto moduleScope = scope;
 
     // First process all includes (flatten the hierarchy)
@@ -119,13 +140,30 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
         } else {
             // Direct value member parameter
             auto memberExprValue = reinterprateStatement(member->getValue())->express(moduleScope);
+            if (!memberExprValue) {
+                std::string suggestion = Omniscript::Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify member '%s' in module '%s' is correctly defined\n"
+                    "2. Check member expression validity\n"
+                    "3. Add debug output for member evaluation",
+                    member->getName().c_str(), modulePath.c_str()
+                );
+                console.reportError(
+                    Omniscript::Console::RUNTIME_ERROR,
+                    Omniscript::Console::formatString("Failed to evaluate module member '%s' in module '%s'",
+                                     member->getName().c_str(), modulePath.c_str()),
+                    suggestion,
+                    member->getSpan()
+                );
+                return nullptr;
+            }
             expressions.push_back(memberExprValue);
         }
 
         if (!std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue()) && !expressions.empty()) {
             DEBUG_LOG("Appending module member '" + member->getName() + "'.");
             auto memberExpr = std::make_shared<Omniscript::ModuleMemberExpression>(
-                member->getName(),  // assuming expr is from express() and has a name
+                member->getName(),
                 expressions.back(),
                 member->getModifiers()
             );
@@ -133,14 +171,30 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
         }
     }
 
-
     for (int i = 0; i < funcs.size(); i++) {
         const auto& func = funcs[i];
         auto result = func->express(moduleScope);
+        if (!result) {
+            std::string suggestion = Omniscript::Console::formatString(
+                "To resolve this:\n"
+                "1. Verify function '%s' in module '%s' is correctly defined\n"
+                "2. Check function body and parameters\n"
+                "3. Add debug output for function compilation",
+                func->getName().c_str(), modulePath.c_str()
+            );
+            console.reportError(
+                Omniscript::Console::RUNTIME_ERROR,
+                Omniscript::Console::formatString("Failed to compile function '%s' in module '%s'",
+                                 func->getName().c_str(), modulePath.c_str()),
+                suggestion,
+                func->getSpan()
+            );
+            return nullptr;
+        }
         expressions.push_back(result);
 
         auto memberExpr = std::make_shared<Omniscript::ModuleMemberExpression>(
-            expressions.back()->getName(),  // assuming expr is from express() and has a name
+            expressions.back()->getName(),
             expressions.back(),
             funcsModifiers[i]
         );
@@ -152,7 +206,9 @@ std::shared_ptr<Omniscript::Expression> CreateModule::express(SymbolTableType sc
     scope->setConstant(name, module);
     scope->defineModule(modulePath, moduleScope);
 
-    return std::make_shared<Omniscript::BlockExpression>(expressions);
+    auto block = std::make_shared<Omniscript::BlockExpression>(expressions);
+    block->setSpan(getSpan());
+    return block;
 }
 
 std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<Statement> statement) {
@@ -183,13 +239,37 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
         return classDeclr;
     }
 
+    std::string suggestion = Omniscript::Console::formatString(
+        "To resolve this:\n"
+        "1. Ensure statement '%s' is a valid module member\n"
+        "2. Check for supported statement types (assignment, function, struct, class)\n"
+        "3. Verify statement syntax",
+        statement->toString().c_str()
+    );
+    console.reportError(
+        Omniscript::Console::RUNTIME_ERROR,
+        Omniscript::Console::formatString("Invalid statement type for reinterpretation: '%s'",
+                         statement->toString().c_str()),
+        suggestion,
+        statement->getSpan()
+    );
     return nullptr;
 }
 
 std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType scope) { 
     Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (path.empty()) {
-        console.error("ImportModule::codegen - Module path is empty.");
+        std::string suggestion = "To resolve this:\n"
+                               "1. Ensure the import directive specifies a valid module path\n"
+                               "2. Check for correct module path syntax\n"
+                               "3. Verify the module file exists";
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            "Module path is empty",
+            suggestion,
+            getSpan()
+        );
+        return nullptr;
     }
 
     if (path == "std") {
@@ -198,7 +278,19 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
 
     std::string sourceCode = readFile(path);
     if (sourceCode.empty()) {
-        console.error("Failed to read module file: " + path);
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify the module file '%s' exists\n"
+            "2. Check file permissions\n"
+            "3. Ensure correct file path is provided",
+            path.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Failed to read module file: '%s'", path.c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
 
@@ -222,46 +314,42 @@ std::shared_ptr<Omniscript::Expression> ImportModule::express(SymbolTableType sc
     }
 
     if (!moduleStmt) {
-        console.error("Invalid module: not a ModuleExpression");
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify module '%s' is defined in file '%s'\n"
+            "2. Check for correct module name\n"
+            "3. Ensure module declaration exists",
+            moduleName.c_str(), path.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Module '%s' not found in file '%s'",
+                             moduleName.c_str(), path.c_str()),
+            suggestion,
+            getSpan()
+        );
         return nullptr;
     }
 
-    if (!moduleStmt) {
-        console.error("Module not found: " + moduleName);
-        return nullptr;
-    }
-    
-   
-    // if (importAll) {
-    //     for (const auto& member : moduleExpr->members) {
-    //         // Directly add module members to the scope
-    //         scope->set(member->name, member->value);
-    //     }
-    // } else if (!importedAliases.empty()) {
-    //     for (const auto& [alias, original] : importedAliases) {
-    //         // Search for the member with the name matching 'original'
-    //         auto it = std::find_if(moduleExpr->members.begin(), moduleExpr->members.end(),
-    //             [&original](const std::shared_ptr<Omniscript::ModuleMemberExpression>& member) {
-    //                 return member->getName() == original;  // assuming you have a 'getName()' method
-    //             });
-    
-    //         if (it != moduleExpr->members.end()) {
-    //             scope->set(alias, (*it)->value);  // assuming you have a 'getValue()' method
-    //         } else {
-    //             console.error("Symbol not found in module: " + original);
-    //         }
-    //     }
-    // } else if (!alias.empty()) {
-    //     // Full module import with alias
-    //     scope->aliasModule(alias, moduleName);
-    //     scope->set(alias, moduleExpr);
-    // } else {
-    //     // Full module import without alias (optional — usually you'd assign it)
-    //     scope->set(moduleName, moduleExpr);
-    // }
-
-    
     auto mod = moduleStmt->express(scope);
+    if (!mod) {
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify module '%s' contains valid expressions\n"
+            "2. Check module body for errors\n"
+            "3. Add debug output for module evaluation",
+            moduleName.c_str()
+        );
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Invalid module '%s': not a ModuleExpression",
+                             moduleName.c_str()),
+            suggestion,
+            moduleStmt->getSpan()
+        );
+        return nullptr;
+    }
+
     mod->setSpan(getSpan());
     return mod;
 }
@@ -284,37 +372,6 @@ std::vector<std::string> ImportModule::splitModulePath(const std::string& path) 
 
 // Recursive function to resolve the module path
 std::shared_ptr<SymbolTableType> ImportModule::resolveModulePath(SymbolTableType scope, const std::vector<std::string>& modulePathComponents) {
-    // std::shared_ptr<SymbolTableType> currentScope = scope;
-
-    // for (const std::string& component : modulePathComponents) {
-    //     if (!currentScope->exists(component)) {
-    //         return nullptr; // Module member doesn't exist at this point
-    //     }
-
-    //     // Check if this component is an alias, otherwise, resolve the module
-    //     auto module = currentScope->getModule(component);
-    //     if (module) {
-    //         currentScope = module; // Move into the next nested module
-    //     } else {
-    //         return nullptr; // No module found for this component
-    //     }
-    // }
-
-    // return currentScope; // Return the resolved module
-    return nullptr;
-
-}
-
-// Function to generate module expression with member access (e.g., Math.Algebra.Matrix -> Matrix)
-std::shared_ptr<Omniscript::Expression> ImportModule::generateModuleExpression(std::shared_ptr<SymbolTableType> module, const std::vector<std::string>& modulePathComponents) {
-    // std::shared_ptr<Omniscript::Expression> expression = std::make_shared<Omniscript::ModuleExpression>(module);
-
-    // for (size_t i = 0; i < modulePathComponents.size(); ++i) {
-    //     std::shared_ptr<Omniscript::Expression> memberExpr = std::make_shared<Omniscript::MemberExpression>(expression, modulePathComponents[i]);
-    //     expression = memberExpr;
-    // }
-
-    // return expression; // Return the final expression representing the nested module
     return nullptr;
 }
 
@@ -324,6 +381,25 @@ std::shared_ptr<Omniscript::Expression> ModuleMember::express(SymbolTableType sc
         assignment->setGlobalVisibilityTo(true);
     }
     auto val = value->express(scope);
+    if (!val) {
+        std::string suggestion = Omniscript::Console::formatString(
+            "To resolve this:\n"
+            "1. Verify member '%s' expression is valid\n"
+            "2. Check member type and initialization\n"
+            "3. Add debug output for member evaluation",
+            getName().c_str()
+        );
+        console.reportError(
+            Omniscript::Console::RUNTIME_ERROR,
+            Omniscript::Console::formatString("Failed to evaluate module member '%s'",
+                             getName().c_str()),
+            suggestion,
+            getSpan()
+        );
+        return nullptr;
+    }
     val->setSpan(getSpan());
     return val;
+}
+
 }
