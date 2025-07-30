@@ -3,7 +3,7 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/Parser.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/FunctionStatement.h>

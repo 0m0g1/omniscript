@@ -2,10 +2,10 @@
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
-#include <omniscript/Types.h>
+#include <omniscript/Types/BaseType.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Expression.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Expressions/Expression.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/EngineConfigs.h>
 #include <omniscript/Expressions/ClassExpression.h>

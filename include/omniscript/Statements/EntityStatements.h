@@ -1,5 +1,5 @@
 #pragma once
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 
 namespace Omniscript {
 

@@ -1,4 +1,4 @@
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/TypeStatements.h>
 #include <omniscript/Expressions/TypeExpressions.h>
 

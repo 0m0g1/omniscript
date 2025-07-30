@@ -85,13 +85,16 @@ GENERATED += $(OBJDIR)/AndriodLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/Application.o
 GENERATED += $(OBJDIR)/ArrowAccessStatement.o
 GENERATED += $(OBJDIR)/AssignmentsAndGetterStatements.o
+GENERATED += $(OBJDIR)/BaseType.o
 GENERATED += $(OBJDIR)/CLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/CallStatement.o
+GENERATED += $(OBJDIR)/Casting.o
 GENERATED += $(OBJDIR)/Compiler.o
 GENERATED += $(OBJDIR)/Console.o
 GENERATED += $(OBJDIR)/ControlFlowStatements.o
 GENERATED += $(OBJDIR)/Core.o
 GENERATED += $(OBJDIR)/DarwninLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/DerivedTypes.o
 GENERATED += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/Engine.o
 GENERATED += $(OBJDIR)/EngineConfigs.o
@@ -149,8 +152,11 @@ GENERATED += $(OBJDIR)/PrototypeStatements.o
 GENERATED += $(OBJDIR)/SmartPlatformLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/Statement.o
 GENERATED += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
+GENERATED += $(OBJDIR)/SymbolTable.o
 GENERATED += $(OBJDIR)/Target_config.o
 GENERATED += $(OBJDIR)/Tokens.o
+GENERATED += $(OBJDIR)/TraitCapability.o
+GENERATED += $(OBJDIR)/TypeKind.o
 GENERATED += $(OBJDIR)/TypeStatements.o
 GENERATED += $(OBJDIR)/Types.o
 GENERATED += $(OBJDIR)/Utils.o
@@ -162,13 +168,16 @@ OBJECTS += $(OBJDIR)/AndriodLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/Application.o
 OBJECTS += $(OBJDIR)/ArrowAccessStatement.o
 OBJECTS += $(OBJDIR)/AssignmentsAndGetterStatements.o
+OBJECTS += $(OBJDIR)/BaseType.o
 OBJECTS += $(OBJDIR)/CLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/CallStatement.o
+OBJECTS += $(OBJDIR)/Casting.o
 OBJECTS += $(OBJDIR)/Compiler.o
 OBJECTS += $(OBJDIR)/Console.o
 OBJECTS += $(OBJDIR)/ControlFlowStatements.o
 OBJECTS += $(OBJDIR)/Core.o
 OBJECTS += $(OBJDIR)/DarwninLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/DerivedTypes.o
 OBJECTS += $(OBJDIR)/DynamicLibraryLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/Engine.o
 OBJECTS += $(OBJDIR)/EngineConfigs.o
@@ -226,8 +235,11 @@ OBJECTS += $(OBJDIR)/PrototypeStatements.o
 OBJECTS += $(OBJDIR)/SmartPlatformLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/Statement.o
 OBJECTS += $(OBJDIR)/StaticLibraryLLVMFunctionResolver.o
+OBJECTS += $(OBJDIR)/SymbolTable.o
 OBJECTS += $(OBJDIR)/Target_config.o
 OBJECTS += $(OBJDIR)/Tokens.o
+OBJECTS += $(OBJDIR)/TraitCapability.o
+OBJECTS += $(OBJDIR)/TypeKind.o
 OBJECTS += $(OBJDIR)/TypeStatements.o
 OBJECTS += $(OBJDIR)/Types.o
 OBJECTS += $(OBJDIR)/Utils.o
@@ -513,6 +525,9 @@ $(OBJDIR)/Statement.o: src/Statements/Statement.cpp
 $(OBJDIR)/TypeStatements.o: src/Statements/TypeStatements.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/SymbolTable.o: src/SymbolTable.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Target_config.o: src/Target_config.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
@@ -520,6 +535,21 @@ $(OBJDIR)/Tokens.o: src/Tokens.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Types.o: src/Types.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/BaseType.o: src/Types/BaseType.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/Casting.o: src/Types/Casting.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/DerivedTypes.o: src/Types/DerivedTypes.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/TraitCapability.o: src/Types/TraitCapability.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/TypeKind.o: src/Types/TypeKind.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Utils.o: src/Utils.cpp

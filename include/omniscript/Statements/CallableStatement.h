@@ -1,5 +1,5 @@
 #pragma once
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 
 #include <omniscript/Expressions/FunctionExpression.h>
@@ -46,14 +46,14 @@ public:
     }
 };
 
-class Callable: public NamedStatement {
+class ASTCallable: public NamedStatement {
 public:
     std::vector<std::shared_ptr<Statement>> defaultParams;
 
-    Callable(std::vector<std::shared_ptr<Statement>> params = {}) : defaultParams(params) {}
-    ~Callable() = default;
+    ASTCallable(std::vector<std::shared_ptr<Statement>> params = {}) : defaultParams(params) {}
+    ~ASTCallable() = default;
 
-    virtual std::string toString() const override { return "CallableStatement"; }
+    virtual std::string toString() const override { return "ASTCallableStatement"; }
     
     std::vector<std::shared_ptr<ParameterStatement>> cloneParameters() {
         std::vector<std::shared_ptr<ParameterStatement>> clonedParams;
@@ -157,7 +157,7 @@ private:
     void addThisArgument(const std::string& targetName, std::shared_ptr<UserDefinedType> udt);
     void logArgumentDetails();
     
-    std::shared_ptr<Expression> findCallable(const std::string& contextualName, SymbolTableType scope);
+    std::shared_ptr<Expression> findASTCallable(const std::string& contextualName, SymbolTableType scope);
     std::vector<std::shared_ptr<Expression>> findOverloadsInContext(SymbolTableType scope);
     std::shared_ptr<Expression> resolveOverload(
         const std::vector<std::shared_ptr<Expression>>& overloads, 

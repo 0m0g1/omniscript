@@ -1,5 +1,5 @@
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/ModuleAndImportStatements.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 #include <omniscript/Core.h>

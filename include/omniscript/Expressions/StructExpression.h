@@ -1,5 +1,6 @@
 #pragma once
-#include <omniscript/Expression.h>
+#include <omniscript/Types/DerivedTypes.h>
+#include <omniscript/Expressions/Expression.h>
 #include <omniscript/Expressions/CallableExpression.h>
 #include <omniscript/Expressions/AggregateExpressions.h>
 

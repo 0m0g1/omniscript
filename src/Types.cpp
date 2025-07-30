@@ -1,407 +1,18 @@
 #include <omniscript/Core.h>
-#include <omniscript/Types.h>
-#include <omniscript/Expression.h>
+#include <omniscript/Types/BaseType.h>
+#include <omniscript/Expressions/Expression.h>
 #include <omniscript/omniscript_pch.h>
+#include <omniscript/Types/BaseType.h>
+#include <omniscript/Types/DerivedTypes.h>
+#include <omniscript/Types/TraitCapability.h>
+#include <omniscript/Console.h>
 
 namespace Omniscript {
 
-std::string Type::kindName() const {
-    switch (kind) {
-        case Kind::Invalid:     return "Invalid";
-        case Kind::Undefined:   return "Undefined";
-
-        // Primitive Types
-        case Kind::Primitive:   return "Primitive";
-        case Kind::Void:        return "Void";
-        case Kind::Nullptr:     return "Nullptr";
-        case Kind::Null:        return "Null";
-        case Kind::Bool:        return "Bool";
-        case Kind::Char:        return "Char";
-        case Kind::Char16:      return "Char16";
-        case Kind::Char32:      return "Char32";
-        case Kind::Int8:        return "Int8";
-        case Kind::Int16:       return "Int16";
-        case Kind::Int32:       return "Int32";
-        case Kind::Int64:       return "Int64";
-        case Kind::Int128:      return "Int128";
-        case Kind::Int256:      return "Int256";
-        case Kind::Int512:      return "Int512";
-        case Kind::Int1024:     return "Int1024";
-        case Kind::BigInt:      return "BigInt";
-
-        case Kind::Size_t:      return "Size_type";
-        case Kind::UInt8:       return "UInt8";
-        case Kind::UInt16:      return "UInt16";
-        case Kind::UInt32:      return "UInt32";
-        case Kind::UInt64:      return "UInt64";
-        case Kind::UInt128:     return "UInt128";
-        case Kind::UInt256:     return "UInt256";
-        case Kind::UInt512:     return "UInt512";
-        case Kind::UInt1024:    return "UInt1024";
-
-        case Kind::Half:        return "Half";
-        case Kind::Float:       return "Float";
-        case Kind::Double:      return "Double";
-        case Kind::FP128:       return "FP128";
-        case Kind::X86_FP80:    return "X86_FP80";
-        case Kind::PPC_FP128:   return "PPC_FP128";
-
-        // Special Types
-        case Kind::Label:       return "Label";
-        case Kind::Token:       return "Token";
-        case Kind::Metadata:    return "Metadata";
-
-        // Aggregate Types
-        case Kind::Struct:      return "Struct";
-        case Kind::Module:      return "Module";
-        case Kind::Class:      return "Class";
-        case Kind::Enum:        return "Enum";
-        case Kind::Array:       return "Array";
-        case Kind::FixedArray:       return "FixedArray";
-        case Kind::DynamicArray:       return "DynamicArray";
-        case Kind::HeterogeneousArray:    return "HeterogeneousArray";
-        case Kind::Vector:      return "Vector";
-
-        // Pointer/Reference Types
-        case Kind::Pointer:     return "Pointer";
-        case Kind::Reference:   return "Reference";
-
-        // Function Types
-        case Kind::Function:    return "Function";
-
-        // Custom Types
-        case Kind::String:      return "String";
-        case Kind::Utf8:      return "Utf8String";
-        case Kind::Utf16:      return "Utf16String";
-        case Kind::Utf32:      return "Utf32String";
-        
-        // Other types
-        case Kind::Generic:    return "Generic";
-        case Kind::Unresolved:    return "Unresolved";
-
-        default:                return "Unknown";
-    }
-}
-
-std::shared_ptr<Type> Type::createInvalid() {
-    return std::make_shared<Type>();
-}
-
-std::shared_ptr<Type> Type::createUnresolved(const std::vector<std::string>& types) {
-    return std::make_shared<UnresolvedType>(types);
-}
-
-std::shared_ptr<Type> Type::createUndefined() {
-    return std::make_shared<Type>(Kind::Undefined);
-}
-
-std::shared_ptr<Type> Type::createPrimitiveType(Kind kind) {
-    return std::make_shared<PrimitiveType>(kind);
-}
-
-std::shared_ptr<Type> Type::createPointerType(std::shared_ptr<Type> pointee, bool isConst, bool isVolatile) {
-    return std::make_shared<PointerType>(pointee? pointee : createPrimitiveType(Kind::Void), isConst, isVolatile);
-}
-
-std::shared_ptr<Type> Type::createNullPointerType(std::shared_ptr<Type> innerType) {
-    return std::make_shared<NullPointerType>(innerType? innerType : createPrimitiveType(Kind::Void));
-}
-
-std::shared_ptr<Type> Type::createNullType(std::shared_ptr<Type> innerType) {
-    return std::make_shared<NullType>(innerType);
-}
-
-std::shared_ptr<Type> Type::createNullableType(std::shared_ptr<Type> innerType) {
-    return std::make_shared<NullableType>(innerType);
-}
-
-std::shared_ptr<Type> Type::createReferenceType(std::shared_ptr<Type> referent) {
-    return std::make_shared<ReferenceType>(referent);
-}
-
-std::shared_ptr<Type> Type::createFunctionType(
-    const std::string& name,
-    const std::vector<std::shared_ptr<Type>>& paramTypes,
-    std::shared_ptr<Type> returnType,
-    bool isVarArg
-) {
-    return std::make_shared<FunctionType>(name, returnType, paramTypes, isVarArg);
-}
-
-
-std::shared_ptr<Type> Type::createStringType(Kind stringKind) {
-    auto t = std::make_shared<Type>();
-    t->kind = stringKind;
-    return t;
-}
-
-std::shared_ptr<Type> Type::createFixedArrayType(std::shared_ptr<Type> elementType, size_t size) {
-    auto t = std::make_shared<Type>();
-    t->kind = Kind::FixedArray;
-    t->elementType = elementType;
-    t->fixedSize = size;
-    return t;
-}
-
-std::shared_ptr<Type> Type::createDynamicArrayType(std::shared_ptr<Type> elementType) {
-    auto t = std::make_shared<Type>();
-    t->kind = Kind::DynamicArray;
-    t->elementType = elementType;
-    return t;
-}
-
-std::shared_ptr<Type> Type::createHeterogeneousArrayType() {
-    auto t = std::make_shared<Type>();
-    t->kind = Kind::HeterogeneousArray;
-    return t;
-}
-
-std::shared_ptr<Type> Type::createGenericType(const std::string& typeName) {
-    return std::make_shared<GenericType>(typeName);
-}
-
-std::shared_ptr<Type> Type::createMetaType() {
-    auto t = std::make_shared<Type>();
-    t->kind = Kind::Metadata;
-    return t;
-}
-
-bool Type::isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
-    if (!from || !to)
-        return false;
-
-    if (from == to)
-        return true;
-
-    if (from->kind != to->kind)
-        return false;
-
-    if (from->isInteger() && to->isInteger())
-        return from->getSize() == to->getSize();
-
-    if (from->isFloat() && to->isFloat())
-        return from->getSize() == to->getSize();
-
-    if (from->isChar() && to->isChar())
-        return from->getBitWidth() == to->getBitWidth();
-
-    if (from->isString() && to->isString())
-        return from->getBitWidth() == to->getBitWidth();
-
-    if (from->isPointer() && to->isPointer())
-        return isSame(from->getPointeeType(), to->getPointeeType());
-
-    if (from->isReference() && to->isReference())
-        return isSame(from->getPointeeType(), to->getPointeeType());
-
-    if (from->isNullable() && to->isNullable()) {
-        auto fromNullable = std::dynamic_pointer_cast<NullableType>(from);
-        auto toNullable = std::dynamic_pointer_cast<NullableType>(to);
-        if (!fromNullable || !toNullable)
-            return false;
-        return isSame(fromNullable->innerType, toNullable->innerType);
-    }
-
-    // Handle function types
-    if (from->isFunction() && to->isFunction()) {
-        auto fromFunc = std::dynamic_pointer_cast<FunctionType>(from);
-        auto toFunc = std::dynamic_pointer_cast<FunctionType>(to);
-        if (!fromFunc || !toFunc)
-            return false;
-
-        // Check if return types are the same
-        if (!isSame(fromFunc->returnType, toFunc->returnType))
-            return false;
-
-        // Check if parameter counts match
-        if (fromFunc->parameterTypes.size() != toFunc->parameterTypes.size())
-            return false;
-
-        // Check if varargs match
-        if (fromFunc->isVarArg != toFunc->isVarArg)
-            return false;
-
-        // Check if all parameter types are the same
-        for (size_t i = 0; i < fromFunc->parameterTypes.size(); ++i) {
-            if (!isSame(fromFunc->parameterTypes[i], toFunc->parameterTypes[i]))
-                return false;
-        }
-
-        return true;
-    }
-
-    auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
-    auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
-    if (fromUDT && toUDT) {
-        return fromUDT == toUDT;
-    }
-
-    return false;
-}
-
-bool Type::isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
-    if (!from) {
-        console.error("The type to cast from is null");
-    } else {
-        DEBUG_LOG("The type to cast from is '" + from->toString() + "' of kind '" + from->kindName() + "'.");
-    }
-
-    if (!to) {
-        console.error("The type to cast to is null");
-    } else {
-        DEBUG_LOG("The type to cast to is '" + to->toString() + "' of kind '" + to->kindName() + "'.");
-    }
-
-    if (from == to || from->kind == to->kind)
-        return true;
-
-    if (from->isVoidLike()) {
-        if (to->isPointer()) {
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    // todo: there might be a bug here
-    if (from->isNull() && (to->isPointer() || to->isReference()))
-        return true;
-
-    if (from->isNullable() && to->isNull())
-        return true;
-
-    if (to->isNullable()) {
-        auto nullableTo = std::dynamic_pointer_cast<NullableType>(to);
-        if (from->isNullable()) {
-            auto nullablefrom = std::dynamic_pointer_cast<NullableType>(from);
-            return isSameOrCastableTo(nullablefrom->innerType, nullableTo->innerType);
-        }
-        return isSameOrCastableTo(from, nullableTo->innerType);
-    }
-
-    if (from->isInteger() && to->isInteger()) {
-        return (from->getSize() <= to->getSize());
-    }
-
-    if (from->isInteger() && to->isFloat()) {
-        return true;
-    }
-
-    if (from->isFloat() && to->isFloat()) {
-        return from->getSize() <= to->getSize();
-    }
-
-    if (from->isFloat() && to->isInteger()) {
-        return false;
-    }
-
-    if ((from->isChar() && to->isString()) || (from->isString() && to->isChar())) {
-        return true;
-    }
-
-    if (from->isChar() && to->isChar()) {
-        return from->getBitWidth() <= to->getBitWidth();
-    }
-
-    if (from->isString() && to->isString()) {
-        return from->getBitWidth() <= to->getBitWidth();
-    }
-
-    if (from->isPointer() && to->isPointer()) {
-        return isSameOrCastableTo(from->getPointeeType(), to->getPointeeType());
-    }
-
-    // Handle function types - for casting, we typically require exact match
-    // since function signature compatibility is strict
-    if (from->isFunction() && to->isFunction()) {
-        auto fromFunc = std::dynamic_pointer_cast<FunctionType>(from);
-        auto toFunc = std::dynamic_pointer_cast<FunctionType>(to);
-        if (!fromFunc || !toFunc)
-            return false;
-
-        // For function casting, we can be more flexible with return type casting
-        if (!isSameOrCastableTo(fromFunc->returnType, toFunc->returnType))
-            return false;
-
-        // Parameter counts must match exactly
-        if (fromFunc->parameterTypes.size() != toFunc->parameterTypes.size())
-            return false;
-
-        // Varargs must match exactly
-        if (fromFunc->isVarArg != toFunc->isVarArg)
-            return false;
-
-        // For parameters, we typically require contravariance (more restrictive parameter types)
-        // but for simplicity, we'll require exact match or castability
-        for (size_t i = 0; i < fromFunc->parameterTypes.size(); ++i) {
-            // Note: For true contravariance, this should be:
-            // if (!isSameOrCastableTo(toFunc->parameterTypes[i], fromFunc->parameterTypes[i]))
-            if (!isSameOrCastableTo(fromFunc->parameterTypes[i], toFunc->parameterTypes[i]))
-                return false;
-        }
-
-        return true;
-    }
-
-    if (from->isPointer() && to->isFunction()) {
-        auto fromPointee = from->getPointeeType();
-        if (fromPointee && fromPointee->isVoidLike()) {
-            return true;
-        }
-    }
-
-    if (from->isFunction() && to->isPointer()) {
-        auto pointee = to->getPointeeType();
-        if (pointee && pointee->isVoidLike()) {
-            return true;
-        }
-    }
-
-    auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
-    auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
-    if (fromUDT && toUDT) {
-        if (fromUDT->name == toUDT->name)
-            return true;
-
-        // Inline version of derivesFrom(toUDT->name)
-        std::vector<std::shared_ptr<UserDefinedType>> stack;
-        stack.push_back(fromUDT);
-
-        while (!stack.empty()) {
-            auto current = stack.back();
-            stack.pop_back();
-
-            for (const auto& base : current->baseTypes) {
-                auto baseUDT = std::dynamic_pointer_cast<UserDefinedType>(base);
-                if (baseUDT) {
-                    if (baseUDT->name == toUDT->name)
-                        return true;
-                    stack.push_back(baseUDT);
-                }
-            }
-        }
-    }
-
-    return false;
-}
-
-std::shared_ptr<Type> Type::createUserDefinedType(
-    const std::string& name,
-    Kind kind,
-    const std::vector<std::shared_ptr<Type>>& paramTypes,
-    const std::vector<std::shared_ptr<Type>>& typeParams,
-    const std::vector<std::shared_ptr<Type>>& baseTypes
-) {
-    auto t = std::make_shared<UserDefinedType>(name, kind);
-    t->paramTypes = paramTypes;
-    t->typeParams = typeParams;
-    t->baseTypes = baseTypes;
-    return t;
-}
-
 std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     if (dataTypes.empty()) {
-        return Type::createInvalid(); // Default type
+        TYPE_ERROR("Empty type specification");
+        return Type::createInvalid();
     }
 
     size_t index = 0;
@@ -409,82 +20,73 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     int totalReferenceDepth = 0;
     int nullableDepth = 0;
 
-    // Check for function type
     if (index < dataTypes.size() && dataTypes[index] == "fn") {
         return resolveFunctionType(dataTypes, index);
     }
 
-    // References
     while (index < dataTypes.size() && dataTypes[index] == "&") {
         totalReferenceDepth++;
         index++;
     }
 
-    // Pointers
     while (index < dataTypes.size() && dataTypes[index] == "*") {
         totalPointerDepth++;
         index++;
     }
 
-    // Nulltypes
     while (index < dataTypes.size() && dataTypes[index] == "?") {
         nullableDepth++;
         index++;
     }
 
-    // Base type
     if (index >= dataTypes.size()) {
-        std::cerr << "[ERROR] No base type found after modifiers!" << std::endl;
-        return nullptr;
+        TYPE_ERROR("No base type found after modifiers");
+        return Type::createInvalid();
     }
 
     std::string baseType = dataTypes[index++];
 
-    // Stack of arrays (outermost first)
     std::vector<uint64_t> arrayStack;
-    // Parse post-type array sizes like char[32][2]
     while (index + 2 <= dataTypes.size() && dataTypes[index] == "[") {
         index += 1;
         if (index >= dataTypes.size()) {
-            std::cerr << "[ERROR] Expected array size after '['\n";
-            return nullptr;
+            TYPE_ERROR("Expected array size after '['");
+            return Type::createInvalid();
         }
 
         uint64_t size;
         if (dataTypes[index] == "]") {
-            console.error("An array should have a size between '[' and ']'.");
+            TYPE_ERROR("An array should have a size between '[' and ']'");
+            return Type::createInvalid();
         } else {
             try {
                 size = std::stoull(dataTypes[index]);
             } catch (...) {
-                console.error("Invalid array size: " + dataTypes[index] + " compile time constants aren't supported yet");
-                return nullptr;
+                TYPE_ERROR("Invalid array size: " + dataTypes[index]);
+                return Type::createInvalid();
             }
             index += 1;
         }
 
         if (index >= dataTypes.size() || dataTypes[index] != "]") {
-            std::cerr << "[ERROR] Expected ']' after array size\n";
-            return nullptr;
+            TYPE_ERROR("Expected ']' after array size");
+            return Type::createInvalid();
         }
         index += 1;
 
         arrayStack.push_back(size);
     }
 
-    // Post-type pointer depth
     while (index < dataTypes.size() && dataTypes[index] == "*") {
         totalPointerDepth++;
         index++;
     }
 
-    // Post-type reference depth
     while (index < dataTypes.size() && dataTypes[index] == "&") {
         totalReferenceDepth++;
         index++;
     }
 
-    // Post-type Nullable depth
     while (index < dataTypes.size() && dataTypes[index] == "?") {
         nullableDepth++;
         index++;
@@ -494,8 +96,7 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
 
     if (!type) {
         DEBUG_LOG("Resolving base type: " + baseType);
-    
-        // Signed integers
+
         if (baseType == "int" || baseType == "i32" || baseType == "int32") type = Type::createPrimitiveType(Kind::Int32);
         else if (baseType == "int8" || baseType == "i8") type = Type::createPrimitiveType(Kind::Int8);
         else if (baseType == "int16" || baseType == "i16") type = Type::createPrimitiveType(Kind::Int16);
@@ -505,8 +106,6 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
         else if (baseType == "int512" || baseType == "i512") type = Type::createPrimitiveType(Kind::Int512);
         else if (baseType == "int1024" || baseType == "i1024") type = Type::createPrimitiveType(Kind::Int1024);
         else if (baseType == "BigInt") type = Type::createPrimitiveType(Kind::BigInt);
-    
-        // Unsigned integers
         else if (baseType == "usize" || baseType == "size_t") type = Type::createPrimitiveType(Kind::Size_t);
         else if (baseType == "uint" || baseType == "u32" || baseType == "uint32") type = Type::createPrimitiveType(Kind::UInt32);
         else if (baseType == "uint8" || baseType == "u8") type = Type::createPrimitiveType(Kind::UInt8);
@@ -516,42 +115,74 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
         else if (baseType == "uint256" || baseType == "u256") type = Type::createPrimitiveType(Kind::UInt256);
         else if (baseType == "uint512" || baseType == "u512") type = Type::createPrimitiveType(Kind::UInt512);
         else if (baseType == "uint1024" || baseType == "u1024") type = Type::createPrimitiveType(Kind::UInt1024);
-    
-        // Other primitives
         else if (baseType == "bool") type = Type::createPrimitiveType(Kind::Bool);
         else if (baseType == "char") type = Type::createPrimitiveType(Kind::Char);
         else if (baseType == "char16") type = Type::createPrimitiveType(Kind::Char16);
         else if (baseType == "char32") type = Type::createPrimitiveType(Kind::Char32);
         else if (baseType == "void") type = Type::createPrimitiveType(Kind::Void);
-    
-        // Floating point
         else if (baseType == "half" || baseType == "f16") type = Type::createPrimitiveType(Kind::Half);
         else if (baseType == "float" || baseType == "f32") type = Type::createPrimitiveType(Kind::Float);
         else if (baseType == "double" || baseType == "f64") type = Type::createPrimitiveType(Kind::Double);
-        else if (baseType == "f80" || baseType == "x86_fp80" || baseType == "x86_80bit" || baseType == "x87_FP80" || baseType == "Intel_FP80") type = Type::createPrimitiveType(Kind::X86_FP80);
-        else if (baseType == "fp128" || baseType == "f128" || baseType == "long_double") type = Type::createPrimitiveType(Kind::FP128);
-        else if (baseType == "ppc_fp128" || baseType == "PPC_double_extended" || baseType == "PPC_F128" || baseType == "PPC_Quad") type = Type::createPrimitiveType(Kind::PPC_FP128);
-
-        else {
-            // if (dataTypes.size() == 1) {
-            //     return Type::createGenericType(baseType);
-            // }
-            DEBUG_LOG("Type: '" + baseType + "' is not resolved yet");
-            type = Type::createUnresolved(dataTypes);
+        else if (baseType == "f80" || baseType == "x86_fp80") type = Type::createPrimitiveType(Kind::X86_FP80);
+        else if (baseType == "fp128" || baseType == "f128") type = Type::createPrimitiveType(Kind::FP128);
+        else if (baseType == "ppc_fp128") type = Type::createPrimitiveType(Kind::PPC_FP128);
+        else if (baseType == "string") type = Type::createStringType(Kind::String);
+        else if (baseType == "utf8") type = Type::createStringType(Kind::Utf8);
+        else if (baseType == "utf16") type = Type::createStringType(Kind::Utf16);
+        else if (baseType == "utf32") type = Type::createStringType(Kind::Utf32);
+        else if (baseType == "unique_ptr") {
+            if (index < dataTypes.size() && dataTypes[index] == "<") {
+                std::vector<std::string> pointeeTokens;
+                index++;
+                while (index < dataTypes.size() && dataTypes[index] != ">") {
+                    pointeeTokens.push_back(dataTypes[index]);
+                    index++;
+                }
+                if (index < dataTypes.size()) index++; // Skip '>'
+                auto pointeeType = resolveType(pointeeTokens);
+                type = Type::createSmartPointerType(Kind::UniquePtr, pointeeType);
+            }
+        } else if (baseType == "shared_ptr") {
+            if (index < dataTypes.size() && dataTypes[index] == "<") {
+                std::vector<std::string> pointeeTokens;
+                index++;
+                while (index < dataTypes.size() && dataTypes[index] != ">") {
+                    pointeeTokens.push_back(dataTypes[index]);
+                    index++;
+                }
+                if (index < dataTypes.size()) index++; // Skip '>'
+                auto pointeeType = resolveType(pointeeTokens);
+                type = Type::createSmartPointerType(Kind::SharedPtr, pointeeType);
+            }
+        } else if (baseType == "weak_ptr") {
+            if (index < dataTypes.size() && dataTypes[index] == "<") {
+                std::vector<std::string> pointeeTokens;
+                index++;
+                while (index < dataTypes.size() && dataTypes[index] != ">") {
+                    pointeeTokens.push_back(dataTypes[index]);
+                    index++;
+                }
+                if (index < dataTypes.size()) index++; // Skip '>'
+                auto pointeeType = resolveType(pointeeTokens);
+                type = Type::createSmartPointerType(Kind::WeakPtr, pointeeType);
+            }
+        } else {
+            type = Type::createUserDefinedType(baseType);
         }
     }
 
-   // Wrap in arrays (from innermost to outermost)
+    if (!type) {
+        type = Type::createUnresolved(dataTypes);
+    }
+
     for (auto it = arrayStack.rbegin(); it != arrayStack.rend(); ++it) {
         type = Type::createFixedArrayType(type, *it);
     }
 
-    // Wrap in references
     for (int i = 0; i < totalReferenceDepth; ++i) {
         type = Type::createReferenceType(type);
     }
 
-    // Wrap in pointers
     for (int i = 0; i < totalPointerDepth; ++i) {
         type = Type::createPointerType(type);
     }
@@ -563,35 +194,31 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     return type;
 }
 
-// Helper function to resolve function types
 std::shared_ptr<Type> resolveFunctionType(const std::vector<std::string>& dataTypes, size_t& index) {
     if (index >= dataTypes.size() || dataTypes[index] != "fn") {
-        std::cerr << "[ERROR] Expected 'fn' keyword for function type\n";
-        return nullptr;
+        TYPE_ERROR("Expected 'fn' keyword for function type");
+        return Type::createInvalid();
     }
-    index++; // Skip 'fn'
+    index++;
 
     if (index >= dataTypes.size() || dataTypes[index] != "(") {
-        std::cerr << "[ERROR] Expected '(' after 'fn'\n";
-        return nullptr;
+        TYPE_ERROR("Expected '(' after 'fn'");
+        return Type::createInvalid();
     }
-    index++; // Skip '('
+    index++;
 
     std::vector<std::shared_ptr<Type>> paramTypes;
     std::vector<std::string> paramNames;
 
-    // Parse parameters
     while (index < dataTypes.size() && dataTypes[index] != ")") {
         std::vector<std::string> currentParam;
-        
-        // Check if we have a parameter name (identifier followed by colon)
         std::string paramName;
+
         if (index + 1 < dataTypes.size() && dataTypes[index + 1] == ":") {
             paramName = dataTypes[index];
-            index += 2; // Skip name and colon
+            index += 2;
         }
 
-        // Parse parameter type
         while (index < dataTypes.size() && dataTypes[index] != "," && dataTypes[index] != ")") {
             currentParam.push_back(dataTypes[index]);
             index++;
@@ -606,23 +233,22 @@ std::shared_ptr<Type> resolveFunctionType(const std::vector<std::string>& dataTy
         }
 
         if (index < dataTypes.size() && dataTypes[index] == ",") {
-            index++; // Skip comma
+            index++;
         }
     }
 
     if (index >= dataTypes.size() || dataTypes[index] != ")") {
-        std::cerr << "[ERROR] Expected ')' after function parameters\n";
-        return nullptr;
+        TYPE_ERROR("Expected ')' after function parameters");
+        return Type::createInvalid();
     }
-    index++; // Skip ')'
+    index++;
 
     if (index >= dataTypes.size() || dataTypes[index] != "=>") {
-        std::cerr << "[ERROR] Expected '=>' after function parameters\n";
-        return nullptr;
+        TYPE_ERROR("Expected '=>' after function parameters");
+        return Type::createInvalid();
     }
-    index++; // Skip '=>'
+    index++;
 
-    // Parse return type
     std::vector<std::string> returnTypeTokens;
     while (index < dataTypes.size()) {
         returnTypeTokens.push_back(dataTypes[index]);
@@ -636,8 +262,14 @@ std::shared_ptr<Type> resolveFunctionType(const std::vector<std::string>& dataTy
         returnType = resolveType(returnTypeTokens);
     }
 
-    // Create function type with empty name (will be filled by caller if needed)
-    return Type::createFunctionType("", paramTypes, returnType, false);
+    auto fnType = Type::createFunctionType("", paramTypes, returnType, false);
+    auto fn = std::dynamic_pointer_cast<FunctionType>(fnType);
+    if (fn) {
+        for (size_t i = 0; i < paramNames.size(); ++i) {
+            fn->setParamName(i, paramNames[i]);
+        }
+    }
+    return fnType;
 }
 
-} 
+} // namespace Omniscript

@@ -1,5 +1,5 @@
 #pragma once
-#include <omniscript/Expression.h>
+#include <omniscript/Expressions/Expression.h>
 
 namespace Omniscript {
 struct BinaryExpression : public Expression {

@@ -1,5 +1,5 @@
 #pragma once
-#include <omniscript/Expression.h>
+#include <omniscript/Expressions/Expression.h>
 #include <omniscript/Expressions/CallableExpression.h>
 
 namespace Omniscript {

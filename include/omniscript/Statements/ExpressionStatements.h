@@ -1,13 +1,13 @@
 #pragma once
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 
 namespace Omniscript {
 
-class UnaryExpression : public TypedStatement, public Expression {
+class ASTUnaryExpression : public TypedStatement, public ASTExpression {
 public:
     enum class Position { Prefix, Postfix };
 
-    UnaryExpression(Token op, std::shared_ptr<Statement> operand, Position pos = Position::Prefix)
+    ASTUnaryExpression(Token op, std::shared_ptr<Statement> operand, Position pos = Position::Prefix)
         : op(op), operand(operand), position(pos) {
 
     }
@@ -35,7 +35,7 @@ public:
     };
     std::shared_ptr<Statement> clone() const override {
         std::shared_ptr<Statement> clonedOperand = operand ? operand->clone() : nullptr;
-        return std::make_shared<UnaryExpression>(op, clonedOperand, position);
+        return std::make_shared<ASTUnaryExpression>(op, clonedOperand, position);
     }
 
 private:
@@ -45,9 +45,9 @@ private:
 };
 
 // Binary expression statement
-class BinaryExpression : public TypedStatement, public Expression {
+class ASTBinaryExpression : public TypedStatement, public ASTExpression {
 public:
-    BinaryExpression(std::shared_ptr<Statement> left = std::shared_ptr<Statement>{}, Token op = Token(), std::shared_ptr<Statement> right = std::shared_ptr<Statement>{})
+    ASTBinaryExpression(std::shared_ptr<Statement> left = std::shared_ptr<Statement>{}, Token op = Token(), std::shared_ptr<Statement> right = std::shared_ptr<Statement>{})
         : left(left), op(op), right(right) {}
 
     
@@ -68,8 +68,8 @@ public:
         std::shared_ptr<Statement> clonedLeft = left ? left->clone() : nullptr;
         std::shared_ptr<Statement> clonedRight = right ? right->clone() : nullptr;
 
-        // Return a new BinaryExpression with the cloned operands
-        return std::make_shared<BinaryExpression>(clonedLeft, op, clonedRight);
+        // Return a new ASTBinaryExpression with the cloned operands
+        return std::make_shared<ASTBinaryExpression>(clonedLeft, op, clonedRight);
     }
 
     bool hasSideEffects() override;
@@ -82,7 +82,7 @@ private:
 };
 
 class TernaryExpression : 
-public Expression,
+public ASTExpression,
 public TypedStatement {
     public:
         TernaryExpression(std::shared_ptr<Statement> condition, std::shared_ptr<Statement> truthy, std::shared_ptr<Statement> falsey) :

@@ -1,4 +1,4 @@
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/FunctionStatement.h>
 #include <omniscript/Statements/CallableStatement.h>
@@ -11,7 +11,7 @@
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/Expressions/ClassExpression.h>
 #include <omniscript/Expressions/StructExpression.h>

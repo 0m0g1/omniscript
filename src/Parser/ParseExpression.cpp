@@ -1,4 +1,4 @@
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/LiteralStatements.h>
 #include <omniscript/Statements/ExpressionStatements.h>
@@ -9,7 +9,7 @@
 #include <omniscript/Parser.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 
 #include <quadmath.h>
@@ -26,7 +26,7 @@ std::shared_ptr<Statement> Parser::parseTernaryExpression() {
         std::shared_ptr<Statement> truthy = parseExpression();
         eat(TokenTypes::Colon);
         std::shared_ptr<Statement> falsey = parseExpression();
-        return std::make_shared<TernaryExpression>(condition, truthy, falsey);
+        return std::make_shared<ASTTernaryExpression>(condition, truthy, falsey);
     }
 
     return condition;
@@ -47,7 +47,7 @@ std::shared_ptr<Statement> Parser::parseBinaryExpression() {
         }
 
         std::shared_ptr<Statement> right = term(); // Fixed: call same level for left-associativity
-        left = std::make_shared<BinaryExpression>(left, opToken, right);
+        left = std::make_shared<ASTBinaryExpression>(left, opToken, right);
     }
 
     return left;
@@ -61,7 +61,7 @@ std::shared_ptr<Statement> Parser::logicalOrExpression() {
         Token opToken = currentToken;
         eat(TokenTypes::LogicalOr);
         std::shared_ptr<Statement> right = logicalAndExpression(); // Fixed: correct for left-associativity
-        left = std::make_shared<BinaryExpression>(left, opToken, right);
+        left = std::make_shared<ASTBinaryExpression>(left, opToken, right);
     }
 
     return left;
@@ -75,7 +75,7 @@ std::shared_ptr<Statement> Parser::logicalAndExpression() {
         Token opToken = currentToken;
         eat(TokenTypes::LogicalAnd);
         std::shared_ptr<Statement> right = comparisonExpression(); // Fixed: correct for left-associativity
-        left = std::make_shared<BinaryExpression>(left, opToken, right);
+        left = std::make_shared<ASTBinaryExpression>(left, opToken, right);
     }
 
     return left;
@@ -106,7 +106,7 @@ std::shared_ptr<Statement> Parser::comparisonExpression() {
         }
 
         std::shared_ptr<Statement> right = parseBinaryExpression(); // Fixed: call same level
-        left = std::make_shared<BinaryExpression>(left, operationTok, right);
+        left = std::make_shared<ASTBinaryExpression>(left, operationTok, right);
     }
 
     return left;
@@ -143,7 +143,7 @@ std::shared_ptr<Statement> Parser::term() {
         } 
 
         std::shared_ptr<Statement> right = parseUnaryExpression(); // Fixed: call same level
-        left = std::make_shared<BinaryExpression>(left, opToken, right);
+        left = std::make_shared<ASTBinaryExpression>(left, opToken, right);
     }
 
     return left;
@@ -195,7 +195,7 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
             }
         }
 
-        return std::make_shared<UnaryExpression>(op, operand, UnaryExpression::Position::Prefix);
+        return std::make_shared<ASTUnaryExpression>(op, operand, UnaryExpression::Position::Prefix);
     }
 
     auto expr = factor();
@@ -204,7 +204,7 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
            currentToken.getType() == TokenTypes::Decrement) {
         TokenTypes op = currentToken.getType();
         eat(op);
-        expr = std::make_shared<UnaryExpression>(op, expr, UnaryExpression::Position::Postfix);
+        expr = std::make_shared<ASTUnaryExpression>(op, expr, UnaryExpression::Position::Postfix);
     }
 
     if (currentToken.getType() == TokenTypes::As) {

@@ -392,7 +392,7 @@ public:
 
     // Operator precedence and associativity
     int getPrecedence() const { return getOperatorPrecedence(type_); }
-    bool isRightAssociative() const { return isRightAssociative(type_); }
+    bool isRightAssociative() const { return isRightAssociative(); }
 
     // Utility methods
     std::string toString() const;

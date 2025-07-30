@@ -1,4 +1,4 @@
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/LiteralStatements.h>
 #include <omniscript/Statements/ExpressionStatements.h>
@@ -7,14 +7,14 @@
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 #include <omniscript/Expressions/Expressions.h>
 
 namespace Omniscript {
     
-std::shared_ptr<Expression> TernaryExpression::express(SymbolTableType scope) {
+std::shared_ptr<Expression> ASTTernaryExpression::express(SymbolTableType scope) {
     setSpan(getSpan());
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
         stmt->setType(type);
@@ -146,7 +146,7 @@ std::shared_ptr<Expression> TernaryExpression::express(SymbolTableType scope) {
     return ternaryExpr;
 }
 
-std::shared_ptr<Expression> BinaryExpression::express(SymbolTableType scope) {
+std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) {
     setSpan(getSpan());
     DEBUG_LOG("Evaluating binary expression: " + toString());
 
@@ -503,18 +503,18 @@ std::shared_ptr<Expression> BinaryExpression::express(SymbolTableType scope) {
     return binaryExpr;
 }
 
-bool BinaryExpression::hasSideEffects() {
+bool ASTBinaryExpression::hasSideEffects() {
     return !isCompileTimeEvaluatable();
 }
 
-bool BinaryExpression::isCompileTimeEvaluatable() {
+bool ASTBinaryExpression::isCompileTimeEvaluatable() {
     if (left->isCompileTimeEvaluatable() && right->isCompileTimeEvaluatable()) {
         return true;
     }
     return false;
 }
 
-std::shared_ptr<Expression> UnaryExpression::express(SymbolTableType scope) {
+std::shared_ptr<Expression> ASTUnaryExpression::express(SymbolTableType scope) {
     setSpan(getSpan());
     if (operand) {
         DEBUG_LOG("Creating a unary expression " + operand->toString());

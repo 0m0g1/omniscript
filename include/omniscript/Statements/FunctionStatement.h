@@ -1,12 +1,12 @@
 #pragma once
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Target_config.h>
-#include <omniscript/Statements/CallableStatement.h>
+#include <omniscript/Statements/ASTCallableStatement.h>
 
 namespace Omniscript {
 
 class FunctionDeclaration : 
-public Callable, 
+public ASTCallable, 
 public TypedStatement, 
 public GenericHolder,
 public ContextAwareStatement {
@@ -62,7 +62,7 @@ public:
         const std::vector<std::shared_ptr<Statement>>& parameters,
         std::shared_ptr<BlockStatement> body,
         std::shared_ptr<Type> returnType_ = nullptr // Default to nullptr if return type is unknown
-    ) : parameters(parameters), body(body), Callable(parameters) {
+    ) : parameters(parameters), body(body), ASTCallable(parameters) {
         setType(returnType_); // Store the return type using `TypedStatement`
         returnType = getType();
         setName(functionName);

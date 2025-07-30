@@ -1,7 +1,7 @@
 #pragma once
 
 #include <omniscript/Core.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Target_config.h>
 #include <omniscript/EngineConfigs.h>
 #include <omniscript/omniscript_pch.h>

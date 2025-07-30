@@ -1,10 +1,11 @@
 #pragma once
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
+#include <omniscript/Types/DerivedTypes.h>
 
 namespace Omniscript {
 class Access : 
 public TypedStatement, 
-public Expression, 
+public ASTExpression, 
 public NamedStatement {
 protected:
     std::string memberName;

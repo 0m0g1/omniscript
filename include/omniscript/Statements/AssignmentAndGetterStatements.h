@@ -1,5 +1,5 @@
 #pragma once
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 
 namespace Omniscript {
 
@@ -77,7 +77,7 @@ private:
 class GetVariable : 
 public NamedStatement,
 public TypedStatement,
-public Expression {
+public ASTExpression {
 public:
     explicit GetVariable(const std::string &var) {
         setName(var);

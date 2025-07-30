@@ -1,10 +1,10 @@
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/LiteralStatements.h>
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 
 #include <omniscript/Expressions/LiteralExpressions.h>
@@ -12,7 +12,7 @@
 
 namespace Omniscript {
     
-std::shared_ptr<Expression> Cast::express(SymbolTableType scope) {
+std::shared_ptr<Expression> ASTCast::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("");
 
@@ -347,7 +347,7 @@ std::shared_ptr<Expression> IntegerLiteral::express(SymbolTableType scope) {
                 auto clone = this->clone();
                 auto typed = std::dynamic_pointer_cast<TypedStatement>(clone);
                 typed->setType(nullable->innerType);
-                auto cast = std::make_shared<Cast>(clone, type);
+                auto cast = std::make_shared<ASTCast>(clone, type);
                 auto castResult = cast->express(scope);
                 result = castResult;
                 result->setSpan(this->getSpan());
@@ -525,7 +525,7 @@ std::shared_ptr<Expression> FloatLiteral::express(SymbolTableType scope) {
                 auto clone = this->clone();
                 auto typed = std::dynamic_pointer_cast<TypedStatement>(clone);
                 typed->setType(nullable->innerType);
-                auto cast = std::make_shared<Cast>(clone, type);
+                auto cast = std::make_shared<ASTCast>(clone, type);
                 auto castResult = cast->express(scope);
                 result = castResult;
                 result->setSpan(this->getSpan());
@@ -707,7 +707,7 @@ std::shared_ptr<Expression> BoolLiteral::express(SymbolTableType scope) {
                 auto clone = this->clone();
                 auto typed = std::dynamic_pointer_cast<TypedStatement>(clone);
                 typed->setType(nullable->innerType);
-                auto cast = std::make_shared<Cast>(clone, type);
+                auto cast = std::make_shared<ASTCast>(clone, type);
                 auto castResult = cast->express(scope);
                 result = castResult;
                 result->setSpan(this->getSpan());
@@ -802,7 +802,7 @@ std::shared_ptr<Expression> CharacterLiteral::express(SymbolTableType scope) {
             auto clone = this->clone();
             auto typed = std::dynamic_pointer_cast<TypedStatement>(clone);
             typed->setType(nullable->innerType);
-            auto cast = std::make_shared<Cast>(clone, type);
+            auto cast = std::make_shared<ASTCast>(clone, type);
             auto castResult = cast->express(scope);
             result = castResult;
             result->setSpan(this->getSpan());
@@ -954,7 +954,7 @@ std::shared_ptr<Expression> StringLiteral::express(SymbolTableType scope) {
             auto clone = this->clone();
             auto typed = std::dynamic_pointer_cast<TypedStatement>(clone);
             typed->setType(nullable->innerType);
-            auto cast = std::make_shared<Cast>(clone, type);
+            auto cast = std::make_shared<ASTCast>(clone, type);
             result = cast->express(scope);
             return result;
         }

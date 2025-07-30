@@ -1,4 +1,4 @@
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/ExpressionStatements.h>
 #include <omniscript/Statements/ControlFlowStatements.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>

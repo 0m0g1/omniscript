@@ -1,17 +1,24 @@
 #pragma once
 
-#include <omniscript/Core.h>
-#include <omniscript/utils.h>
-#include <omniscript/Types.h>
-#include <omniscript/tokens.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/Expression.h>
-#include <omniscript/Symboltable.h>
-#include <omniscript/Expressions/FunctionInputExpression.h>
+#include <vector>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <algorithm>
+#include <sstream>
+#include <typeinfo>
 
-using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>>;
+#include <omniscript/Core.h>
+#include <omniscript/Utils.h>
+#include <omniscript/Types/BaseType.h>
+#include <omniscript/Tokens.h>
+#include <omniscript/Expressions/Expression.h>
+#include <omniscript/Symboltable.h>
+#include <omniscript/MemberModifiers.h>
 
 namespace Omniscript {
+
+using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>>;
 
 class Statement {
 public:
@@ -234,20 +241,20 @@ public:
     void validateAccessiblity(std::string baseTypeName, std::string memberName, SymbolTableType scope);
 };
 
-class Expression : 
+class ASTExpression : 
 public virtual Statement,
 public virtual ContextAwareStatement {
 public:
-    virtual ~Expression() = default;
+    virtual ~ASTExpression() = default;
     virtual bool isTruthy(SymbolTableType scope) const {
         return false;
     }
     std::string toString() const override {
-        return "Expression";
+        return "ASTExpression";
     }
 };
 
-class Literal : public TypedStatement, public Expression {
+class Literal : public TypedStatement, public ASTExpression {
 public:
     virtual ~Literal() = default;
 
@@ -400,11 +407,11 @@ public:
     }
 };
 
-class Cast : public TypedStatement, public Expression {
+class ASTCast : public TypedStatement, public ASTExpression {
     std::shared_ptr<Statement> value;
     std::shared_ptr<Type> targetType;
 public:
-    Cast(std::shared_ptr<Statement> value, std::shared_ptr<Type> targetType)
+    ASTCast(std::shared_ptr<Statement> value, std::shared_ptr<Type> targetType)
         : value(value), targetType(targetType) {
         setType(targetType);
     }
@@ -416,7 +423,7 @@ public:
     }
 
     std::shared_ptr<Statement> clone() const override {
-        return std::make_shared<Cast>(value->clone(), type);  // Clone using copy constructor
+        return std::make_shared<ASTCast>(value->clone(), type);  // Clone using copy constructor
     }
 };
 

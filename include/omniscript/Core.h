@@ -1,8 +1,17 @@
 #pragma once
 
+#include <string>
+#include <string_view>
+#include <unordered_set>
+#include <shared_mutex>
+#include <mutex>
+#include <vector>
+#include <chrono>
+#include <thread>
+#include <atomic>
+
 #include <omniscript/FileSpan.h>
 #include <omniscript/Console.h>
-#include <omniscript/omniscript_pch.h>
 
 namespace Omniscript {
 // Compile-time utilities

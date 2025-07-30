@@ -1,4 +1,4 @@
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>

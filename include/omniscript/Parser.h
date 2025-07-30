@@ -2,8 +2,8 @@
 
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/lexer.h>
-#include <omniscript/tokens.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Tokens.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 
 using parameterType = std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>>;

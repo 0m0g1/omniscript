@@ -1,7 +1,7 @@
 // Backend.h
 #pragma once
 
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/EngineConfigs.h>
 
 namespace Omniscript {

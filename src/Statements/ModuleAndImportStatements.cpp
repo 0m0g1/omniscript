@@ -1,4 +1,4 @@
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/FunctionStatement.h>
 #include <omniscript/Statements/ExpressionStatements.h>
 #include <omniscript/Statements/ModuleAndImportStatements.h>
@@ -11,7 +11,7 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 
 #include <omniscript/Expressions/AggregateExpressions.h>

@@ -158,7 +158,8 @@ To learn more about OmniScript, explore the following topics:
 
 - [**FFI Details**](./ffi.md): How to link and use external libraries (e.g., GLFW, OpenGL, SDL2)
 - [**Syntax**](./syntax.md): An introduction to OS's syntax; 
-- [**Compiler**](./Compiler.md): Compiler. 
+- [**Compiler**](./Compiler.md): Compiler.
+- [**SymbolTable**](./SymbolTable.md): SymbolTable. 
 - [**Datatypes**](./datatypes.md): Datatypes in OS. 
 - [**The 4 Strings**](./strings.md): strings in OS. 
 - [**Optionals**](./optionals.md): Optional/NullableTypes in OS. 

@@ -1,4 +1,4 @@
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/ControlFlowStatements.h>
 
 #include <omniscript/Core.h>
@@ -6,7 +6,7 @@
 #include <omniscript/Parser.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Statement.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 
 std::shared_ptr<Statement> Parser::parseForLoop() {
