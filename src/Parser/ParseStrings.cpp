@@ -9,7 +9,7 @@
 #include <omniscript/omniscript_pch.h>
 
 std::u32string Parser::parseStringLiteral() {
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = currentToken.getLine();
     span.start.col = currentToken.getColumn();
     span.start.filePath = currentToken.getFilePath();
@@ -17,7 +17,7 @@ std::u32string Parser::parseStringLiteral() {
     std::u32string value = currentToken.getU32Value();
 
     eat(TokenTypes::StringLiteral, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Provide a valid string literal\n"
             "2. Check string syntax\n"
@@ -25,8 +25,8 @@ std::u32string Parser::parseStringLiteral() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected string literal, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected string literal, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -35,7 +35,7 @@ std::u32string Parser::parseStringLiteral() {
 
     while (currentToken.getType() == TokenTypes::Plus) {
         eat(TokenTypes::Plus, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use '+' for string concatenation\n"
                 "2. Check string concatenation syntax\n"
@@ -43,8 +43,8 @@ std::u32string Parser::parseStringLiteral() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '+' for string concatenation, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '+' for string concatenation, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -62,8 +62,8 @@ std::u32string Parser::parseStringLiteral() {
             eat(TokenTypes::FloatLiteral);
         } else {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected string, integer, or float literal after '+', found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected string, integer, or float literal after '+', found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 "To resolve this:\n1. Provide a valid literal for concatenation\n2. Check concatenation syntax\n3. Ensure valid string, integer, or float literal",
                 span
@@ -82,7 +82,7 @@ std::u32string Parser::parseStringLiteral() {
 }
 
 std::shared_ptr<Statement> Parser::parseStringTemplate() {
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = currentToken.getLine();
     span.start.col = currentToken.getColumn();
     span.start.filePath = currentToken.getFilePath();
@@ -97,7 +97,7 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
         literalStmt->setSpan(span);
         parts.push_back(literalStmt);
         eat(currentToken.getType(), [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Start template with a string literal or template head\n"
                 "2. Check template syntax\n"
@@ -105,8 +105,8 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected string literal or template head, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected string literal or template head, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -114,8 +114,8 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
         });
     } else {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected template head or string literal to start template, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected template head or string literal to start template, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             "To resolve this:\n1. Start template with a string literal or backtick template\n2. Check template syntax\n3. Ensure valid template start",
             span
@@ -129,7 +129,7 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
         auto expr = parseExpression();
         if (!expr) {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Invalid expression in template ${}",
                 "To resolve this:\n1. Provide a valid expression within ${}\n2. Check expression syntax\n3. Ensure valid literals or identifiers",
                 span
@@ -147,7 +147,7 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
         literalStmt->setSpan(span);
         parts.push_back(literalStmt);
         eat(TokenTypes::TemplateMiddle, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Continue template with valid middle part\n"
                 "2. Check template syntax\n"
@@ -155,8 +155,8 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected template middle, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected template middle, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -172,7 +172,7 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
         literalStmt->setSpan(span);
         parts.push_back(literalStmt);
         eat(TokenTypes::TemplateTail, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. End template with valid tail part\n"
                 "2. Check template syntax\n"
@@ -180,8 +180,8 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected template tail, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected template tail, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -189,8 +189,8 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
         });
     } else if (currentToken.getType() != TokenTypes::Plus) {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected template tail or '+' for concatenation, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected template tail or '+' for concatenation, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             "To resolve this:\n1. Complete template with a tail or concatenate with '+'\n2. Check template syntax\n3. Ensure valid template closure",
             span
@@ -201,7 +201,7 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
     // Handle concatenation with additional string literals or templates
     while (currentToken.getType() == TokenTypes::Plus) {
         eat(TokenTypes::Plus, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use '+' for template concatenation\n"
                 "2. Check concatenation syntax\n"
@@ -209,8 +209,8 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '+' for template concatenation, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '+' for template concatenation, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -221,7 +221,7 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
             auto nextTemplate = parseStringTemplate();
             if (!nextTemplate) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Failed to parse concatenated string template or literal",
                     "To resolve this:\n1. Ensure valid string or template after '+'\n2. Check template syntax\n3. Verify concatenation",
                     span
@@ -238,8 +238,8 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
             eat(currentToken.getType());
         } else {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected string, template, integer, or float literal after '+', found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected string, template, integer, or float literal after '+', found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 "To resolve this:\n1. Provide a valid literal or template for concatenation\n2. Check concatenation syntax\n3. Ensure valid string, template, or number",
                 span

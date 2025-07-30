@@ -8,9 +8,10 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
+namespace Omniscript {
 // Parse a single statement
 std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = currentToken.getLine();
     span.start.col = currentToken.getColumn();
     span.start.filePath = currentToken.getFilePath();
@@ -47,29 +48,16 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             break;
         case TokenTypes::Volatile:
             eat(TokenTypes::Volatile, [&]() {
-                std::string suggestion = Omniscript::Console::formatString(
-                    "To resolve this:\n"
-                    "1. Use 'volatile' keyword correctly\n"
-                    "2. Check volatile declaration syntax\n"
-                    "3. Expected token: 'volatile', found '%s'",
-                    getTokenTypeName(currentToken.getType()).c_str()
-                );
-                console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected 'volatile' keyword, found '%s'", 
-                        getTokenTypeName(currentToken.getType()).c_str()),
-                    suggestion,
-                    span
-                );
+                SYNTAX_ERROR_F("Expected 'volatile' keyword, found '%s'", 
+                              getTokenTypeName(currentToken.getType()).c_str());
             });
             statement = parseAssignment();
             if (auto assign = std::dynamic_pointer_cast<AssignVariable>(statement)) {
                 assign->isVolatile = true;
             } else if (statement) {
-                console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                REPORT_ERROR_WITH_SPAN(
+                    Console::SYNTAX_ERROR,
                     "Volatile keyword can only be applied to variable assignments",
-                    "To resolve this:\n1. Ensure 'volatile' is followed by a valid assignment\n2. Check statement type\n3. Use correct syntax for volatile variables",
                     span
                 );
                 statement = nullptr;
@@ -79,7 +67,8 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             statement = parseFunctionDeclaration("", {});
             break;
         case TokenTypes::Identifier: {
-            if (lexer.peekToken(1).getType() == TokenTypes::Increment || lexer.peekToken(1).getType() == TokenTypes::Decrement) {
+            if (lexer.peekToken(1).getType() == TokenTypes::Increment || 
+                lexer.peekToken(1).getType() == TokenTypes::Decrement) {
                 statement = parseExpression();
             } else {
                 statement = parseIdentifier();
@@ -128,6 +117,8 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             statement = parseAssignment();
             break;
         case TokenTypes::Semicolon:
+            // Empty statement - just consume the semicolon
+            eat(TokenTypes::Semicolon);
             statement = nullptr;
             break;
         case TokenTypes::Class:
@@ -143,10 +134,9 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             if (lexer.peekToken(1).getType() == TokenTypes::Identifier) {
                 parameterType paramTypes = parseTypeParametersForDeclaration();
                 if (paramTypes.empty()) {
-                    console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
+                    REPORT_ERROR_WITH_SPAN(
+                        Console::SYNTAX_ERROR,
                         "Invalid generic type parameters",
-                        "To resolve this:\n1. Verify generic type syntax\n2. Ensure valid type identifiers\n3. Check type parameter syntax",
                         span
                     );
                     statement = nullptr;
@@ -154,48 +144,50 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
                 }
                 if (currentToken.getType() == TokenTypes::Function) {
                     statement = parseFunctionDeclaration(paramTypes);
-                } else if (currentToken.getType() == TokenTypes::Let || currentToken.getType() == TokenTypes::Const) {
+                } else if (currentToken.getType() == TokenTypes::Let || 
+                          currentToken.getType() == TokenTypes::Const) {
                     statement = parseAssignment(paramTypes);
                 } else {
-                    console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
-                        Omniscript::Console::formatString("Expected 'fn', 'let', or 'const' after type parameters, found '%s'", 
-                            getTokenTypeName(currentToken.getType()).c_str()),
-                        "To resolve this:\n1. Use valid declaration after type parameters\n2. Check generic declaration syntax\n3. Ensure correct keyword usage",
-                        span
-                    );
+                    SYNTAX_ERROR_F("Expected 'fn', 'let', or 'const' after type parameters, found '%s'", 
+                                  getTokenTypeName(currentToken.getType()).c_str());
                     statement = nullptr;
                 }
             } else {
-                console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected identifier after '<' for type parameters, found '%s'", 
-                        getTokenTypeName(lexer.peekToken(1).getType()).c_str()),
-                    "To resolve this:\n1. Provide valid type parameters\n2. Check generic syntax\n3. Ensure valid identifier after '<'",
-                    span
-                );
+                SYNTAX_ERROR_F("Expected identifier after '<' for type parameters, found '%s'", 
+                              getTokenTypeName(lexer.peekToken(1).getType()).c_str());
                 statement = nullptr;
             }
             break;
         }
         case TokenTypes::RightBrace:
+            // End of block - return null to indicate end
+            statement = nullptr;
+            break;
+        case TokenTypes::Newline:
+            // CRITICAL FIX: Handle newlines properly to prevent infinite loop
+            eat(TokenTypes::Newline);
+            statement = nullptr; // Empty line
+            break;
+        case TokenTypes::EOI:
+            // End of input
             statement = nullptr;
             break;
         default:
-            console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Unexpected token '%s' with value '%s' in statement", 
-                    getTokenTypeName(currentToken.getType()).c_str(), currentToken.getValue().c_str()),
-                "To resolve this:\n1. Check for valid statement syntax\n2. Ensure correct token usage\n3. Verify statement context",
-                span
-            );
+            // Enhanced error with source location
+            SYNTAX_ERROR_F("Unexpected token '%s' with value '%s' in statement", 
+                          getTokenTypeName(currentToken.getType()).c_str(), 
+                          currentToken.getValue().c_str());
+            
+            // CRITICAL: Always advance the token to prevent infinite loops
+            eat(currentToken.getType());
             statement = nullptr;
             break;
     }
 
     // Check for an optional semicolon or newline
-    if (checkForTerminalChar && 
-        (currentToken.getType() == TokenTypes::Semicolon || currentToken.getType() == TokenTypes::Newline)) {
+    if (checkForTerminalChar && statement && 
+        (currentToken.getType() == TokenTypes::Semicolon || 
+         currentToken.getType() == TokenTypes::Newline)) {
         expectSemicolonOrNewLine();
     }
 
@@ -209,3 +201,5 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
 
     return statement;
 }
+
+} // namespace Omniscript

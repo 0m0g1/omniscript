@@ -10,9 +10,11 @@
 #include <omniscript/Expressions/AssignmentExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
-std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
-    std::shared_ptr<Omniscript::Expression> referent = scope->getValue(name);
+namespace Omniscript {
+
+std::shared_ptr<Expression> AddressOf::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+    std::shared_ptr<Expression> referent = scope->getValue(name);
 
     DEBUG_LOG("Getting the address of '" + name + "'.");
     
@@ -22,7 +24,7 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
                                "2. Verify variable is declared before use\n"
                                "3. Check scope visibility rules";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Symbol '" + name + "' was not found in the scope",
             suggestion,
             getSpan()
@@ -38,7 +40,7 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
                                    "2. Verify proper function declaration\n"
                                    "3. Check namespace/import requirements";
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
+                Console::TYPE_ERROR,
                 "No valid referent found for '" + name + "'",
                 suggestion,
                 getSpan()
@@ -47,33 +49,33 @@ std::shared_ptr<Omniscript::Expression> AddressOf::express(SymbolTableType scope
         }
         
         referent = overloads[0];
-        auto mangledName = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(referent)->mangledName;
+        auto mangledName = std::dynamic_pointer_cast<FunctionExpression>(referent)->mangledName;
         DEBUG_LOG("Mangled name '" + mangledName + "'.");
 
         if (!type) {
-            setType(Omniscript::Type::createPointerType(referent->getType()));
-            setRootType(Omniscript::Type::createPointerType(referent->getType()));
+            setType(Type::createPointerType(referent->getType()));
+            setRootType(Type::createPointerType(referent->getType()));
         }
 
-        auto addrOf = std::make_shared<Omniscript::AddressOfExpression>(mangledName, referent);       
+        auto addrOf = std::make_shared<AddressOfExpression>(mangledName, referent);       
     }
 
     if (!type) {
-        setType(Omniscript::Type::createPointerType(referent->getType()));
-        setRootType(Omniscript::Type::createPointerType(referent->getType()));
+        setType(Type::createPointerType(referent->getType()));
+        setRootType(Type::createPointerType(referent->getType()));
     }
 
-    auto addrOf = std::make_shared<Omniscript::AddressOfExpression>(name, referent);
-    addrOf->setSpan(getSpan());
+    auto addrOf = std::make_shared<AddressOfExpression>(name, referent);
+    addrOf->setSpan(this->getSpan());
     return addrOf;
 }
 
-std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+std::shared_ptr<Expression> ReferenceTo::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     if (name.empty() && !referent) {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "Invalid reference declaration",
             "References must be initialized with a valid target",
             getSpan()
@@ -90,18 +92,18 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
                                    "2. Verify referent is not null\n"
                                    "3. Add debug output for referent";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Error getting referent '" + referent->toString() + "'",
                 suggestion,
                 referent->getSpan()
             );
             return nullptr;
         }
-        setType(Omniscript::Type::createPointerType(referentExpr->getType()));
+        setType(Type::createPointerType(referentExpr->getType()));
         setRootType(type);
-        auto ref = std::make_shared<Omniscript::ReferenceExpression>(name, referentExpr);
+        auto ref = std::make_shared<ReferenceExpression>(name, referentExpr);
         ref->type = type;
-        ref->setSpan(getSpan());
+        ref->setSpan(this->getSpan());
         return ref;
     }
     
@@ -112,7 +114,7 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
                                "2. Verify variable exists in scope\n"
                                "3. Check declaration order";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Symbol '" + name + "' was not found in the scope",
             suggestion,
             getSpan()
@@ -127,7 +129,7 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
                                "2. Verify scope rules\n"
                                "3. For functions, check overloads";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Invalid reference target '" + name + "'",
             suggestion,
             getSpan()
@@ -135,20 +137,20 @@ std::shared_ptr<Omniscript::Expression> ReferenceTo::express(SymbolTableType sco
         return nullptr;
     }
 
-    setType(Omniscript::Type::createPointerType(variable->getType()));
+    setType(Type::createPointerType(variable->getType()));
     setRootType(type);
-    auto ref = std::make_shared<Omniscript::ReferenceExpression>(name, variable);
+    auto ref = std::make_shared<ReferenceExpression>(name, variable);
     ref->type = type;
-    ref->setSpan(getSpan());
+    ref->setSpan(this->getSpan());
     return ref;
 }
 
-std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+std::shared_ptr<Expression> GetVariable::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("Getting symbol '" + name + "'.");
     DEBUG_LOG(getContextAsString());
 
-    std::shared_ptr<Omniscript::Expression> expr = scope->get(name);
+    std::shared_ptr<Expression> expr = scope->get(name);
     std::string resolvedName = name;
 
     if (!expr) {
@@ -171,7 +173,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
         auto overloads = scope->getOverloads(name);
         if (!overloads.empty()) {
             expr = overloads[0];
-            auto func = std::dynamic_pointer_cast<Omniscript::FunctionExpression>(expr);
+            auto func = std::dynamic_pointer_cast<FunctionExpression>(expr);
             resolvedName = func->mangledName;
         }
     }
@@ -182,7 +184,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
                                "2. Verify symbol is declared\n"
                                "3. Check import/namespace requirements";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Symbol '" + name + "' could not be resolved in scope '" + scope->getName() + "'",
             suggestion,
             getSpan()
@@ -192,12 +194,12 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
 
     DEBUG_LOG("The variable stored in scope is '" + expr->toString() + "'.");
 
-    std::shared_ptr<Omniscript::Type> symbolType = expr->getType();
+    std::shared_ptr<Type> symbolType = expr->getType();
 
     if (type) {
-        if (!Omniscript::Type::isSameOrCastableTo(symbolType, type)) {
+        if (!Type::isSameOrCastableTo(symbolType, type)) {
             if (symbolType->isNullable()) {
-                if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(expr)) {
+                if (auto varAccess = std::dynamic_pointer_cast<VariableAccessExpression>(expr)) {
                     if (!varAccess->extractValue) {
                         std::string suggestion = "To resolve this:\n"
                                                "1. Check type requirements\n"
@@ -205,7 +207,7 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
                                                " - Explicit cast: `(%s)value`\n"
                                                " - Null check: `value ?? defaultValue`";
                         console.reportError(
-                            Omniscript::Console::TYPE_ERROR,
+                            Console::TYPE_ERROR,
                             "Symbol '" + resolvedName + "' is of type '" + symbolType->toString() +
                             "' which cannot be cast to '" + type->toString() + "'",
                             suggestion,
@@ -216,9 +218,9 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
             }
         } else {
             if (type->isNullable() && !symbolType->isNullable()) {
-                auto val = std::make_shared<Omniscript::VariableAccessExpression>(resolvedName, symbolType);
-                auto result = std::make_shared<Omniscript::NullableExpression>(val);
-                result->setSpan(getSpan());
+                auto val = std::make_shared<VariableAccessExpression>(resolvedName, symbolType);
+                auto result = std::make_shared<NullableExpression>(val);
+                result->setSpan(this->getSpan());
                 return result;
             }
             DEBUG_LOG("The casted type is '" + type->toString() + "'.");
@@ -227,16 +229,16 @@ std::shared_ptr<Omniscript::Expression> GetVariable::express(SymbolTableType sco
         setType(symbolType);
     }
 
-    auto varAccess = std::make_shared<Omniscript::VariableAccessExpression>(resolvedName, type);
+    auto varAccess = std::make_shared<VariableAccessExpression>(resolvedName, type);
     varAccess->value = expr;
-    varAccess->setSpan(getSpan());
+    varAccess->setSpan(this->getSpan());
     return varAccess;
 }
 
-std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (type && type->isUnresolved()) {
-        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
+        if (auto unresolved = std::dynamic_pointer_cast<UnresolvedType>(type)) {
             type = scope->getType(unresolved->joinedTypeString);
             rootType = type;
             if (!type) {
@@ -245,7 +247,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                                        "2. Verify type is imported\n"
                                        "3. Check namespace requirements";
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
+                    Console::TYPE_ERROR,
                     "Type '" + unresolved->joinedTypeString + "' does not exist in scope '" + scope->getName() + "'",
                     suggestion,
                     getSpan()
@@ -257,7 +259,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
 
     DEBUG_LOG("Assigning variable " + variable + (type? " of type " + type->toString() : ""));
 
-    std::shared_ptr<Omniscript::Expression> result;
+    std::shared_ptr<Expression> result;
 
     if (isReassign && !scope->exists(variable)) {
         std::string suggestion = "To resolve this:\n"
@@ -265,7 +267,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                                "2. Declare variable before reassignment\n"
                                "3. Verify scope rules";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Variable '" + variable + "' was not declared in scope '" + scope->getName() + "'",
             suggestion,
             getSpan()
@@ -279,7 +281,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     if (type) {
         if (type->isGeneric()) {
             auto genericVal = scope->get(type->getName());
-            if (auto generic = std::dynamic_pointer_cast<Omniscript::TypeExpression>(genericVal)) {
+            if (auto generic = std::dynamic_pointer_cast<TypeExpression>(genericVal)) {
                 type = generic->getTypeExpression()->clone();
             }
         }
@@ -292,7 +294,7 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                                        "2. Verify expression validity\n"
                                        "3. Add debug output";
                 console.reportError(
-                    Omniscript::Console::RUNTIME_ERROR,
+                    Console::RUNTIME_ERROR,
                     "Invalid assignment value for '" + variable + "'",
                     suggestion,
                     value->getSpan()
@@ -300,14 +302,14 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 return nullptr;
             }
 
-            if (!Omniscript::Type::isSameOrCastableTo(result->getType(), type)) {
+            if (!Type::isSameOrCastableTo(result->getType(), type)) {
                 std::string suggestion = "To resolve this:\n"
                                        "1. Check type requirements\n"
                                        "2. Available conversions:\n"
                                        " - Explicit cast: `(%s)value`\n"
                                        " - Conversion method: `value.to_%s()`";
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
+                    Console::TYPE_ERROR,
                     "Type mismatch for variable '" + variable + "'\n"
                     "Expected: '" + type->toString() + "'\n"
                     "Got: '" + result->getType()->toString() + "'",
@@ -317,13 +319,13 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
                 return nullptr;
             }
         } else {
-            result = std::make_shared<Omniscript::NullExpression>(type);
+            result = std::make_shared<NullExpression>(type);
         }
     } else if (value) {
         result = value->express(scope);
         if (!result) {
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Invalid inferred type for '" + variable + "'",
                 "The type could not be inferred from the right-hand expression",
                 value->getSpan()
@@ -334,14 +336,14 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
     }
 
     if (isReassign) {
-        std::shared_ptr<Omniscript::Expression> prevValue = scope->get(variable);
-        if (!Omniscript::Type::isSameOrCastableTo(result->getType(), prevValue->getType())) {
+        std::shared_ptr<Expression> prevValue = scope->get(variable);
+        if (!Type::isSameOrCastableTo(result->getType(), prevValue->getType())) {
             std::string suggestion = "To resolve this:\n"
                                    "1. Check type consistency\n"
                                    "2. Verify assignment compatibility\n"
                                    "3. Consider explicit cast if appropriate";
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
+                Console::TYPE_ERROR,
                 "Reassignment type mismatch for '" + variable + "'\n"
                 "Original: '" + prevValue->getType()->toString() + "'\n"
                 "New: '" + result->getType()->toString() + "'",
@@ -358,12 +360,12 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
         scope->setVariable(variable, result);
     }
 
-    auto assignment = Omniscript::make_expression<Omniscript::VariableAssignment>(variable, result, isGlobal, true);
+    auto assignment = make_expression<VariableAssignment>(variable, result, isGlobal, true);
     assignment->isStatic = isStatic;
     assignment->isGlobal = isGlobal;
     assignment->isConstant = isConstant;
     assignment->isVolatile = isVolatile;
-    assignment->setSpan(getSpan());
+    assignment->setSpan(this->getSpan());
     assignment->isExtern = isExtern;
     assignment->externName = assignment->getName();
     assignment->windowsDynamic  = libraryPaths.windowsDynamic;
@@ -377,3 +379,5 @@ std::shared_ptr<Omniscript::Expression> AssignVariable::express(SymbolTableType 
 
     return assignment;
 }
+
+} // namespace Omniscript

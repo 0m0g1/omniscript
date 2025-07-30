@@ -1,14 +1,10 @@
-//Utility functions
-#ifndef Utility_H
-#define Utility_H
-
+#pragma once
 //Includes
 // #include <string>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Tokens.h>
 
-// Foward declarations
-class Object;
+namespace Omniscript {
 
 // Utility function declerations
 std::string toUpperCaseString(const std::string &source);
@@ -39,4 +35,4 @@ std::string utf16_to_utf8(const std::u16string& utf16str);
 std::u16string utf32_to_utf16(const std::u32string& input);
 std::u32string utf16_to_utf32(const std::u16string& input);
 
-#endif
+} // namespace Omniscript

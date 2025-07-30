@@ -1,18 +1,20 @@
 #pragma once
 #include <omniscript/Statement.h>
 
+namespace Omniscript {
+
 class ReturnStatement : 
 public Terminator,
 public ContextAwareStatement {
 public:
-    ReturnStatement(std::shared_ptr<Statement> value = nullptr, std::shared_ptr<Omniscript::Type> returnType = nullptr)
+    ReturnStatement(std::shared_ptr<Statement> value = nullptr, std::shared_ptr<Type> returnType = nullptr)
         : returnValue(value) {
             setType(returnType);
         }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override;
     bool hasSideEffects() override;
     bool isCompileTimeEvaluatable() override;
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::shared_ptr<Statement> returnValue;
     std::string toString() const override { return "Return: " + (returnValue? returnValue->toString() : "void;"); }
     std::string formatError(const std::string& msg) const override {
@@ -52,7 +54,7 @@ public:
     // Evaluate the conditions and bodies
     // Convert this IfStatement to an expression (for printing or debugging)
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override;
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     
 
     // String representation for debugging
@@ -115,7 +117,7 @@ public:
         : condition(condition), body(body) {}
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::shared_ptr<Statement> condition;
     std::shared_ptr<BlockStatement> body;
     std::string toString() const override { 
@@ -147,7 +149,7 @@ public:
         :   initialization(init), condition(cond), 
             increment(incr), body(body) {}
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { 
         return "For: (" + (condition? condition->toString() : "no-condition") + ")"; 
     } 
@@ -159,7 +161,7 @@ public:
 class BreakStatement : public ControlFlowStatement {
 public:
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { return "Break;"; }
     std::string formatError(const std::string& msg) const override {
         return "Error in break statement.\n" + msg;
@@ -169,9 +171,11 @@ public:
 class ContinueStatement : public ControlFlowStatement {
 public:
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { return "Continue;"; }
     std::string formatError(const std::string& msg) const override {
         return "Error in continue statement.\n" + msg;
     };
 };
+
+} // namespace Omniscript

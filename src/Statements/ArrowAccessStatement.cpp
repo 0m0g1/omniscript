@@ -14,13 +14,15 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
 
+namespace Omniscript {
+
 ArrowAccess::ArrowAccess(std::shared_ptr<Statement> ptr, const std::string& member) 
     : pointer(ptr) {
     memberName = member;
     expr = ptr;
 }
 
-std::shared_ptr<Omniscript::Expression> ArrowAccess::resolvePointerExpression(SymbolTableType scope) {
+std::shared_ptr<Expression> ArrowAccess::resolvePointerExpression(SymbolTableType scope) {
     if (auto arrowAcc = std::dynamic_pointer_cast<ArrowAccess>(pointer)) {
         DEBUG_LOG("Resolving chained arrow access: " + arrowAcc->toString());
         auto baseExpr = arrowAcc->express(scope);
@@ -30,7 +32,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::resolvePointerExpression(Sy
                                    "2. Verify intermediate pointers are initialized\n"
                                    "3. Add debug output for each access step";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate chained arrow access expression",
                 suggestion,
                 arrowAcc->getSpan()
@@ -49,7 +51,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::resolvePointerExpression(Sy
                                    "2. Check member accessibility\n"
                                    "3. Ensure proper initialization";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate member access base expression",
                 suggestion,
                 memberAcc->getSpan()
@@ -66,7 +68,7 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::resolvePointerExpression(Sy
                                "2. Verify proper initialization\n"
                                "3. Add debug output before access";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Failed to evaluate pointer expression for arrow access",
             suggestion,
             pointer->getSpan()
@@ -78,11 +80,11 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::resolvePointerExpression(Sy
     return pointerExpr;
 }
 
-std::shared_ptr<Omniscript::UserDefinedType> ArrowAccess::validateAndGetPointeeType(
-    std::shared_ptr<Omniscript::Type> pointerType) {
+std::shared_ptr<UserDefinedType> ArrowAccess::validateAndGetPointeeType(
+    std::shared_ptr<Type> pointerType) {
     
     if (!pointerType->isPointer()) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Declare as pointer: `%s* var`\n"
             "2. Use address-of operator: `&variable`\n"
@@ -90,8 +92,8 @@ std::shared_ptr<Omniscript::UserDefinedType> ArrowAccess::validateAndGetPointeeT
             pointerType->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Arrow access requires pointer type (got '%s')", 
+            Console::TYPE_ERROR,
+            Console::formatString("Arrow access requires pointer type (got '%s')", 
                                pointerType->toString().c_str()),
             suggestion,
             getSpan()
@@ -102,7 +104,7 @@ std::shared_ptr<Omniscript::UserDefinedType> ArrowAccess::validateAndGetPointeeT
     auto baseType = pointerType->getBasePointeeType();
     if (!baseType) {
         console.reportError(
-            Omniscript::Console::INTERNAL_ERROR,
+            Console::INTERNAL_ERROR,
             "Failed to determine pointee type",
             "This is likely a compiler bug - please report it",
             getSpan()
@@ -110,9 +112,9 @@ std::shared_ptr<Omniscript::UserDefinedType> ArrowAccess::validateAndGetPointeeT
         return nullptr;
     }
     
-    auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(baseType);
+    auto userType = std::dynamic_pointer_cast<UserDefinedType>(baseType);
     if (!userType) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check type definition is complete\n"
             "2. For built-in types, use dot notation\n"
@@ -120,8 +122,8 @@ std::shared_ptr<Omniscript::UserDefinedType> ArrowAccess::validateAndGetPointeeT
             baseType->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Arrow access requires user-defined type (got '%s')", 
+            Console::TYPE_ERROR,
+            Console::formatString("Arrow access requires user-defined type (got '%s')", 
                                baseType->toString().c_str()),
             suggestion,
             getSpan()
@@ -133,13 +135,13 @@ std::shared_ptr<Omniscript::UserDefinedType> ArrowAccess::validateAndGetPointeeT
     return userType;
 }
 
-int ArrowAccess::findMemberInType(std::shared_ptr<Omniscript::UserDefinedType> userType) {
+int ArrowAccess::findMemberInType(std::shared_ptr<UserDefinedType> userType) {
     for (int i = 0; i < userType->paramTypes.size(); ++i) {
         if (userType->paramTypes[i]->getParameterName() == memberName) {
             auto memberType = userType->paramTypes[i];
             
-            if (type && !Omniscript::Type::isSameOrCastableTo(memberType, type)) {
-                std::string suggestion = Omniscript::Console::formatString(
+            if (type && !Type::isSameOrCastableTo(memberType, type)) {
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Check type requirements\n"
                     "2. Available conversions:\n"
@@ -150,8 +152,8 @@ int ArrowAccess::findMemberInType(std::shared_ptr<Omniscript::UserDefinedType> u
                     memberType->toString().c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
-                    Omniscript::Console::formatString("Type mismatch: cannot use '%s' as '%s'", 
+                    Console::TYPE_ERROR,
+                    Console::formatString("Type mismatch: cannot use '%s' as '%s'", 
                                        memberType->toString().c_str(),
                                        type->toString().c_str()),
                     suggestion,
@@ -171,7 +173,7 @@ int ArrowAccess::findMemberInType(std::shared_ptr<Omniscript::UserDefinedType> u
         availableMembers += " - " + param->getParameterName() + "\n";
     }
     
-    std::string suggestion = Omniscript::Console::formatString(
+    std::string suggestion = Console::formatString(
         "To resolve this:\n"
         "1. Check member name spelling\n"
         "2. Available members:\n%s\n"
@@ -180,8 +182,8 @@ int ArrowAccess::findMemberInType(std::shared_ptr<Omniscript::UserDefinedType> u
     );
     
     console.reportError(
-        Omniscript::Console::TYPE_ERROR,
-        Omniscript::Console::formatString("Member '%s' not found in '%s'", 
+        Console::TYPE_ERROR,
+        Console::formatString("Member '%s' not found in '%s'", 
                            memberName.c_str(),
                            userType->toString().c_str()),
         suggestion,
@@ -190,7 +192,7 @@ int ArrowAccess::findMemberInType(std::shared_ptr<Omniscript::UserDefinedType> u
     return -1;
 }
 
-std::shared_ptr<Omniscript::Expression> ArrowAccess::processAssignment(SymbolTableType scope) {
+std::shared_ptr<Expression> ArrowAccess::processAssignment(SymbolTableType scope) {
     if (!assignmentValue) {
         return nullptr;
     }
@@ -208,15 +210,15 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::processAssignment(SymbolTab
                                "2. Verify type compatibility\n"
                                "3. Add debug output for the value";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Invalid assignment value in arrow access",
             suggestion,
             assignmentValue->getSpan()
         );
     }
     
-    if (assignmentExpr && type && !Omniscript::Type::isSameOrCastableTo(type, assignmentExpr->getType())) {
-        std::string suggestion = Omniscript::Console::formatString(
+    if (assignmentExpr && type && !Type::isSameOrCastableTo(type, assignmentExpr->getType())) {
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check type requirements\n"
             "2. Available conversions:\n"
@@ -227,8 +229,8 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::processAssignment(SymbolTab
             type->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Cannot assign '%s' to '%s'", 
+            Console::TYPE_ERROR,
+            Console::formatString("Cannot assign '%s' to '%s'", 
                                assignmentExpr->getType()->toString().c_str(),
                                type->toString().c_str()),
             suggestion,
@@ -253,8 +255,8 @@ std::shared_ptr<Statement> ArrowAccess::clone() const {
     return cloned;
 }
 
-std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+std::shared_ptr<Expression> ArrowAccess::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     // Resolve the pointer expression (handles chaining)
     auto pointerExpr = resolvePointerExpression(scope);
@@ -281,12 +283,12 @@ std::shared_ptr<Omniscript::Expression> ArrowAccess::express(SymbolTableType sco
     }
     
     // Create the arrow access expression
-    auto result = std::make_shared<Omniscript::ArrowAccessExpression>(
+    auto result = std::make_shared<ArrowAccessExpression>(
         pointerExpr, memberName, memberIndex, type, assignmentExpr
     );
     
     result->type = type;
-    result->setSpan(getSpan());
+    result->setSpan(this->getSpan());
     return result;
 }
 
@@ -311,3 +313,5 @@ std::string ArrowAccess::toString() const {
 std::string ArrowAccess::formatError(const std::string& msg) const {
     return "Error in '" + toString() + "'.\n" + msg;
 }
+
+} // namespace Omniscript

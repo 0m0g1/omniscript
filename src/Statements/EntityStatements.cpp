@@ -9,21 +9,25 @@
 
 #include <omniscript/Expressions/EntityExpressions.h>
 
-std::shared_ptr<Omniscript::Expression> EnumValue::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+namespace Omniscript {
+
+std::shared_ptr<Expression> EnumValue::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     auto integer = std::make_shared<IntegerLiteral>(valueIndex)->express(scope);
-    integer->setSpan(getSpan());
+    integer->setSpan(this->getSpan());
     return integer;
 }
 
-std::shared_ptr<Omniscript::Expression> EnumConstructor::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
-    auto expr = std::make_shared<Omniscript::EnumExpression>(name, hasLookup, isEnumClass);
+std::shared_ptr<Expression> EnumConstructor::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+    auto expr = std::make_shared<EnumExpression>(name, hasLookup, isEnumClass);
     
     for (const auto& val : values) {
         expr->addEntry(val->getIndex(), val->getName(), val->express(scope));
     }
 
-    expr->setSpan(getSpan());
+    expr->setSpan(this->getSpan());
     return expr;
 }
+
+} // namespace Omniscript

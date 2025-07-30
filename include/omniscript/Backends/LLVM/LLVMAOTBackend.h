@@ -25,7 +25,7 @@ public:
 private:
     std::shared_ptr<IRGenerator> irGen;
     std::vector<std::pair<std::string, std::shared_ptr<llvm::TargetMachine>>> targetMachines;
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope;
+    std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>> scope;
     std::string outputPath;
     LinkDependencies linkerDependencies;
     std::unordered_map<std::string, std::chrono::system_clock::time_point> fileCache;

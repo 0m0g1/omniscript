@@ -7,15 +7,17 @@
 #include <omniscript/Symboltable.h>
 #include <omniscript/Expressions/ControlFlowExpressions.h>
 
-std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType scope) {
+namespace Omniscript {
+
+std::shared_ptr<Expression> ReturnStatement::express(SymbolTableType scope) {
     if (type) {
         DEBUG_LOG("[Return] Creating a return value of kind '" + type->toString() + "'.");
     } else {
         DEBUG_LOG("[Return] The return statement has no type, setting its type to void");
-        type = Omniscript::resolveType({"void"});
+        type = resolveType({"void"});
     }
 
-    std::shared_ptr<Omniscript::Expression> result = nullptr;
+    std::shared_ptr<Expression> result = nullptr;
     if (returnValue) {
         extendContextOf(returnValue);
         if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
@@ -25,9 +27,9 @@ std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType
 
         if (!result) {
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate return value expression",
-                Omniscript::Console::formatString(
+                Console::formatString(
                     "To resolve this:\n"
                     "1. Check return value expression validity\n"
                     "2. Verify type matches function return type '%s'\n"
@@ -46,8 +48,8 @@ std::shared_ptr<Omniscript::Expression> ReturnStatement::express(SymbolTableType
         DEBUG_LOG("[Return] The result of the return value is 'void'.");
     }
     
-    auto returnstmt = std::make_shared<Omniscript::ReturnExpression>(result, type);
-    returnstmt->setSpan(getSpan());
+    auto returnstmt = std::make_shared<ReturnExpression>(result, type);
+    returnstmt->setSpan(this->getSpan());
     return returnstmt;
 }
 
@@ -60,7 +62,7 @@ std::shared_ptr<Statement> ReturnStatement::evaluate(SymbolTableType scope) {
     std::shared_ptr<Statement> result = returnValue->evaluate(scope);
     if (!result) {
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Failed to evaluate return value",
             "To resolve this:\n"
             "1. Check return value expression validity\n"
@@ -74,12 +76,12 @@ std::shared_ptr<Statement> ReturnStatement::evaluate(SymbolTableType scope) {
 
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(result)) {
         auto ret = std::make_shared<ReturnStatement>(result, typed->getType());
-        ret->setSpan(getSpan());
+        ret->setSpan(this->getSpan());
         return ret;
     }
     
     auto ret = std::make_shared<ReturnStatement>(result);
-    ret->setSpan(getSpan());
+    ret->setSpan(this->getSpan());
     return ret;
 }
 
@@ -91,13 +93,13 @@ bool ReturnStatement::isCompileTimeEvaluatable() {
     return false; // Return statements depend on runtime values
 }
 
-std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType scope) {
+std::shared_ptr<Expression> WhileStatement::express(SymbolTableType scope) {
     auto localScope = scope->createChildScope("whileloop");
     DEBUG_LOG("Creating a while loop expression");
 
     if (!condition) {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "While statement missing condition",
             "To resolve this:\n"
             "1. Add a condition expression\n"
@@ -111,10 +113,10 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
     extendContextOf(condition);
     extendContextOf(body);
 
-    std::shared_ptr<Omniscript::Expression> conditionExpr = condition->express(localScope);
+    std::shared_ptr<Expression> conditionExpr = condition->express(localScope);
     if (!conditionExpr) {
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Failed to evaluate while loop condition",
             "To resolve this:\n"
             "1. Check condition expression validity\n"
@@ -135,13 +137,13 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
         );
     }
 
-    std::shared_ptr<Omniscript::Expression> bodyExpr = nullptr;
+    std::shared_ptr<Expression> bodyExpr = nullptr;
     if (body) {
         body->isGlobal = false;
         bodyExpr = body->express(localScope);
         if (!bodyExpr) {
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate while loop body",
                 "To resolve this:\n"
                 "1. Check body statement validity\n"
@@ -155,15 +157,15 @@ std::shared_ptr<Omniscript::Expression> WhileStatement::express(SymbolTableType 
         DEBUG_LOG("Created its body expression: " + bodyExpr->toString() + "'.");
     }
 
-    auto whileLoop = std::make_shared<Omniscript::WhileLoopExpression>(conditionExpr, bodyExpr);
-    whileLoop->setSpan(getSpan());
+    auto whileLoop = std::make_shared<WhileLoopExpression>(conditionExpr, bodyExpr);
+    whileLoop->setSpan(this->getSpan());
     return whileLoop;
 }
 
-std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType scope) {
+std::shared_ptr<Expression> IfStatement::express(SymbolTableType scope) {
     if (conditions.empty()) {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "If statement with no conditions",
             "To resolve this:\n"
             "1. Add at least one condition\n"
@@ -174,15 +176,15 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
         return nullptr;
     }
 
-    std::vector<std::shared_ptr<Omniscript::Expression>> exprConditions;
-    std::vector<std::shared_ptr<Omniscript::Expression>> exprBranches;
+    std::vector<std::shared_ptr<Expression>> exprConditions;
+    std::vector<std::shared_ptr<Expression>> exprBranches;
 
     for (size_t i = 0; i < conditions.size(); ++i) {
         if (!conditions[i] || !bodies[i]) {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Invalid if statement branch",
-                Omniscript::Console::formatString(
+                Console::formatString(
                     "To resolve this:\n"
                     "1. Check condition and body for branch %d\n"
                     "2. Verify neither is null\n"
@@ -203,8 +205,8 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
         auto condExpr = conditions[i]->express(localScope);
         if (!condExpr) {
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
-                Omniscript::Console::formatString("Failed to evaluate if condition %d", i + 1),
+                Console::RUNTIME_ERROR,
+                Console::formatString("Failed to evaluate if condition %d", i + 1),
                 "To resolve this:\n"
                 "1. Check condition expression validity\n"
                 "2. Verify condition evaluates to boolean\n"
@@ -219,8 +221,8 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
         auto bodyExpr = bodies[i]->express(localScope);
         if (!bodyExpr) {
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
-                Omniscript::Console::formatString("Failed to evaluate if body %d", i + 1),
+                Console::RUNTIME_ERROR,
+                Console::formatString("Failed to evaluate if body %d", i + 1),
                 "To resolve this:\n"
                 "1. Check body statement validity\n"
                 "2. Verify no runtime errors in body\n"
@@ -233,7 +235,7 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
         exprBranches.push_back(bodyExpr);
     }
 
-    std::shared_ptr<Omniscript::Expression> elseExpr = nullptr;
+    std::shared_ptr<Expression> elseExpr = nullptr;
     if (elseBody) {
         elseBody->isGlobal = false;
         extendContextOf(elseBody);
@@ -242,7 +244,7 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
         elseExpr = elseBody->express(localScope);
         if (!elseExpr) {
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate else body",
                 "To resolve this:\n"
                 "1. Check else body statement validity\n"
@@ -255,8 +257,8 @@ std::shared_ptr<Omniscript::Expression> IfStatement::express(SymbolTableType sco
         }
     }
 
-    auto ifExpr = std::make_shared<Omniscript::IfExpression>(exprConditions, exprBranches, elseExpr);
-    ifExpr->setSpan(getSpan());
+    auto ifExpr = std::make_shared<IfExpression>(exprConditions, exprBranches, elseExpr);
+    ifExpr->setSpan(this->getSpan());
     return ifExpr;
 }
 
@@ -284,13 +286,13 @@ std::shared_ptr<Statement> IfStatement::evaluate(SymbolTableType scope) {
     return std::make_shared<IfStatement>(evalConditions, evalBodies, evalElseBody);
 }
 
-std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) {
+std::shared_ptr<Expression> ForLoop::express(SymbolTableType scope) {
     auto localScope = scope->createChildScope("forloop");
     DEBUG_LOG("Creating a for loop expression");
 
     if (!body) {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "For loop missing body",
             "To resolve this:\n"
             "1. Add a loop body\n"
@@ -301,7 +303,7 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
         return nullptr;
     }
 
-    std::shared_ptr<Omniscript::Expression> initializationExpr = nullptr;
+    std::shared_ptr<Expression> initializationExpr = nullptr;
     if (initialization) {
         if (auto assign = std::dynamic_pointer_cast<Assignment>(initialization)) {
             assign->isGlobal = false;
@@ -309,7 +311,7 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
         initializationExpr = initialization->express(localScope);
         if (!initializationExpr) {
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate for loop initialization",
                 "To resolve this:\n"
                 "1. Check initialization expression validity\n"
@@ -323,12 +325,12 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
     }
     DEBUG_LOG("Created its initialization expression");
 
-    std::shared_ptr<Omniscript::Expression> conditionExpr = nullptr;
+    std::shared_ptr<Expression> conditionExpr = nullptr;
     if (condition) {
         conditionExpr = condition->express(localScope);
         if (!conditionExpr) {
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate for loop condition",
                 "To resolve this:\n"
                 "1. Check condition expression validity\n"
@@ -342,12 +344,12 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
     }
     DEBUG_LOG("Created its condition expression");
 
-    std::shared_ptr<Omniscript::Expression> incrementExpr = nullptr;
+    std::shared_ptr<Expression> incrementExpr = nullptr;
     if (increment) {
         incrementExpr = increment->express(localScope);
         if (!incrementExpr) {
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate for loop increment",
                 "To resolve this:\n"
                 "1. Check increment expression validity\n"
@@ -362,10 +364,10 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
     DEBUG_LOG("Created its update expression");
 
     body->isGlobal = false;
-    std::shared_ptr<Omniscript::Expression> bodyExpr = body->express(localScope);
+    std::shared_ptr<Expression> bodyExpr = body->express(localScope);
     if (!bodyExpr) {
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Failed to evaluate for loop body",
             "To resolve this:\n"
             "1. Check body statement validity\n"
@@ -378,28 +380,30 @@ std::shared_ptr<Omniscript::Expression> ForLoop::express(SymbolTableType scope) 
     }
     DEBUG_LOG("Created its body");
 
-    auto forExpr = std::make_shared<Omniscript::ForLoopExpression>(
+    auto forExpr = std::make_shared<ForLoopExpression>(
         initializationExpr,
         conditionExpr,
         incrementExpr,
         bodyExpr
     );
-    forExpr->setSpan(getSpan());
+    forExpr->setSpan(this->getSpan());
     return forExpr;
 }
 
-std::shared_ptr<Omniscript::Expression> BreakStatement::express(SymbolTableType scope) {
+std::shared_ptr<Expression> BreakStatement::express(SymbolTableType scope) {
     DEBUG_LOG("Creating a break expression");
     // auto breakExpr = std::make_shared<BreakExpression>();
-    // breakExpr->setSpan(getSpan());
+    // breakExpr->setSpan(this->getSpan());
     // return breakExpr;
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> ContinueStatement::express(SymbolTableType scope) {
+std::shared_ptr<Expression> ContinueStatement::express(SymbolTableType scope) {
     DEBUG_LOG("Creating a continue expression");
     // auto continueExpr = std::make_shared<ContinueExpression>();
-    // continueExpr->setSpan(getSpan());
+    // continueExpr->setSpan(this->getSpan());
     // return continueExpr;
     return nullptr;
 }
+
+} // namespace Omniscript

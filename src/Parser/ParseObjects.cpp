@@ -105,7 +105,7 @@ std::shared_ptr<Statement> Parser::parseClass() {
         }
     }
 
-    std::shared_ptr<Omniscript::Type> thisType = Omniscript::Type::createUserDefinedType(className, Omniscript::Kind::Class);
+    std::shared_ptr<Type> thisType = Type::createUserDefinedType(className, Kind::Class);
     std::vector<std::shared_ptr<ClassMember>> members;
 
     eat(TokenTypes::LeftBrace);
@@ -135,11 +135,11 @@ std::shared_ptr<Statement> Parser::parseClass() {
         if (memberName == "constructor") hasConstructor = true;
         if (isDestructor && memberName == "destructor") hasDestructor = true;
 
-        std::shared_ptr<Omniscript::Type> typeExpr = nullptr;
+        std::shared_ptr<Type> typeExpr = nullptr;
         if (currentToken.getType() == TokenTypes::Colon) {
             eat(TokenTypes::Colon);
             auto parsedType = parseType();
-            typeExpr = Omniscript::resolveType(parsedType);
+            typeExpr = resolveType(parsedType);
         }
 
         std::shared_ptr<Statement> valueExpr = nullptr;
@@ -172,11 +172,11 @@ std::shared_ptr<Statement> Parser::parseClass() {
             className + ".constructor",
             std::vector<std::shared_ptr<Statement>>{},
             emptyBody,
-            Omniscript::resolveType({"void"})
+            resolveType({"void"})
         );
         auto ctorMember = std::make_shared<ClassMember>(
             className,
-            Omniscript::resolveType({"void"}),
+            resolveType({"void"}),
             defaultCtor,
             modifiers
         );
@@ -190,11 +190,11 @@ std::shared_ptr<Statement> Parser::parseClass() {
             className + ".destructor",
             std::vector<std::shared_ptr<Statement>>{},
             emptyBody,
-            Omniscript::resolveType({"void"})
+            resolveType({"void"})
         );
         auto dtorMember = std::make_shared<ClassMember>(
             "~" + className,
-            Omniscript::resolveType({"void"}),
+            resolveType({"void"}),
             defaultDtor,
             modifiers
         );
@@ -212,7 +212,7 @@ std::shared_ptr<Statement> Parser::parseStruct() {
     std::string structName = currentToken.getValue();
     eat(TokenTypes::Identifier);
 
-    std::shared_ptr<Omniscript::Type> thisType = Omniscript::Type::createUserDefinedType(structName, Omniscript::Kind::Struct);
+    std::shared_ptr<Type> thisType = Type::createUserDefinedType(structName, Kind::Struct);
     std::vector<std::shared_ptr<Statement>> body;
 
     eat(TokenTypes::LeftBrace);
@@ -248,7 +248,7 @@ std::shared_ptr<Statement> Parser::parseStruct() {
             }
 
             auto field = std::make_shared<ParameterStatement>(fieldName, value);
-            field->setType(Omniscript::resolveType(type));
+            field->setType(resolveType(type));
             body.push_back(field);
             eat(TokenTypes::Semicolon);
 

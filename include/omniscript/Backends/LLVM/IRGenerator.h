@@ -93,7 +93,7 @@ private:
         return "[IRGenerator] " + msg;
     }
 
-    std::vector<std::shared_ptr<Omniscript::FunctionExpression>> userDefinedFunctions;
+    std::vector<std::shared_ptr<FunctionExpression>> userDefinedFunctions;
 
     // Helper methods for external function resolution
     void initializeTargetFromConfig();
@@ -195,13 +195,13 @@ public:
     static bool symbolExistsInStaticLib(const std::string& libPath, const std::string& symbolName);
 
     llvm::Value* codegen(
-        std::shared_ptr<Omniscript::Expression> value,
+        std::shared_ptr<Expression> value,
         SymbolTableType scope
     );
     llvm::Value* codegenPrimitive(
-        std::shared_ptr<Omniscript::Expression> value,
+        std::shared_ptr<Expression> value,
         SymbolTableType scope);
-    llvm::Type* resolveLLVMType(std::shared_ptr<Omniscript::Type> type);
+    llvm::Type* resolveLLVMType(std::shared_ptr<Type> type);
     
     llvm::Value* createNullValue(llvm::Type* type);
     llvm::Value* createNullPointer(llvm::Type* pointeeType);
@@ -247,7 +247,7 @@ public:
     );
     void finalizeGlobalInitializers();
     llvm::Value* assignVariable(
-        std::shared_ptr<Omniscript::VariableAssignment> statement,
+        std::shared_ptr<VariableAssignment> statement,
         SymbolTableType scope
     );
     llvm::Value* createConstant(const std::string& name, llvm::Type* type, llvm::Value* value);
@@ -268,7 +268,7 @@ public:
             llvm::ArrayType* arrayType,
             const std::vector<llvm::Value*>& elements
         );
-    llvm::Function* createExternFunction(std::shared_ptr<Omniscript::FunctionExpression> func, SymbolTableType scope);
+    llvm::Function* createExternFunction(std::shared_ptr<FunctionExpression> func, SymbolTableType scope);
     llvm::Function* createIntrinsicFunction(
         const std::string& name,
         const std::string& intrinsicName,
@@ -276,9 +276,9 @@ public:
     );
     llvm::Function* createFunction(
         const std::string& name,
-        std::vector<std::shared_ptr<Omniscript::Expression>>& body,
+        std::vector<std::shared_ptr<Expression>>& body,
         llvm::Type* returnType,
-        std::vector<std::shared_ptr<Omniscript::Expression>>& params,
+        std::vector<std::shared_ptr<Expression>>& params,
         SymbolTableType scope,
         bool isVarArg = false
     );
@@ -286,15 +286,15 @@ public:
     llvm::Function* registerFunction(
         const std::string& name,
         llvm::Type* returnType,
-        std::vector<std::shared_ptr<Omniscript::Expression>>& params,
+        std::vector<std::shared_ptr<Expression>>& params,
         SymbolTableType scope,
         bool isVarArg = false
     );
     void generateFunctionBody(
         const std::string& name,
         llvm::Function* function,
-        std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-        std::vector<std::shared_ptr<Omniscript::Expression>>& funcBody,
+        std::vector<std::shared_ptr<Expression>>& params,
+        std::vector<std::shared_ptr<Expression>>& funcBody,
         SymbolTableType scope
     );
     llvm::Value* createCall(
@@ -372,39 +372,39 @@ public:
     llvm::Value* getEnumValue(const std::string& enumName, const std::string& memberName);
 
     llvm::Value* createIfStatement(
-        const std::vector<std::shared_ptr<Omniscript::Expression>>& conditions,
-        const std::vector<std::shared_ptr<Omniscript::Expression>>& bodies,
-        const std::shared_ptr<Omniscript::Expression>& elseBody,
+        const std::vector<std::shared_ptr<Expression>>& conditions,
+        const std::vector<std::shared_ptr<Expression>>& bodies,
+        const std::shared_ptr<Expression>& elseBody,
         SymbolTableType scope
     );
     llvm::Value* createForLoop(
-        const std::shared_ptr<Omniscript::ForLoopExpression>& forExpr,
+        const std::shared_ptr<ForLoopExpression>& forExpr,
         SymbolTableType scope
     );
     llvm::Value* createWhileLoop(
-        const std::shared_ptr<Omniscript::WhileLoopExpression>& whileExpr,
+        const std::shared_ptr<WhileLoopExpression>& whileExpr,
         SymbolTableType scope
     );
      
-    llvm::Value* handleAccessExpression(std::shared_ptr<Omniscript::AccessExpression> expr, 
+    llvm::Value* handleAccessExpression(std::shared_ptr<AccessExpression> expr, 
                                       SymbolTableType scope);
     
     
-    llvm::Value* handleMemberAccess(std::shared_ptr<Omniscript::MemberAccessExpression> expr,
+    llvm::Value* handleMemberAccess(std::shared_ptr<MemberAccessExpression> expr,
                                   llvm::Value* baseValue,
                                   SymbolTableType scope,
                                   bool preservePointer = false
                                 );
     
-    llvm::Value* handleArrowAccess(std::shared_ptr<Omniscript::ArrowAccessExpression> expr,
+    llvm::Value* handleArrowAccess(std::shared_ptr<ArrowAccessExpression> expr,
                                  llvm::Value* baseValue,
                                  SymbolTableType scope);
     
-    llvm::Value* handleDereference(std::shared_ptr<Omniscript::DereferenceExpression> expr,
+    llvm::Value* handleDereference(std::shared_ptr<DereferenceExpression> expr,
                                  llvm::Value* baseValue,
                                  SymbolTableType scope);
     
-    llvm::Value* handleIndexAccess(std::shared_ptr<Omniscript::IndexAccessExpression> expr,
+    llvm::Value* handleIndexAccess(std::shared_ptr<IndexAccessExpression> expr,
                                   llvm::Value* baseValue,
                                   SymbolTableType scope);
     llvm::Value* createModuleObject(

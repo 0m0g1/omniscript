@@ -1,6 +1,7 @@
 #pragma once
 #include <omniscript/Statement.h>
 
+namespace Omniscript {
 class Access : 
 public TypedStatement, 
 public Expression, 
@@ -66,19 +67,19 @@ private:
 
     // Helper method declarations
     void validateAccessChain(SymbolTableType scope);
-    std::tuple<std::shared_ptr<Omniscript::Expression>, std::string, std::string> 
+    std::tuple<std::shared_ptr<Expression>, std::string, std::string> 
         resolveBaseExpression(SymbolTableType scope);
-    std::tuple<std::shared_ptr<Omniscript::Expression>, std::string, std::string>
+    std::tuple<std::shared_ptr<Expression>, std::string, std::string>
         resolveVariableBase(SymbolTableType scope, const std::string& varName);
-    std::tuple<std::shared_ptr<Omniscript::Expression>, std::string, std::string>
+    std::tuple<std::shared_ptr<Expression>, std::string, std::string>
         resolveChainedAccess(SymbolTableType scope, std::shared_ptr<MemberAccess> memberAcc);
-    std::pair<std::shared_ptr<Omniscript::Expression>, std::string>
+    std::pair<std::shared_ptr<Expression>, std::string>
         findVariableInScope(SymbolTableType scope, const std::string& varName);
-    std::string extractTypeName(std::shared_ptr<Omniscript::Type> type);
-    std::shared_ptr<Omniscript::UserDefinedType> 
+    std::string extractTypeName(std::shared_ptr<Type> type);
+    std::shared_ptr<UserDefinedType> 
         getUserDefinedType(SymbolTableType scope, const std::string& typeName);
-    int findMemberIndex(std::shared_ptr<Omniscript::UserDefinedType> userType);
-    std::shared_ptr<Omniscript::Expression> 
+    int findMemberIndex(std::shared_ptr<UserDefinedType> userType);
+    std::shared_ptr<Expression> 
         processAssignment(SymbolTableType scope);
 
 public:
@@ -88,7 +89,7 @@ public:
     const std::shared_ptr<Statement>& getObject() const;
     std::shared_ptr<Statement> clone() const override;
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override;
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override;
     std::string formatError(const std::string& msg) const override;
 };
@@ -113,7 +114,7 @@ public:
         return cloned;
     }
 
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
 
     std::string toString() const override {
         std::string base = "(*" + (pointer ? pointer->toString() : "null") + "." + memberName + ")";
@@ -139,17 +140,17 @@ private:
     std::shared_ptr<Statement> pointer;
 
     // Helper method declarations
-    std::shared_ptr<Omniscript::Expression> resolvePointerExpression(SymbolTableType scope);
-    std::shared_ptr<Omniscript::UserDefinedType> validateAndGetPointeeType(
-        std::shared_ptr<Omniscript::Type> pointerType);
-    int findMemberInType(std::shared_ptr<Omniscript::UserDefinedType> userType);
-    std::shared_ptr<Omniscript::Expression> processAssignment(SymbolTableType scope);
+    std::shared_ptr<Expression> resolvePointerExpression(SymbolTableType scope);
+    std::shared_ptr<UserDefinedType> validateAndGetPointeeType(
+        std::shared_ptr<Type> pointerType);
+    int findMemberInType(std::shared_ptr<UserDefinedType> userType);
+    std::shared_ptr<Expression> processAssignment(SymbolTableType scope);
 
 public:
     ArrowAccess(std::shared_ptr<Statement> ptr, const std::string& member);
     
     std::shared_ptr<Statement> clone() const override;
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override;
     std::string formatError(const std::string& msg) const override;
 };
@@ -159,11 +160,11 @@ private:
     std::shared_ptr<Statement> index;
 
     // Helper method declarations
-    std::shared_ptr<Omniscript::Expression> resolveContainerExpression(SymbolTableType scope);
-    std::shared_ptr<Omniscript::Expression> resolveIndexExpression(SymbolTableType scope);
-    std::shared_ptr<Omniscript::Type> validateAndGetElementType(
-        std::shared_ptr<Omniscript::Type> containerType);
-    std::shared_ptr<Omniscript::Expression> processAssignment(SymbolTableType scope);
+    std::shared_ptr<Expression> resolveContainerExpression(SymbolTableType scope);
+    std::shared_ptr<Expression> resolveIndexExpression(SymbolTableType scope);
+    std::shared_ptr<Type> validateAndGetElementType(
+        std::shared_ptr<Type> containerType);
+    std::shared_ptr<Expression> processAssignment(SymbolTableType scope);
 
 public:
     IndexAccess(std::shared_ptr<Statement> expr, std::shared_ptr<Statement> index);
@@ -171,7 +172,9 @@ public:
     std::shared_ptr<Statement> getIndex() const { return index; }
     
     std::shared_ptr<Statement> clone() const override;
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override;
     std::string formatError(const std::string& msg) const override;
 };
+
+} // namespace Omniscript

@@ -4,7 +4,7 @@
 
 namespace Omniscript {
 llvm::Value* IRGenerator::assignVariable(
-    std::shared_ptr<Omniscript::VariableAssignment> statement,
+    std::shared_ptr<VariableAssignment> statement,
     SymbolTableType scope
 ) {
     std::string name = statement->variableName;
@@ -58,7 +58,7 @@ llvm::Value* IRGenerator::assignVariable(
             } else if (fileExists(genericStatic)) {
                 staticExists = symbolExistsInStaticLib(genericStatic, externName);
                 if (!staticExists) {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Verify symbol '%s' exists in static library '%s'\n"
                         "2. Check library documentation for symbol availability\n"
@@ -66,8 +66,8 @@ llvm::Value* IRGenerator::assignVariable(
                         externName.c_str(), genericStatic.c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::RUNTIME_ERROR,
-                        Omniscript::Console::formatString("Symbol '%s' not found in static library: '%s'",
+                        Console::RUNTIME_ERROR,
+                        Console::formatString("Symbol '%s' not found in static library: '%s'",
                                          externName.c_str(), genericStatic.c_str()),
                         suggestion,
                         statement->getSpan()
@@ -80,7 +80,7 @@ llvm::Value* IRGenerator::assignVariable(
             if (fileExists(genericDynamic)) {
                 dynamicExists = symbolExistsInDLL(genericDynamic, externName);
                 if (!dynamicExists) {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Verify symbol '%s' exists in dynamic library '%s'\n"
                         "2. Check library documentation for symbol availability\n"
@@ -88,8 +88,8 @@ llvm::Value* IRGenerator::assignVariable(
                         externName.c_str(), genericDynamic.c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::RUNTIME_ERROR,
-                        Omniscript::Console::formatString("Symbol '%s' not found in dynamic library: '%s'",
+                        Console::RUNTIME_ERROR,
+                        Console::formatString("Symbol '%s' not found in dynamic library: '%s'",
                                          externName.c_str(), genericDynamic.c_str()),
                         suggestion,
                         statement->getSpan()
@@ -99,7 +99,7 @@ llvm::Value* IRGenerator::assignVariable(
             std::string error;
             auto dynLib = llvm::sys::DynamicLibrary::getPermanentLibrary(genericDynamic.c_str(), &error);
             if (!dynLib.isValid()) {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Verify dynamic library '%s' exists and is accessible\n"
                     "2. Check file permissions\n"
@@ -107,8 +107,8 @@ llvm::Value* IRGenerator::assignVariable(
                     genericDynamic.c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::RUNTIME_ERROR,
-                    Omniscript::Console::formatString("Failed to load dynamic library '%s': %s",
+                    Console::RUNTIME_ERROR,
+                    Console::formatString("Failed to load dynamic library '%s': %s",
                                      genericDynamic.c_str(), error.c_str()),
                     suggestion,
                     statement->getSpan()
@@ -117,7 +117,7 @@ llvm::Value* IRGenerator::assignVariable(
         }
 
         if (!staticExists && !dynamicExists) {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Verify external variable '%s' is defined in specified libraries\n"
                 "2. Check static library '%s' or dynamic library '%s'\n"
@@ -125,8 +125,8 @@ llvm::Value* IRGenerator::assignVariable(
                 externName.c_str(), genericStatic.c_str(), genericDynamic.c_str()
             );
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
-                Omniscript::Console::formatString("External variable '%s' not found in any specified libraries",
+                Console::RUNTIME_ERROR,
+                Console::formatString("External variable '%s' not found in any specified libraries",
                                  externName.c_str()),
                 suggestion,
                 statement->getSpan()
@@ -170,7 +170,7 @@ llvm::Value* IRGenerator::assignVariable(
             if (newValue->getType() != type && !llvm::isa<llvm::AllocaInst>(newValue)) {
                 newValue = generateCast(newValue, type);
                 if (!newValue) {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Verify value type is compatible with variable '%s' type '%s'\n"
                         "2. Check expression type\n"
@@ -178,8 +178,8 @@ llvm::Value* IRGenerator::assignVariable(
                         name.c_str(), debugType(type).c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::TYPE_ERROR,
-                        Omniscript::Console::formatString("Failed to cast value when reassigning '%s'",
+                        Console::TYPE_ERROR,
+                        Console::formatString("Failed to cast value when reassigning '%s'",
                                          name.c_str()),
                         suggestion,
                         statement->getSpan()
@@ -210,14 +210,14 @@ llvm::Value* IRGenerator::assignVariable(
         // If value is specified and not a constant, add runtime initializer
         if (statement->getValue()) {
             if (type->isArrayTy()) {
-                if (auto arrayLit = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(statement->getValue())) {
+                if (auto arrayLit = std::dynamic_pointer_cast<FixedArrayExpression>(statement->getValue())) {
                     llvm::ArrayType* arrayType = llvm::cast<llvm::ArrayType>(type);
                     std::vector<llvm::Constant*> elements;
 
                     for (const auto& elem : arrayLit->elements) {
                         auto* val = llvm::dyn_cast<llvm::Constant>(codegen(elem, scope));
                         if (!val) {
-                            std::string suggestion = Omniscript::Console::formatString(
+                            std::string suggestion = Console::formatString(
                                 "To resolve this:\n"
                                 "1. Ensure array elements for '%s' are constant expressions\n"
                                 "2. Check array initialization syntax\n"
@@ -225,8 +225,8 @@ llvm::Value* IRGenerator::assignVariable(
                                 name.c_str()
                             );
                             console.reportError(
-                                Omniscript::Console::TYPE_ERROR,
-                                Omniscript::Console::formatString("Global array '%s' has non-constant initializer element",
+                                Console::TYPE_ERROR,
+                                Console::formatString("Global array '%s' has non-constant initializer element",
                                                  name.c_str()),
                                 suggestion,
                                 statement->getSpan()
@@ -281,7 +281,7 @@ llvm::Value* IRGenerator::assignVariable(
     // --- Handle initialization ---
     if (statement->getValue()) {
         if (type->isArrayTy()) {
-            if (auto arrayLit = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(statement->getValue())) {
+            if (auto arrayLit = std::dynamic_pointer_cast<FixedArrayExpression>(statement->getValue())) {
                 llvm::ArrayType* arrayType = llvm::cast<llvm::ArrayType>(type);
                 std::vector<llvm::Value*> elements;
                 for (const auto& elem : arrayLit->elements) {
@@ -298,7 +298,7 @@ llvm::Value* IRGenerator::assignVariable(
             if (initValue->getType() != type && !llvm::isa<llvm::AllocaInst>(initValue)) {
                 initValue = generateCast(initValue, type);
                 if (!initValue) {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Verify initializer type is compatible with variable '%s' type '%s'\n"
                         "2. Check initializer expression\n"
@@ -306,8 +306,8 @@ llvm::Value* IRGenerator::assignVariable(
                         name.c_str(), debugType(type).c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::TYPE_ERROR,
-                        Omniscript::Console::formatString("Failed to cast initializer for variable '%s'",
+                        Console::TYPE_ERROR,
+                        Console::formatString("Failed to cast initializer for variable '%s'",
                                          name.c_str()),
                         suggestion,
                         statement->getSpan()
@@ -396,7 +396,7 @@ llvm::Value* IRGenerator::assignDynamicVariable(const std::string& name, llvm::V
 llvm::Value* IRGenerator::getDynamicVariable(const std::string& name) {
     llvm::AllocaInst* alloca = llvm::dyn_cast<llvm::AllocaInst>(activeScope->get(name));
     if (!alloca) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Verify variable '%s' is defined as a local variable\n"
             "2. Check variable declaration\n"
@@ -404,8 +404,8 @@ llvm::Value* IRGenerator::getDynamicVariable(const std::string& name) {
             name.c_str()
         );
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
-            Omniscript::Console::formatString("Variable '%s' is not an AllocaInst", name.c_str()),
+            Console::RUNTIME_ERROR,
+            Console::formatString("Variable '%s' is not an AllocaInst", name.c_str()),
             suggestion,
             FileSpan() // Default span as no statement context
         );
@@ -434,7 +434,7 @@ llvm::Value* IRGenerator::getReferenceToVariable(const std::string& varname) {
         return activeScope->get(varname);
     }
     
-    std::string suggestion = Omniscript::Console::formatString(
+    std::string suggestion = Console::formatString(
         "To resolve this:\n"
         "1. Verify variable '%s' is defined in scope\n"
         "2. Check for correct variable declaration\n"
@@ -442,8 +442,8 @@ llvm::Value* IRGenerator::getReferenceToVariable(const std::string& varname) {
         varname.c_str()
     );
     console.reportError(
-        Omniscript::Console::RUNTIME_ERROR,
-        Omniscript::Console::formatString("Cannot get reference to: '%s'", varname.c_str()),
+        Console::RUNTIME_ERROR,
+        Console::formatString("Cannot get reference to: '%s'", varname.c_str()),
         suggestion,
         FileSpan() // Default span as no statement context
     );

@@ -210,7 +210,7 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
     if (currentToken.getType() == TokenTypes::As) {
         eat(TokenTypes::As);
         std::vector<std::string> typeToCastTo = parseType();
-        std::shared_ptr<Omniscript::Type> type = Omniscript::resolveType(typeToCastTo);
+        std::shared_ptr<Type> type = resolveType(typeToCastTo);
         expr = std::make_shared<Cast>(expr, type);
     }
 

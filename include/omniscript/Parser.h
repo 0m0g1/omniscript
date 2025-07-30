@@ -8,6 +8,8 @@
 
 using parameterType = std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>>;
 
+namespace Omniscript {
+
 class Parser {
     public:
         Parser(Lexer &lexer) : lexer(lexer), currentToken(lexer.getNextToken()) {}
@@ -59,13 +61,13 @@ class Parser {
 
         std::shared_ptr<Statement> parseFunctionDeclaration(
             parameterType paramTypes = {},
-            std::shared_ptr<Omniscript::Type> type = nullptr
+            std::shared_ptr<Type> type = nullptr
         ); 
 
         std::shared_ptr<Statement> parseFunctionDeclaration(
             const std::string& definedName = "",
             parameterType paramTypes = {},
-            std::shared_ptr<Omniscript::Type> type = nullptr
+            std::shared_ptr<Type> type = nullptr
         ); 
 
         std::shared_ptr<Statement> parseIdentifier();          
@@ -88,7 +90,7 @@ class Parser {
         std::shared_ptr<Statement> parseLambdaFunction(
             const std::string& name = "",
             parameterType paramTypes = {},
-            std::shared_ptr<Omniscript::Type> type = nullptr
+            std::shared_ptr<Type> type = nullptr
         );
 
         bool tryParseTypeParametersLookahead(int& i);
@@ -134,3 +136,5 @@ class Parser {
         void eat(TokenTypes expectedType, const std::string& errorMessage = "");
         void eat(TokenTypes expectedType, const std::function<void()>& errorHandler);
 };
+
+} // namespace Omniscript

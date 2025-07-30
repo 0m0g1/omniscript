@@ -82,7 +82,7 @@ Compiler::compile(const std::vector<std::shared_ptr<Statement>>& statements,
     if (!config.sourcePaths.empty()) {
         parsedStatements.clear();
         for (const auto& source : config.sourcePaths) {
-            Omniscript::Config tempConfig;
+            Config tempConfig;
             tempConfig.filePath = source;
             tempConfig.mainSourceFile = source;
             auto sourceCode = Engine::readSourceCode(tempConfig);

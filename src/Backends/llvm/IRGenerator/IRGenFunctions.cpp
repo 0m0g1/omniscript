@@ -335,7 +335,7 @@ llvm::Value* IRGenerator::createCall(
 }
 
 llvm::Function* IRGenerator::createExternFunction(
-    std::shared_ptr<Omniscript::FunctionExpression> func,
+    std::shared_ptr<FunctionExpression> func,
     SymbolTableType scope
 ) {
     
@@ -389,7 +389,7 @@ llvm::Function* IRGenerator::createExternFunction(
     }
     
     llvm::Type* returnType = resolveLLVMType(func->returnType);
-    std::vector<std::shared_ptr<Omniscript::Expression>>& params = func->parameters;
+    std::vector<std::shared_ptr<Expression>>& params = func->parameters;
     bool isVarArg = func->isVarArg;
 
     std::vector<llvm::Type*> paramTypes;
@@ -758,10 +758,10 @@ llvm::Function* IRGenerator::createIntrinsicFunction(
 
 llvm::Function* IRGenerator::createFunction(
     const std::string& name,
-    std::vector<std::shared_ptr<Omniscript::Expression>>& body,
+    std::vector<std::shared_ptr<Expression>>& body,
     llvm::Type* returnType,
-    std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope,
+    std::vector<std::shared_ptr<Expression>>& params,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>> scope,
     bool isVarArg
 ) {
     llvm::Function* function = registerFunction(name, returnType, params, scope, isVarArg);
@@ -775,8 +775,8 @@ llvm::Function* IRGenerator::createFunction(
 llvm::Function* IRGenerator::registerFunction(
     const std::string& name,
     llvm::Type* returnType,
-    std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope,
+    std::vector<std::shared_ptr<Expression>>& params,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>> scope,
     bool isVarArg
 ) {
     DEBUG_LOG("Creating function: " + name + " with parameter size " + std::to_string(params.size()));
@@ -787,13 +787,13 @@ llvm::Function* IRGenerator::registerFunction(
         auto& param = params[i];
         auto type = param->getType();
         auto llvmType = resolveLLVMType(type);
-        auto parameter = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(param);
+        auto parameter = std::dynamic_pointer_cast<FunctionInputExpression>(param);
         if (parameter->isVariadic) {
             llvm::Type* countType = llvm::Type::getInt32Ty(*Context);
             paramTypes.push_back(countType);
             
-            std::shared_ptr<Omniscript::Type> intType = Omniscript::resolveType({"int32"});
-            auto countParam = std::make_shared<Omniscript::FunctionInputExpression>(parameter->name + "_count", intType);
+            std::shared_ptr<Type> intType = resolveType({"int32"});
+            auto countParam = std::make_shared<FunctionInputExpression>(parameter->name + "_count", intType);
             params.insert(params.begin() + i, countParam);
             DEBUG_LOG("Resolved parameter type: " + intType->toString() + " to LLVM type: " + debugType(llvmType));
             i++;
@@ -831,7 +831,7 @@ llvm::Function* IRGenerator::registerFunction(
 
         arg.setName(param->name);
         
-        if (auto inpt = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(param)) {
+        if (auto inpt = std::dynamic_pointer_cast<FunctionInputExpression>(param)) {
             // if (inpt->isConstant) {
             //     arg.addAttr(llvm::Attribute::ReadOnly); // <--- Mark as readonly if constant
             // }
@@ -852,9 +852,9 @@ llvm::Function* IRGenerator::registerFunction(
 void IRGenerator::generateFunctionBody( 
     const std::string& name,
     llvm::Function* function,
-    std::vector<std::shared_ptr<Omniscript::Expression>>& params,
-    std::vector<std::shared_ptr<Omniscript::Expression>>& body,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
+    std::vector<std::shared_ptr<Expression>>& params,
+    std::vector<std::shared_ptr<Expression>>& body,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>> scope
 ) {
     DEBUG_LOG("Generating body for function: " + function->getName().str());
     DEBUG_LOG("Function return type: " + debugType(function->getReturnType()));
@@ -892,7 +892,7 @@ void IRGenerator::generateFunctionBody(
     // Find the count index as before
     int countIndex = -1;
     for (int i = 0; i < (int)params.size(); ++i) {
-        auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(params[i]);
+        auto param = std::dynamic_pointer_cast<FunctionInputExpression>(params[i]);
         if (!param) {
             console.error("Expected a parameter for parameter " + std::to_string(i));
             return; // or return error
@@ -910,7 +910,7 @@ void IRGenerator::generateFunctionBody(
         std::string argName = arg.getName().str();
         DEBUG_LOG("Allocating parameter: " + argName + " with type: " + debugType(arg.getType()));
 
-        auto param = std::dynamic_pointer_cast<Omniscript::FunctionInputExpression>(params[index]);
+        auto param = std::dynamic_pointer_cast<FunctionInputExpression>(params[index]);
 
         // if there is a variadic parameter there is one extra parameter
         if ((countIndex >= 0 ? index >= params.size() + 1 : index >= params.size())) {
@@ -964,7 +964,7 @@ void IRGenerator::generateFunctionBody(
             break; // Don't emit instructions after return
         }
 
-        if (auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(expr)) {
+        if (auto varAssign = std::dynamic_pointer_cast<VariableAssignment>(expr)) {
             if (!varAssign->isStatic) {
                 varAssign->isGlobal = false;
             }

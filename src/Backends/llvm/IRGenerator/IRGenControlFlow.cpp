@@ -10,7 +10,7 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
                                "2. Check for correct function declaration\n"
                                "3. Verify code structure";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Return statement outside function",
             suggestion,
             FileSpan() // Default span as no statement context
@@ -24,7 +24,7 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
                                "2. Check module creation in IRGenerator setup\n"
                                "3. Ensure module is not null before codegen";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "LLVM Module is null",
             suggestion,
             FileSpan() // Default span as no statement context
@@ -40,7 +40,7 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
 
     if (currentFunction->getReturnType()->isVoidTy()) {
         if (returnValue) {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Remove return value for void function '%s'\n"
                 "2. Use return without a value\n"
@@ -48,7 +48,7 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
                 currentFunction->getName().str().c_str()
             );
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
+                Console::TYPE_ERROR,
                 "Void function cannot return a value",
                 suggestion,
                 FileSpan() // Default span as no statement context
@@ -58,7 +58,7 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
     }
 
     if (!returnValue) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Provide a return value for non-void function '%s'\n"
             "2. Check function return type\n"
@@ -66,7 +66,7 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
             currentFunction->getName().str().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Non-void function must return a value",
             suggestion,
             FileSpan() // Default span as no statement context
@@ -75,7 +75,7 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
     }
 
     if (returnValue->getType() != expectedReturnType) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Ensure return value type matches expected type '%s'\n"
             "2. Check expression type for '%s'\n"
@@ -83,8 +83,8 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
             debugType(expectedReturnType).c_str(), debugType(returnValue->getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Return type mismatch: expected '%s', got '%s'",
+            Console::TYPE_ERROR,
+            Console::formatString("Return type mismatch: expected '%s', got '%s'",
                              debugType(expectedReturnType).c_str(), debugType(returnValue->getType()).c_str()),
             suggestion,
             FileSpan() // Default span as no statement context
@@ -96,8 +96,8 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
 }
 
 llvm::Value* IRGenerator::createForLoop(
-    const std::shared_ptr<Omniscript::ForLoopExpression>& forExpr,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
+    const std::shared_ptr<ForLoopExpression>& forExpr,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>> scope
 ) {
     pushScope();
     auto localScope = scope->createChildScope("forloop");
@@ -106,14 +106,14 @@ llvm::Value* IRGenerator::createForLoop(
     llvm::Value* initialValue = nullptr;
 
     if (forExpr->initializer) {
-        auto varAssign = std::dynamic_pointer_cast<Omniscript::VariableAssignment>(forExpr->initializer);
+        auto varAssign = std::dynamic_pointer_cast<VariableAssignment>(forExpr->initializer);
         if (!varAssign || varAssign->isGlobal) {
             std::string suggestion = "To resolve this:\n"
                                    "1. Ensure for loop initializer is a local variable assignment\n"
                                    "2. Check initializer syntax\n"
                                    "3. Verify variable is not declared as global";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Expected local variable assignment in for initializer",
                 suggestion,
                 forExpr->getSpan()
@@ -125,7 +125,7 @@ llvm::Value* IRGenerator::createForLoop(
         loopVarName = varAssign->variableName;
         initialValue = codegen(forExpr->initializer, localScope);
         if (!initialValue) {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Verify initializer for variable '%s' is valid\n"
                 "2. Check initializer expression\n"
@@ -133,8 +133,8 @@ llvm::Value* IRGenerator::createForLoop(
                 loopVarName.c_str()
             );
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
-                Omniscript::Console::formatString("Failed to generate initializer for variable '%s'",
+                Console::RUNTIME_ERROR,
+                Console::formatString("Failed to generate initializer for variable '%s'",
                                  loopVarName.c_str()),
                 suggestion,
                 forExpr->initializer->getSpan()
@@ -167,7 +167,7 @@ llvm::Value* IRGenerator::createForLoop(
                                    "2. Check condition expression syntax\n"
                                    "3. Add debug output for condition codegen";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to generate condition for for loop",
                 suggestion,
                 forExpr->condition->getSpan()
@@ -197,7 +197,7 @@ llvm::Value* IRGenerator::createForLoop(
 
     // === Body block ===
     Builder->SetInsertPoint(bodyBlock);
-    auto block = std::dynamic_pointer_cast<Omniscript::BlockExpression>(forExpr->body);
+    auto block = std::dynamic_pointer_cast<BlockExpression>(forExpr->body);
     if (block) {
         for (auto& expr : block->values) {
             if (expr) {
@@ -222,7 +222,7 @@ llvm::Value* IRGenerator::createForLoop(
                                    "2. Check increment expression syntax\n"
                                    "3. Add debug output for increment codegen";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to generate increment for for loop",
                 suggestion,
                 forExpr->increment->getSpan()
@@ -244,8 +244,8 @@ llvm::Value* IRGenerator::createForLoop(
 }
 
 llvm::Value* IRGenerator::createWhileLoop(
-    const std::shared_ptr<Omniscript::WhileLoopExpression>& whileExpr,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope
+    const std::shared_ptr<WhileLoopExpression>& whileExpr,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>> scope
 ) {
     llvm::Function* function = Builder->GetInsertBlock()->getParent();
     llvm::LLVMContext& context = Builder->getContext();
@@ -281,7 +281,7 @@ llvm::Value* IRGenerator::createWhileLoop(
                                "2. Check condition expression\n"
                                "3. Verify condition type compatibility";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Invalid condition type in while loop",
             suggestion,
             whileExpr->condition ? whileExpr->condition->getSpan() : FileSpan()
@@ -296,7 +296,7 @@ llvm::Value* IRGenerator::createWhileLoop(
     Builder->SetInsertPoint(bodyBlock);
 
     bool bodyHasContent = false;
-    if (auto block = std::dynamic_pointer_cast<Omniscript::BlockExpression>(whileExpr->body)) {
+    if (auto block = std::dynamic_pointer_cast<BlockExpression>(whileExpr->body)) {
         if (!block->values.empty()) {
             bodyHasContent = true;
             codegen(whileExpr->body, localScope);
@@ -316,10 +316,10 @@ llvm::Value* IRGenerator::createWhileLoop(
 }
 
 llvm::Value* IRGenerator::createIfStatement( 
-    const std::vector<std::shared_ptr<Omniscript::Expression>>& conditions,
-    const std::vector<std::shared_ptr<Omniscript::Expression>>& bodies,
-    const std::shared_ptr<Omniscript::Expression>& elseBody,
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope)
+    const std::vector<std::shared_ptr<Expression>>& conditions,
+    const std::vector<std::shared_ptr<Expression>>& bodies,
+    const std::shared_ptr<Expression>& elseBody,
+    std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>> scope)
 {
     if (conditions.empty() || conditions.size() != bodies.size()) {
         std::string suggestion = "To resolve this:\n"
@@ -327,8 +327,8 @@ llvm::Value* IRGenerator::createIfStatement(
                                "2. Verify conditions and bodies vectors have equal size\n"
                                "3. Check if statement syntax";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
-            Omniscript::Console::formatString("Invalid if statement: %d conditions, %d bodies",
+            Console::RUNTIME_ERROR,
+            Console::formatString("Invalid if statement: %d conditions, %d bodies",
                              conditions.size(), bodies.size()),
             suggestion,
             conditions.empty() ? FileSpan() : conditions[0]->getSpan()
@@ -354,7 +354,7 @@ llvm::Value* IRGenerator::createIfStatement(
         llvm::BasicBlock* condBlock = Builder->GetInsertBlock();
         llvm::Value* condValue = codegen(conditions[i], localScope);
         if (!condValue) {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Verify condition #%d is valid\n"
                 "2. Check condition expression syntax\n"
@@ -362,8 +362,8 @@ llvm::Value* IRGenerator::createIfStatement(
                 i + 1
             );
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
-                Omniscript::Console::formatString("Failed to generate code for condition #%d", i + 1),
+                Console::RUNTIME_ERROR,
+                Console::formatString("Failed to generate code for condition #%d", i + 1),
                 suggestion,
                 conditions[i]->getSpan()
             );
@@ -429,13 +429,13 @@ llvm::Value* IRGenerator::createIfStatement(
     // Handle final else block if provided
     if (elseBody) {
         llvm::Value* elseValue = codegen(elseBody, localScope);
-        if (!elseValue && !std::dynamic_pointer_cast<Omniscript::BlockExpression>(elseBody)) {
+        if (!elseValue && !std::dynamic_pointer_cast<BlockExpression>(elseBody)) {
             std::string suggestion = "To resolve this:\n"
                                    "1. Verify else block expression is valid\n"
                                    "2. Check else body syntax\n"
                                    "3. Add debug output for else block codegen";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to generate code for else block",
                 suggestion,
                 elseBody->getSpan()
@@ -480,7 +480,7 @@ llvm::Value* IRGenerator::createIfStatement(
                                        "2. Check return expressions in each branch\n"
                                        "3. Verify type consistency across if/else blocks";
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
+                    Console::TYPE_ERROR,
                     "Mismatched PHI types in if-statement",
                     suggestion,
                     conditions[0]->getSpan()

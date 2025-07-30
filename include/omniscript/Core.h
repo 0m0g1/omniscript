@@ -104,7 +104,7 @@ namespace error {
 
 // Profiling macros (compiled out in release builds)
 #ifdef OMNISCRIPT_ENABLE_PROFILING
-    #define OMNISCRIPT_PROFILE_SCOPE(name) ::Omniscript::perf::ScopedTimer _timer_##__LINE__(name)
+    #define OMNISCRIPT_PROFILE_SCOPE(name) ::perf::ScopedTimer _timer_##__LINE__(name)
     #define OMNISCRIPT_PROFILE_FUNCTION() OMNISCRIPT_PROFILE_SCOPE(__func__)
 #else
     #define OMNISCRIPT_PROFILE_SCOPE(name) ((void)0)

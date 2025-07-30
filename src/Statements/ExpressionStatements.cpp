@@ -12,8 +12,10 @@
 #include <omniscript/Expressions/VariableAccessExpression.h>
 #include <omniscript/Expressions/Expressions.h>
 
-std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableType scope) {
-    Omniscript::setSpan(getSpan());
+namespace Omniscript {
+    
+std::shared_ptr<Expression> TernaryExpression::express(SymbolTableType scope) {
+    setSpan(getSpan());
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
         stmt->setType(type);
     }
@@ -27,9 +29,9 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
     extendContextOf(falsey);
 
     // Evaluate condition, then branches
-    std::shared_ptr<Omniscript::Expression> condValue = condition->express(scope);
+    std::shared_ptr<Expression> condValue = condition->express(scope);
     if (!condValue) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check condition expression validity\n"
             "2. Verify condition evaluates to boolean\n"
@@ -38,16 +40,16 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
             condition->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Ternary expression has invalid condition",
             suggestion,
             condition->getSpan()
         );
     }
 
-    std::shared_ptr<Omniscript::Expression> trueValue = truthy->express(scope);
+    std::shared_ptr<Expression> trueValue = truthy->express(scope);
     if (!trueValue) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check truthy branch expression validity\n"
             "2. Verify type compatibility\n"
@@ -56,16 +58,16 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
             truthy->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Ternary expression has invalid true branch",
             suggestion,
             truthy->getSpan()
         );
     }
 
-    std::shared_ptr<Omniscript::Expression> falseValue = falsey->express(scope);
+    std::shared_ptr<Expression> falseValue = falsey->express(scope);
     if (!falseValue) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check falsey branch expression validity\n"
             "2. Verify type compatibility\n"
@@ -74,22 +76,22 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
             falsey->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Ternary expression has invalid false branch",
             suggestion,
             falsey->getSpan()
         );
     }
 
-    if (Omniscript::Type::isSameOrCastableTo(trueValue->getType(), falseValue->getType())) {
+    if (Type::isSameOrCastableTo(trueValue->getType(), falseValue->getType())) {
         type = falseValue->getType();
-    } else if (Omniscript::Type::isSameOrCastableTo(falseValue->getType(), trueValue->getType())) {
+    } else if (Type::isSameOrCastableTo(falseValue->getType(), trueValue->getType())) {
         type = trueValue->getType();
     }
 
     if (type) {
-        if (!Omniscript::Type::isSameOrCastableTo(trueValue->getType(), type)) {
-            std::string suggestion = Omniscript::Console::formatString(
+        if (!Type::isSameOrCastableTo(trueValue->getType(), type)) {
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Check type requirements for truthy branch\n"
                 "2. Available conversions:\n"
@@ -104,15 +106,15 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
                 trueValue->getType()->toString().c_str()
             );
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
-                Omniscript::Console::formatString("Type mismatch in ternary expression: cannot use truthy value of type '%s' as '%s'",
+                Console::TYPE_ERROR,
+                Console::formatString("Type mismatch in ternary expression: cannot use truthy value of type '%s' as '%s'",
                                    trueValue->getType()->toString().c_str(),
                                    type->toString().c_str()),
                 suggestion,
                 truthy->getSpan()
             );
-        } else if (!Omniscript::Type::isSameOrCastableTo(falseValue->getType(), type)) {
-            std::string suggestion = Omniscript::Console::formatString(
+        } else if (!Type::isSameOrCastableTo(falseValue->getType(), type)) {
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Check type requirements for falsey branch\n"
                 "2. Available conversions:\n"
@@ -127,8 +129,8 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
                 falseValue->getType()->toString().c_str()
             );
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
-                Omniscript::Console::formatString("Type mismatch in ternary expression: cannot use falsey value of type '%s' as '%s'",
+                Console::TYPE_ERROR,
+                Console::formatString("Type mismatch in ternary expression: cannot use falsey value of type '%s' as '%s'",
                                    falseValue->getType()->toString().c_str(),
                                    type->toString().c_str()),
                 suggestion,
@@ -137,15 +139,15 @@ std::shared_ptr<Omniscript::Expression> TernaryExpression::express(SymbolTableTy
         }
     }
 
-    auto ternaryExpr = std::make_shared<Omniscript::TernaryExpression>(
+    auto ternaryExpr = std::make_shared<TernaryExpression>(
         condValue, trueValue, falseValue, type
     );
-    ternaryExpr->setSpan(getSpan());
+    ternaryExpr->setSpan(this->getSpan());
     return ternaryExpr;
 }
 
-std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableType scope) {
-    Omniscript::setSpan(getSpan());
+std::shared_ptr<Expression> BinaryExpression::express(SymbolTableType scope) {
+    setSpan(getSpan());
     DEBUG_LOG("Evaluating binary expression: " + toString());
 
     DEBUG_LOG("Left expression: " + (left ? left->toString() : "null"));
@@ -158,8 +160,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     extendContextOf(left);
     extendContextOf(right);
 
-    std::shared_ptr<Omniscript::Type> leftType = nullptr;
-    std::shared_ptr<Omniscript::Type> rightType = nullptr;
+    std::shared_ptr<Type> leftType = nullptr;
+    std::shared_ptr<Type> rightType = nullptr;
 
     auto leftTyped = std::dynamic_pointer_cast<TypedStatement>(left);
     auto rightTyped = std::dynamic_pointer_cast<TypedStatement>(right);
@@ -173,7 +175,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     } else if (leftTyped) {
         leftType = leftTyped->getType();
     } else {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check left operand declaration\n"
             "2. Add explicit type annotation if needed\n"
@@ -182,8 +184,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
             left->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Left operand '%s' has no type or is not a typed statement",
+            Console::TYPE_ERROR,
+            Console::formatString("Left operand '%s' has no type or is not a typed statement",
                                left->toString().c_str()),
             suggestion,
             left->getSpan()
@@ -199,7 +201,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     } else if (rightTyped) {
         rightType = rightTyped->getType();
     } else {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check right operand declaration\n"
             "2. Add explicit type annotation if needed\n"
@@ -208,8 +210,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
             right->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Right operand '%s' has no type or is not a typed statement",
+            Console::TYPE_ERROR,
+            Console::formatString("Right operand '%s' has no type or is not a typed statement",
                                right->toString().c_str()),
             suggestion,
             right->getSpan()
@@ -217,8 +219,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         return left->express(scope);
     }
 
-    std::shared_ptr<Omniscript::Expression> leftResult;
-    std::shared_ptr<Omniscript::Expression> rightResult;
+    std::shared_ptr<Expression> leftResult;
+    std::shared_ptr<Expression> rightResult;
     if (!leftType || leftType->isInvalid()) {
         auto tempScope = scope->createChildScope("temp");
         auto leftClone = left->clone();
@@ -238,7 +240,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     }
 
     if (!leftType || leftType->isInvalid()) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check left operand type declaration\n"
             "2. Verify expression validity\n"
@@ -247,8 +249,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
             left->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Left operand '%s' has an invalid type",
+            Console::TYPE_ERROR,
+            Console::formatString("Left operand '%s' has an invalid type",
                                left->toString().c_str()),
             suggestion,
             left->getSpan()
@@ -256,7 +258,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     }
     
     if (!rightType || rightType->isInvalid()) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check right operand type declaration\n"
             "2. Verify expression validity\n"
@@ -265,8 +267,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
             right->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Right operand '%s' has an invalid type",
+            Console::TYPE_ERROR,
+            Console::formatString("Right operand '%s' has an invalid type",
                                right->toString().c_str()),
             suggestion,
             right->getSpan()
@@ -275,13 +277,13 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
 
     if (type) {
         if (!op.isComparisonOperator()) {
-            if (Omniscript::Type::isSameOrCastableTo(leftType, type)) {
+            if (Type::isSameOrCastableTo(leftType, type)) {
                 if (auto leftLiteral = std::dynamic_pointer_cast<Literal>(left)) {
                     leftType = type;
                     if (leftTyped) leftTyped->setType(type);
                 }
             } else {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Check left operand type requirements\n"
                     "2. Available conversions:\n"
@@ -296,8 +298,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                     type->toString().c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
-                    Omniscript::Console::formatString("Left operand '%s' of type '%s' is not compatible with binary expression type '%s'",
+                    Console::TYPE_ERROR,
+                    Console::formatString("Left operand '%s' of type '%s' is not compatible with binary expression type '%s'",
                                        left->toString().c_str(),
                                        leftType->toString().c_str(),
                                        type->toString().c_str()),
@@ -306,13 +308,13 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                 );
             }
     
-            if (Omniscript::Type::isSameOrCastableTo(rightType, type)) {
+            if (Type::isSameOrCastableTo(rightType, type)) {
                 if (auto rightLiteral = std::dynamic_pointer_cast<Literal>(right)) {
                     rightType = type;
                     if (rightTyped) rightTyped->setType(type);
                 }
             } else {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Check right operand type requirements\n"
                     "2. Available conversions:\n"
@@ -327,8 +329,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                     type->toString().c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
-                    Omniscript::Console::formatString("Right operand '%s' of type '%s' is not compatible with binary expression type '%s'",
+                    Console::TYPE_ERROR,
+                    Console::formatString("Right operand '%s' of type '%s' is not compatible with binary expression type '%s'",
                                        right->toString().c_str(),
                                        rightType->toString().c_str(),
                                        type->toString().c_str()),
@@ -341,21 +343,21 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
 
     if (!type) {
         if (op.isComparisonOperator()) {
-            type = Omniscript::resolveType({ "bool" });
-            if (Omniscript::Type::isSameOrCastableTo(rightType, leftType)) {
+            type = resolveType({ "bool" });
+            if (Type::isSameOrCastableTo(rightType, leftType)) {
                 if (leftType->isPointer()) {
                     if (rightTyped) rightTyped->setType(leftType->getPointeeType());
                 } else {
                     if (rightTyped) rightTyped->setType(leftType);
                 }
-            } else if (Omniscript::Type::isSameOrCastableTo(leftType, rightType)) {
+            } else if (Type::isSameOrCastableTo(leftType, rightType)) {
                 if (leftType->isPointer()) {
                     if (leftTyped) leftTyped->setType(rightType->getPointeeType());
                 } else {
                     if (leftTyped) leftTyped->setType(rightType);
                 }
             } else {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Check comparison operand types\n"
                     "2. Add explicit casts if needed\n"
@@ -366,8 +368,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                     rightType->toString().c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
-                    Omniscript::Console::formatString("Incompatible comparison types: '%s' vs '%s'",
+                    Console::TYPE_ERROR,
+                    Console::formatString("Incompatible comparison types: '%s' vs '%s'",
                                        leftType->toString().c_str(),
                                        rightType->toString().c_str()),
                     suggestion,
@@ -376,22 +378,22 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                 return nullptr;
             }
         } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
-            if (Omniscript::Type::isSameOrCastableTo(leftType, rightType)) {
+            if (Type::isSameOrCastableTo(leftType, rightType)) {
                 type = rightType;
-                if (!Omniscript::Type::isSame(leftType, rightType)) {
+                if (!Type::isSame(leftType, rightType)) {
                     left = std::make_shared<Cast>(left, rightType);
                 } else {
                     if (leftTyped) leftTyped->setType(rightType);
                 }
-            } else if (Omniscript::Type::isSameOrCastableTo(rightType, leftType)) {
+            } else if (Type::isSameOrCastableTo(rightType, leftType)) {
                 type = leftType;
-                if (!Omniscript::Type::isSame(rightType, leftType)) {
+                if (!Type::isSame(rightType, leftType)) {
                     right = std::make_shared<Cast>(right, leftType);
                 } else {
                     if (rightTyped) rightTyped->setType(leftType);
                 }
             } else {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Check arithmetic/bitwise operand types\n"
                     "2. Add explicit casts if needed\n"
@@ -402,8 +404,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                     rightType->toString().c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
-                    Omniscript::Console::formatString("Incompatible arithmetic/bitwise types: '%s' vs '%s'",
+                    Console::TYPE_ERROR,
+                    Console::formatString("Incompatible arithmetic/bitwise types: '%s' vs '%s'",
                                        leftType->toString().c_str(),
                                        rightType->toString().c_str()),
                     suggestion,
@@ -412,7 +414,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                 return nullptr;
             }
         } else if (op.isLogicalOperator()) {
-            type = Omniscript::resolveType({ "bool" });
+            type = resolveType({ "bool" });
         } else if (op.isAssignmentOperator()) {
             type = leftType;
         } else {
@@ -421,7 +423,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         }
 
         if (!type || type->isInvalid()) {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Check operand types\n"
                 "2. Verify operator is supported for these types\n"
@@ -433,7 +435,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
                 op.getValue().c_str()
             );
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
+                Console::TYPE_ERROR,
                 "Failed to infer binary expression type",
                 suggestion,
                 getSpan()
@@ -444,11 +446,11 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
         DEBUG_LOG("Inferred binary expression type as: " + type->toString());
     }
 
-    std::shared_ptr<Omniscript::Expression> leftValue = left->express(scope);
-    std::shared_ptr<Omniscript::Expression> rightValue = right->express(scope);
+    std::shared_ptr<Expression> leftValue = left->express(scope);
+    std::shared_ptr<Expression> rightValue = right->express(scope);
     
     if (!leftValue) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check left operand expression\n"
             "2. Verify variable is initialized\n"
@@ -457,7 +459,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
             left->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Left operand evaluated to null",
             suggestion,
             left->getSpan()
@@ -465,7 +467,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     }
     
     if (!rightValue) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check right operand expression\n"
             "2. Verify variable is initialized\n"
@@ -474,7 +476,7 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
             right->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Right operand evaluated to null",
             suggestion,
             right->getSpan()
@@ -482,13 +484,13 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     }
     
     if (rightType->isNull() && leftType->isNullable()) {
-        if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(leftValue)) {
+        if (auto varAccess = std::dynamic_pointer_cast<VariableAccessExpression>(leftValue)) {
             varAccess->extractValue = false;
         }
     }
 
     if (leftType->isNull() && rightType->isNullable()) {
-        if (auto varAccess = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(rightValue)) {
+        if (auto varAccess = std::dynamic_pointer_cast<VariableAccessExpression>(rightValue)) {
             varAccess->extractValue = false;
         }
     }
@@ -496,8 +498,8 @@ std::shared_ptr<Omniscript::Expression> BinaryExpression::express(SymbolTableTyp
     DEBUG_LOG("The left value is: " + leftValue->toString());
     DEBUG_LOG("The right value is: " + rightValue->toString());
 
-    auto binaryExpr = std::make_shared<Omniscript::BinaryExpression>(leftValue, op, rightValue, type);
-    binaryExpr->setSpan(getSpan());
+    auto binaryExpr = std::make_shared<BinaryExpression>(leftValue, op, rightValue, type);
+    binaryExpr->setSpan(this->getSpan());
     return binaryExpr;
 }
 
@@ -512,8 +514,8 @@ bool BinaryExpression::isCompileTimeEvaluatable() {
     return false;
 }
 
-std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType scope) {
-    Omniscript::setSpan(getSpan());
+std::shared_ptr<Expression> UnaryExpression::express(SymbolTableType scope) {
+    setSpan(getSpan());
     if (operand) {
         DEBUG_LOG("Creating a unary expression " + operand->toString());
     } else {
@@ -522,7 +524,7 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
                                "2. Verify operand is provided\n"
                                "3. Operator: " + op.getValue();
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "Unary operator has no operand",
             suggestion,
             getSpan()
@@ -531,7 +533,7 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
 
     extendContextOf(operand);
 
-    std::shared_ptr<Omniscript::Expression> operandValue;
+    std::shared_ptr<Expression> operandValue;
 
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(operand)) {
         if (type) {
@@ -544,7 +546,7 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
     }
 
     if (!operandValue) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check operand expression validity\n"
             "2. Verify variable is initialized\n"
@@ -553,7 +555,7 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
             operand ? operand->toString().c_str() : "null"
         );
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Failed to evaluate unary operand",
             suggestion,
             operand ? operand->getSpan() : getSpan()
@@ -562,7 +564,9 @@ std::shared_ptr<Omniscript::Expression> UnaryExpression::express(SymbolTableType
 
     bool isPrefix = position == Position::Prefix;
 
-    auto unaryExpr = std::make_shared<Omniscript::UnaryExpression>(op, operandValue, type, isPrefix);
-    unaryExpr->setSpan(getSpan());
+    auto unaryExpr = std::make_shared<UnaryExpression>(op, operandValue, type, isPrefix);
+    unaryExpr->setSpan(this->getSpan());
     return unaryExpr;
 }
+
+} // namespace Omniscript

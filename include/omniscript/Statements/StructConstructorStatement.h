@@ -1,6 +1,8 @@
 #pragma once
 #include <omniscript/Statement.h>
 
+namespace Omniscript {
+
 class ConstructStructPrototype : 
 public NamedStatement, 
 public TypedStatement {
@@ -12,7 +14,7 @@ public:
     
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { return "Construct Struct : " + name; }
     std::string formatError(const std::string& msg) const override {
         return "Error while constructing struct '" + name + "'.\n" + msg;
@@ -22,3 +24,5 @@ public:
 private:
     std::vector<std::shared_ptr<Statement>> body;
 };
+
+} // namespace Omniscript

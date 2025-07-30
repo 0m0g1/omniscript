@@ -4,6 +4,8 @@
 
 #include <omniscript/Expressions/FunctionExpression.h>
 
+namespace Omniscript {
+
 class ParameterStatement : 
 public NamedStatement, 
 public TypedStatement,
@@ -30,7 +32,7 @@ public:
 
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { 
         return "Parameter: " + (defaultValue? defaultValue->toString() : "no default value"); 
     }
@@ -87,13 +89,13 @@ public:
     }
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { return "Call: " + callee; }
     std::string getName() const override { return callee; }
     
     static bool matchArgumentsToParameters(
-        const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& args,
-        const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& params,
+        const std::vector<std::shared_ptr<FunctionInputExpression>>& args,
+        const std::vector<std::shared_ptr<FunctionInputExpression>>& params,
         SymbolTableType scope
     );
     
@@ -152,82 +154,82 @@ private:
     // Helper methods for express()
     std::string resolveImpliedTargetName(const std::string& targetName);
     std::string buildContextualName(const std::string& targetName, const std::string& impliedTargetName, SymbolTableType scope);
-    void addThisArgument(const std::string& targetName, std::shared_ptr<Omniscript::UserDefinedType> udt);
+    void addThisArgument(const std::string& targetName, std::shared_ptr<UserDefinedType> udt);
     void logArgumentDetails();
     
-    std::shared_ptr<Omniscript::Expression> findCallable(const std::string& contextualName, SymbolTableType scope);
-    std::vector<std::shared_ptr<Omniscript::Expression>> findOverloadsInContext(SymbolTableType scope);
-    std::shared_ptr<Omniscript::Expression> resolveOverload(
-        const std::vector<std::shared_ptr<Omniscript::Expression>>& overloads, 
+    std::shared_ptr<Expression> findCallable(const std::string& contextualName, SymbolTableType scope);
+    std::vector<std::shared_ptr<Expression>> findOverloadsInContext(SymbolTableType scope);
+    std::shared_ptr<Expression> resolveOverload(
+        const std::vector<std::shared_ptr<Expression>>& overloads, 
         SymbolTableType scope
     );
     
-    void coerceArgumentTypes(const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& inputParams);
-    std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>> evaluateArguments(SymbolTableType scope);
-    std::string getEvaluatedCalleeName(std::shared_ptr<Omniscript::Expression> called, const std::string& contextualName);
+    void coerceArgumentTypes(const std::vector<std::shared_ptr<FunctionInputExpression>>& inputParams);
+    std::vector<std::shared_ptr<FunctionInputExpression>> evaluateArguments(SymbolTableType scope);
+    std::string getEvaluatedCalleeName(std::shared_ptr<Expression> called, const std::string& contextualName);
     
     bool processArguments(
-        const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& parameters,
+        const std::vector<std::shared_ptr<FunctionInputExpression>>& parameters,
         SymbolTableType localScope,
         SymbolTableType scope,
-        std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
+        std::vector<std::shared_ptr<Expression>>& collectedArgs
     );
     
     bool processNamedArguments(
-        const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& parameters,
+        const std::vector<std::shared_ptr<FunctionInputExpression>>& parameters,
         SymbolTableType localScope,
         SymbolTableType scope,
         std::unordered_set<std::string>& providedParams,
         size_t& namedArgsCount,
-        std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
+        std::vector<std::shared_ptr<Expression>>& collectedArgs
     );
     
     bool processPositionalArguments(
-        const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& parameters,
+        const std::vector<std::shared_ptr<FunctionInputExpression>>& parameters,
         SymbolTableType localScope,
         SymbolTableType scope,
         const std::unordered_set<std::string>& providedParams,
         size_t& positionalArgIndex,
         size_t namedArgsCount,
-        std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
+        std::vector<std::shared_ptr<Expression>>& collectedArgs
     );
     
     bool handleVariadicParameter(
-        const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& parameters,
+        const std::vector<std::shared_ptr<FunctionInputExpression>>& parameters,
         SymbolTableType localScope,
         SymbolTableType scope,
         int& i,
         size_t& positionalArgIndex,
-        std::shared_ptr<Omniscript::FunctionExpression> calledFunc,
-        std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
+        std::shared_ptr<FunctionExpression> calledFunc,
+        std::vector<std::shared_ptr<Expression>>& collectedArgs
     );
     
     bool processRegularPositionalArgument(
         std::shared_ptr<Statement> arg,
-        std::shared_ptr<Omniscript::FunctionInputExpression> param,
+        std::shared_ptr<FunctionInputExpression> param,
         SymbolTableType localScope,
         SymbolTableType scope,
         size_t& positionalArgIndex,
         int paramIndex,
-        std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
+        std::vector<std::shared_ptr<Expression>>& collectedArgs
     );
     
-    std::shared_ptr<Omniscript::Expression> createCallExpression(
+    std::shared_ptr<Expression> createCallExpression(
         const std::string& evaluatedCallee,
-        const std::vector<std::shared_ptr<Omniscript::FunctionInputExpression>>& parameters,
+        const std::vector<std::shared_ptr<FunctionInputExpression>>& parameters,
         SymbolTableType localScope,
-        std::shared_ptr<Omniscript::Expression> called,
-        const std::vector<std::shared_ptr<Omniscript::Expression>>& collectedArgs
+        std::shared_ptr<Expression> called,
+        const std::vector<std::shared_ptr<Expression>>& collectedArgs
     );
 
-    std::shared_ptr<Omniscript::Expression> handleMemberAccessCall(
+    std::shared_ptr<Expression> handleMemberAccessCall(
         std::shared_ptr<MemberAccess> memberAccess,
         SymbolTableType scope
     );
 
-    std::shared_ptr<Omniscript::Expression> resolveMethodOverload(
-        const std::vector<std::shared_ptr<Omniscript::Expression>>& overloads,
-        std::shared_ptr<Omniscript::Expression> baseExpr,
+    std::shared_ptr<Expression> resolveMethodOverload(
+        const std::vector<std::shared_ptr<Expression>>& overloads,
+        std::shared_ptr<Expression> baseExpr,
         SymbolTableType scope
     );
 };
@@ -263,7 +265,7 @@ public:
             }
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { 
         return "ObjectConstructor(" + objectType + " " + instanceName + ")"; 
     }
@@ -314,7 +316,7 @@ public:
 
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { 
         return "Argument: " + (value? value->toString() : " no value"); 
     }
@@ -322,3 +324,5 @@ public:
         return "Error in '" + toString() + "'.\n" + msg;
     };
 };
+
+} //namespace Omniscript 

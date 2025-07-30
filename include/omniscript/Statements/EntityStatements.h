@@ -1,6 +1,8 @@
 #pragma once
 #include <omniscript/Statement.h>
 
+namespace Omniscript {
+
 class EnumValue : public NamedStatement, public TypedStatement {
 public:
     EnumValue(const std::string& valueName, int& index) :
@@ -9,7 +11,7 @@ public:
     }
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override {
         return "{" + name + ":" + std::to_string(valueIndex) + "}";
     }
@@ -38,7 +40,7 @@ public:
     }
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override {
         return "EnumConstructor for " + name + (hasLookup ? " (with lookup)" : "");
     }
@@ -47,3 +49,5 @@ public:
     };
     std::string getName() const override { return name; }
 };
+
+} // namespace Omniscript

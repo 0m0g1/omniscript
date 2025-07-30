@@ -11,14 +11,14 @@
 
 std::shared_ptr<Statement> Parser::parseForLoop() {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
 
     DEBUG_LOG("Parsing for loop");
     eat(TokenTypes::For, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Start for loop with 'for' keyword\n"
             "2. Check for correct syntax\n"
@@ -26,8 +26,8 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'for' keyword, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'for' keyword, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -35,7 +35,7 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
     });
 
     eat(TokenTypes::LeftParen, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Use '(' after 'for' keyword\n"
             "2. Check for correct for loop syntax\n"
@@ -43,8 +43,8 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected '(' for for loop, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected '(' for for loop, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -64,7 +64,7 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
                                    "2. Check for valid variable declaration or assignment\n"
                                    "3. Ensure proper semicolon termination";
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Failed to parse for loop initialization",
                 suggestion,
                 span
@@ -73,7 +73,7 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
         }
         DEBUG_LOG("Parsed for loop initialization: " + initialization->toString());
         eat(TokenTypes::Semicolon, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Terminate initialization with ';'\n"
                 "2. Check for correct for loop syntax\n"
@@ -81,8 +81,8 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected ';' after for loop initialization, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected ';' after for loop initialization, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -100,7 +100,7 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
                                    "2. Check for valid boolean expression\n"
                                    "3. Ensure proper expression syntax";
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Failed to parse for loop condition",
                 suggestion,
                 span
@@ -112,7 +112,7 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
         DEBUG_LOG("No condition in for loop");
     }
     eat(TokenTypes::Semicolon, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Terminate condition with ';'\n"
             "2. Check for correct for loop syntax\n"
@@ -120,8 +120,8 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected ';' after for loop condition, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected ';' after for loop condition, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -138,7 +138,7 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
                                    "2. Check for valid expression\n"
                                    "3. Ensure proper expression syntax";
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Failed to parse for loop update expression",
                 suggestion,
                 span
@@ -150,7 +150,7 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
         DEBUG_LOG("No update expression in for loop");
     }
     eat(TokenTypes::RightParen, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Close for loop header with ')'\n"
             "2. Check for correct for loop syntax\n"
@@ -158,8 +158,8 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected ')' after for loop update, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected ')' after for loop update, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -174,7 +174,7 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
                                "2. Check for valid block structure\n"
                                "3. Ensure block starts with '{' or is a valid statement";
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "Failed to parse for loop body",
             suggestion,
             span
@@ -196,14 +196,14 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
 
 std::shared_ptr<Statement> Parser::parseContinue() {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
 
     DEBUG_LOG("Parsing continue statement");
     eat(TokenTypes::Continue, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Use 'continue' keyword\n"
             "2. Check for correct syntax\n"
@@ -211,8 +211,8 @@ std::shared_ptr<Statement> Parser::parseContinue() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'continue' keyword, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'continue' keyword, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -222,7 +222,7 @@ std::shared_ptr<Statement> Parser::parseContinue() {
     if (currentToken.getType() == TokenTypes::Semicolon || currentToken.getType() == TokenTypes::Newline) {
         eat(currentToken.getType());
     } else {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Terminate continue statement with ';' or newline\n"
             "2. Check for correct syntax\n"
@@ -230,8 +230,8 @@ std::shared_ptr<Statement> Parser::parseContinue() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected ';' or newline after continue statement, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected ';' or newline after continue statement, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -252,14 +252,14 @@ std::shared_ptr<Statement> Parser::parseContinue() {
 
 std::shared_ptr<Statement> Parser::parseBreak() {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
 
     DEBUG_LOG("Parsing break statement");
     eat(TokenTypes::Break, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Use 'break' keyword\n"
             "2. Check for correct syntax\n"
@@ -267,8 +267,8 @@ std::shared_ptr<Statement> Parser::parseBreak() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'break' keyword, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'break' keyword, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -278,7 +278,7 @@ std::shared_ptr<Statement> Parser::parseBreak() {
     if (currentToken.getType() == TokenTypes::Semicolon || currentToken.getType() == TokenTypes::Newline) {
         eat(currentToken.getType());
     } else {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Terminate break statement with ';' or newline\n"
             "2. Check for correct syntax\n"
@@ -286,8 +286,8 @@ std::shared_ptr<Statement> Parser::parseBreak() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected ';' or newline after break statement, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected ';' or newline after break statement, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -308,14 +308,14 @@ std::shared_ptr<Statement> Parser::parseBreak() {
 
 std::shared_ptr<Statement> Parser::parseIfStatement() {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
 
     DEBUG_LOG("Parsing if statement");
     eat(TokenTypes::If, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Start if statement with 'if' keyword\n"
             "2. Check for correct syntax\n"
@@ -323,8 +323,8 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'if' keyword, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'if' keyword, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -332,7 +332,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
     });
 
     eat(TokenTypes::LeftParen, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Use '(' after 'if' keyword\n"
             "2. Check for correct if statement syntax\n"
@@ -340,8 +340,8 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected '(' for if condition, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected '(' for if condition, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -356,7 +356,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                                "2. Check for valid boolean expression\n"
                                "3. Ensure proper expression syntax";
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "Failed to parse if condition",
             suggestion,
             span
@@ -366,7 +366,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
     DEBUG_LOG("Parsed if condition: " + condition->toString());
 
     eat(TokenTypes::RightParen, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Close condition with ')'\n"
             "2. Check for correct if statement syntax\n"
@@ -374,8 +374,8 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected ')' after if condition, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected ')' after if condition, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -390,7 +390,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                                "2. Check for valid block structure\n"
                                "3. Ensure block starts with '{' or is a valid statement";
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "Failed to parse if statement body",
             suggestion,
             span
@@ -404,7 +404,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                                "2. Check for proper block syntax\n"
                                "3. Use '{' to start block if multiple statements";
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "If statement body must be a block statement",
             suggestion,
             span
@@ -420,7 +420,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
     while (currentToken.getType() == TokenTypes::Else_if) {
         DEBUG_LOG("Parsing else if branch");
         eat(TokenTypes::Else_if, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use 'else if' for additional conditions\n"
                 "2. Check for correct syntax\n"
@@ -428,8 +428,8 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected 'else if' keyword, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected 'else if' keyword, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -437,7 +437,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
         });
 
         eat(TokenTypes::LeftParen, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use '(' after 'else if' keyword\n"
                 "2. Check for correct else if syntax\n"
@@ -445,8 +445,8 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '(' for else if condition, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '(' for else if condition, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -460,7 +460,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                                    "2. Check for valid boolean expression\n"
                                    "3. Ensure proper expression syntax";
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Failed to parse else if condition",
                 suggestion,
                 span
@@ -470,7 +470,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
         DEBUG_LOG("Parsed else if condition: " + elseIfCondition->toString());
 
         eat(TokenTypes::RightParen, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Close else if condition with ')'\n"
                 "2. Check for correct else if syntax\n"
@@ -478,8 +478,8 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected ')' after else if condition, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected ')' after else if condition, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -493,7 +493,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                                    "2. Check for valid block structure\n"
                                    "3. Ensure block starts with '{' or is a valid statement";
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Failed to parse else if block",
                 suggestion,
                 span
@@ -507,7 +507,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                                    "2. Check for proper block syntax\n"
                                    "3. Use '{' to start block if multiple statements";
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Else if body must be a block statement",
                 suggestion,
                 span
@@ -523,7 +523,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
     if (currentToken.getType() == TokenTypes::Else) {
         DEBUG_LOG("Parsing else branch");
         eat(TokenTypes::Else, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use 'else' for else branch\n"
                 "2. Check for correct syntax\n"
@@ -531,8 +531,8 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected 'else' keyword, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected 'else' keyword, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -546,7 +546,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                                    "2. Check for valid block structure\n"
                                    "3. Ensure block starts with '{' or is a valid statement";
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Failed to parse else block",
                 suggestion,
                 span
@@ -560,7 +560,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
                                    "2. Check for proper block syntax\n"
                                    "3. Use '{' to start block if multiple statements";
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Else body must be a block statement",
                 suggestion,
                 span
@@ -583,14 +583,14 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
 
 std::shared_ptr<Statement> Parser::parseWhileStatement() {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
 
     DEBUG_LOG("Parsing while statement");
     eat(TokenTypes::While, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Start while loop with 'while' keyword\n"
             "2. Check for correct syntax\n"
@@ -598,8 +598,8 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'while' keyword, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'while' keyword, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -607,7 +607,7 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
     });
 
     eat(TokenTypes::LeftParen, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Use '(' after 'while' keyword\n"
             "2. Check for correct while loop syntax\n"
@@ -615,8 +615,8 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected '(' for while condition, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected '(' for while condition, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -631,7 +631,7 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
                                "2. Check for valid boolean expression\n"
                                "3. Ensure proper expression syntax";
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "Failed to parse while condition",
             suggestion,
             span
@@ -641,7 +641,7 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
     DEBUG_LOG("Parsed while condition: " + condition->toString());
 
     eat(TokenTypes::RightParen, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Close while condition with ')'\n"
             "2. Check for correct while loop syntax\n"
@@ -649,8 +649,8 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected ')' after while condition, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected ')' after while condition, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -665,7 +665,7 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
                                "2. Check for valid block structure\n"
                                "3. Ensure block starts with '{' or is a valid statement";
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "Failed to parse while loop body",
             suggestion,
             span
@@ -679,7 +679,7 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
                                "2. Check for proper block syntax\n"
                                "3. Use '{' to start block if multiple statements";
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "While loop body must be a block statement",
             suggestion,
             span
@@ -701,14 +701,14 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
 
 std::shared_ptr<Statement> Parser::parseReturnStatement() {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
 
     DEBUG_LOG("Parsing return statement");
     eat(TokenTypes::Return, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Use 'return' keyword\n"
             "2. Check for correct syntax\n"
@@ -716,8 +716,8 @@ std::shared_ptr<Statement> Parser::parseReturnStatement() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'return' keyword, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'return' keyword, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -734,7 +734,7 @@ std::shared_ptr<Statement> Parser::parseReturnStatement() {
                                    "2. Check for valid expression\n"
                                    "3. Ensure proper expression syntax";
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Failed to parse return expression",
                 suggestion,
                 span
@@ -751,7 +751,7 @@ std::shared_ptr<Statement> Parser::parseReturnStatement() {
     if (currentToken.getType() == TokenTypes::Semicolon || currentToken.getType() == TokenTypes::Newline) {
         eat(currentToken.getType());
     } else {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Terminate return statement with ';' or newline\n"
             "2. Check for correct syntax\n"
@@ -759,8 +759,8 @@ std::shared_ptr<Statement> Parser::parseReturnStatement() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected ';' or newline after return statement, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected ';' or newline after return statement, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span

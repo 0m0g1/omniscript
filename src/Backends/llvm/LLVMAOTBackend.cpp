@@ -16,7 +16,7 @@ namespace fs = std::filesystem;
 namespace Omniscript {
 
 LLVMAOTBackend::LLVMAOTBackend() {
-    scope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>();
+    scope = std::make_shared<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>>();
     loadFileCache("file_cache.json");
 }
 
@@ -226,7 +226,7 @@ void LLVMAOTBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         }
 
         DEBUG_LOG("Evaluating " + statement->toString());
-        Omniscript::setSpan(statement->getSpan());
+        setSpan(statement->getSpan());
         auto expr = statement->express(scope);
         if (!expr) {
             if (config.errorHandling.mode == ErrorRecoveryMode::StopOnFirst) {

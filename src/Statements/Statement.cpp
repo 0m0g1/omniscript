@@ -21,30 +21,32 @@
 // #include <omniscript/runtime/String.h>
 // #include <omniscript/runtime/Pointer.h>
 
+namespace Omniscript {
+    
 void Initializer::initialize() {
     
     
 }
 
-std::shared_ptr<Omniscript::Expression> Initializer::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+std::shared_ptr<Expression> Initializer::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     return nullptr;
 }  
 
 
-std::shared_ptr<Omniscript::Expression> BlockStatement::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
-    auto block = std::make_shared<Omniscript::BlockExpression>(expressAsVector(scope));
+std::shared_ptr<Expression> BlockStatement::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+    auto block = std::make_shared<BlockExpression>(expressAsVector(scope));
     block->isGlobal = isGlobal;
-    block->setSpan(getSpan());
+    block->setSpan(this->getSpan());
     return block;
 }
 
-std::vector<std::shared_ptr<Omniscript::Expression>> BlockStatement::expressAsVector(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+std::vector<std::shared_ptr<Expression>> BlockStatement::expressAsVector(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     recursiveInternalUpdate();
     
-    std::vector<std::shared_ptr<Omniscript::Expression>> results = {};
+    std::vector<std::shared_ptr<Expression>> results = {};
     
     // // Generate code for each statement in order
     for (const auto& stmt : statements) {
@@ -126,3 +128,5 @@ void BlockStatement::updateInternalContext() {
         // }
     }
 }
+
+} // namespace Omniscript

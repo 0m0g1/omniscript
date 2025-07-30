@@ -14,6 +14,8 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
 
+namespace Omniscript {
+
 IndexAccess::IndexAccess(std::shared_ptr<Statement> expr, std::shared_ptr<Statement> index) 
     : index(index) {
     this->expr = expr;
@@ -32,8 +34,8 @@ std::shared_ptr<Statement> IndexAccess::clone() const {
     return cloned;
 }
 
-std::shared_ptr<Omniscript::Expression> IndexAccess::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+std::shared_ptr<Expression> IndexAccess::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     // Resolve container expression (handles chaining)
     auto containerExpr = resolveContainerExpression(scope);
@@ -62,12 +64,12 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::express(SymbolTableType sco
     }
     
     // Create the index access expression
-    auto result = std::make_shared<Omniscript::IndexAccessExpression>(
+    auto result = std::make_shared<IndexAccessExpression>(
         containerExpr, indexExprValue, type, assignmentExpr
     );
     
     result->type = type;
-    result->setSpan(getSpan());
+    result->setSpan(this->getSpan());
     return result;
 }
 
@@ -95,7 +97,7 @@ std::string IndexAccess::formatError(const std::string& msg) const {
 }
 
 // Private helper method implementations
-std::shared_ptr<Omniscript::Expression> IndexAccess::resolveContainerExpression(SymbolTableType scope) {
+std::shared_ptr<Expression> IndexAccess::resolveContainerExpression(SymbolTableType scope) {
     // Handle chained index access (e.g., arr[0][1][2])
     if (auto indexAcc = std::dynamic_pointer_cast<IndexAccess>(expr)) {
         DEBUG_LOG("Resolving chained index access: " + indexAcc->toString());
@@ -106,7 +108,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveContainerExpression(
                                    "2. Verify intermediate arrays are initialized\n"
                                    "3. Add debug output for each access step";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate chained index access base expression",
                 suggestion,
                 indexAcc->getSpan()
@@ -126,7 +128,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveContainerExpression(
                                    "2. Check member accessibility\n"
                                    "3. Ensure proper initialization";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate member access container expression",
                 suggestion,
                 memberAcc->getSpan()
@@ -146,7 +148,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveContainerExpression(
                                    "2. Check pointer type compatibility\n"
                                    "3. Add debug output before access";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate arrow access container expression",
                 suggestion,
                 arrowAcc->getSpan()
@@ -164,7 +166,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveContainerExpression(
                                "2. Verify proper initialization\n"
                                "3. Add debug output before access";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Failed to evaluate container expression for index access",
             suggestion,
             expr->getSpan()
@@ -176,7 +178,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveContainerExpression(
     return containerExpr;
 }
 
-std::shared_ptr<Omniscript::Expression> IndexAccess::resolveIndexExpression(SymbolTableType scope) {
+std::shared_ptr<Expression> IndexAccess::resolveIndexExpression(SymbolTableType scope) {
     // Handle complex index expressions (e.g., arr[obj.index], arr[func()])
     if (auto memberAcc = std::dynamic_pointer_cast<MemberAccess>(index)) {
         DEBUG_LOG("Resolving member access as index: " + memberAcc->toString());
@@ -187,7 +189,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveIndexExpression(Symb
                                    "2. Check member accessibility\n"
                                    "3. Ensure proper initialization";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate member access index expression",
                 suggestion,
                 memberAcc->getSpan()
@@ -206,7 +208,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveIndexExpression(Symb
                                    "2. Check pointer type compatibility\n"
                                    "3. Add debug output before access";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate arrow access index expression",
                 suggestion,
                 arrowAcc->getSpan()
@@ -224,7 +226,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveIndexExpression(Symb
                                "2. Verify proper initialization\n"
                                "3. Add debug output for index value";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Failed to evaluate index expression",
             suggestion,
             index->getSpan()
@@ -235,7 +237,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveIndexExpression(Symb
     // Validate that index is numeric type
     auto indexType = indexExprValue->getType();
     if (!indexType->isInteger() && !indexType->isFloat()) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Use a numeric type for indexing\n"
             "2. Available conversions:\n"
@@ -245,8 +247,8 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveIndexExpression(Symb
             indexType->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Index must be a numeric type, got: '%s'",
+            Console::TYPE_ERROR,
+            Console::formatString("Index must be a numeric type, got: '%s'",
                              indexType->toString().c_str()),
             suggestion,
             index->getSpan()
@@ -258,8 +260,8 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::resolveIndexExpression(Symb
     return indexExprValue;
 }
 
-std::shared_ptr<Omniscript::Type> IndexAccess::validateAndGetElementType(
-    std::shared_ptr<Omniscript::Type> containerType) {
+std::shared_ptr<Type> IndexAccess::validateAndGetElementType(
+    std::shared_ptr<Type> containerType) {
     
     if (containerType->isArray()) {
         auto elementType = containerType->elementType;
@@ -269,7 +271,7 @@ std::shared_ptr<Omniscript::Type> IndexAccess::validateAndGetElementType(
                                    "2. Check array declaration for element type\n"
                                    "3. Verify type imports";
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
+                Console::TYPE_ERROR,
                 "Array type missing element type information",
                 suggestion,
                 getSpan()
@@ -288,7 +290,7 @@ std::shared_ptr<Omniscript::Type> IndexAccess::validateAndGetElementType(
                                    "2. Check pointer declaration for pointee type\n"
                                    "3. Verify type imports";
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
+                Console::TYPE_ERROR,
                 "Pointer type missing pointee type information",
                 suggestion,
                 getSpan()
@@ -299,7 +301,7 @@ std::shared_ptr<Omniscript::Type> IndexAccess::validateAndGetElementType(
         return pointeeType;
     }
     
-    std::string suggestion = Omniscript::Console::formatString(
+    std::string suggestion = Console::formatString(
         "To resolve this:\n"
         "1. Declare as array or pointer: `%s`\n"
         "2. Check container type declaration\n"
@@ -307,8 +309,8 @@ std::shared_ptr<Omniscript::Type> IndexAccess::validateAndGetElementType(
         containerType->toString().c_str()
     );
     console.reportError(
-        Omniscript::Console::TYPE_ERROR,
-        Omniscript::Console::formatString("Index access requires an array or pointer type, got: '%s'",
+        Console::TYPE_ERROR,
+        Console::formatString("Index access requires an array or pointer type, got: '%s'",
                          containerType->toString().c_str()),
         suggestion,
         getSpan()
@@ -316,7 +318,7 @@ std::shared_ptr<Omniscript::Type> IndexAccess::validateAndGetElementType(
     return nullptr;
 }
 
-std::shared_ptr<Omniscript::Expression> IndexAccess::processAssignment(SymbolTableType scope) {
+std::shared_ptr<Expression> IndexAccess::processAssignment(SymbolTableType scope) {
     if (!assignmentValue) {
         return nullptr;
     }
@@ -334,7 +336,7 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::processAssignment(SymbolTab
                                "2. Verify type compatibility\n"
                                "3. Add debug output for the value";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Failed to evaluate assignment expression",
             suggestion,
             assignmentValue->getSpan()
@@ -344,8 +346,8 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::processAssignment(SymbolTab
     
     // Validate assignment type compatibility
     if (type && assignmentExpr->getType()) {
-        if (!Omniscript::Type::isSameOrCastableTo(assignmentExpr->getType(), type)) {
-            std::string suggestion = Omniscript::Console::formatString(
+        if (!Type::isSameOrCastableTo(assignmentExpr->getType(), type)) {
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Check type requirements\n"
                 "2. Available conversions:\n"
@@ -356,8 +358,8 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::processAssignment(SymbolTab
                 type->toString().c_str()
             );
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
-                Omniscript::Console::formatString("Cannot assign '%s' to '%s'",
+                Console::TYPE_ERROR,
+                Console::formatString("Cannot assign '%s' to '%s'",
                                  assignmentExpr->getType()->toString().c_str(),
                                  type->toString().c_str()),
                 suggestion,
@@ -370,3 +372,5 @@ std::shared_ptr<Omniscript::Expression> IndexAccess::processAssignment(SymbolTab
     DEBUG_LOG("Processed assignment: " + assignmentExpr->toString());
     return assignmentExpr;
 }
+
+} // namespace Omniscript 

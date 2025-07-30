@@ -31,7 +31,7 @@ private:
     std::unique_ptr<llvm::orc::LLJIT> jit;
     std::shared_ptr<llvm::orc::SymbolStringPool> symbolStringPool;
     std::shared_ptr<IRGenerator> irGen;
-    std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>> scope;
+    std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>> scope;
     std::chrono::system_clock::time_point compilationStartTime;
     size_t codeCacheSize = 0;
     size_t peakMemoryUsage = 0;

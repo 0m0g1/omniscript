@@ -11,13 +11,13 @@
 
 std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
 
     eat(TokenTypes::LeftParen, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Start parameter list with '('\n"
             "2. Check function declaration syntax\n"
@@ -25,8 +25,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected '(' for parameter list, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected '(' for parameter list, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -39,13 +39,13 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
         Token paramStartToken = currentToken;
         std::string paramName;
         bool isVariadic = false;
-        std::shared_ptr<Omniscript::Type> paramType;
+        std::shared_ptr<Type> paramType;
         std::shared_ptr<Statement> defaultValue = nullptr;
 
         if (currentToken.getType() == TokenTypes::Ellipsis) {
             if (parameters.empty()) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Cannot have a standalone variadic",
                     "To resolve this:\n1. Add a parameter to capture variadic arguments\n2. Ensure variadic follows a named parameter",
                     span
@@ -55,7 +55,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
             auto param = std::dynamic_pointer_cast<ParameterStatement>(parameters.back());
             if (!param) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Invalid variadic parameter",
                     "To resolve this:\n1. Ensure variadic follows a valid parameter\n2. Check parameter syntax",
                     span
@@ -71,7 +71,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
             paramName = currentToken.getValue();
             eat(TokenTypes::Identifier);
         } else {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Provide a valid parameter name\n"
                 "2. Check parameter syntax\n"
@@ -79,8 +79,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected parameter name, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected parameter name, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -91,10 +91,10 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
         if (currentToken.getType() == TokenTypes::Colon) {
             eat(TokenTypes::Colon);
             std::vector<std::string> types = parseType();
-            paramType = Omniscript::resolveType(types);
+            paramType = resolveType(types);
             if (!paramType) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Invalid parameter type",
                     "To resolve this:\n1. Verify type syntax\n2. Ensure type is defined\n3. Check for valid type identifiers",
                     span
@@ -108,7 +108,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
             defaultValue = parseExpression();
             if (!defaultValue) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Invalid default value expression",
                     "To resolve this:\n1. Provide a valid default value\n2. Check expression syntax\n3. Ensure valid literals or identifiers",
                     span
@@ -130,8 +130,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
             eat(TokenTypes::Comma);
         } else if (currentToken.getType() != TokenTypes::RightParen) {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected ',' or ')', found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected ',' or ')', found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 "To resolve this:\n1. Separate parameters with ',' or close with ')'\n2. Check parameter list syntax\n3. Ensure valid parameter declarations",
                 span
@@ -141,7 +141,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
     }
 
     eat(TokenTypes::RightParen, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Close parameter list with ')'\n"
             "2. Check for matching parentheses\n"
@@ -149,8 +149,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected ')' to close parameter list, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected ')' to close parameter list, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -190,7 +190,7 @@ std::string Parser::generateSpecializedNameForCall(
 
 std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start, TokenTypes end, TokenTypes assignOp) {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
@@ -198,7 +198,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
     DEBUG_LOG("Parsing the arguments");
     std::vector<std::shared_ptr<Statement>> args;
     eat(start, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Start argument list with '%s'\n"
             "2. Check argument syntax\n"
@@ -207,8 +207,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected '%s' for argument list, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected '%s' for argument list, found '%s'", 
                 getTokenTypeName(start).c_str(), getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -225,7 +225,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
             std::string paramName = currentToken.getValue();
             eat(TokenTypes::Identifier);
             eat(assignOp, [&]() {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Use '%s' for named argument\n"
                     "2. Check argument syntax\n"
@@ -234,8 +234,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
                     getTokenTypeName(currentToken.getType()).c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected '%s' for named argument, found '%s'", 
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected '%s' for named argument, found '%s'", 
                         getTokenTypeName(assignOp).c_str(), getTokenTypeName(currentToken.getType()).c_str()),
                     suggestion,
                     span
@@ -244,7 +244,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
             arg = parseExpression();
             if (!arg) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Invalid named argument expression",
                     "To resolve this:\n1. Provide a valid expression for named argument\n2. Check expression syntax\n3. Ensure valid literals or identifiers",
                     span
@@ -255,7 +255,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
             arg = parseExpression();
             if (!arg) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Invalid argument expression",
                     "To resolve this:\n1. Provide a valid expression\n2. Check expression syntax\n3. Ensure valid literals or identifiers",
                     span
@@ -272,7 +272,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
             eat(TokenTypes::Comma);
             if (currentToken.getType() == end) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Unexpected comma before closing parenthesis",
                     "To resolve this:\n1. Remove trailing comma\n2. Ensure arguments are properly separated\n3. Check argument list syntax",
                     span
@@ -281,8 +281,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
             }
         } else if (currentToken.getType() != end) {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected ',' or '%s', found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected ',' or '%s', found '%s'", 
                     getTokenTypeName(end).c_str(), getTokenTypeName(currentToken.getType()).c_str()),
                 "To resolve this:\n1. Separate arguments with ',' or close with '%s'\n2. Check argument list syntax\n3. Ensure valid argument declarations",
                 span
@@ -293,7 +293,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
     }
 
     eat(end, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Close argument list with '%s'\n"
             "2. Check for matching delimiters\n"
@@ -302,8 +302,8 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected '%s' to close argument list, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected '%s' to close argument list, found '%s'", 
                 getTokenTypeName(end).c_str(), getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -320,7 +320,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
 
 MemberModifiers Parser::parseMemberModifiers() {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
@@ -344,7 +344,7 @@ MemberModifiers Parser::parseMemberModifiers() {
         if (currentToken.getType() == TokenTypes::Private) {
             // if (modifiers.access != MemberModifiers::AccessModifier::None) {
             //     console.reportError(
-            //         Omniscript::Console::SYNTAX_ERROR,
+            //         Console::SYNTAX_ERROR,
             //         "Multiple access modifiers specified",
             //         "To resolve this:\n1. Use only one access modifier (public, private, or protected)\n2. Check modifier syntax\n3. Remove duplicate access modifiers",
             //         span
@@ -356,7 +356,7 @@ MemberModifiers Parser::parseMemberModifiers() {
         } else if (currentToken.getType() == TokenTypes::Public) {
             // if (modifiers.access != MemberModifiers::AccessModifier::None) {
             //     console.reportError(
-            //         Omniscript::Console::SYNTAX_ERROR,
+            //         Console::SYNTAX_ERROR,
             //         "Multiple access modifiers specified",
             //         "To resolve this:\n1. Use only one access modifier (public, private, or protected)\n2. Check modifier syntax\n3. Remove duplicate access modifiers",
             //         span
@@ -368,7 +368,7 @@ MemberModifiers Parser::parseMemberModifiers() {
         } else if (currentToken.getType() == TokenTypes::Protected) {
             // if (modifiers.access != MemberModifiers::AccessModifier::None) {
             //     console.reportError(
-            //         Omniscript::Console::SYNTAX_ERROR,
+            //         Console::SYNTAX_ERROR,
             //         "Multiple access modifiers specified",
             //         "To resolve this:\n1. Use only one access modifier (public, private, or protected)\n2. Check modifier syntax\n3. Remove duplicate access modifiers",
             //         span
@@ -380,7 +380,7 @@ MemberModifiers Parser::parseMemberModifiers() {
         } else if (currentToken.getType() == TokenTypes::Override) {
             if (modifiers.shouldOverride) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Duplicate 'override' modifier",
                     "To resolve this:\n1. Use 'override' only once\n2. Check modifier syntax\n3. Remove duplicate modifiers",
                     span
@@ -392,7 +392,7 @@ MemberModifiers Parser::parseMemberModifiers() {
         } else if (currentToken.getType() == TokenTypes::Static) {
             if (modifiers.isStatic) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Duplicate 'static' modifier",
                     "To resolve this:\n1. Use 'static' only once\n2. Check modifier syntax\n3. Remove duplicate modifiers",
                     span
@@ -404,7 +404,7 @@ MemberModifiers Parser::parseMemberModifiers() {
         } else if (currentToken.getType() == TokenTypes::Final) {
             if (modifiers.isFinal) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Duplicate 'final' modifier",
                     "To resolve this:\n1. Use 'final' only once\n2. Check modifier syntax\n3. Remove duplicate modifiers",
                     span
@@ -416,7 +416,7 @@ MemberModifiers Parser::parseMemberModifiers() {
         } else if (currentToken.getType() == TokenTypes::Virtual) {
             if (modifiers.isVirtual) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Duplicate 'virtual' modifier",
                     "To resolve this:\n1. Use 'virtual' only once\n2. Check modifier syntax\n3. Remove duplicate modifiers",
                     span
@@ -428,7 +428,7 @@ MemberModifiers Parser::parseMemberModifiers() {
         } else if (currentToken.getType() == TokenTypes::Const) {
             if (modifiers.isConst) {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Duplicate 'const' modifier",
                     "To resolve this:\n1. Use 'const' only once\n2. Check modifier syntax\n3. Remove duplicate modifiers",
                     span

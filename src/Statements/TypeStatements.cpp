@@ -9,14 +9,16 @@
 
 #include <omniscript/Expressions/BlockExpression.h>
 
-std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType scope) {
+namespace Omniscript {
+
+std::shared_ptr<Expression> TypeDeclaration::express(SymbolTableType scope) {
     bool isAliasingOtherType = false;
     std::string originalTypeName;
-    std::shared_ptr<Omniscript::Type> originalType;
+    std::shared_ptr<Type> originalType;
 
     if (auto storedType = scope->getType(name)) {
         if (!storedType->isInvalid()) {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use a different type name instead of '%s'\n"
                 "2. Check for duplicate type declarations\n"
@@ -24,8 +26,8 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
                 name.c_str()
             );
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
-                Omniscript::Console::formatString("Type '%s' already exists in scope '%s' with type '%s'",
+                Console::TYPE_ERROR,
+                Console::formatString("Type '%s' already exists in scope '%s' with type '%s'",
                                  name.c_str(), scope->getName().c_str(), storedType->toString().c_str()),
                 suggestion,
                 getSpan()
@@ -35,10 +37,10 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
     }
 
     if (type->isUnresolved()) {
-        if (auto unresolved = std::dynamic_pointer_cast<Omniscript::UnresolvedType>(type)) {
+        if (auto unresolved = std::dynamic_pointer_cast<UnresolvedType>(type)) {
             originalType = scope->getType(unresolved->joinedTypeString);
             if (!originalType) {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Verify type '%s' is defined in scope '%s'\n"
                     "2. Check for correct namespace imports\n"
@@ -46,15 +48,15 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
                     unresolved->joinedTypeString.c_str(), scope->getName().c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
-                    Omniscript::Console::formatString("Type '%s' does not exist in scope '%s'",
+                    Console::TYPE_ERROR,
+                    Console::formatString("Type '%s' does not exist in scope '%s'",
                                      unresolved->joinedTypeString.c_str(), scope->getName().c_str()),
                     suggestion,
                     getSpan()
                 );
                 return nullptr;
             } else if (originalType->isInvalid()) {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Ensure type '%s' is valid before aliasing\n"
                     "2. Check original type declaration\n"
@@ -62,8 +64,8 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
                     unresolved->joinedTypeString.c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
-                    Omniscript::Console::formatString("Cannot alias invalid type '%s' as '%s'",
+                    Console::TYPE_ERROR,
+                    Console::formatString("Cannot alias invalid type '%s' as '%s'",
                                      unresolved->joinedTypeString.c_str(), name.c_str()),
                     suggestion,
                     getSpan()
@@ -75,36 +77,36 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
         }
     }
 
-    std::shared_ptr<Omniscript::Expression> typeDeclExpr;
+    std::shared_ptr<Expression> typeDeclExpr;
     if (!type) {
-        scope->addType(name, Omniscript::Type::createInvalid());
+        scope->addType(name, Type::createInvalid());
     } else {
-        if (auto funcType = std::dynamic_pointer_cast<Omniscript::FunctionType>(type)) {
+        if (auto funcType = std::dynamic_pointer_cast<FunctionType>(type)) {
             funcType->functionName = name;
         }
         if (type->isFunction()) {
-            auto typePointer = std::make_shared<Omniscript::PointerType>(type);
-            auto pointerTypeDecl = std::make_shared<Omniscript::TypeDeclarationExpression>(name, typePointer);
-            auto typeDecl = std::make_shared<Omniscript::TypeDeclarationExpression>("*" + name, type);
+            auto typePointer = std::make_shared<PointerType>(type);
+            auto pointerTypeDecl = std::make_shared<TypeDeclarationExpression>(name, typePointer);
+            auto typeDecl = std::make_shared<TypeDeclarationExpression>("*" + name, type);
             if (isAliasingOtherType) {
                 typeDecl->setIsAliasing(originalTypeName);
                 pointerTypeDecl->setIsAliasing(originalTypeName);
             }
-            typeDecl->setSpan(getSpan());
-            pointerTypeDecl->setSpan(getSpan());
-            std::vector<std::shared_ptr<Omniscript::Expression>> declarations = {pointerTypeDecl, typeDecl};
-            auto block = std::make_shared<Omniscript::BlockExpression>(declarations);
-            block->setSpan(getSpan());
+            typeDecl->setSpan(this->getSpan());
+            pointerTypeDecl->setSpan(this->getSpan());
+            std::vector<std::shared_ptr<Expression>> declarations = {pointerTypeDecl, typeDecl};
+            auto block = std::make_shared<BlockExpression>(declarations);
+            block->setSpan(this->getSpan());
             typeDeclExpr = block;
 
             scope->addType(name, typePointer);
             scope->addType("*" + name, type);
         } else {
-            auto typeDecl = std::make_shared<Omniscript::TypeDeclarationExpression>(name, type);
+            auto typeDecl = std::make_shared<TypeDeclarationExpression>(name, type);
             if (isAliasingOtherType) {
                 typeDecl->setIsAliasing(originalTypeName);
             }
-            typeDecl->setSpan(getSpan());
+            typeDecl->setSpan(this->getSpan());
             typeDeclExpr = typeDecl;
             scope->addType(name, type);
         }
@@ -113,3 +115,5 @@ std::shared_ptr<Omniscript::Expression> TypeDeclaration::express(SymbolTableType
 
     return typeDeclExpr;
 }
+
+} // namespace Omniscript

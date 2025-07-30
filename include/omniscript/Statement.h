@@ -9,7 +9,9 @@
 #include <omniscript/Symboltable.h>
 #include <omniscript/Expressions/FunctionInputExpression.h>
 
-using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>;
+using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>>;
+
+namespace Omniscript {
 
 class Statement {
 public:
@@ -18,7 +20,7 @@ public:
     virtual std::shared_ptr<Statement> clone() const { return nullptr; }
 
     virtual std::shared_ptr<Statement> evaluate(SymbolTableType scope) { return nullptr; }
-    virtual std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) { return nullptr; }
+    virtual std::shared_ptr<Expression> express(SymbolTableType scope) { return nullptr; }
     virtual std::string toString() const { return "Statement"; }
 
     // ===== FileSpan Setters =====
@@ -50,35 +52,35 @@ public:
     }
 
     // From filePosition structs
-    inline void setStartPosition(const Omniscript::filePosition& start) {
+    inline void setStartPosition(const filePosition& start) {
         span.start = start;
     }
 
-    inline void setEndPosition(const Omniscript::filePosition& end) {
+    inline void setEndPosition(const filePosition& end) {
         span.end = end;
     }
 
     // From both positions
-    inline void setPosition(const Omniscript::filePosition& start, const Omniscript::filePosition& end) {
+    inline void setPosition(const filePosition& start, const filePosition& end) {
         span.start = start;
         span.end = end;
     }
 
     // From full FileSpan
-    inline void setSpan(const Omniscript::FileSpan& newSpan) {
+    inline void setSpan(const FileSpan& newSpan) {
         span = newSpan;
     }
 
     // ===== FileSpan Getters =====
-    inline const Omniscript::FileSpan& getSpan() const {
+    inline const FileSpan& getSpan() const {
         return span;
     }
 
-    inline Omniscript::filePosition getStartPosition() const {
+    inline filePosition getStartPosition() const {
         return span.start;
     }
 
-    inline Omniscript::filePosition getEndPosition() const {
+    inline filePosition getEndPosition() const {
         return span.end;
     }
 
@@ -94,7 +96,7 @@ public:
     }
 
     protected:
-        Omniscript::FileSpan span;
+        FileSpan span;
 };
 
 class Initializer : public Statement {
@@ -106,7 +108,7 @@ public:
 
     void initialize();
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
 };
 
 class NamedStatement: public virtual Statement {
@@ -127,16 +129,16 @@ public:
     virtual ~TypedStatement() = default;
 
     std::string typeName;
-    std::shared_ptr<Omniscript::Type> getType() const { return type; }
-    std::shared_ptr<Omniscript::Type> getRootType() const { return rootType; }
-    void setRootType(std::shared_ptr<Omniscript::Type> newType) { if (!rootType) { rootType = newType; } }
+    std::shared_ptr<Type> getType() const { return type; }
+    std::shared_ptr<Type> getRootType() const { return rootType; }
+    void setRootType(std::shared_ptr<Type> newType) { if (!rootType) { rootType = newType; } }
     void setTypeName(const std::string& newTypeName) { typeName = newTypeName; }
-    void setType(std::shared_ptr<Omniscript::Type> newType) { type = newType; }
+    void setType(std::shared_ptr<Type> newType) { type = newType; }
     virtual std::string toString() const override { return "TypedStatement"; }
 
 protected:
-    std::shared_ptr<Omniscript::Type> type;
-    std::shared_ptr<Omniscript::Type> rootType;
+    std::shared_ptr<Type> type;
+    std::shared_ptr<Type> rootType;
 };
     
 class ScopedStatement: public virtual TypedStatement {
@@ -254,7 +256,7 @@ public:
     virtual bool hasSideEffects() override { return false; }
 
     virtual bool isCompileTimeEvaluatable() override { return true; }
-    virtual std::shared_ptr<Literal> castTo(std::shared_ptr<Omniscript::Type> targetType) const { return nullptr; }
+    virtual std::shared_ptr<Literal> castTo(std::shared_ptr<Type> targetType) const { return nullptr; }
 };
 
 class GenericHolder {
@@ -262,7 +264,7 @@ public:
     std::vector<std::shared_ptr<Statement>> body;
     std::vector<std::string> typeParams;
 
-    std::unordered_map<std::string, std::shared_ptr<Omniscript::Type>> genericTypeMap;
+    std::unordered_map<std::string, std::shared_ptr<Type>> genericTypeMap;
 
     GenericHolder(const std::vector<std::shared_ptr<Statement>>& body = {}) : body(body) {}
 
@@ -270,11 +272,11 @@ public:
         typeParams.push_back(name);
     }
 
-    inline void bindGeneric(const std::string& name, const std::shared_ptr<Omniscript::Type>& type) {
+    inline void bindGeneric(const std::string& name, const std::shared_ptr<Type>& type) {
         genericTypeMap[name] = type;
     }
 
-    inline std::shared_ptr<Omniscript::Type> resolveGeneric(const std::string& name) const {
+    inline std::shared_ptr<Type> resolveGeneric(const std::string& name) const {
         auto it = genericTypeMap.find(name);
         return it != genericTypeMap.end() ? it->second : nullptr;
     }
@@ -307,13 +309,13 @@ public:
         }
     }
     
-    inline std::vector<std::shared_ptr<Omniscript::TypeExpression>> createTypeExpressionListFromBoundGenerics() {
-        std::vector<std::shared_ptr<Omniscript::TypeExpression>> result;
+    inline std::vector<std::shared_ptr<TypeExpression>> createTypeExpressionListFromBoundGenerics() {
+        std::vector<std::shared_ptr<TypeExpression>> result;
         result.reserve(genericTypeMap.size());
     
         for (const auto& [name, typePtr] : genericTypeMap) {
             DEBUG_LOG("Creating generic '" + name + "' of kind '" + typePtr->toString() + "'.");
-            result.emplace_back(std::make_shared<Omniscript::TypeExpression>(name, typePtr));
+            result.emplace_back(std::make_shared<TypeExpression>(name, typePtr));
         }
     
         return result;
@@ -355,8 +357,8 @@ public:
     }
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
-    std::vector<std::shared_ptr<Omniscript::Expression>> expressAsVector(SymbolTableType scope);
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
+    std::vector<std::shared_ptr<Expression>> expressAsVector(SymbolTableType scope);
     
     std::string toString() const override {
         std::string result = "Block {\n";
@@ -400,14 +402,14 @@ public:
 
 class Cast : public TypedStatement, public Expression {
     std::shared_ptr<Statement> value;
-    std::shared_ptr<Omniscript::Type> targetType;
+    std::shared_ptr<Type> targetType;
 public:
-    Cast(std::shared_ptr<Statement> value, std::shared_ptr<Omniscript::Type> targetType)
+    Cast(std::shared_ptr<Statement> value, std::shared_ptr<Type> targetType)
         : value(value), targetType(targetType) {
         setType(targetType);
     }
 
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
 
     std::string toString() const override {
         return "((" + targetType->toString() + ") " + value->toString() + ")";
@@ -436,7 +438,7 @@ public:
     }
 
     // Keep express() abstract to enforce implementation in subclasses
-    virtual std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override = 0;
+    virtual std::shared_ptr<Expression> express(SymbolTableType scope) override = 0;
 
 protected:
     std::shared_ptr<Statement> value;
@@ -451,7 +453,9 @@ protected:
 //     explicit ObjectDestructorStatement(const std::string& variableName)
 //         : variableName(variableName) {}
 //     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    // std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    // std::shared_ptr<Expression> express(SymbolTableType scope) override;
 //     std::string toString() const override { return "LiteralStatement"; }
 // };
 
+
+} // namespace Omniscript

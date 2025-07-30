@@ -36,14 +36,14 @@ bool Parser::isAssignmentExpression(TokenTypes tokenType) {
 
 std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
 
     TokenTypes variableType = TokenTypes::Let;
     std::string variableName;
-    std::shared_ptr<Omniscript::Type> type = nullptr;
+    std::shared_ptr<Type> type = nullptr;
 
     if (currentToken.getType() == TokenTypes::Let) {
         eat(TokenTypes::Let);
@@ -52,7 +52,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
         eat(TokenTypes::Const);
         variableType = TokenTypes::Const;
     } else {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Use 'let' or 'const' for variable declaration\n"
             "2. Check for correct syntax\n"
@@ -60,8 +60,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'let' or 'const' for variable declaration, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'let' or 'const' for variable declaration, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -70,7 +70,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
     }
 
     if (currentToken.getType() != TokenTypes::Identifier) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Provide a valid identifier name\n"
             "2. Check for correct variable naming syntax\n"
@@ -78,8 +78,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected identifier for variable name, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected identifier for variable name, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -92,15 +92,15 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
     if (currentToken.getType() == TokenTypes::Colon) {
         eat(TokenTypes::Colon);
         std::vector<std::string> dataTypes = parseType();
-        type = Omniscript::resolveType(dataTypes);
+        type = resolveType(dataTypes);
         if (!type) {
             std::string suggestion = "To resolve this:\n"
                                    "1. Verify type name is defined\n"
                                    "2. Check for correct type spelling\n"
                                    "3. Ensure type is imported or in scope";
             console.reportError(
-                Omniscript::Console::SEMANTIC_ERROR,
-                Omniscript::Console::formatString("Invalid type specification for variable '%s'", 
+                Console::SEMANTIC_ERROR,
+                Console::formatString("Invalid type specification for variable '%s'", 
                     variableName.c_str()),
                 suggestion,
                 span
@@ -111,7 +111,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
 
     if (currentToken.getType() != TokenTypes::Assign) {
         if (type && !type->isNullable()) {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Provide an explicit value for non-nullable type '%s'\n"
                 "2. Use '=' followed by a valid expression\n"
@@ -119,15 +119,15 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
                 type->toString().c_str()
             );
             console.reportError(
-                Omniscript::Console::SEMANTIC_ERROR,
-                Omniscript::Console::formatString("Non-nullable type '%s' for variable '%s' requires an explicit value", 
+                Console::SEMANTIC_ERROR,
+                Console::formatString("Non-nullable type '%s' for variable '%s' requires an explicit value", 
                     type->toString().c_str(), variableName.c_str()),
                 suggestion,
                 span
             );
             return nullptr;
         }
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Use '=' for assignment\n"
             "2. Check for correct assignment syntax\n"
@@ -135,8 +135,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected '=' for assignment, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected '=' for assignment, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -147,7 +147,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
 
     std::shared_ptr<Statement> lambda = parseLambdaFunction(variableName, paramTypes);
     if (!lambda) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Verify lambda function syntax\n"
             "2. Check for valid expression\n"
@@ -155,8 +155,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
             variableName.c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Failed to parse lambda function for variable '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Failed to parse lambda function for variable '%s'", 
                 variableName.c_str()),
             suggestion,
             span
@@ -190,7 +190,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
 
 std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> assignee) {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
@@ -198,7 +198,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
     TokenTypes variableType = TokenTypes::Let;
     std::string variableName;
     std::shared_ptr<Statement> value;
-    std::shared_ptr<Omniscript::Type> type;
+    std::shared_ptr<Type> type;
     bool isReference = false;
     bool isPointer = false;
     bool isArray = false;
@@ -218,7 +218,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
 
         do {
             if (currentToken.getType() != TokenTypes::Identifier) {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Provide a valid identifier name\n"
                     "2. Check for correct variable naming syntax\n"
@@ -226,8 +226,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                     getTokenTypeName(currentToken.getType()).c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected identifier for variable name, found '%s'", 
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected identifier for variable name, found '%s'", 
                         getTokenTypeName(currentToken.getType()).c_str()),
                     suggestion,
                     span
@@ -238,15 +238,15 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
             eat(TokenTypes::Identifier);
 
             std::vector<std::string> dataTypes;
-            std::shared_ptr<Omniscript::Type> currentType = nullptr;
+            std::shared_ptr<Type> currentType = nullptr;
             std::shared_ptr<Statement> currentValue = nullptr;
 
             if (currentToken.getType() == TokenTypes::Colon) {
                 eat(TokenTypes::Colon);
                 dataTypes = parseType();
-                currentType = Omniscript::resolveType(dataTypes);
+                currentType = resolveType(dataTypes);
                 if (!currentType) {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Verify type '%s' is defined\n"
                         "2. Check for correct type spelling\n"
@@ -254,8 +254,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                         join(dataTypes, ".").c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::SEMANTIC_ERROR,
-                        Omniscript::Console::formatString("Invalid type specification for variable '%s'", 
+                        Console::SEMANTIC_ERROR,
+                        Console::formatString("Invalid type specification for variable '%s'", 
                             variableName.c_str()),
                         suggestion,
                         span
@@ -269,7 +269,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                     eat(TokenTypes::Assign);
                     currentValue = parseExpression();
                     if (!currentValue) {
-                        std::string suggestion = Omniscript::Console::formatString(
+                        std::string suggestion = Console::formatString(
                             "To resolve this:\n"
                             "1. Provide a valid expression\n"
                             "2. Check for correct syntax\n"
@@ -277,8 +277,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                             currentType->toString().c_str()
                         );
                         console.reportError(
-                            Omniscript::Console::SYNTAX_ERROR,
-                            Omniscript::Console::formatString("Failed to parse expression for variable '%s'", 
+                            Console::SYNTAX_ERROR,
+                            Console::formatString("Failed to parse expression for variable '%s'", 
                                 variableName.c_str()),
                             suggestion,
                             span
@@ -290,7 +290,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                         typed->setRootType(currentType);
                     }
                 } else if (currentType && !currentType->isNullable()) {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Provide an explicit value for non-nullable type '%s'\n"
                         "2. Use '=' followed by a valid expression\n"
@@ -298,8 +298,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                         currentType->toString().c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::SEMANTIC_ERROR,
-                        Omniscript::Console::formatString("Non-nullable type '%s' for variable '%s' requires an explicit value", 
+                        Console::SEMANTIC_ERROR,
+                        Console::formatString("Non-nullable type '%s' for variable '%s' requires an explicit value", 
                             currentType->toString().c_str(), variableName.c_str()),
                         suggestion,
                         span
@@ -314,7 +314,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
         
                 std::shared_ptr<Statement> result = parseExpression();
                 if (!result) {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Provide a valid expression\n"
                         "2. Check for correct syntax\n"
@@ -322,8 +322,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                         variableName.c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
-                        Omniscript::Console::formatString("Failed to parse expression for variable '%s'", 
+                        Console::SYNTAX_ERROR,
+                        Console::formatString("Failed to parse expression for variable '%s'", 
                             variableName.c_str()),
                         suggestion,
                         span
@@ -354,7 +354,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 }
             } else {
                 if (currentType && !currentType->isNullable()) {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Provide an explicit value for non-nullable type '%s'\n"
                         "2. Use '=' followed by a valid expression\n"
@@ -362,8 +362,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                         currentType ? currentType->toString().c_str() : "unknown"
                     );
                     console.reportError(
-                        Omniscript::Console::SEMANTIC_ERROR,
-                        Omniscript::Console::formatString("Non-nullable type '%s' for variable '%s' requires an explicit value", 
+                        Console::SEMANTIC_ERROR,
+                        Console::formatString("Non-nullable type '%s' for variable '%s' requires an explicit value", 
                             currentType ? currentType->toString().c_str() : "unknown", variableName.c_str()),
                         suggestion,
                         span
@@ -420,7 +420,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                     value = std::make_shared<UnaryExpression>(TokenTypes::Decrement, assignee, UnaryExpression::Position::Postfix);
                     break;
                 default:
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Use valid unary operator ('++' or '--')\n"
                         "2. Check for correct syntax\n"
@@ -428,8 +428,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                         getTokenTypeName(currentToken.getType()).c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
-                        Omniscript::Console::formatString("Invalid unary operator, found '%s'", 
+                        Console::SYNTAX_ERROR,
+                        Console::formatString("Invalid unary operator, found '%s'", 
                             getTokenTypeName(currentToken.getType()).c_str()),
                         suggestion,
                         span
@@ -444,14 +444,14 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
             
             value = parseExpression();
             if (!value) {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Provide a valid right-hand side expression\n"
                     "2. Check for correct syntax\n"
                     "3. Ensure expression is compatible with assignee"
                 );
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
+                    Console::SYNTAX_ERROR,
                     "Failed to parse right-hand side of assignment",
                     suggestion,
                     span
@@ -490,7 +490,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                     value = std::make_shared<BinaryExpression>(assignee, TokenTypes::ShiftRight, value);
                     break;  
                 default:
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Use valid assignment operator\n"
                         "2. Valid operators: '=', '+=', '-=', '*=', '/=', '^=', '&=', '|=', '<<=', '>>='\n"
@@ -498,8 +498,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                         getTokenTypeName(currentAssignmentOperation.getType()).c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
-                        Omniscript::Console::formatString("Invalid assignment operator '%s'", 
+                        Console::SYNTAX_ERROR,
+                        Console::formatString("Invalid assignment operator '%s'", 
                             getTokenTypeName(currentAssignmentOperation.getType()).c_str()),
                         suggestion,
                         span
@@ -507,7 +507,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                     return nullptr;
             }
         } else {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use valid assignment operator\n"
                 "2. Valid operators: '=', '+=', '-=', '*=', '/=', '^=', '&=', '|=', '++', '--'\n"
@@ -515,8 +515,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected assignment operator, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected assignment operator, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -525,7 +525,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
         }
     } else {
         if (type && !type->isNullable()) {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Provide an explicit value for non-nullable type '%s'\n"
                 "2. Use '=' followed by a valid expression\n"
@@ -533,8 +533,8 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 type->toString().c_str()
             );
             console.reportError(
-                Omniscript::Console::SEMANTIC_ERROR,
-                Omniscript::Console::formatString("Non-nullable type '%s' requires an explicit intilializer", 
+                Console::SEMANTIC_ERROR,
+                Console::formatString("Non-nullable type '%s' requires an explicit intilializer", 
                     type->toString().c_str()),
                 suggestion,
                 span
@@ -585,7 +585,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                            "2. Check for correct identifier or access expression\n"
                            "3. Verify scope and accessibility";
     console.reportError(
-        Omniscript::Console::SEMANTIC_ERROR,
+        Console::SEMANTIC_ERROR,
         "The assignee is unassignable",
         suggestion,
         span

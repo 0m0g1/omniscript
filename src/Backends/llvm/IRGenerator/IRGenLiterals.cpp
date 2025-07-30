@@ -3,76 +3,76 @@
 #include <omniscript/Expressions/LiteralExpressions.h>
 
 namespace Omniscript {
-llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Omniscript::Expression> value, SymbolTableType scope) {
-    if (auto integer8 = std::dynamic_pointer_cast<Omniscript::Integer<int8_t>>(value)) {
+llvm::Value* IRGenerator::codegenPrimitive(std::shared_ptr<Expression> value, SymbolTableType scope) {
+    if (auto integer8 = std::dynamic_pointer_cast<Integer<int8_t>>(value)) {
         return create8BitInteger(integer8->getValue());
     
-    } else if (auto integer16 = std::dynamic_pointer_cast<Omniscript::Integer<int16_t>>(value)) {
+    } else if (auto integer16 = std::dynamic_pointer_cast<Integer<int16_t>>(value)) {
         return create16BitInteger(integer16->getValue());
     
-    } else if (auto integer32 = std::dynamic_pointer_cast<Omniscript::Integer<int32_t>>(value)) {
+    } else if (auto integer32 = std::dynamic_pointer_cast<Integer<int32_t>>(value)) {
         return create32BitInteger(integer32->getValue());
     
-    } else if (auto integer64 = std::dynamic_pointer_cast<Omniscript::Integer<int64_t>>(value)) {
+    } else if (auto integer64 = std::dynamic_pointer_cast<Integer<int64_t>>(value)) {
         return create64BitInteger(integer64->getValue());
 
-    } else if (auto unsignedInteger8 = std::dynamic_pointer_cast<Omniscript::Integer<uint8_t>>(value)) {
+    } else if (auto unsignedInteger8 = std::dynamic_pointer_cast<Integer<uint8_t>>(value)) {
         return createUnsigned8BitInteger(unsignedInteger8->getValue());
     
-    } else if (auto unsignedInteger16 = std::dynamic_pointer_cast<Omniscript::Integer<uint16_t>>(value)) {
+    } else if (auto unsignedInteger16 = std::dynamic_pointer_cast<Integer<uint16_t>>(value)) {
         return createUnsigned16BitInteger(unsignedInteger16->getValue());
     
-    } else if (auto unsignedInteger32 = std::dynamic_pointer_cast<Omniscript::Integer<uint32_t>>(value)) {
+    } else if (auto unsignedInteger32 = std::dynamic_pointer_cast<Integer<uint32_t>>(value)) {
         return createUnsigned32BitInteger(unsignedInteger32->getValue());
-    } else if (auto unsignedInteger64 = std::dynamic_pointer_cast<Omniscript::Integer<uint64_t>>(value)) {
+    } else if (auto unsignedInteger64 = std::dynamic_pointer_cast<Integer<uint64_t>>(value)) {
         return createUnsigned64BitInteger(unsignedInteger64->getValue());
-    } else if (auto boolean = std::dynamic_pointer_cast<Omniscript::Primitive<bool>>(value)) {
+    } else if (auto boolean = std::dynamic_pointer_cast<Primitive<bool>>(value)) {
         return createBool(boolean->getValue());
     }
 
     #ifdef __ARM_ARCH
-        else if (auto halfPrimitive = std::dynamic_pointer_cast<Omniscript::Float<__fp16>>(value)) {
+        else if (auto halfPrimitive = std::dynamic_pointer_cast<Float<__fp16>>(value)) {
             return create16BitFloat(halfPrimitive->getValue());
         }
     #elif defined(__x86_64__) || defined(__i386__)
-        else if (auto halfPrimitive = std::dynamic_pointer_cast<Omniscript::Float<_Float16>>(value)) {
+        else if (auto halfPrimitive = std::dynamic_pointer_cast<Float<_Float16>>(value)) {
             return create16BitFloat(halfPrimitive->getValue());
         }
     #endif
 
-    else if (auto floatPrimitive = std::dynamic_pointer_cast<Omniscript::Float<float>>(value)) {
+    else if (auto floatPrimitive = std::dynamic_pointer_cast<Float<float>>(value)) {
         return create32BitFloat(floatPrimitive->getValue());
     
-    } else if (auto doublePrimitive = std::dynamic_pointer_cast<Omniscript::Float<double>>(value)) {
+    } else if (auto doublePrimitive = std::dynamic_pointer_cast<Float<double>>(value)) {
         return create64BitFloat(doublePrimitive->getValue());
     
-    } else if (auto longDoublePrimitive = std::dynamic_pointer_cast<Omniscript::Float<long double>>(value)) {
+    } else if (auto longDoublePrimitive = std::dynamic_pointer_cast<Float<long double>>(value)) {
         return create80BitFloat(longDoublePrimitive->getValue());
     
-    } else if (auto fp128Primitive = std::dynamic_pointer_cast<Omniscript::Float<__float128>>(value)) {
+    } else if (auto fp128Primitive = std::dynamic_pointer_cast<Float<__float128>>(value)) {
         return create128BitFloat(fp128Primitive->getValue());
     
-    } else if (auto charPrimitive = std::dynamic_pointer_cast<Omniscript::Primitive<char>>(value)) {
+    } else if (auto charPrimitive = std::dynamic_pointer_cast<Primitive<char>>(value)) {
         DEBUG_LOG("Creating and int8 char from Primitive<char>");
         return createChar(charPrimitive->getValue());
     
-    } else if (auto stringPrimitiveUTF8 = std::dynamic_pointer_cast<Omniscript::Primitive<std::string>>(value)) {
+    } else if (auto stringPrimitiveUTF8 = std::dynamic_pointer_cast<Primitive<std::string>>(value)) {
         DEBUG_LOG("Creating UTF-8 string from Primitive<std::string>");
         return createUTF8String(stringPrimitiveUTF8->getValue());
     
-    } else if (auto stringPrimitiveUTF16 = std::dynamic_pointer_cast<Omniscript::Primitive<std::u16string>>(value)) {
+    } else if (auto stringPrimitiveUTF16 = std::dynamic_pointer_cast<Primitive<std::u16string>>(value)) {
         DEBUG_LOG("Creating UTF-16 string from Primitive<std::u16string>");
         return createUTF16String(stringPrimitiveUTF16->getValue());
     
-    } else if (auto stringPrimitiveUTF32 = std::dynamic_pointer_cast<Omniscript::Primitive<std::u32string>>(value)) {
+    } else if (auto stringPrimitiveUTF32 = std::dynamic_pointer_cast<Primitive<std::u32string>>(value)) {
         DEBUG_LOG("Creating UTF-32 string from Primitive<std::u32string>");
         return createUTF32String(stringPrimitiveUTF32->getValue());
     
-    } else if (auto bigInt = std::dynamic_pointer_cast<Omniscript::BigInt>(value)) {
+    } else if (auto bigInt = std::dynamic_pointer_cast<BigInt>(value)) {
         DEBUG_LOG("Creating a Big int");
         return createBigInt(bigInt->getValue(), bigInt->getBitWidth());
     
-    } else if (auto arry = std::dynamic_pointer_cast<Omniscript::FixedArrayExpression>(value)) {
+    } else if (auto arry = std::dynamic_pointer_cast<FixedArrayExpression>(value)) {
         DEBUG_LOG("Creating a fixed array");
         std::vector<llvm::Value*> elems;
 

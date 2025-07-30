@@ -3,6 +3,8 @@
 #include <omniscript/Target_config.h>
 #include <omniscript/Statements/CallableStatement.h>
 
+namespace Omniscript {
+
 class FunctionDeclaration : 
 public Callable, 
 public TypedStatement, 
@@ -49,7 +51,7 @@ public:
         libraryPaths.genericDynamic = path; 
     }
     
-    std::shared_ptr<Omniscript::Type> returnType;
+    std::shared_ptr<Type> returnType;
     std::vector<std::pair<std::string, std::string>> typeParams; // Generic types
     std::vector<std::shared_ptr<Statement>> parameters;
     std::shared_ptr<BlockStatement> body;
@@ -59,7 +61,7 @@ public:
         const std::string& functionName,
         const std::vector<std::shared_ptr<Statement>>& parameters,
         std::shared_ptr<BlockStatement> body,
-        std::shared_ptr<Omniscript::Type> returnType_ = nullptr // Default to nullptr if return type is unknown
+        std::shared_ptr<Type> returnType_ = nullptr // Default to nullptr if return type is unknown
     ) : parameters(parameters), body(body), Callable(parameters) {
         setType(returnType_); // Store the return type using `TypedStatement`
         returnType = getType();
@@ -68,7 +70,7 @@ public:
 
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { 
         return "Decleration Function: " + name + " returns " + ( returnType? returnType->toString() : "void"); 
     }
@@ -80,7 +82,7 @@ public:
     void setReturnTypes();
     void setReturnTypesInStatement(
         const std::shared_ptr<Statement>& stmt, 
-        std::shared_ptr<Omniscript::Type> returnType
+        std::shared_ptr<Type> returnType
     );
 
     void registerInScope(SymbolTableType scope);
@@ -100,4 +102,4 @@ public:
     }
 };
 
-    
+} // namespace Omniscript

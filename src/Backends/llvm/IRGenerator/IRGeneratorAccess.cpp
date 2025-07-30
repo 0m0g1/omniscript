@@ -2,17 +2,17 @@
 
 namespace Omniscript {
 llvm::Value* IRGenerator::handleAccessExpression(
-    std::shared_ptr<Omniscript::AccessExpression> expr, 
+    std::shared_ptr<AccessExpression> expr, 
     SymbolTableType scope
 ) {
     // First evaluate the base expression recursively
     llvm::Value* baseValue = nullptr;
 
     // Handle variable access case
-    if (auto varAcc = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(expr->expr)) {
+    if (auto varAcc = std::dynamic_pointer_cast<VariableAccessExpression>(expr->expr)) {
         baseValue = activeScope->get(varAcc->variableName);
         if (!baseValue) {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Verify variable '%s' is defined in scope '%s'\n"
                 "2. Check variable declaration\n"
@@ -20,8 +20,8 @@ llvm::Value* IRGenerator::handleAccessExpression(
                 varAcc->variableName.c_str(), scope->getName().c_str()
             );
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
-                Omniscript::Console::formatString("Variable '%s' not found in scope",
+                Console::RUNTIME_ERROR,
+                Console::formatString("Variable '%s' not found in scope",
                                  varAcc->variableName.c_str()),
                 suggestion,
                 varAcc->getSpan()
@@ -30,15 +30,15 @@ llvm::Value* IRGenerator::handleAccessExpression(
         }
     } 
     // Handle nested member access in arrow access case (like std.Math->pi)
-    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::ArrowAccessExpression>(expr)) {
-        if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(arrowAccess->expr)) {
+    else if (auto arrowAccess = std::dynamic_pointer_cast<ArrowAccessExpression>(expr)) {
+        if (auto memberAccess = std::dynamic_pointer_cast<MemberAccessExpression>(arrowAccess->expr)) {
             // First get the base value for the member access
             llvm::Value* memberBaseValue = nullptr;
-            if (auto innerVarAcc = std::dynamic_pointer_cast<Omniscript::VariableAccessExpression>(memberAccess->expr)) {
+            if (auto innerVarAcc = std::dynamic_pointer_cast<VariableAccessExpression>(memberAccess->expr)) {
                 DEBUG_LOG("Getting " + innerVarAcc->variableName);
                 memberBaseValue = activeScope->get(innerVarAcc->variableName);
                 if (!memberBaseValue) {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Verify variable '%s' is defined in scope '%s'\n"
                         "2. Check variable declaration\n"
@@ -46,8 +46,8 @@ llvm::Value* IRGenerator::handleAccessExpression(
                         innerVarAcc->variableName.c_str(), scope->getName().c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::RUNTIME_ERROR,
-                        Omniscript::Console::formatString("Variable '%s' not found in scope for member access",
+                        Console::RUNTIME_ERROR,
+                        Console::formatString("Variable '%s' not found in scope for member access",
                                          innerVarAcc->variableName.c_str()),
                         suggestion,
                         innerVarAcc->getSpan()
@@ -62,7 +62,7 @@ llvm::Value* IRGenerator::handleAccessExpression(
                                            "2. Check expression syntax and scope\n"
                                            "3. Add debug output for base expression evaluation";
                     console.reportError(
-                        Omniscript::Console::RUNTIME_ERROR,
+                        Console::RUNTIME_ERROR,
                         "Failed to evaluate base expression for member access",
                         suggestion,
                         memberAccess->expr->getSpan()
@@ -82,7 +82,7 @@ llvm::Value* IRGenerator::handleAccessExpression(
                                        "2. Check expression syntax and scope\n"
                                        "3. Add debug output for base expression evaluation";
                 console.reportError(
-                    Omniscript::Console::RUNTIME_ERROR,
+                    Console::RUNTIME_ERROR,
                     "Failed to evaluate base expression for arrow access",
                     suggestion,
                     arrowAccess->expr->getSpan()
@@ -100,7 +100,7 @@ llvm::Value* IRGenerator::handleAccessExpression(
                                    "2. Check expression syntax and scope\n"
                                    "3. Add debug output for expression evaluation";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to evaluate base expression for access",
                 suggestion,
                 expr->expr->getSpan()
@@ -110,16 +110,16 @@ llvm::Value* IRGenerator::handleAccessExpression(
     }
 
     // Handle the current access expression
-    if (auto memberAccess = std::dynamic_pointer_cast<Omniscript::MemberAccessExpression>(expr)) {
+    if (auto memberAccess = std::dynamic_pointer_cast<MemberAccessExpression>(expr)) {
         return handleMemberAccess(memberAccess, baseValue, scope);
     }
-    else if (auto arrowAccess = std::dynamic_pointer_cast<Omniscript::ArrowAccessExpression>(expr)) {
+    else if (auto arrowAccess = std::dynamic_pointer_cast<ArrowAccessExpression>(expr)) {
         return handleArrowAccess(arrowAccess, baseValue, scope);
     }
-    else if (auto derefAccess = std::dynamic_pointer_cast<Omniscript::DereferenceExpression>(expr)) {
+    else if (auto derefAccess = std::dynamic_pointer_cast<DereferenceExpression>(expr)) {
         return handleDereference(derefAccess, baseValue, scope);
     }
-    else if (auto indexAccess = std::dynamic_pointer_cast<Omniscript::IndexAccessExpression>(expr)) {
+    else if (auto indexAccess = std::dynamic_pointer_cast<IndexAccessExpression>(expr)) {
         return handleIndexAccess(indexAccess, baseValue, scope);
     }
 
@@ -128,7 +128,7 @@ llvm::Value* IRGenerator::handleAccessExpression(
                            "2. Check for correct expression type (Member, Arrow, Dereference, or Index)\n"
                            "3. Ensure proper type casting or expression setup";
     console.reportError(
-        Omniscript::Console::RUNTIME_ERROR,
+        Console::RUNTIME_ERROR,
         "Unknown access expression type",
         suggestion,
         expr->getSpan()
@@ -137,7 +137,7 @@ llvm::Value* IRGenerator::handleAccessExpression(
 }
 
 llvm::Value* IRGenerator::handleMemberAccess(
-    std::shared_ptr<Omniscript::MemberAccessExpression> expr,
+    std::shared_ptr<MemberAccessExpression> expr,
     llvm::Value* baseValue,
     SymbolTableType scope,
     bool preservePointer
@@ -146,7 +146,7 @@ llvm::Value* IRGenerator::handleMemberAccess(
     llvm::Value* currentPtr = baseValue;
 
     if (!currentType->isStructTy()) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Verify type '%s' is a struct or class\n"
             "2. Check type declaration in scope '%s'\n"
@@ -154,8 +154,8 @@ llvm::Value* IRGenerator::handleMemberAccess(
             expr->baseType.c_str(), scope->getName().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Member access requires an aggregate type (struct or class), not a '%s'",
+            Console::TYPE_ERROR,
+            Console::formatString("Member access requires an aggregate type (struct or class), not a '%s'",
                              debugType(currentType).c_str()),
             suggestion,
             expr->getSpan()
@@ -167,7 +167,7 @@ llvm::Value* IRGenerator::handleMemberAccess(
     int fieldIndex = expr->index;
 
     if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Verify field index %d is valid for struct '%s'\n"
             "2. Check struct definition\n"
@@ -175,8 +175,8 @@ llvm::Value* IRGenerator::handleMemberAccess(
             fieldIndex, expr->baseType.c_str()
         );
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
-            Omniscript::Console::formatString("Invalid field index %d for struct '%s'",
+            Console::RUNTIME_ERROR,
+            Console::formatString("Invalid field index %d for struct '%s'",
                              fieldIndex, expr->baseType.c_str()),
             suggestion,
             expr->getSpan()
@@ -195,7 +195,7 @@ llvm::Value* IRGenerator::handleMemberAccess(
                                    "2. Check assignment expression syntax\n"
                                    "3. Add debug output for assignment codegen";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to generate code for member assignment value",
                 suggestion,
                 expr->assignmentValue->getSpan()
@@ -213,7 +213,7 @@ llvm::Value* IRGenerator::handleMemberAccess(
 }
 
 llvm::Value* IRGenerator::handleArrowAccess(
-    std::shared_ptr<Omniscript::ArrowAccessExpression> expr,
+    std::shared_ptr<ArrowAccessExpression> expr,
     llvm::Value* baseValue,
     SymbolTableType scope
 ) {
@@ -224,7 +224,7 @@ llvm::Value* IRGenerator::handleArrowAccess(
                                "2. Check expression type\n"
                                "3. Verify pointer declaration";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Arrow access requires pointer type",
             suggestion,
             expr->getSpan()
@@ -248,7 +248,7 @@ llvm::Value* IRGenerator::handleArrowAccess(
                                "2. Check pointee type definition\n"
                                "3. Verify struct declaration";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Arrow access requires pointer to struct type",
             suggestion,
             expr->getSpan()
@@ -261,7 +261,7 @@ llvm::Value* IRGenerator::handleArrowAccess(
 
     // Validate field index
     if (fieldIndex < 0 || fieldIndex >= (int)structType->getNumElements()) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Verify field index %d is valid for struct\n"
             "2. Check struct definition\n"
@@ -269,8 +269,8 @@ llvm::Value* IRGenerator::handleArrowAccess(
             fieldIndex
         );
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
-            Omniscript::Console::formatString("Invalid struct field index %d", fieldIndex),
+            Console::RUNTIME_ERROR,
+            Console::formatString("Invalid struct field index %d", fieldIndex),
             suggestion,
             expr->getSpan()
         );
@@ -290,7 +290,7 @@ llvm::Value* IRGenerator::handleArrowAccess(
                                    "2. Check assignment expression syntax\n"
                                    "3. Add debug output for assignment codegen";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to generate code for arrow access assignment value",
                 suggestion,
                 expr->assignmentValue->getSpan()
@@ -310,7 +310,7 @@ llvm::Value* IRGenerator::handleArrowAccess(
 }
 
 llvm::Value* IRGenerator::handleDereference(
-    std::shared_ptr<Omniscript::DereferenceExpression> expr,
+    std::shared_ptr<DereferenceExpression> expr,
     llvm::Value* baseValue,
     SymbolTableType scope
 ) {
@@ -321,7 +321,7 @@ llvm::Value* IRGenerator::handleDereference(
                                "2. Check expression type\n"
                                "3. Verify pointer declaration";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Dereference requires pointer type",
             suggestion,
             expr->getSpan()
@@ -336,7 +336,7 @@ llvm::Value* IRGenerator::handleDereference(
                                "2. Check pointer type definition\n"
                                "3. Verify pointer initialization";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Base value is not a pointer",
             suggestion,
             expr->getSpan()
@@ -356,7 +356,7 @@ llvm::Value* IRGenerator::handleDereference(
                                    "2. Check assignment expression syntax\n"
                                    "3. Add debug output for assignment codegen";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to generate code for dereference assignment value",
                 suggestion,
                 expr->valueExpr->getSpan()
@@ -376,7 +376,7 @@ llvm::Value* IRGenerator::handleDereference(
 }
 
 llvm::Value* IRGenerator::handleIndexAccess(
-    std::shared_ptr<Omniscript::IndexAccessExpression> expr,
+    std::shared_ptr<IndexAccessExpression> expr,
     llvm::Value* baseValue,
     SymbolTableType scope
 ) {
@@ -388,7 +388,7 @@ llvm::Value* IRGenerator::handleIndexAccess(
                                "2. Check index expression syntax\n"
                                "3. Add debug output for index codegen";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Failed to generate code for index expression",
             suggestion,
             expr->indexExpr->getSpan()
@@ -403,7 +403,7 @@ llvm::Value* IRGenerator::handleIndexAccess(
                                "2. Check base type definition\n"
                                "3. Verify array or pointer declaration";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Index access requires pointer or array type",
             suggestion,
             expr->getSpan()
@@ -418,7 +418,7 @@ llvm::Value* IRGenerator::handleIndexAccess(
                                "2. Check base type declaration\n"
                                "3. Verify array or pointer initialization";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
+            Console::TYPE_ERROR,
             "Base value is neither pointer nor array",
             suggestion,
             expr->getSpan()
@@ -442,7 +442,7 @@ llvm::Value* IRGenerator::handleIndexAccess(
                                    "2. Check assignment expression syntax\n"
                                    "3. Add debug output for assignment codegen";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Failed to generate code for index assignment value",
                 suggestion,
                 expr->assignmentValue->getSpan()

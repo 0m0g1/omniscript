@@ -15,13 +15,13 @@
 
 std::shared_ptr<Statement> Parser::parseExternFunction() {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
 
     eat(TokenTypes::Extern, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Start extern declaration with 'extern' keyword\n"
             "2. Check for correct syntax\n"
@@ -29,8 +29,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'extern' keyword, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'extern' keyword, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -42,7 +42,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
 
     // Parse first path
     if (currentToken.getType() != TokenTypes::StringLiteral) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Provide a valid library path as a string literal\n"
             "2. Check extern declaration syntax\n"
@@ -50,8 +50,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected string literal for library path, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected string literal for library path, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -65,7 +65,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
     while (currentToken.getType() == TokenTypes::Comma) {
         eat(TokenTypes::Comma);
         if (currentToken.getType() != TokenTypes::StringLiteral) {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Provide a valid library path as a string literal after comma\n"
                 "2. Check extern declaration syntax\n"
@@ -73,8 +73,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected string literal for library path, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected string literal for library path, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -160,7 +160,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         libraryPaths.linuxShared.empty() && libraryPaths.linuxStatic.empty() &&
         libraryPaths.macosShared.empty() && libraryPaths.macosStatic.empty()) {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "No valid library paths found in extern declaration",
             "To resolve this:\n1. Provide at least one valid library path\n2. Ensure paths are string literals\n3. Check for supported extensions (.dll, .so, .dylib, .a, .lib)",
             span
@@ -172,7 +172,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         eat(TokenTypes::Function);
         std::string functionName = currentToken.getValue();
         eat(TokenTypes::Identifier, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Provide a valid function name after 'fn'\n"
                 "2. Check extern function syntax\n"
@@ -180,8 +180,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected identifier for function name, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected identifier for function name, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -192,7 +192,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
             parseLambdaFunction(functionName));
         if (!function) {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Failed to parse extern function declaration",
                 "To resolve this:\n1. Verify lambda function syntax\n2. Check parameter and return type syntax\n3. Ensure proper function body",
                 span
@@ -216,7 +216,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         auto assignment = std::dynamic_pointer_cast<AssignVariable>(parseAssignment());
         if (!assignment) {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Invalid assignment after let/const in extern declaration",
                 "To resolve this:\n1. Verify assignment syntax\n2. Check for valid variable declaration\n3. Ensure proper initialization",
                 span
@@ -251,7 +251,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                 eat(TokenTypes::Function);
                 std::string functionName = currentToken.getValue();
                 eat(TokenTypes::Identifier, [&]() {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Provide a valid function name after 'fn'\n"
                         "2. Check extern function syntax\n"
@@ -259,8 +259,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                         getTokenTypeName(currentToken.getType()).c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
-                        Omniscript::Console::formatString("Expected identifier for function name, found '%s'", 
+                        Console::SYNTAX_ERROR,
+                        Console::formatString("Expected identifier for function name, found '%s'", 
                             getTokenTypeName(currentToken.getType()).c_str()),
                         suggestion,
                         span
@@ -271,7 +271,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                     parseLambdaFunction(functionName));
                 if (!function) {
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
+                        Console::SYNTAX_ERROR,
                         "Failed to parse extern function in block",
                         "To resolve this:\n1. Verify lambda function syntax\n2. Check parameter and return type syntax\n3. Ensure proper function body",
                         span
@@ -291,7 +291,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                 auto assignment = std::dynamic_pointer_cast<AssignVariable>(parseAssignment());
                 if (!assignment) {
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
+                        Console::SYNTAX_ERROR,
                         "Invalid assignment after let/const in extern block",
                         "To resolve this:\n1. Verify assignment syntax\n2. Check for valid variable declaration\n3. Ensure proper initialization",
                         span
@@ -315,8 +315,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                 functions.push_back(assignment);
             } else {
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected 'fn', 'let', or 'const' in extern block, found '%s'", 
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected 'fn', 'let', or 'const' in extern block, found '%s'", 
                         getTokenTypeName(currentToken.getType()).c_str()),
                     "To resolve this:\n1. Use 'fn' for function declarations or 'let'/'const' for variable declarations\n2. Check extern block syntax\n3. Ensure valid declarations",
                     span
@@ -330,7 +330,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         }
 
         eat(TokenTypes::RightBrace, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Close extern block with '}'\n"
                 "2. Check for matching braces\n"
@@ -338,8 +338,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '}' to close extern block, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '}' to close extern block, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -357,8 +357,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
     }
 
     console.reportError(
-        Omniscript::Console::SYNTAX_ERROR,
-        Omniscript::Console::formatString("Expected 'fn', 'let', 'const', or '{' after extern library paths, found '%s'", 
+        Console::SYNTAX_ERROR,
+        Console::formatString("Expected 'fn', 'let', 'const', or '{' after extern library paths, found '%s'", 
             getTokenTypeName(currentToken.getType()).c_str()),
         "To resolve this:\n1. Use 'fn' for function declarations, 'let'/'const' for variables, or '{' for a block\n2. Check extern declaration syntax\n3. Ensure valid declarations",
         span
@@ -368,13 +368,13 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
 
 std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
 
     eat(TokenTypes::Intrinsic, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Start intrinsic declaration with 'intrinsic' keyword\n"
             "2. Check for correct syntax\n"
@@ -382,8 +382,8 @@ std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'intrinsic' keyword, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'intrinsic' keyword, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -396,7 +396,7 @@ std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
 
     std::string functionName = currentToken.getValue();
     eat(TokenTypes::Identifier, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Provide a valid function name after 'intrinsic'\n"
             "2. Check intrinsic function syntax\n"
@@ -404,8 +404,8 @@ std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected identifier for intrinsic function name, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected identifier for intrinsic function name, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -416,7 +416,7 @@ std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
         parseLambdaFunction(functionName));
     if (!function) {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "Failed to parse intrinsic function declaration",
             "To resolve this:\n1. Verify lambda function syntax\n2. Check parameter and return type syntax\n3. Ensure proper function body",
             span
@@ -438,7 +438,7 @@ std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
 
 std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     parameterType paramTypes,
-    std::shared_ptr<Omniscript::Type> type
+    std::shared_ptr<Type> type
 ) {
     return parseFunctionDeclaration("", paramTypes, type);
 }
@@ -446,10 +446,10 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
 std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     const std::string& definedName,
     parameterType paramTypes,
-    std::shared_ptr<Omniscript::Type> type
+    std::shared_ptr<Type> type
 ) {
     Token startToken = currentToken;
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
@@ -458,7 +458,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     
     if (name.empty()) {
         eat(TokenTypes::Function, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Start function declaration with 'fn' keyword\n"
                 "2. Check for correct syntax\n"
@@ -466,8 +466,8 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected 'fn' keyword, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected 'fn' keyword, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -475,7 +475,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
         });
         name = currentToken.getValue();
         eat(TokenTypes::Identifier, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Provide a valid function name after 'fn'\n"
                 "2. Check function declaration syntax\n"
@@ -483,8 +483,8 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected identifier for function name, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected identifier for function name, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -507,16 +507,16 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
 
     if (type) {
         auto param = std::make_shared<ParameterStatement>("this", nullptr, true);
-        param->setType(Omniscript::Type::createPointerType(type));
+        param->setType(Type::createPointerType(type));
         param->setSpan(span);
         parameters.insert(parameters.begin(), std::dynamic_pointer_cast<Statement>(param));
     }
 
-    std::shared_ptr<Omniscript::Type> returnType = nullptr;
+    std::shared_ptr<Type> returnType = nullptr;
     std::vector<std::string> returnDataType;
     if (currentToken.getType() != TokenTypes::LeftBrace) {
         eat(TokenTypes::Arrow, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use '=>' for return type\n"
                 "2. Check function declaration syntax\n"
@@ -524,17 +524,17 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '=>' for return type, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '=>' for return type, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
             );
         });
         returnDataType = parseType();
-        returnType = Omniscript::resolveType(returnDataType);
+        returnType = resolveType(returnDataType);
     } else {
-        returnType = Omniscript::resolveType({"void"});
+        returnType = resolveType({"void"});
     }
 
     std::shared_ptr<BlockStatement> body;
@@ -543,7 +543,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
         body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
         if (!body) {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Failed to parse function body",
                 "To resolve this:\n1. Verify block syntax\n2. Check for valid block structure\n3. Ensure block starts with '{'",
                 span
@@ -588,7 +588,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                         specializedName, clonedParameters, std::dynamic_pointer_cast<BlockStatement>(body->clone()), returnType);
                     
                     func->addGenericParam(typeParam.first);
-                    func->bindGeneric(typeParam.first, Omniscript::resolveType(constraint));
+                    func->bindGeneric(typeParam.first, resolveType(constraint));
                     func->setPosition(startToken, previousToken);
                     func->setSpan(span);
                     
@@ -630,7 +630,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
 
             for (const auto& selected : selectedTypes) {
                 if (!selected.second.empty()) {
-                    func->bindGeneric(selected.first, Omniscript::resolveType(selected.second));
+                    func->bindGeneric(selected.first, resolveType(selected.second));
                 }
             }
 
@@ -656,7 +656,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     }
 
     // Normal function without generics
-    returnType = Omniscript::resolveType(returnDataType);
+    returnType = resolveType(returnDataType);
     auto function = std::make_shared<FunctionDeclaration>(name, parameters, body, returnType);
     function->setPosition(startToken, previousToken);
     function->setSpan(span);
@@ -767,8 +767,8 @@ bool Parser::checkIfLambdaExpression() {
                                                                    "2. Check array syntax\n"
                                                                    "3. Ensure correct bracket usage";
                                             console.reportError(
-                                                Omniscript::Console::SYNTAX_ERROR,
-                                                Omniscript::Console::formatString("Expected integer or identifier for array size, got '%s'",
+                                                Console::SYNTAX_ERROR,
+                                                Console::formatString("Expected integer or identifier for array size, got '%s'",
                                                                  getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                                 suggestion
                                             );
@@ -782,8 +782,8 @@ bool Parser::checkIfLambdaExpression() {
                                                                    "2. Check for matching brackets\n"
                                                                    "3. Verify array syntax";
                                             console.reportError(
-                                                Omniscript::Console::SYNTAX_ERROR,
-                                                Omniscript::Console::formatString("Expected ']' to close array type, got '%s'",
+                                                Console::SYNTAX_ERROR,
+                                                Console::formatString("Expected ']' to close array type, got '%s'",
                                                                  getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                                 suggestion
                                             );
@@ -803,8 +803,8 @@ bool Parser::checkIfLambdaExpression() {
                                                            "2. Check function parameter syntax\n"
                                                            "3. Ensure valid parameter declarations";
                                     console.reportError(
-                                        Omniscript::Console::SYNTAX_ERROR,
-                                        Omniscript::Console::formatString("Expected ',' or ')', got '%s'",
+                                        Console::SYNTAX_ERROR,
+                                        Console::formatString("Expected ',' or ')', got '%s'",
                                                          getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                         suggestion
                                     );
@@ -844,8 +844,8 @@ bool Parser::checkIfLambdaExpression() {
                                                                    "2. Check array syntax\n"
                                                                    "3. Ensure correct bracket usage";
                                             console.reportError(
-                                                Omniscript::Console::SYNTAX_ERROR,
-                                                Omniscript::Console::formatString("Expected integer or identifier for array size, got '%s'",
+                                                Console::SYNTAX_ERROR,
+                                                Console::formatString("Expected integer or identifier for array size, got '%s'",
                                                                  getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                                 suggestion
                                             );
@@ -859,8 +859,8 @@ bool Parser::checkIfLambdaExpression() {
                                                                    "2. Check for matching brackets\n"
                                                                    "3. Verify array syntax";
                                             console.reportError(
-                                                Omniscript::Console::SYNTAX_ERROR,
-                                                Omniscript::Console::formatString("Expected ']' to close array type, got '%s'",
+                                                Console::SYNTAX_ERROR,
+                                                Console::formatString("Expected ']' to close array type, got '%s'",
                                                                  getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                                 suggestion
                                             );
@@ -893,8 +893,8 @@ bool Parser::checkIfLambdaExpression() {
                                                            "2. Check dotted type syntax (e.g., std.vector)\n"
                                                            "3. Ensure type is defined";
                                     console.reportError(
-                                        Omniscript::Console::SYNTAX_ERROR,
-                                        Omniscript::Console::formatString("Expected identifier after '.', got '%s'",
+                                        Console::SYNTAX_ERROR,
+                                        Console::formatString("Expected identifier after '.', got '%s'",
                                                          getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                         suggestion
                                     );
@@ -907,8 +907,8 @@ bool Parser::checkIfLambdaExpression() {
                                                    "2. Check type annotation syntax\n"
                                                    "3. Ensure type is defined";
                             console.reportError(
-                                Omniscript::Console::SYNTAX_ERROR,
-                                Omniscript::Console::formatString("Expected type identifier, got '%s'",
+                                Console::SYNTAX_ERROR,
+                                Console::formatString("Expected type identifier, got '%s'",
                                                  getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                 suggestion
                             );
@@ -932,8 +932,8 @@ bool Parser::checkIfLambdaExpression() {
                                                        "2. Check array syntax\n"
                                                        "3. Ensure correct bracket usage";
                                 console.reportError(
-                                    Omniscript::Console::SYNTAX_ERROR,
-                                    Omniscript::Console::formatString("Expected integer or identifier for array size, got '%s'",
+                                    Console::SYNTAX_ERROR,
+                                    Console::formatString("Expected integer or identifier for array size, got '%s'",
                                                      getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                     suggestion
                                 );
@@ -947,8 +947,8 @@ bool Parser::checkIfLambdaExpression() {
                                                        "2. Check for matching brackets\n"
                                                        "3. Verify array syntax";
                                 console.reportError(
-                                    Omniscript::Console::SYNTAX_ERROR,
-                                    Omniscript::Console::formatString("Expected ']' to close array type, got '%s'",
+                                    Console::SYNTAX_ERROR,
+                                    Console::formatString("Expected ']' to close array type, got '%s'",
                                                      getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                     suggestion
                                 );
@@ -972,8 +972,8 @@ bool Parser::checkIfLambdaExpression() {
                                                "2. Check default value syntax\n"
                                                "3. Ensure valid expression";
                         console.reportError(
-                            Omniscript::Console::SYNTAX_ERROR,
-                            Omniscript::Console::formatString("Expected valid default value, got '%s'",
+                            Console::SYNTAX_ERROR,
+                            Console::formatString("Expected valid default value, got '%s'",
                                              getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                             suggestion
                         );
@@ -989,8 +989,8 @@ bool Parser::checkIfLambdaExpression() {
                                            "2. Check parameter syntax\n"
                                            "3. Ensure valid parameter declarations";
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
-                        Omniscript::Console::formatString("Expected ',' or ')', got '%s'",
+                        Console::SYNTAX_ERROR,
+                        Console::formatString("Expected ',' or ')', got '%s'",
                                          getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                         suggestion
                     );
@@ -1002,8 +1002,8 @@ bool Parser::checkIfLambdaExpression() {
                                        "2. Check parameter syntax\n"
                                        "3. Ensure valid identifier";
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected parameter name, got '%s'",
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected parameter name, got '%s'",
                                      getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                     suggestion
                 );
@@ -1043,8 +1043,8 @@ bool Parser::checkIfLambdaExpression() {
                                                        "2. Check dotted type syntax (e.g., std.vector)\n"
                                                        "3. Ensure type is defined";
                                 console.reportError(
-                                    Omniscript::Console::SYNTAX_ERROR,
-                                    Omniscript::Console::formatString("Expected identifier after '.', got '%s'",
+                                    Console::SYNTAX_ERROR,
+                                    Console::formatString("Expected identifier after '.', got '%s'",
                                                      getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                     suggestion
                                 );
@@ -1057,8 +1057,8 @@ bool Parser::checkIfLambdaExpression() {
                                                "2. Check return type syntax\n"
                                                "3. Ensure type is defined";
                         console.reportError(
-                            Omniscript::Console::SYNTAX_ERROR,
-                            Omniscript::Console::formatString("Expected return type identifier, got '%s'",
+                            Console::SYNTAX_ERROR,
+                            Console::formatString("Expected return type identifier, got '%s'",
                                              getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                             suggestion
                         );
@@ -1082,8 +1082,8 @@ bool Parser::checkIfLambdaExpression() {
                                                    "2. Check array syntax\n"
                                                    "3. Ensure correct bracket usage";
                             console.reportError(
-                                Omniscript::Console::SYNTAX_ERROR,
-                                Omniscript::Console::formatString("Expected integer or identifier for array size, got '%s'",
+                                Console::SYNTAX_ERROR,
+                                Console::formatString("Expected integer or identifier for array size, got '%s'",
                                                  getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                 suggestion
                             );
@@ -1097,8 +1097,8 @@ bool Parser::checkIfLambdaExpression() {
                                                    "2. Check for matching brackets\n"
                                                    "3. Verify array syntax";
                             console.reportError(
-                                Omniscript::Console::SYNTAX_ERROR,
-                                Omniscript::Console::formatString("Expected ']' to close array type, got '%s'",
+                                Console::SYNTAX_ERROR,
+                                Console::formatString("Expected ']' to close array type, got '%s'",
                                                  getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                                 suggestion
                             );
@@ -1117,8 +1117,8 @@ bool Parser::checkIfLambdaExpression() {
                                    "2. Check for matching parentheses\n"
                                    "3. Verify parameter syntax";
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected ')', got '%s'",
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected ')', got '%s'",
                                  getTokenTypeName(lexer.peekToken(i).getType()).c_str()),
                 suggestion
             );
@@ -1132,7 +1132,7 @@ bool Parser::checkIfLambdaExpression() {
 std::shared_ptr<Statement> Parser::parseLambdaFunction(
     const std::string& lambdaName,
     parameterType paramTypes,
-    std::shared_ptr<Omniscript::Type> type
+    std::shared_ptr<Type> type
 ) {
     static int anonCounter = 0;
     if (lambdaName.empty()) {

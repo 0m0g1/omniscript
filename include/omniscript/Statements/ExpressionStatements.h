@@ -1,6 +1,8 @@
 #pragma once
 #include <omniscript/Statement.h>
 
+namespace Omniscript {
+
 class UnaryExpression : public TypedStatement, public Expression {
 public:
     enum class Position { Prefix, Postfix };
@@ -17,7 +19,7 @@ public:
 
     // Code generation method
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override {
         std::string opStr = op.getValue();
         std::string operandStr = operand ? operand->toString() : "<null>";
@@ -51,7 +53,7 @@ public:
     
     // Method to evaluate the binary expression
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override {
         std::string leftStr = left ? left->toString() : "null";
         std::string rightStr = right ? right->toString() : "null";
@@ -87,7 +89,7 @@ public TypedStatement {
         condition(condition), truthy(truthy), falsey(falsey) {}
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override {
         std::string condStr   = condition ? condition->toString() : "<null>";
         std::string truthyStr = truthy ? truthy->toString() : "<null>";
@@ -109,3 +111,5 @@ public TypedStatement {
         std::shared_ptr<Statement> truthy;
         std::shared_ptr<Statement> falsey;
 };
+
+}// namespace Omniscript

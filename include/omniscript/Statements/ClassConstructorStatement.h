@@ -1,11 +1,13 @@
 #pragma once
 #include <omniscript/Statement.h>
 
+namespace Omniscript {
+
 class ClassMember : public Member, public TypedStatement {
 public:
     ClassMember(
         const std::string& memberName,
-        std::shared_ptr<Omniscript::Type> memberType,
+        std::shared_ptr<Type> memberType,
         std::shared_ptr<Statement> defaultValue,
         const MemberModifiers& memberModifiers
     ) : Member(memberName, defaultValue, memberModifiers) {
@@ -14,7 +16,7 @@ public:
 
     std::shared_ptr<Statement> getDefaultValue() const { return value; }
 
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
 
     std::string toString() const override {
         return "ClassMember(" + modifiers.toString() + name + ")";
@@ -30,7 +32,7 @@ public:
     
     std::string getName() const override { return name; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
-    std::shared_ptr<Omniscript::Expression> express(SymbolTableType scope) override;
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { return "Construct Class: " + name; }
     std::string formatError(const std::string& msg) const override {
         return "Error while construting class '" + name + "'.\n" + msg;
@@ -41,3 +43,5 @@ private:
     std::vector<std::string> parentClasses;
     std::vector<std::shared_ptr<ClassMember>> body;
 };
+
+} //namespace Omniscript

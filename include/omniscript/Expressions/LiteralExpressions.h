@@ -11,10 +11,10 @@ struct Primitive : public Expression {
                     std::is_same_v<T, std::u16string> ||
                     std::is_same_v<T, std::u32string>
                 ) {
-            auto charType = Omniscript::Type::createPrimitiveType(Omniscript::Kind::Char);
-            auto stringType = Omniscript::Type::createPointerType(this->type);
+            auto charType = Type::createPrimitiveType(Kind::Char);
+            auto stringType = Type::createPointerType(this->type);
             this->type = stringType;
-            this->rootType = Omniscript::Type::createPointerType(charType);
+            this->rootType = Type::createPointerType(charType);
         }
     }
 

@@ -15,6 +15,8 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
 
+namespace Omniscript {
+
 MemberAccess::MemberAccess(const std::string& obj, const std::string& member, std::shared_ptr<Statement> assignVal) {
     this->objectName = obj;
     this->memberName = member;
@@ -57,14 +59,14 @@ std::shared_ptr<Statement> MemberAccess::evaluate(SymbolTableType scope) {
     return nullptr; // Evaluation logic to be filled
 }
 
-std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     // Validate access context chain
     validateAccessChain(scope);
     
     // Get base expression and type info using public methods
-    std::shared_ptr<Omniscript::Expression> baseExpr;
+    std::shared_ptr<Expression> baseExpr;
     std::string baseTypeName;
     std::string resolvedObjectName;
     
@@ -78,7 +80,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             console.error("Variable '" + objectName + "' not found in scope");
             return nullptr;
         }
-        baseExpr = std::make_shared<Omniscript::VariableAccessExpression>(objectName, expr->getType());
+        baseExpr = std::make_shared<VariableAccessExpression>(objectName, expr->getType());
         baseTypeName = extractTypeName(expr->getType());
         resolvedObjectName = objectName;
     } else {
@@ -133,7 +135,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             
             // Wrap it in a ReferenceTo to get the address
             auto thisRef = std::make_shared<ReferenceTo>(thisArgument);
-            thisRef->setType(Omniscript::Type::createPointerType(baseExpr->getType()));
+            thisRef->setType(Type::createPointerType(baseExpr->getType()));
             thisRef->setRootType(thisRef->getType());
             
             // Insert the object reference as the first argument
@@ -151,7 +153,7 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
             // IMPORTANT: Don't set access context on the method call to avoid contextual name building
             auto methodCall = std::make_shared<Call>(methodName, methodArgs);
             // methodCall->setAccessContext(accessContext); // Remove this line!
-            methodCall->setSpan(getSpan());
+            methodCall->setSpan(this->getSpan());
             
             // Express the call to get the final CallExpression
             return methodCall->express(scope);
@@ -181,12 +183,12 @@ std::shared_ptr<Omniscript::Expression> MemberAccess::express(SymbolTableType sc
     }
     
     // Create final expression
-    auto result = std::make_shared<Omniscript::MemberAccessExpression>(
+    auto result = std::make_shared<MemberAccessExpression>(
         baseExpr, baseTypeName, resolvedObjectName, memberName, 
         memberIndex, type, assignmentExpr
     );
     result->type = type;
-    result->setSpan(getSpan());
+    result->setSpan(this->getSpan());
     return result;
 }
 
@@ -228,7 +230,7 @@ void MemberAccess::validateAccessChain(SymbolTableType scope) {
     }
 }
 
-std::tuple<std::shared_ptr<Omniscript::Expression>, std::string, std::string> 
+std::tuple<std::shared_ptr<Expression>, std::string, std::string> 
 MemberAccess::resolveBaseExpression(SymbolTableType scope) {
     DEBUG_LOG("The object is " + (object ? object->toString() : "null"));
     
@@ -255,7 +257,7 @@ MemberAccess::resolveBaseExpression(SymbolTableType scope) {
     return {baseExpr, baseTypeName, ""};
 }
 
-std::tuple<std::shared_ptr<Omniscript::Expression>, std::string, std::string>
+std::tuple<std::shared_ptr<Expression>, std::string, std::string>
 MemberAccess::resolveVariableBase(SymbolTableType scope, const std::string& varName) {
     auto [expr, resolvedName] = findVariableInScope(scope, varName);
     if (!expr) {
@@ -264,13 +266,13 @@ MemberAccess::resolveVariableBase(SymbolTableType scope, const std::string& varN
     }
     
     auto baseTypeName = extractTypeName(expr->getType());
-    auto baseExpr = std::make_shared<Omniscript::VariableAccessExpression>(resolvedName, expr->getType());
+    auto baseExpr = std::make_shared<VariableAccessExpression>(resolvedName, expr->getType());
     
     DEBUG_LOG("Resolved variable '" + varName + "' as type '" + baseTypeName + "'");
     return {baseExpr, baseTypeName, resolvedName};
 }
 
-std::tuple<std::shared_ptr<Omniscript::Expression>, std::string, std::string>
+std::tuple<std::shared_ptr<Expression>, std::string, std::string>
 MemberAccess::resolveChainedAccess(SymbolTableType scope, std::shared_ptr<MemberAccess> memberAcc) {
     auto baseExpr = memberAcc->express(scope);
     if (!baseExpr) {
@@ -285,7 +287,7 @@ MemberAccess::resolveChainedAccess(SymbolTableType scope, std::shared_ptr<Member
     return {baseExpr, baseTypeName, resolvedName};
 }
 
-std::pair<std::shared_ptr<Omniscript::Expression>, std::string>
+std::pair<std::shared_ptr<Expression>, std::string>
 MemberAccess::findVariableInScope(SymbolTableType scope, const std::string& varName) {
     // Try direct lookup first
     if (auto expr = scope->get(varName)) {
@@ -308,15 +310,15 @@ MemberAccess::findVariableInScope(SymbolTableType scope, const std::string& varN
     return {nullptr, ""};
 }
 
-std::string MemberAccess::extractTypeName(std::shared_ptr<Omniscript::Type> type) {
+std::string MemberAccess::extractTypeName(std::shared_ptr<Type> type) {
     auto pointee = type->getBasePointeeType();
     
-    if (auto udt = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(type)) {
+    if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
         DEBUG_LOG("Direct type: " + udt->toString());
         return udt->name;
     }
     
-    if (auto udt = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(pointee)) {
+    if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(pointee)) {
         DEBUG_LOG("Pointee type: " + udt->toString());
         return udt->name;
     }
@@ -329,9 +331,9 @@ std::string MemberAccess::extractTypeName(std::shared_ptr<Omniscript::Type> type
     return "<null>";
 }
 
-std::shared_ptr<Omniscript::UserDefinedType> 
+std::shared_ptr<UserDefinedType> 
 MemberAccess::getUserDefinedType(SymbolTableType scope, const std::string& typeName) {
-    auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(scope->getType(typeName));
+    auto userType = std::dynamic_pointer_cast<UserDefinedType>(scope->getType(typeName));
     if (!userType) {
         if (auto type = scope->getType(typeName)) {
             DEBUG_LOG("Found type but not UDT: " + type->toString());
@@ -343,7 +345,7 @@ MemberAccess::getUserDefinedType(SymbolTableType scope, const std::string& typeN
     return userType;
 }
 
-int MemberAccess::findMemberIndex(std::shared_ptr<Omniscript::UserDefinedType> userType) {
+int MemberAccess::findMemberIndex(std::shared_ptr<UserDefinedType> userType) {
     for (int i = 0; i < userType->paramTypes.size(); ++i) {
         if (userType->paramTypes[i]->getParameterName() == memberName) {
             setType(userType->paramTypes[i]);
@@ -355,7 +357,7 @@ int MemberAccess::findMemberIndex(std::shared_ptr<Omniscript::UserDefinedType> u
     return -1;
 }
 
-std::shared_ptr<Omniscript::Expression> 
+std::shared_ptr<Expression> 
 MemberAccess::processAssignment(SymbolTableType scope) {
     if (!assignmentValue) {
         return nullptr;
@@ -374,3 +376,5 @@ MemberAccess::processAssignment(SymbolTableType scope) {
     
     return assignmentExpr;
 }
+
+} // namespace Omniscript

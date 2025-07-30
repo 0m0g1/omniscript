@@ -13,7 +13,7 @@
 namespace Omniscript {
 
 LLVMJITBackend::LLVMJITBackend() {
-    scope = std::make_shared<SymbolTable<std::shared_ptr<Omniscript::Expression>, std::shared_ptr<Omniscript::Type>>>();
+    scope = std::make_shared<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>>();
     initialize();
 }
 
@@ -218,7 +218,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         checkTimeLimit(config);
         
         if (peakMemoryUsage > config.maxMemoryUsage) {
-            std::string message = Omniscript::Console::formatString(
+            std::string message = Console::formatString(
                 "Compilation stopped because the program used %d MB of memory, exceeding your limit of %d MB.",
                 peakMemoryUsage / (1024 * 1024), config.maxMemoryUsage / (1024 * 1024)
             );
@@ -227,12 +227,12 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
                                     "2. Simplify your code by reducing large arrays or structs.\n"
                                     "3. Check for infinite loops or recursive functions that might consume too much memory.\n"
                                     "See compiler options at: https://github.com/0m0g1/omniscript/blob/main/docs/Compiler.md";
-            console.reportError(Omniscript::Console::ErrorType::RUNTIME_ERROR, message, suggestion);
+            console.reportError(Console::ErrorType::RUNTIME_ERROR, message, suggestion);
             throw std::runtime_error("Compilation memory limit exceeded");
         }
 
         DEBUG_LOG("Evaluating " + statement->toString());
-        Omniscript::setSpan(statement->getSpan());
+        setSpan(statement->getSpan());
         auto expr = statement->express(scope);
         if (!expr) {
             if (config.errorHandling.mode == ErrorRecoveryMode::StopOnFirst) {

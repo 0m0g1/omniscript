@@ -98,7 +98,7 @@ bool Parser::isGenericCallOrConstructor() {
 }
 
 parameterType Parser::parseTypeParametersForDeclaration() {
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = currentToken.getLine();
     span.start.col = currentToken.getColumn();
     span.start.filePath = currentToken.getFilePath();
@@ -107,7 +107,7 @@ parameterType Parser::parseTypeParametersForDeclaration() {
 
     if (currentToken.getType() == TokenTypes::LessThan) {
         eat(TokenTypes::LessThan, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Start type parameters with '<'\n"
                 "2. Check generic type syntax\n"
@@ -115,8 +115,8 @@ parameterType Parser::parseTypeParametersForDeclaration() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '<' for type parameters, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '<' for type parameters, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -126,7 +126,7 @@ parameterType Parser::parseTypeParametersForDeclaration() {
         while (currentToken.getType() == TokenTypes::Identifier) {
             std::string typeName = currentToken.getValue();
             eat(TokenTypes::Identifier, [&]() {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Provide a valid type parameter name\n"
                     "2. Check generic type syntax\n"
@@ -134,8 +134,8 @@ parameterType Parser::parseTypeParametersForDeclaration() {
                     getTokenTypeName(currentToken.getType()).c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected identifier for type parameter, found '%s'", 
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected identifier for type parameter, found '%s'", 
                         getTokenTypeName(currentToken.getType()).c_str()),
                     suggestion,
                     span
@@ -146,7 +146,7 @@ parameterType Parser::parseTypeParametersForDeclaration() {
 
             if (currentToken.getType() == TokenTypes::Extends) {
                 eat(TokenTypes::Extends, [&]() {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Use 'extends' for type constraints\n"
                         "2. Check constraint syntax\n"
@@ -154,8 +154,8 @@ parameterType Parser::parseTypeParametersForDeclaration() {
                         getTokenTypeName(currentToken.getType()).c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
-                        Omniscript::Console::formatString("Expected 'extends' for type constraint, found '%s'", 
+                        Console::SYNTAX_ERROR,
+                        Console::formatString("Expected 'extends' for type constraint, found '%s'", 
                             getTokenTypeName(currentToken.getType()).c_str()),
                         suggestion,
                         span
@@ -173,7 +173,7 @@ parameterType Parser::parseTypeParametersForDeclaration() {
                         std::vector<std::string> parsedType = parseType();
                         if (parsedType.empty()) {
                             console.reportError(
-                                Omniscript::Console::SYNTAX_ERROR,
+                                Console::SYNTAX_ERROR,
                                 "Invalid type constraint",
                                 "To resolve this:\n1. Provide a valid type constraint\n2. Check type syntax\n3. Ensure valid type or identifier",
                                 span
@@ -185,7 +185,7 @@ parameterType Parser::parseTypeParametersForDeclaration() {
 
                     if (currentToken.getType() == TokenTypes::BitwiseOr) {
                         eat(TokenTypes::BitwiseOr, [&]() {
-                            std::string suggestion = Omniscript::Console::formatString(
+                            std::string suggestion = Console::formatString(
                                 "To resolve this:\n"
                                 "1. Use '|' for multiple type constraints\n"
                                 "2. Check constraint syntax\n"
@@ -193,8 +193,8 @@ parameterType Parser::parseTypeParametersForDeclaration() {
                                 getTokenTypeName(currentToken.getType()).c_str()
                             );
                             console.reportError(
-                                Omniscript::Console::SYNTAX_ERROR,
-                                Omniscript::Console::formatString("Expected '|' for type constraint union, found '%s'", 
+                                Console::SYNTAX_ERROR,
+                                Console::formatString("Expected '|' for type constraint union, found '%s'", 
                                     getTokenTypeName(currentToken.getType()).c_str()),
                                 suggestion,
                                 span
@@ -219,7 +219,7 @@ parameterType Parser::parseTypeParametersForDeclaration() {
 
             if (currentToken.getType() == TokenTypes::Comma) {
                 eat(TokenTypes::Comma, [&]() {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Use ',' to separate type parameters\n"
                         "2. Check generic type syntax\n"
@@ -227,8 +227,8 @@ parameterType Parser::parseTypeParametersForDeclaration() {
                         getTokenTypeName(currentToken.getType()).c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
-                        Omniscript::Console::formatString("Expected ',' between type parameters, found '%s'", 
+                        Console::SYNTAX_ERROR,
+                        Console::formatString("Expected ',' between type parameters, found '%s'", 
                             getTokenTypeName(currentToken.getType()).c_str()),
                         suggestion,
                         span
@@ -240,7 +240,7 @@ parameterType Parser::parseTypeParametersForDeclaration() {
         }
 
         eat(TokenTypes::GreaterThan, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Close type parameters with '>'\n"
                 "2. Check generic type syntax\n"
@@ -248,8 +248,8 @@ parameterType Parser::parseTypeParametersForDeclaration() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '>' to close type parameters, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '>' to close type parameters, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -265,7 +265,7 @@ parameterType Parser::parseTypeParametersForDeclaration() {
 }
 
 std::vector<std::string> Parser::parseType() {
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = currentToken.getLine();
     span.start.col = currentToken.getColumn();
     span.start.filePath = currentToken.getFilePath();
@@ -281,7 +281,7 @@ std::vector<std::string> Parser::parseType() {
         dataTypes.push_back("fn");
         prevColumn = currentToken.getColumn();
         eat(TokenTypes::Function, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use 'fn' for function type\n"
                 "2. Check function type syntax\n"
@@ -289,8 +289,8 @@ std::vector<std::string> Parser::parseType() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected 'fn' for function type, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected 'fn' for function type, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -301,7 +301,7 @@ std::vector<std::string> Parser::parseType() {
             dataTypes.push_back("(");
             prevColumn = currentToken.getColumn();
             eat(TokenTypes::LeftParen, [&]() {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Start parameter list with '('\n"
                     "2. Check function type syntax\n"
@@ -309,8 +309,8 @@ std::vector<std::string> Parser::parseType() {
                     getTokenTypeName(currentToken.getType()).c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected '(' for function parameters, found '%s'", 
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected '(' for function parameters, found '%s'", 
                         getTokenTypeName(currentToken.getType()).c_str()),
                     suggestion,
                     span
@@ -324,7 +324,7 @@ std::vector<std::string> Parser::parseType() {
                         dataTypes.push_back(currentToken.getValue());
                         prevColumn = currentToken.getColumn();
                         eat(TokenTypes::Identifier, [&]() {
-                            std::string suggestion = Omniscript::Console::formatString(
+                            std::string suggestion = Console::formatString(
                                 "To resolve this:\n"
                                 "1. Provide a valid parameter name\n"
                                 "2. Check function parameter syntax\n"
@@ -332,8 +332,8 @@ std::vector<std::string> Parser::parseType() {
                                 getTokenTypeName(currentToken.getType()).c_str()
                             );
                             console.reportError(
-                                Omniscript::Console::SYNTAX_ERROR,
-                                Omniscript::Console::formatString("Expected identifier for parameter name, found '%s'", 
+                                Console::SYNTAX_ERROR,
+                                Console::formatString("Expected identifier for parameter name, found '%s'", 
                                     getTokenTypeName(currentToken.getType()).c_str()),
                                 suggestion,
                                 span
@@ -343,7 +343,7 @@ std::vector<std::string> Parser::parseType() {
                         dataTypes.push_back(":");
                         prevColumn = currentToken.getColumn();
                         eat(TokenTypes::Colon, [&]() {
-                            std::string suggestion = Omniscript::Console::formatString(
+                            std::string suggestion = Console::formatString(
                                 "To resolve this:\n"
                                 "1. Use ':' after parameter name\n"
                                 "2. Check function parameter syntax\n"
@@ -351,8 +351,8 @@ std::vector<std::string> Parser::parseType() {
                                 getTokenTypeName(currentToken.getType()).c_str()
                             );
                             console.reportError(
-                                Omniscript::Console::SYNTAX_ERROR,
-                                Omniscript::Console::formatString("Expected ':' after parameter name, found '%s'", 
+                                Console::SYNTAX_ERROR,
+                                Console::formatString("Expected ':' after parameter name, found '%s'", 
                                     getTokenTypeName(currentToken.getType()).c_str()),
                                 suggestion,
                                 span
@@ -364,7 +364,7 @@ std::vector<std::string> Parser::parseType() {
                 std::vector<std::string> paramType = parseType();
                 if (paramType.empty()) {
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
+                        Console::SYNTAX_ERROR,
                         "Invalid parameter type",
                         "To resolve this:\n1. Provide a valid parameter type\n2. Check type syntax\n3. Ensure valid type or identifier",
                         span
@@ -377,7 +377,7 @@ std::vector<std::string> Parser::parseType() {
                     dataTypes.push_back(",");
                     prevColumn = currentToken.getColumn();
                     eat(TokenTypes::Comma, [&]() {
-                        std::string suggestion = Omniscript::Console::formatString(
+                        std::string suggestion = Console::formatString(
                             "To resolve this:\n"
                             "1. Use ',' to separate parameters\n"
                             "2. Check function parameter syntax\n"
@@ -385,8 +385,8 @@ std::vector<std::string> Parser::parseType() {
                             getTokenTypeName(currentToken.getType()).c_str()
                         );
                         console.reportError(
-                            Omniscript::Console::SYNTAX_ERROR,
-                            Omniscript::Console::formatString("Expected ',' between parameters, found '%s'", 
+                            Console::SYNTAX_ERROR,
+                            Console::formatString("Expected ',' between parameters, found '%s'", 
                                 getTokenTypeName(currentToken.getType()).c_str()),
                             suggestion,
                             span
@@ -394,8 +394,8 @@ std::vector<std::string> Parser::parseType() {
                     });
                 } else if (currentToken.getType() != TokenTypes::RightParen) {
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
-                        Omniscript::Console::formatString("Expected ',' or ')' after parameter, found '%s'", 
+                        Console::SYNTAX_ERROR,
+                        Console::formatString("Expected ',' or ')' after parameter, found '%s'", 
                             getTokenTypeName(currentToken.getType()).c_str()),
                         "To resolve this:\n1. Separate parameters with ',' or close with ')'\n2. Check function parameter syntax\n3. Ensure valid termination",
                         span
@@ -407,7 +407,7 @@ std::vector<std::string> Parser::parseType() {
             dataTypes.push_back(")");
             prevColumn = currentToken.getColumn();
             eat(TokenTypes::RightParen, [&]() {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Close parameter list with ')'\n"
                     "2. Check function type syntax\n"
@@ -415,8 +415,8 @@ std::vector<std::string> Parser::parseType() {
                     getTokenTypeName(currentToken.getType()).c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected ')' to close function parameters, found '%s'", 
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected ')' to close function parameters, found '%s'", 
                         getTokenTypeName(currentToken.getType()).c_str()),
                     suggestion,
                     span
@@ -431,7 +431,7 @@ std::vector<std::string> Parser::parseType() {
                     dataTypes.push_back("=>");
                     prevColumn = currentToken.getColumn();
                     eat(TokenTypes::Arrow, [&]() {
-                        std::string suggestion = Omniscript::Console::formatString(
+                        std::string suggestion = Console::formatString(
                             "To resolve this:\n"
                             "1. Use '=>' for return type\n"
                             "2. Check function type syntax\n"
@@ -439,8 +439,8 @@ std::vector<std::string> Parser::parseType() {
                             getTokenTypeName(currentToken.getType()).c_str()
                         );
                         console.reportError(
-                            Omniscript::Console::SYNTAX_ERROR,
-                            Omniscript::Console::formatString("Expected '=>' for return type, found '%s'", 
+                            Console::SYNTAX_ERROR,
+                            Console::formatString("Expected '=>' for return type, found '%s'", 
                                 getTokenTypeName(currentToken.getType()).c_str()),
                             suggestion,
                             span
@@ -448,7 +448,7 @@ std::vector<std::string> Parser::parseType() {
                     });
                 } else {
                     eat(TokenTypes::Assign, [&]() {
-                        std::string suggestion = Omniscript::Console::formatString(
+                        std::string suggestion = Console::formatString(
                             "To resolve this:\n"
                             "1. Use '=' for return type arrow\n"
                             "2. Check function type syntax\n"
@@ -456,8 +456,8 @@ std::vector<std::string> Parser::parseType() {
                             getTokenTypeName(currentToken.getType()).c_str()
                         );
                         console.reportError(
-                            Omniscript::Console::SYNTAX_ERROR,
-                            Omniscript::Console::formatString("Expected '=' for return type arrow, found '%s'", 
+                            Console::SYNTAX_ERROR,
+                            Console::formatString("Expected '=' for return type arrow, found '%s'", 
                                 getTokenTypeName(currentToken.getType()).c_str()),
                             suggestion,
                             span
@@ -466,7 +466,7 @@ std::vector<std::string> Parser::parseType() {
                     dataTypes.push_back("=>");
                     prevColumn = currentToken.getColumn();
                     eat(TokenTypes::GreaterThan, [&]() {
-                        std::string suggestion = Omniscript::Console::formatString(
+                        std::string suggestion = Console::formatString(
                             "To resolve this:\n"
                             "1. Use '>' to complete '=>' arrow\n"
                             "2. Check function type syntax\n"
@@ -474,8 +474,8 @@ std::vector<std::string> Parser::parseType() {
                             getTokenTypeName(currentToken.getType()).c_str()
                         );
                         console.reportError(
-                            Omniscript::Console::SYNTAX_ERROR,
-                            Omniscript::Console::formatString("Expected '>' to complete '=>', found '%s'", 
+                            Console::SYNTAX_ERROR,
+                            Console::formatString("Expected '>' to complete '=>', found '%s'", 
                                 getTokenTypeName(currentToken.getType()).c_str()),
                             suggestion,
                             span
@@ -486,7 +486,7 @@ std::vector<std::string> Parser::parseType() {
                 std::vector<std::string> returnType = parseType();
                 if (returnType.empty()) {
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
+                        Console::SYNTAX_ERROR,
                         "Invalid return type",
                         "To resolve this:\n1. Provide a valid return type\n2. Check type syntax\n3. Ensure valid type or identifier",
                         span
@@ -513,7 +513,7 @@ std::vector<std::string> Parser::parseType() {
         prefixModifiers.push_back(currentToken.getValue());
         prevColumn = currentToken.getColumn();
         eat(currentToken.getType(), [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use valid type modifier (*, &, ?)\n"
                 "2. Check type syntax\n"
@@ -521,8 +521,8 @@ std::vector<std::string> Parser::parseType() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected type modifier (*, &, ?), found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected type modifier (*, &, ?), found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -539,7 +539,7 @@ std::vector<std::string> Parser::parseType() {
         dataTypes.push_back(currentToken.getValue());
         prevColumn = currentToken.getColumn();
         eat(TokenTypes::Identifier, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Provide a valid type identifier\n"
                 "2. Check type syntax\n"
@@ -547,8 +547,8 @@ std::vector<std::string> Parser::parseType() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected identifier for type, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected identifier for type, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -557,7 +557,7 @@ std::vector<std::string> Parser::parseType() {
         
         while (currentToken.getType() == TokenTypes::Dot) {
             eat(TokenTypes::Dot, [&]() {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Use '.' for qualified type names\n"
                     "2. Check type syntax\n"
@@ -565,8 +565,8 @@ std::vector<std::string> Parser::parseType() {
                     getTokenTypeName(currentToken.getType()).c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected '.' for qualified type, found '%s'", 
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected '.' for qualified type, found '%s'", 
                         getTokenTypeName(currentToken.getType()).c_str()),
                     suggestion,
                     span
@@ -576,7 +576,7 @@ std::vector<std::string> Parser::parseType() {
             dataTypes.push_back(currentToken.getValue());
             prevColumn = currentToken.getColumn();
             eat(TokenTypes::Identifier, [&]() {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Provide a valid identifier after '.'\n"
                     "2. Check qualified type syntax\n"
@@ -584,8 +584,8 @@ std::vector<std::string> Parser::parseType() {
                     getTokenTypeName(currentToken.getType()).c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected identifier after '.', found '%s'", 
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected identifier after '.', found '%s'", 
                         getTokenTypeName(currentToken.getType()).c_str()),
                     suggestion,
                     span
@@ -596,8 +596,8 @@ std::vector<std::string> Parser::parseType() {
         return prefixModifiers;
     } else {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected identifier for type, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected identifier for type, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             "To resolve this:\n1. Provide a valid type identifier\n2. Check type syntax\n3. Ensure valid type declaration",
             span
@@ -613,7 +613,7 @@ std::vector<std::string> Parser::parseType() {
         dataTypes.push_back(currentToken.getValue());
         prevColumn = currentToken.getColumn();
         eat(currentToken.getType(), [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use valid type modifier (*, &, ?)\n"
                 "2. Check type syntax\n"
@@ -621,8 +621,8 @@ std::vector<std::string> Parser::parseType() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected type modifier (*, &, ?), found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected type modifier (*, &, ?), found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -634,7 +634,7 @@ std::vector<std::string> Parser::parseType() {
         dataTypes.push_back("[");
         prevColumn = currentToken.getColumn();
         eat(TokenTypes::LeftBracket, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use '[' for array type\n"
                 "2. Check array type syntax\n"
@@ -642,8 +642,8 @@ std::vector<std::string> Parser::parseType() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '[' for array type, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '[' for array type, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -659,7 +659,7 @@ std::vector<std::string> Parser::parseType() {
                     uint64_t size = std::stoull(currentToken.getValue());
                     if (size == 0) {
                         console.reportError(
-                            Omniscript::Console::SYNTAX_ERROR,
+                            Console::SYNTAX_ERROR,
                             "Array size must be greater than 0",
                             "To resolve this:\n1. Provide a positive integer for array size\n2. Check array syntax\n3. Ensure valid size",
                             span
@@ -667,7 +667,7 @@ std::vector<std::string> Parser::parseType() {
                     }
                 } catch (const std::exception& e) {
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
+                        Console::SYNTAX_ERROR,
                         "Invalid array size: " + std::string(e.what()),
                         "To resolve this:\n1. Provide a valid integer for array size\n2. Check array syntax\n3. Ensure numeric value",
                         span
@@ -677,7 +677,7 @@ std::vector<std::string> Parser::parseType() {
 
             prevColumn = currentToken.getColumn();
             eat(currentToken.getType(), [&]() {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Provide an integer or constant identifier inside array brackets\n"
                     "2. Check array type syntax\n"
@@ -685,8 +685,8 @@ std::vector<std::string> Parser::parseType() {
                     getTokenTypeName(currentToken.getType()).c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected integer or identifier inside array brackets '[size]', found '%s'", 
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected integer or identifier inside array brackets '[size]', found '%s'", 
                         getTokenTypeName(currentToken.getType()).c_str()),
                     suggestion,
                     span
@@ -694,8 +694,8 @@ std::vector<std::string> Parser::parseType() {
             });
         } else {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected integer or identifier inside array brackets '[size]', found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected integer or identifier inside array brackets '[size]', found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 "To resolve this:\n1. Provide an integer or constant identifier\n2. Check array type syntax\n3. Ensure valid size or identifier",
                 span
@@ -705,7 +705,7 @@ std::vector<std::string> Parser::parseType() {
         dataTypes.push_back("]");
         prevColumn = currentToken.getColumn();
         eat(TokenTypes::RightBracket, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Close array type with ']'\n"
                 "2. Check array type syntax\n"
@@ -713,8 +713,8 @@ std::vector<std::string> Parser::parseType() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected ']' to close array type, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected ']' to close array type, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -730,7 +730,7 @@ std::vector<std::string> Parser::parseType() {
 }
 
 std::vector<std::string> Parser::parseTypeParametersForCall() {
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = currentToken.getLine();
     span.start.col = currentToken.getColumn();
     span.start.filePath = currentToken.getFilePath();
@@ -739,7 +739,7 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
 
     if (currentToken.getType() == TokenTypes::LessThan) {
         eat(TokenTypes::LessThan, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Start type parameters with '<'\n"
                 "2. Check generic call syntax\n"
@@ -747,8 +747,8 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '<' for type parameters, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '<' for type parameters, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -758,7 +758,7 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
         while (currentToken.getType() == TokenTypes::Identifier) {
             typeParams.push_back(currentToken.getValue());
             eat(TokenTypes::Identifier, [&]() {
-                std::string suggestion = Omniscript::Console::formatString(
+                std::string suggestion = Console::formatString(
                     "To resolve this:\n"
                     "1. Provide a valid type parameter name\n"
                     "2. Check generic call syntax\n"
@@ -766,8 +766,8 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
                     getTokenTypeName(currentToken.getType()).c_str()
                 );
                 console.reportError(
-                    Omniscript::Console::SYNTAX_ERROR,
-                    Omniscript::Console::formatString("Expected identifier for type parameter, found '%s'", 
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected identifier for type parameter, found '%s'", 
                         getTokenTypeName(currentToken.getType()).c_str()),
                     suggestion,
                     span
@@ -776,7 +776,7 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
 
             if (currentToken.getType() == TokenTypes::Comma) {
                 eat(TokenTypes::Comma, [&]() {
-                    std::string suggestion = Omniscript::Console::formatString(
+                    std::string suggestion = Console::formatString(
                         "To resolve this:\n"
                         "1. Use ',' to separate type parameters\n"
                         "2. Check generic call syntax\n"
@@ -784,8 +784,8 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
                         getTokenTypeName(currentToken.getType()).c_str()
                     );
                     console.reportError(
-                        Omniscript::Console::SYNTAX_ERROR,
-                        Omniscript::Console::formatString("Expected ',' between type parameters, found '%s'", 
+                        Console::SYNTAX_ERROR,
+                        Console::formatString("Expected ',' between type parameters, found '%s'", 
                             getTokenTypeName(currentToken.getType()).c_str()),
                         suggestion,
                         span
@@ -797,7 +797,7 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
         }
 
         eat(TokenTypes::GreaterThan, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Close type parameters with '>'\n"
                 "2. Check generic call syntax\n"
@@ -805,8 +805,8 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '>' to close type parameters, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '>' to close type parameters, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -822,14 +822,14 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
 }
 
 std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = currentToken.getLine();
     span.start.col = currentToken.getColumn();
     span.start.filePath = currentToken.getFilePath();
 
     Token startToken = currentToken;
     eat(TokenTypes::Type, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Start type declaration with 'type'\n"
             "2. Check type declaration syntax\n"
@@ -837,8 +837,8 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'type' keyword, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'type' keyword, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -847,7 +847,7 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
 
     std::string typeName = currentToken.getValue();
     eat(TokenTypes::Identifier, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Provide a valid type name\n"
             "2. Check type declaration syntax\n"
@@ -855,18 +855,18 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected identifier for type name, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected identifier for type name, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
         );
     });
 
-    std::shared_ptr<Omniscript::Type> type = nullptr;
+    std::shared_ptr<Type> type = nullptr;
     if (currentToken.getType() != TokenTypes::Semicolon) {
         eat(TokenTypes::Assign, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Use '=' for type assignment\n"
                 "2. Check type declaration syntax\n"
@@ -874,8 +874,8 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected '=' for type assignment, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected '=' for type assignment, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -885,17 +885,17 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
         std::vector<std::string> typeString = parseType();
         if (typeString.empty()) {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Invalid type definition",
                 "To resolve this:\n1. Provide a valid type definition\n2. Check type syntax\n3. Ensure valid type or identifier",
                 span
             );
             return nullptr;
         }
-        type = Omniscript::resolveType(typeString);
+        type = resolveType(typeString);
         if (!type) {
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
+                Console::SYNTAX_ERROR,
                 "Failed to resolve type: " + join(typeString, "."),
                 "To resolve this:\n1. Ensure type is defined\n2. Check type resolution\n3. Verify type string",
                 span
@@ -906,7 +906,7 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
 
     if (currentToken.getType() == TokenTypes::Semicolon) {
         eat(TokenTypes::Semicolon, [&]() {
-            std::string suggestion = Omniscript::Console::formatString(
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. End type declaration with ';'\n"
                 "2. Check type declaration syntax\n"
@@ -914,8 +914,8 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
                 getTokenTypeName(currentToken.getType()).c_str()
             );
             console.reportError(
-                Omniscript::Console::SYNTAX_ERROR,
-                Omniscript::Console::formatString("Expected ';' to end type declaration, found '%s'", 
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected ';' to end type declaration, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
                 span
@@ -923,8 +923,8 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
         });
     } else {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected ';' to end type declaration, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected ';' to end type declaration, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             "To resolve this:\n1. End type declaration with ';'\n2. Check type declaration syntax\n3. Ensure proper termination",
             span
@@ -942,14 +942,14 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
 }
 
 std::shared_ptr<Statement> Parser::parseUsingAlias() {
-    Omniscript::FileSpan span;
+    FileSpan span;
     span.start.line = currentToken.getLine();
     span.start.col = currentToken.getColumn();
     span.start.filePath = currentToken.getFilePath();
 
     Token startToken = currentToken;
     eat(TokenTypes::Using, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Start alias declaration with 'using'\n"
             "2. Check using alias syntax\n"
@@ -957,8 +957,8 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected 'using' keyword, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'using' keyword, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -967,7 +967,7 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
 
     std::string aliasName = currentToken.getValue();
     eat(TokenTypes::Identifier, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Provide a valid alias name\n"
             "2. Check using alias syntax\n"
@@ -975,8 +975,8 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected identifier for alias name, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected identifier for alias name, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -984,7 +984,7 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
     });
 
     eat(TokenTypes::Assign, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Use '=' for alias assignment\n"
             "2. Check using alias syntax\n"
@@ -992,8 +992,8 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected '=' for alias assignment, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected '=' for alias assignment, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span
@@ -1003,7 +1003,7 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
     std::vector<std::string> typePath = parseType();
     if (typePath.empty()) {
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
+            Console::SYNTAX_ERROR,
             "Invalid type path for alias",
             "To resolve this:\n1. Provide a valid type path\n2. Check type syntax\n3. Ensure valid type or identifier",
             span
@@ -1012,7 +1012,7 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
     }
 
     eat(TokenTypes::Semicolon, [&]() {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. End alias declaration with ';'\n"
             "2. Check using alias syntax\n"
@@ -1020,8 +1020,8 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
             getTokenTypeName(currentToken.getType()).c_str()
         );
         console.reportError(
-            Omniscript::Console::SYNTAX_ERROR,
-            Omniscript::Console::formatString("Expected ';' to end alias declaration, found '%s'", 
+            Console::SYNTAX_ERROR,
+            Console::formatString("Expected ';' to end alias declaration, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
             span

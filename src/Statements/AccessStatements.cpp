@@ -15,18 +15,20 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
 
+namespace Omniscript {
+
 void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::string memberName, SymbolTableType scope) {
-    auto aggregateExpr = std::dynamic_pointer_cast<Omniscript::AggregateExpression>(scope->get(baseTypeName));
+    auto aggregateExpr = std::dynamic_pointer_cast<AggregateExpression>(scope->get(baseTypeName));
     if (aggregateExpr) {
-        auto structExpr = std::dynamic_pointer_cast<Omniscript::StructExpression>(scope->get(baseTypeName));
-        auto classExpr = std::dynamic_pointer_cast<Omniscript::ClassExpression>(scope->get(baseTypeName));
-        auto moduleExpr = std::dynamic_pointer_cast<Omniscript::ModuleExpression>(scope->get(baseTypeName));
+        auto structExpr = std::dynamic_pointer_cast<StructExpression>(scope->get(baseTypeName));
+        auto classExpr = std::dynamic_pointer_cast<ClassExpression>(scope->get(baseTypeName));
+        auto moduleExpr = std::dynamic_pointer_cast<ModuleExpression>(scope->get(baseTypeName));
         
         if (auto type = scope->get(baseTypeName)) {
             DEBUG_LOG("Accessing a member of type '" + type->toString() + "'.");
         }
 
-        std::shared_ptr<Omniscript::MemberExpression> member;
+        std::shared_ptr<MemberExpression> member;
 
         if (structExpr) {
             // struct members are always public
@@ -44,7 +46,7 @@ void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::
                                        "2. Available members:\n" + availableMembers +
                                        "3. If inherited, check parent class definitions";
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
+                    Console::TYPE_ERROR,
                     "Member '" + memberName + "' not found in class '" + baseTypeName + "'",
                     suggestion,
                     getSpan()
@@ -65,7 +67,7 @@ void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::
                                        "2. Available members:\n" + availableMembers +
                                        "3. Check if member is exported from module";
                 console.reportError(
-                    Omniscript::Console::TYPE_ERROR,
+                    Console::TYPE_ERROR,
                     "Member '" + memberName + "' not found in module '" + baseTypeName + "'",
                     suggestion,
                     getSpan()
@@ -78,7 +80,7 @@ void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::
                                    "2. Verify the type is imported/available\n"
                                    "3. For primitive types, use dot notation only for built-in methods";
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
+                Console::TYPE_ERROR,
                 "'" + baseTypeName + "' is not a valid aggregate type (class/struct/module)",
                 suggestion,
                 getSpan()
@@ -93,7 +95,7 @@ void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::
                                    "3. Move code to same context\n"
                                    "4. Consider friend declarations if needed";
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
+                Console::TYPE_ERROR,
                 "Cannot access private member '" + memberName + "' of " + 
                 (classExpr ? "class" : "module") + " '" + baseTypeName + "'",
                 suggestion,
@@ -103,8 +105,8 @@ void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::
     }
 }
 
-std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType scope) {
-    Omniscript::setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+std::shared_ptr<Expression> Dereference::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     
     // Pointer expression evaluation
     auto pointerExpr = pointer->express(scope);
@@ -114,7 +116,7 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
                                "2. Verify variable initialization\n"
                                "3. Add debug output before this line";
         console.reportError(
-            Omniscript::Console::RUNTIME_ERROR,
+            Console::RUNTIME_ERROR,
             "Invalid pointer expression in dereference operation",
             suggestion,
             getSpan()
@@ -125,7 +127,7 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
     // Pointer type verification
     auto pointerType = pointerExpr->getType();
     if (!pointerType->isPointer()) {
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Add address-of operator: `&%s`\n"
             "2. Declare as pointer: `%s*`\n"
@@ -134,8 +136,8 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
             pointerType->toString().c_str()
         );
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Cannot dereference non-pointer type '%s'", pointerType->toString().c_str()),
+            Console::TYPE_ERROR,
+            Console::formatString("Cannot dereference non-pointer type '%s'", pointerType->toString().c_str()),
             suggestion,
             getSpan()
         );
@@ -146,15 +148,15 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
     auto baseType = pointerType->getBasePointeeType();
     setType(baseType);
 
-    auto userType = std::dynamic_pointer_cast<Omniscript::UserDefinedType>(baseType);
+    auto userType = std::dynamic_pointer_cast<UserDefinedType>(baseType);
     if (!userType) {
         std::string suggestion = "To resolve this:\n"
                                "1. Check type definition\n"
                                "2. For built-in types, use direct access\n"
                                "3. Verify type imports";
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Cannot access members of type '%s'", baseType->toString().c_str()),
+            Console::TYPE_ERROR,
+            Console::formatString("Cannot access members of type '%s'", baseType->toString().c_str()),
             suggestion,
             getSpan()
         );
@@ -176,7 +178,7 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
             availableMembers += " - " + param->getParameterName() + "\n";
         }
         
-        std::string suggestion = Omniscript::Console::formatString(
+        std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check member name spelling\n"
             "2. Available members:\n%s\n"
@@ -185,8 +187,8 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
         );
         
         console.reportError(
-            Omniscript::Console::TYPE_ERROR,
-            Omniscript::Console::formatString("Member '%s' not found in '%s'", memberName.c_str(), userType->toString().c_str()),
+            Console::TYPE_ERROR,
+            Console::formatString("Member '%s' not found in '%s'", memberName.c_str(), userType->toString().c_str()),
             suggestion,
             getSpan()
         );
@@ -203,7 +205,7 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
                                    "2. Verify type compatibility\n"
                                    "3. Add debug output for the value";
             console.reportError(
-                Omniscript::Console::RUNTIME_ERROR,
+                Console::RUNTIME_ERROR,
                 "Invalid assignment value in member access",
                 suggestion,
                 assignmentValue->getSpan()
@@ -211,8 +213,8 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
             return nullptr;
         }
 
-        if (!Omniscript::Type::isSameOrCastableTo(getType(), valueExpr->getType())) {
-            std::string suggestion = Omniscript::Console::formatString(
+        if (!Type::isSameOrCastableTo(getType(), valueExpr->getType())) {
+            std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Check type requirements\n"
                 "2. Available conversions:\n"
@@ -224,8 +226,8 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
             );
             
             console.reportError(
-                Omniscript::Console::TYPE_ERROR,
-                Omniscript::Console::formatString("Cannot assign '%s' to '%s'", 
+                Console::TYPE_ERROR,
+                Console::formatString("Cannot assign '%s' to '%s'", 
                     valueExpr->getType()->toString().c_str(), 
                     getType()->toString().c_str()),
                 suggestion,
@@ -236,13 +238,15 @@ std::shared_ptr<Omniscript::Expression> Dereference::express(SymbolTableType sco
     }
 
     // Success case
-    auto result = std::make_shared<Omniscript::DereferenceExpression>(
+    auto result = std::make_shared<DereferenceExpression>(
         pointerExpr,
         assignmentValue ? assignmentValue->express(scope) : nullptr,
         getType()
     );
 
     result->type = type;
-    result->setSpan(getSpan());
+    result->setSpan(this->getSpan());
     return result;
 }
+
+} // namespace Omniscript 
