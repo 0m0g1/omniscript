@@ -7,3 +7,4 @@ example.txt
 /bin/*
 /omniscript-language-server
 .VSCodeCounter
+omniscript_errors.log
