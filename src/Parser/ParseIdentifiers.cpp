@@ -10,6 +10,8 @@
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 
+namespace Omniscript {
+
 std::shared_ptr<Statement> Parser::parseIdentifier() {
     Token startToken = currentToken;
     FileSpan span;
@@ -380,3 +382,5 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     
     return expr;
 }
+
+} // namespace Omniscript

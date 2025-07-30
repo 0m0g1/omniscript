@@ -155,10 +155,10 @@ public:
     __float128 value;
 };    
 
-// Arbitrary-precision integer (BigInt)
-class BigInt : public NumericLiteral {
+// Arbitrary-precision integer (ASTBigInt)
+class ASTBigInt : public NumericLiteral {
 public:
-    BigInt(const std::string& value)
+    ASTBigInt(const std::string& value)
         : value(value) {
             setRootType(Type::createNullType());
         }
@@ -175,9 +175,9 @@ public:
         return 1024;
     }
 
-    std::string toString() const override { return "BigIntLiteral: " + value; }
+    std::string toString() const override { return "ASTBigIntLiteral: " + value; }
     std::shared_ptr<Statement> clone() const override {
-        return std::make_shared<BigInt>(value);  // Clone using copy constructor
+        return std::make_shared<ASTBigInt>(value);  // Clone using copy constructor
     }
 
 private:

@@ -1,3 +1,5 @@
+#include <omniscript/Types/Types.h>
+
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>

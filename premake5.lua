@@ -21,7 +21,6 @@ workspace "OmniScript++"
         buildoptions { "-fsanitize=address", "-fno-omit-frame-pointer" }
         linkoptions  { "-fsanitize=address" }
 
-
     filter {}
 
 project "Osengine"

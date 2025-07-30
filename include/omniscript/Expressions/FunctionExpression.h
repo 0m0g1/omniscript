@@ -1,4 +1,5 @@
 #pragma once
+#include <omniscript/LibraryPaths.h>
 #include <omniscript/Expressions/Expression.h>
 #include <omniscript/Expressions/CallableExpression.h>
 

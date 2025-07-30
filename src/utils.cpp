@@ -2,6 +2,8 @@
 #include <omniscript/Console.h>
 #include <omniscript/omniscript_pch.h>
 
+namespace Omniscript {
+
 //Converts a string to lower case
 std::string toLowerCaseString(const std::string &source) {
     std::string lowerCaseString;
@@ -563,3 +565,5 @@ std::u16string utf8_to_utf16(const std::string& utf8str) {
 std::string utf16_to_utf8(const std::u16string& utf16str) {
     return utf32_to_utf8(utf16_to_utf32(utf16str));
 }
+
+} // namespace Omniscript

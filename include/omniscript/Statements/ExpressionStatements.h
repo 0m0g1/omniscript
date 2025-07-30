@@ -81,11 +81,11 @@ private:
     std::shared_ptr<Statement> right;
 };
 
-class TernaryExpression : 
+class ASTTernaryExpression : 
 public ASTExpression,
 public TypedStatement {
     public:
-        TernaryExpression(std::shared_ptr<Statement> condition, std::shared_ptr<Statement> truthy, std::shared_ptr<Statement> falsey) :
+        ASTTernaryExpression(std::shared_ptr<Statement> condition, std::shared_ptr<Statement> truthy, std::shared_ptr<Statement> falsey) :
         condition(condition), truthy(truthy), falsey(falsey) {}
 
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
@@ -104,7 +104,7 @@ public TypedStatement {
         std::shared_ptr<Statement> clonedCondition = condition ? condition->clone() : nullptr;
         std::shared_ptr<Statement> clonedTruthy = truthy ? truthy->clone() : nullptr;
         std::shared_ptr<Statement> clonedFalsey = falsey ? falsey->clone() : nullptr;
-        return std::make_shared<TernaryExpression>(clonedCondition, clonedTruthy, clonedFalsey);
+        return std::make_shared<ASTTernaryExpression>(clonedCondition, clonedTruthy, clonedFalsey);
     }
     private:
         std::shared_ptr<Statement> condition;

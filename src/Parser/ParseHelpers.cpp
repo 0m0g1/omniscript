@@ -6,8 +6,11 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>
 #include <omniscript/Tokens.h>
+#include <omniscript/Types/Types.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
+
+namespace Omniscript {
 
 std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
     Token startToken = currentToken;
@@ -446,3 +449,5 @@ MemberModifiers Parser::parseMemberModifiers() {
 
     return modifiers;
 }
+
+} // namespace Omniscript

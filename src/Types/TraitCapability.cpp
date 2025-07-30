@@ -17,7 +17,7 @@ std::shared_ptr<FunctionType> FunctionTrait::getConcreteSignature(
         TYPE_ERROR("Type " + type->toString() + " does not implement function trait " + name);
         return nullptr;
     }
-    return signature->clone();
+    return std::dynamic_pointer_cast<FunctionType>(signature->clone());
 }
 
 void Trait::addCapability(const TraitCapability& capability) {
@@ -110,7 +110,7 @@ std::shared_ptr<FunctionType> TraitSystem::getCapabilitySignature(
     for (const auto& impl : implementations) {
         if (Type::isSame(impl.implementingType, type)) {
             auto sig = impl.getImplementation(capability);
-            if (sig) return sig->clone();
+            if (sig) return std::dynamic_pointer_cast<FunctionType>(sig->clone());
         }
     }
     return nullptr;
@@ -275,32 +275,55 @@ void initializeBuiltinTraits() {
     // Example: Register Vec2 and Vec3 implementations
     auto vec2Type = Type::createUserDefinedType("Vec2", Kind::Struct);
     auto vec3Type = Type::createUserDefinedType("Vec3", Kind::Struct);
+    
     TraitImplementation vec2AddImpl;
     vec2AddImpl.implementingType = vec2Type;
     vec2AddImpl.trait = Addable;
-    vec2AddImpl.implementations["add"] = Type::createFunctionType("add", {vec2Type, vec2Type}, vec2Type);
-    vec2AddImpl.implementations["add_vec3"] = Type::createFunctionType("add", {vec2Type, vec3Type}, vec2Type);
+    
+    // Cast the returned Type to FunctionType explicitly
+    vec2AddImpl.implementations["add"] = 
+        std::dynamic_pointer_cast<FunctionType>(
+            Type::createFunctionType("add", {vec2Type, vec2Type}, vec2Type)
+        );
+    
+    vec2AddImpl.implementations["add_vec3"] = 
+        std::dynamic_pointer_cast<FunctionType>(
+            Type::createFunctionType("add", {vec2Type, vec3Type}, vec2Type)
+        );
+    
     ts.registerImplementation(vec2AddImpl);
 
-    // Register Sprite implementations
+    // Sprite implementations
     auto spriteType = Type::createUserDefinedType("Sprite", Kind::Struct);
+
+    // Movable trait implementation
     TraitImplementation spriteImpl;
     spriteImpl.implementingType = spriteType;
     spriteImpl.trait = std::make_shared<Trait>("Movable");
-    spriteImpl.implementations["move"] = Type::createFunctionType("move", {spriteType}, Type::createPrimitiveType(Kind::Void));
+    spriteImpl.implementations["move"] = 
+        std::dynamic_pointer_cast<FunctionType>(
+            Type::createFunctionType("move", {spriteType}, Type::createPrimitiveType(Kind::Void))
+        );
     ts.registerImplementation(spriteImpl);
 
+    // Drawable trait implementation
     spriteImpl.trait = std::make_shared<Trait>("Drawable");
     spriteImpl.implementations.clear();
-    spriteImpl.implementations["draw"] = Type::createFunctionType("draw", {spriteType}, Type::createPrimitiveType(Kind::Void));
+    spriteImpl.implementations["draw"] = 
+        std::dynamic_pointer_cast<FunctionType>(
+            Type::createFunctionType("draw", {spriteType}, Type::createPrimitiveType(Kind::Void))
+        );
     ts.registerImplementation(spriteImpl);
 
-    // Register Scene implementations
+    // Scene implementations
     auto sceneType = Type::createUserDefinedType("Scene", Kind::Struct);
     TraitImplementation sceneImpl;
     sceneImpl.implementingType = sceneType;
     sceneImpl.trait = Addable;
-    sceneImpl.implementations["add"] = Type::createFunctionType("add", {sceneType, spriteType}, Type::createPrimitiveType(Kind::Void));
+    sceneImpl.implementations["add"] = 
+        std::dynamic_pointer_cast<FunctionType>(
+            Type::createFunctionType("add", {sceneType, spriteType}, Type::createPrimitiveType(Kind::Void))
+        );
     ts.registerImplementation(sceneImpl);
 }
 

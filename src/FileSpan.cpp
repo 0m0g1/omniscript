@@ -49,12 +49,10 @@ void setSpan(const FileSpan& span) {
 void setSpan(int startLine, int startCol, int endLine, int endCol, const std::string& path) {
     currentSpan.start.line = startLine;
     currentSpan.start.col = startCol;
-    currentSpan.start.fileName = "";
     currentSpan.start.filePath = path;
     
     currentSpan.end.line = endLine;
     currentSpan.end.col = endCol;
-    currentSpan.end.fileName = "";
     currentSpan.end.filePath = path;
 }
 

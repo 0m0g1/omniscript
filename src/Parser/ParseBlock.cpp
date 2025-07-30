@@ -6,6 +6,8 @@
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 
+namespace Omniscript {
+
 std::shared_ptr<Statement> Parser::parseBlock() {
     Token startToken = currentToken;
 
@@ -43,3 +45,5 @@ std::shared_ptr<Statement> Parser::parseBlock() {
     block->setPosition(startToken, previousToken);
     return block;
 }
+
+} // namespace Omniscript

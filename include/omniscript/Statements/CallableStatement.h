@@ -157,7 +157,7 @@ private:
     void addThisArgument(const std::string& targetName, std::shared_ptr<UserDefinedType> udt);
     void logArgumentDetails();
     
-    std::shared_ptr<Expression> findASTCallable(const std::string& contextualName, SymbolTableType scope);
+    std::shared_ptr<Expression> findCallable(const std::string& contextualName, SymbolTableType scope);
     std::vector<std::shared_ptr<Expression>> findOverloadsInContext(SymbolTableType scope);
     std::shared_ptr<Expression> resolveOverload(
         const std::vector<std::shared_ptr<Expression>>& overloads, 

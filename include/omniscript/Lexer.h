@@ -5,6 +5,7 @@
 #include <omniscript/utils.h>
 #include <omniscript/Core.h>
 #include <string>
+#include <array>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -226,11 +227,11 @@ private:
     static const std::unordered_set<std::string> reservedWords_;
     
     // Character classification tables for performance
-    static const bool isIdentifierStartTable_[256];
-    static const bool isIdentifierContinuationTable_[256];
-    static const bool isDigitTable_[256];
-    static const bool isHexDigitTable_[256];
-    static const bool isWhitespaceTable_[256];
+    static const std::array<bool, 256> isIdentifierStartTable_;
+    static const std::array<bool, 256> isIdentifierContinuationTable_;
+    static const std::array<bool, 256> isDigitTable_;
+    static const std::array<bool, 256> isHexDigitTable_;
+    static const std::array<bool, 256> isWhitespaceTable_;
 };
 
 // Utility namespace for lexer-related functions

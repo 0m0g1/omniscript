@@ -11,8 +11,10 @@
 #include <omniscript/Tokens.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statements/Statement.h>
+#include <omniscript/Types/Types.h>
 #include <omniscript/Symboltable.h>
 
+namespace Omniscript {
 
 std::shared_ptr<Statement> Parser::parseObject() {
     // eat(TokenTypes::LeftBrace);
@@ -263,4 +265,6 @@ std::shared_ptr<Statement> Parser::parseStruct() {
     auto structStatement = std::make_shared<ConstructStructPrototype>(structName, body);
     structStatement->setPosition(startToken, previousToken);
     return structStatement;
+}
+
 }

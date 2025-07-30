@@ -3,13 +3,16 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/Parser.h>
-#include <omniscript/Statements/Statement.h>
+#include <omniscript/Types/Types.h>
 #include <omniscript/Symboltable.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/FunctionStatement.h>
 #include <omniscript/Statements/LiteralStatements.h>
 #include <omniscript/Statements/TypeStatements.h>
-#include <omniscript/omniscript_pch.h>
+
+namespace Omniscript {
 
 bool Parser::tryParseTypeParametersLookahead(int& i) {
     // No span needed since this is a lookahead function
@@ -1041,3 +1044,5 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
     // return usingAlias;
     return nullptr;
 }
+
+} // namespace Omniscript

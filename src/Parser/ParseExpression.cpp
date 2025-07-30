@@ -8,11 +8,14 @@
 #include <omniscript/utils.h>
 #include <omniscript/Parser.h>
 #include <omniscript/Tokens.h>
+#include <omniscript/Types/Types.h>
+#include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statements/Statement.h>
-#include <omniscript/Symboltable.h>
 
 #include <quadmath.h>
+
+namespace Omniscript {
 
 std::shared_ptr<Statement> Parser::parseExpression() {
     return parseTernaryExpression();
@@ -195,7 +198,7 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
             }
         }
 
-        return std::make_shared<ASTUnaryExpression>(op, operand, UnaryExpression::Position::Prefix);
+        return std::make_shared<ASTUnaryExpression>(op, operand, ASTUnaryExpression::Position::Prefix);
     }
 
     auto expr = factor();
@@ -204,14 +207,14 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
            currentToken.getType() == TokenTypes::Decrement) {
         TokenTypes op = currentToken.getType();
         eat(op);
-        expr = std::make_shared<ASTUnaryExpression>(op, expr, UnaryExpression::Position::Postfix);
+        expr = std::make_shared<ASTUnaryExpression>(op, expr, ASTUnaryExpression::Position::Postfix);
     }
 
     if (currentToken.getType() == TokenTypes::As) {
         eat(TokenTypes::As);
         std::vector<std::string> typeToCastTo = parseType();
         std::shared_ptr<Type> type = resolveType(typeToCastTo);
-        expr = std::make_shared<Cast>(expr, type);
+        expr = std::make_shared<ASTCast>(expr, type);
     }
 
     return expr;
@@ -234,10 +237,10 @@ std::shared_ptr<Statement> Parser::factor() {
             } else if (value >= std::numeric_limits<int64_t>::min() && value <= std::numeric_limits<int64_t>::max()) {
                 left = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
             } else {
-                left = std::make_shared<BigInt>(valueStr);
+                left = std::make_shared<ASTBigInt>(valueStr);
             }
         } catch (const std::out_of_range&) {
-            left = std::make_shared<BigInt>(valueStr);
+            left = std::make_shared<ASTBigInt>(valueStr);
         }
     }
 
@@ -294,7 +297,7 @@ std::shared_ptr<Statement> Parser::factor() {
 
     else if (currentToken.getType() == TokenTypes::BigInt) {
         eat(TokenTypes::BigInt);
-        left = std::make_shared<BigInt>(previousToken.getValue()); // Assuming BigInt is your arbitrary-precision type
+        left = std::make_shared<ASTBigInt>(previousToken.getValue()); // Assuming BigInt is your arbitrary-precision type
     }
 
     else if (currentToken.getType() == TokenTypes::StringLiteral) {
@@ -389,3 +392,5 @@ std::shared_ptr<Statement> Parser::factor() {
 
     return left;
 }
+
+} // namespace Omniscript

@@ -373,61 +373,61 @@ std::ostream& operator<<(std::ostream& os, const Token& token) {
 namespace TokenFactory {
 
 Token createIdentifier(const std::string& name, size_t line, size_t column, const std::string& path) {
-    Token token(TokenTypes::Identifier, name, line, column, path);
+    Token token(TokenTypes::Identifier, std::string(name), line, column, path);
     token.setStringValue(name);
     return token;
 }
 
 Token createInteger(int64_t value, size_t line, size_t column, const std::string& path) {
-    return Token(TokenTypes::IntegerLiteral, value, line, column, path);
+    return Token(TokenTypes::IntegerLiteral, TokenValue(value), line, column, path);
 }
 
 Token createFloat(double value, size_t line, size_t column, const std::string& path) {
-    return Token(TokenTypes::FloatLiteral, value, line, column, path);
+    return Token(TokenTypes::FloatLiteral, TokenValue(value), line, column, path);
 }
 
 Token createString(const std::string& value, size_t line, size_t column, const std::string& path) {
-    Token token(TokenTypes::StringLiteral, value, line, column, path);
+    Token token(TokenTypes::StringLiteral, TokenValue(value), line, column, path);
     token.setStringValue(value);
     return token;
 }
 
 Token createBoolean(bool value, size_t line, size_t column, const std::string& path) {
-    return Token(value ? TokenTypes::True : TokenTypes::False, value, line, column, path);
+    return Token(value ? TokenTypes::True : TokenTypes::False, TokenValue(value), line, column, path);
 }
 
 Token createOperator(TokenTypes type, size_t line, size_t column, const std::string& path) {
     if (!isBinaryOperator(type) && !isUnaryOperator(type) && 
         !isAssignmentOperator(type) && !isComparisonOperator(type) &&
         !isLogicalOperator(type) && !isBitwiseOperator(type)) {
-        Token token(TokenTypes::Invalid, "Invalid operator", line, column, path);
+        Token token(TokenTypes::Invalid, std::string("Invalid operator"), line, column, path);
         token.setStringValue("Invalid operator");
         return token;
     }
-    Token token(type, getTokenTypeName(type), line, column, path);
+    Token token(type, std::string(getTokenTypeName(type)), line, column, path);
     token.setStringValue(getTokenTypeName(type));
     return token;
 }
 
 Token createKeyword(TokenTypes type, size_t line, size_t column, const std::string& path) {
-    if (!Token::isKeywordType(type)) {
-        Token token(TokenTypes::Invalid, "Invalid keyword", line, column, path);
+    if (type < TokenTypes::If || type > TokenTypes::Type) {
+        Token token(TokenTypes::Invalid, std::string("Invalid keyword"), line, column, path);
         token.setStringValue("Invalid keyword");
         return token;
     }
-    Token token(type, getTokenTypeName(type), line, column, path);
+    Token token(type, std::string(getTokenTypeName(type)), line, column, path);
     token.setStringValue(getTokenTypeName(type));
     return token;
 }
 
 Token createEOI(size_t line, size_t column, const std::string& path) {
-    Token token(TokenTypes::EOI, "", line, column, path);
+    Token token(TokenTypes::EOI, std::string(""), line, column, path);
     token.setStringValue("");
     return token;
 }
 
 Token createInvalid(const std::string& value, size_t line, size_t column, const std::string& path) {
-    Token token(TokenTypes::Invalid, value, line, column, path);
+    Token token(TokenTypes::Invalid, std::string(value), line, column, path);
     token.setStringValue(value);
     return token;
 }

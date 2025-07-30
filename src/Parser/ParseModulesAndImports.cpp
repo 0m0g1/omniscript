@@ -13,6 +13,9 @@
 #include <unordered_map>
 #include <vector>
 
+
+namespace Omniscript {
+
 std::shared_ptr<Statement> Parser::parseInclude() {
     Token startToken = currentToken;
     FileSpan span;
@@ -679,3 +682,5 @@ std::shared_ptr<Statement> Parser::parseModule() {
 
     return std::make_shared<CreateModule>(moduleName, members);
 }
+
+} // namespace Omnsicript

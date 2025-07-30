@@ -6,6 +6,7 @@
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
+#include <omniscript/Types/DerivedTypes.h>
 
 #include <omniscript/Expressions/BlockExpression.h>
 

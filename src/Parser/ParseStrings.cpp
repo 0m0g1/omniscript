@@ -8,6 +8,8 @@
 #include <omniscript/Statements/LiteralStatements.h>
 #include <omniscript/omniscript_pch.h>
 
+namespace Omniscript {
+
 std::u32string Parser::parseStringLiteral() {
     FileSpan span;
     span.start.line = currentToken.getLine();
@@ -261,3 +263,5 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
     // return templateStmt;
     return nullptr;
 }
+
+} // namespace Omniscript

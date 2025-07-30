@@ -9,6 +9,8 @@
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 
+namespace Omniscript {
+
 std::shared_ptr<Statement> Parser::parseForLoop() {
     Token startToken = currentToken;
     FileSpan span;
@@ -777,3 +779,5 @@ std::shared_ptr<Statement> Parser::parseReturnStatement() {
     DEBUG_LOG("Completed parsing return statement");
     return result;
 }
+
+} // namespace Omniscript

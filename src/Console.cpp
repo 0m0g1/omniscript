@@ -237,7 +237,7 @@ void Console::reportError(ErrorType errorType, const std::string& message, const
     
     writeToLogFile(getErrorTypeName(errorType) + " at " + location + ": " + message);
 
-    if (errorType == RUNTIME_ERROR || errorType == FATAL || errorType == INTERNAL_ERROR) {
+    if (errorType == RUNTIME_ERROR || errorType == FATAL_ERROR || errorType == INTERNAL_ERROR) {
         std::exit(EXIT_FAILURE);
     }
 }
@@ -250,7 +250,7 @@ void Console::reportError(ErrorType errorType, const std::string& message,
         std::cout << getColorCode(HELP) << "help: " << "\033[0m" << suggestion << std::endl;
     }
 
-    if (errorType == RUNTIME_ERROR || errorType == FATAL || errorType == INTERNAL_ERROR) {
+    if (errorType == RUNTIME_ERROR || errorType == FATAL_ERROR || errorType == INTERNAL_ERROR) {
         std::exit(EXIT_FAILURE);
     }
 }

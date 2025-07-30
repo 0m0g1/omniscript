@@ -36,25 +36,21 @@ public:
     inline void setPosition(const Token& startToken, const Token& endToken) {
         span.start.line = startToken.getLine();
         span.start.col = startToken.getColumn();
-        span.start.fileName = startToken.getFilePath();
         span.start.filePath = startToken.getFilePath();
         span.end.line = endToken.getLine();
         span.end.col = endToken.getColumn();
-        span.end.fileName = endToken.getFilePath();
         span.end.filePath = endToken.getFilePath();
     }
 
     inline void setStartPosition(const Token& startToken) {
         span.start.line = startToken.getLine();
         span.start.col = startToken.getColumn();
-        span.start.fileName = startToken.getFilePath();
         span.start.filePath = startToken.getFilePath();
     }
 
     inline void setEndPosition(const Token& endToken) {
         span.end.line = endToken.getLine();
         span.end.col = endToken.getColumn();
-        span.end.fileName = endToken.getFilePath();
         span.end.filePath = endToken.getFilePath();
     }
 

@@ -11,7 +11,11 @@
 #include <omniscript/Tokens.h>
 #include <omniscript/Parser.h>
 #include <omniscript/Symboltable.h>
+#include <omniscript/Types/Types.h>
 #include <omniscript/omniscript_pch.h>
+#include <omniscript/LibraryPaths.h>
+
+namespace Omniscript {
 
 std::shared_ptr<Statement> Parser::parseExternFunction() {
     Token startToken = currentToken;
@@ -37,7 +41,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         );
     });
 
-    FunctionDeclaration::LibraryPaths libraryPaths;
+    LibraryPaths libraryPaths;
     std::vector<std::string> paths;
 
     // Parse first path
@@ -1141,3 +1145,5 @@ std::shared_ptr<Statement> Parser::parseLambdaFunction(
     }
     return parseFunctionDeclaration(lambdaName, paramTypes, type);
 }
+
+} // namespace Omniscript

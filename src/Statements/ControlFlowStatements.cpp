@@ -6,6 +6,8 @@
 #include <omniscript/utils.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/Expressions/ControlFlowExpressions.h>
+#include <omniscript/Types/BaseType.h>
+#include <omniscript/Types/Types.h>
 
 namespace Omniscript {
 

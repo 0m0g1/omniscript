@@ -7,6 +7,8 @@
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
+#include <omniscript/Types/BaseType.h>
+#include <omniscript/Types/Types.h>
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
@@ -381,14 +383,14 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
             if (Type::isSameOrCastableTo(leftType, rightType)) {
                 type = rightType;
                 if (!Type::isSame(leftType, rightType)) {
-                    left = std::make_shared<Cast>(left, rightType);
+                    left = std::make_shared<ASTCast>(left, rightType);
                 } else {
                     if (leftTyped) leftTyped->setType(rightType);
                 }
             } else if (Type::isSameOrCastableTo(rightType, leftType)) {
                 type = leftType;
                 if (!Type::isSame(rightType, leftType)) {
-                    right = std::make_shared<Cast>(right, leftType);
+                    right = std::make_shared<ASTCast>(right, leftType);
                 } else {
                     if (rightTyped) rightTyped->setType(leftType);
                 }

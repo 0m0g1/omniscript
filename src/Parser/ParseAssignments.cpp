@@ -11,9 +11,12 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/Parser.h>
+#include <omniscript/Types/Types.h>
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
+
+namespace Omniscript {
 
 bool Parser::isAssignmentExpression(TokenTypes tokenType) {
     if (tokenType == TokenTypes::Assign || 
@@ -414,10 +417,10 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
             DEBUG_LOG("Assigning a unary statement");
             switch (currentToken.getType()) {
                 case TokenTypes::Increment:
-                    value = std::make_shared<UnaryExpression>(TokenTypes::Increment, assignee, UnaryExpression::Position::Postfix);
+                    value = std::make_shared<ASTUnaryExpression>(TokenTypes::Increment, assignee, ASTUnaryExpression::Position::Postfix);
                     break;
                 case TokenTypes::Decrement:
-                    value = std::make_shared<UnaryExpression>(TokenTypes::Decrement, assignee, UnaryExpression::Position::Postfix);
+                    value = std::make_shared<ASTUnaryExpression>(TokenTypes::Decrement, assignee, ASTUnaryExpression::Position::Postfix);
                     break;
                 default:
                     std::string suggestion = Console::formatString(
@@ -463,31 +466,31 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 case TokenTypes::Assign:
                     break;
                 case TokenTypes::PlusAssign:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Plus, value);
+                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::Plus, value);
                     break;
                 case TokenTypes::MinusAssign:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Minus, value);
+                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::Minus, value);
                     break;
                 case TokenTypes::DivideAssign:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Divide, value);
+                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::Divide, value);
                     break;
                 case TokenTypes::MultiplyAssign:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::Multiply, value);
+                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::Multiply, value);
                     break;
                 case TokenTypes::BitwiseXorAssign:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::BitwiseXor, value);
+                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::BitwiseXor, value);
                     break;
                 case TokenTypes::BitwiseAndAssign:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::BitwiseAnd, value);
+                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::BitwiseAnd, value);
                     break;
                 case TokenTypes::BitwiseOrAssign:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::BitwiseOr, value);
+                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::BitwiseOr, value);
                     break;
                 case TokenTypes::ShiftLeftAssign:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::ShiftLeft, value);
+                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::ShiftLeft, value);
                     break;
                 case TokenTypes::ShiftRightAssign:
-                    value = std::make_shared<BinaryExpression>(assignee, TokenTypes::ShiftRight, value);
+                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::ShiftRight, value);
                     break;  
                 default:
                     std::string suggestion = Console::formatString(
@@ -592,3 +595,5 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
     );
     return nullptr;
 }
+
+} // namespace Omniscript

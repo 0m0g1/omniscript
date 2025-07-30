@@ -8,8 +8,12 @@ namespace Omniscript {
 struct filePosition {
     int line = -1;
     int col = -1;
-    std::string fileName;
     std::string filePath;
+
+    filePosition() = default;
+
+    filePosition(int l, int c, const std::string& path)
+        : line(l), col(c), filePath(path) {}
 
     std::string toString() const;
 };
@@ -18,6 +22,9 @@ struct filePosition {
 struct FileSpan {
     filePosition start;
     filePosition end;
+
+    FileSpan(int sLine = -1, int sCol = -1, int eLine = -1, int eCol = -1, const std::string& path = "")
+        : start(sLine, sCol, path), end(eLine, eCol, path) {}
 
     bool isValid() const;
     void merge(const FileSpan& other);

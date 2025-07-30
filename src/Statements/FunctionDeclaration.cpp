@@ -9,6 +9,7 @@
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
+#include <omniscript/Types/Types.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>

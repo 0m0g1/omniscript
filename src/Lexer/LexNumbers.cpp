@@ -89,7 +89,7 @@ Token Lexer::getNumberLiterals(char currentChar) {
         } else {
             console.reportError(Console::ErrorType::SYNTAX_ERROR,
                 "Invalid exponent format",
-                FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
             return TokenFactory::createInvalid(numberValue, startLine, startColumn, sourceFilePath_);
         }
     }
@@ -105,7 +105,7 @@ Token Lexer::getNumberLiterals(char currentChar) {
     if (!isValidNumber(numberValue)) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Invalid number literal: " + numberValue,
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid(numberValue, startLine, startColumn, sourceFilePath_);
     }
 
@@ -122,7 +122,7 @@ Token Lexer::getNumberLiterals(char currentChar) {
     } catch (const std::exception& e) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Number literal out of range: " + numberValue,
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid(numberValue, startLine, startColumn, sourceFilePath_);
     }
 }
@@ -141,7 +141,7 @@ Token Lexer::parseBinaryLiteral() {
     if (numberValue.empty()) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Empty binary literal",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid("0b", startLine, startColumn, sourceFilePath_);
     }
 
@@ -152,7 +152,7 @@ Token Lexer::parseBinaryLiteral() {
     } catch (const std::exception& e) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Invalid binary literal: 0b" + numberValue,
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid("0b" + numberValue, startLine, startColumn, sourceFilePath_);
     }
 }
@@ -171,7 +171,7 @@ Token Lexer::parseOctalLiteral() {
     if (numberValue.empty()) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Empty octal literal",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid("0o", startLine, startColumn, sourceFilePath_);
     }
 
@@ -182,7 +182,7 @@ Token Lexer::parseOctalLiteral() {
     } catch (const std::exception& e) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Invalid octal literal: 0o" + numberValue,
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid("0o" + numberValue, startLine, startColumn, sourceFilePath_);
     }
 }
@@ -201,7 +201,7 @@ Token Lexer::parseHexLiteral() {
     if (numberValue.empty()) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Empty hex literal",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid("0x", startLine, startColumn, sourceFilePath_);
     }
 
@@ -212,7 +212,7 @@ Token Lexer::parseHexLiteral() {
     } catch (const std::exception& e) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Invalid hex literal: 0x" + numberValue,
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid("0x" + numberValue, startLine, startColumn, sourceFilePath_);
     }
 }
@@ -231,7 +231,7 @@ Token Lexer::parseBigIntLiteral() {
     if (numberValue.empty()) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Empty BigInt literal",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid("0n", startLine, startColumn, sourceFilePath_);
     }
 

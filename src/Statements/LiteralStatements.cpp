@@ -3,9 +3,10 @@
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
-#include <omniscript/omniscript_pch.h>
-#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/Types/DerivedTypes.h>
+#include <omniscript/Statements/Statement.h>
 
 #include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Expressions/CastExpression.h>
@@ -649,10 +650,10 @@ std::shared_ptr<Literal> FloatLiteral::castTo(std::shared_ptr<Type> targetType) 
 }
 
 // Arbitrary-precision integer (BigInt)
-std::shared_ptr<Expression> BigInt::express(SymbolTableType scope) {
+std::shared_ptr<Expression> ASTBigInt::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("Creating a big int " + value);
-    unsigned bitWidth = BigInt::determineBitWidth(value);
+    unsigned bitWidth = ASTBigInt::determineBitWidth(value);
     auto result = std::make_shared<BigInt>(value, bitWidth);
 
     result->setSpan(this->getSpan());

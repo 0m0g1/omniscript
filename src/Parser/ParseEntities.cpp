@@ -11,6 +11,7 @@
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 
+namespace Omniscript {
 
 std::shared_ptr<Statement> Parser::parseEnum() {
     Token startToken = currentToken;
@@ -88,3 +89,5 @@ std::shared_ptr<Statement> Parser::parseNamespace() {
     // return std::make_shared<ConstantAssignment>(namespaceName, objectConstructor);
     return nullptr;
 }
+
+} // namespace Omniscript

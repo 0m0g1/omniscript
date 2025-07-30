@@ -24,7 +24,7 @@ Token Lexer::getStringToken(char currentChar) {
     }
     console.reportError(Console::ErrorType::SYNTAX_ERROR,
         "Invalid string literal start: " + std::string(1, currentChar),
-        FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+        FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
     return TokenFactory::createInvalid("", line_, column_, sourceFilePath_);
 }
 
@@ -53,7 +53,7 @@ Token Lexer::parseStringLiteral() {
             console.reportError(Console::ErrorType::SYNTAX_ERROR,
                 "String literal too long",
                 "Maximum string length is " + std::to_string(config_.maxStringLength),
-                FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
             return finalizeToken(TokenTypes::Invalid);
         }
 
@@ -74,7 +74,7 @@ Token Lexer::parseStringLiteral() {
             console.reportError(Console::ErrorType::SYNTAX_ERROR,
                 "Unterminated string literal",
                 "Close the string with a matching quote",
-                FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
             return finalizeToken(TokenTypes::Invalid);
         }
 
@@ -83,7 +83,7 @@ Token Lexer::parseStringLiteral() {
             if (isAtEnd()) {
                 console.reportError(Console::ErrorType::SYNTAX_ERROR,
                     "Unterminated escape sequence",
-                    FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                    FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
                 return finalizeToken(TokenTypes::Invalid);
             }
             char next = getCurrentChar();
@@ -132,7 +132,7 @@ Token Lexer::parseStringLiteral() {
                         console.reportError(Console::ErrorType::SYNTAX_ERROR,
                             "Invalid hex escape sequence",
                             "Provide valid hex digits after \\x",
-                            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
                         return finalizeToken(TokenTypes::Invalid);
                     }
                     literalValue += static_cast<char>(val);
@@ -150,7 +150,7 @@ Token Lexer::parseStringLiteral() {
                     console.reportError(Console::ErrorType::SYNTAX_ERROR,
                         "Unknown escape sequence: \\" + std::string(1, next),
                         "Use valid escape characters (e.g., \\n, \\t, \\uXXXX)",
-                        FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                        FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
                     literalValue += '\\';
                     literalValue += next;
                     break;
@@ -166,7 +166,7 @@ Token Lexer::parseStringLiteral() {
     console.reportError(Console::ErrorType::SYNTAX_ERROR,
         "Unterminated string literal",
         "Close the string with a matching quote",
-        FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+        FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
     return finalizeToken(TokenTypes::Invalid);
 }
 
@@ -190,7 +190,7 @@ Token Lexer::parseCharacterLiteral() {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Unterminated character literal",
             "Close the character literal with a single quote",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return finalizeToken(TokenTypes::Invalid);
     }
 
@@ -200,7 +200,7 @@ Token Lexer::parseCharacterLiteral() {
         if (isAtEnd()) {
             console.reportError(Console::ErrorType::SYNTAX_ERROR,
                 "Unterminated escape sequence",
-                FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
             return finalizeToken(TokenTypes::Invalid);
         }
         char next = getCurrentChar();
@@ -249,7 +249,7 @@ Token Lexer::parseCharacterLiteral() {
                     console.reportError(Console::ErrorType::SYNTAX_ERROR,
                         "Invalid hex escape sequence",
                         "Provide valid hex digits after \\x",
-                        FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                        FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
                     return finalizeToken(TokenTypes::Invalid);
                 }
                 literalValue += static_cast<char>(val);
@@ -267,7 +267,7 @@ Token Lexer::parseCharacterLiteral() {
                 console.reportError(Console::ErrorType::SYNTAX_ERROR,
                     "Unknown escape sequence: \\" + std::string(1, next),
                     "Use valid escape characters",
-                    FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                    FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
                 literalValue += '\\';
                 literalValue += next;
                 break;
@@ -281,7 +281,7 @@ Token Lexer::parseCharacterLiteral() {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Invalid character literal",
             "Character literals must contain exactly one character and end with a single quote",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return finalizeToken(TokenTypes::Invalid);
     }
 
@@ -291,7 +291,7 @@ Token Lexer::parseCharacterLiteral() {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Invalid character literal: too many characters",
             "Character literals must contain exactly one character",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return finalizeToken(TokenTypes::Invalid);
     }
     return finalizeToken(TokenTypes::Character);
@@ -310,7 +310,7 @@ Token Lexer::parseRawString() {
     if (isAtEnd()) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Incomplete raw string literal",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid("", startLine, startColumn, sourceFilePath_);
     }
 
@@ -321,7 +321,7 @@ Token Lexer::parseRawString() {
             console.reportError(Console::ErrorType::SYNTAX_ERROR,
                 "Raw string literal too long",
                 "Maximum string length is " + std::to_string(config_.maxStringLength),
-                FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
             return TokenFactory::createInvalid(value, startLine, startColumn, sourceFilePath_);
         }
 
@@ -337,7 +337,7 @@ Token Lexer::parseRawString() {
 
     console.reportError(Console::ErrorType::SYNTAX_ERROR,
         "Unterminated raw string literal",
-        FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+        FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
     return TokenFactory::createInvalid(value, startLine, startColumn, sourceFilePath_);
 }
 
@@ -361,7 +361,7 @@ Token Lexer::parseTemplateString() {
             console.reportError(Console::ErrorType::SYNTAX_ERROR,
                 "Template string too long",
                 "Maximum string length is " + std::to_string(config_.maxStringLength),
-                FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
             return finalizeToken(TokenTypes::Invalid);
         }
 
@@ -396,7 +396,7 @@ Token Lexer::parseTemplateString() {
     console.reportError(Console::ErrorType::SYNTAX_ERROR,
         "Unterminated template string",
         "Close the template string with a backtick",
-        FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+        FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
     return finalizeToken(TokenTypes::Invalid);
 }
 
@@ -412,7 +412,7 @@ uint32_t Lexer::parseUnicodeEscape() {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Invalid Unicode escape sequence",
             "Provide correct number of hex digits for \\u (4) or \\U (8)",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return 0xFFFFFFFF;
     }
 
@@ -425,7 +425,7 @@ uint32_t Lexer::parseUnicodeEscape() {
             console.reportError(Console::ErrorType::SYNTAX_ERROR,
                 "Invalid Unicode digit in \\" + std::string(1, type),
                 "Use valid hex digits in Unicode escape",
-                FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
             return 0xFFFFFFFF;
         }
     }

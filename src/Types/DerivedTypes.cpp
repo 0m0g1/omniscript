@@ -1,6 +1,6 @@
-#include <omniscript/Type/BaseType.h>
-#include <omniscript/Type/DerivedTypes.h>
-#include <omniscript/Type/TraitCapability.h>
+#include <omniscript/Types/BaseType.h>
+#include <omniscript/Types/DerivedTypes.h>
+#include <omniscript/Types/TraitCapability.h>
 #include <omniscript/Console.h>
 
 namespace Omniscript {

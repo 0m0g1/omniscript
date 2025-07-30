@@ -37,25 +37,50 @@ const std::unordered_set<std::string> Lexer::reservedWords_ = {
     "module", "async", "await", "yield", "typeof", "instanceof"
 };
 
-const bool Lexer::isIdentifierStartTable_[256] = {
-    [65 ... 90] = true, [95] = true, [97 ... 122] = true
-};
+// Initialize isIdentifierStartTable_ (A-Z, _, a-z)
+const std::array<bool, 256> Lexer::isIdentifierStartTable_ = []() {
+    std::array<bool, 256> arr = {};
+    for (int i = 65; i <= 90; ++i) arr[i] = true;  // A-Z
+    arr[95] = true;                                // _
+    for (int i = 97; i <= 122; ++i) arr[i] = true; // a-z
+    return arr;
+}();
 
-const bool Lexer::isIdentifierContinuationTable_[256] = {
-    [48 ... 57] = true, [65 ... 90] = true, [95] = true, [97 ... 122] = true
-};
+// Initialize isIdentifierContinuationTable_ (0-9, A-Z, _, a-z)
+const std::array<bool, 256> Lexer::isIdentifierContinuationTable_ = []() {
+    std::array<bool, 256> arr = {};
+    for (int i = 48; i <= 57; ++i) arr[i] = true;  // 0-9
+    for (int i = 65; i <= 90; ++i) arr[i] = true;  // A-Z
+    arr[95] = true;                                // _
+    for (int i = 97; i <= 122; ++i) arr[i] = true; // a-z
+    return arr;
+}();
 
-const bool Lexer::isDigitTable_[256] = {
-    [48 ... 57] = true
-};
+// Initialize isDigitTable_ (0-9)
+const std::array<bool, 256> Lexer::isDigitTable_ = []() {
+    std::array<bool, 256> arr = {};
+    for (int i = 48; i <= 57; ++i) arr[i] = true;  // 0-9
+    return arr;
+}();
 
-const bool Lexer::isHexDigitTable_[256] = {
-    [48 ... 57] = true, [65 ... 70] = true, [97 ... 102] = true
-};
+// Initialize isHexDigitTable_ (0-9, A-F, a-f)
+const std::array<bool, 256> Lexer::isHexDigitTable_ = []() {
+    std::array<bool, 256> arr = {};
+    for (int i = 48; i <= 57; ++i) arr[i] = true;  // 0-9
+    for (int i = 65; i <= 70; ++i) arr[i] = true;  // A-F
+    for (int i = 97; i <= 102; ++i) arr[i] = true; // a-f
+    return arr;
+}();
 
-const bool Lexer::isWhitespaceTable_[256] = {
-    [9] = true, [10] = true, [13] = true, [32] = true
-};
+// Initialize isWhitespaceTable_ (tab, newline, carriage return, space)
+const std::array<bool, 256> Lexer::isWhitespaceTable_ = []() {
+    std::array<bool, 256> arr = {};
+    arr[9] = true;   // Tab
+    arr[10] = true;  // Newline
+    arr[13] = true;  // Carriage return
+    arr[32] = true;  // Space
+    return arr;
+}();
 
 Lexer::Lexer(const std::string& source, const std::string& filePath, const LexerConfig& config)
     : source_(source)
@@ -136,7 +161,7 @@ Token Lexer::getNextToken() {
         console.reportError(Console::ErrorType::INTERNAL_ERROR,
             "Internal lexer error: " + std::string(e.what()),
             "Please report this as a bug",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         Token errorToken = TokenFactory::createInvalid("lexer error", startLine, startColumn, sourceFilePath_);
         updateStatistics(errorToken);
         if (debugMode_) debugPrintToken(errorToken);
@@ -203,7 +228,7 @@ Token Lexer::handleMultiLineComment() {
                 console.reportError(Console::ErrorType::SYNTAX_ERROR,
                     "Comment nesting too deep",
                     "Consider reducing comment nesting or using single-line comments",
-                    FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                    FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
                 break;
             }
             nestingDepth++;
@@ -231,7 +256,7 @@ Token Lexer::handleMultiLineComment() {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Unclosed multi-line comment",
             "Close the comment with '*/'",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid("", startLine, startColumn, sourceFilePath_);
     }
 
@@ -242,7 +267,7 @@ Token Lexer::handleUnexpectedCharacter(char currentChar) {
     console.reportError(Console::ErrorType::SYNTAX_ERROR,
         "Unexpected character: " + std::string(1, currentChar),
         "Check for valid tokens or syntax",
-        FileSpan{{line_, column_}, {line_, column_}, sourceFilePath_});
+        FileSpan{line_, column_, line_, column_, sourceFilePath_});
     return TokenFactory::createInvalid(std::string(1, currentChar), line_, column_, sourceFilePath_);
 }
 

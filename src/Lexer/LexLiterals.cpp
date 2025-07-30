@@ -15,7 +15,7 @@ Token Lexer::parseIdentifierOrKeyword() {
             console.reportError(Console::ErrorType::SYNTAX_ERROR,
                 "Identifier too long",
                 "Maximum identifier length is " + std::to_string(config_.maxIdentifierLength),
-                FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+                FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
             break;
         }
         rawIdentifier += getCurrentChar();
@@ -25,7 +25,7 @@ Token Lexer::parseIdentifierOrKeyword() {
     if (rawIdentifier.empty()) {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Empty identifier parsed",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid("", startLine, startColumn, sourceFilePath_);
     }
 
@@ -46,7 +46,7 @@ Token Lexer::parseIdentifierOrKeyword() {
         console.reportError(Console::ErrorType::SYNTAX_ERROR,
             "Invalid identifier: " + rawIdentifier,
             "Identifiers must start with a letter or underscore and contain only letters, digits, or underscores",
-            FileSpan{{startLine, startColumn}, {line_, column_}, sourceFilePath_});
+            FileSpan{startLine, startColumn, line_, column_, sourceFilePath_});
         return TokenFactory::createInvalid(rawIdentifier, startLine, startColumn, sourceFilePath_);
     }
 

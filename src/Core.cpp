@@ -1,4 +1,20 @@
 // core.cpp
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#include <psapi.h>
+#pragma comment(lib, "psapi.lib")
+#endif
+
+#include <fstream>  // Needed for Linux memory reading
+#include <sstream>
+#include <string>
+#include <thread>
+#include <chrono>
+#include <mutex>
+#include <shared_mutex>
+#include <algorithm>
+
 #include <omniscript/Core.h>
 #include <omniscript/FileSpan.h>
 
