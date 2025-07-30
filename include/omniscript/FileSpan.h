@@ -6,13 +6,13 @@ namespace Omniscript {
 
 // Position structure
 struct filePosition {
-    int line = -1;
-    int col = -1;
+    size_t line = -1;
+    size_t col = -1;
     std::string filePath;
 
     filePosition() = default;
 
-    filePosition(int l, int c, const std::string& path)
+    filePosition(size_t l, size_t c, const std::string& path)
         : line(l), col(c), filePath(path) {}
 
     std::string toString() const;
@@ -23,7 +23,7 @@ struct FileSpan {
     filePosition start;
     filePosition end;
 
-    FileSpan(int sLine = -1, int sCol = -1, int eLine = -1, int eCol = -1, const std::string& path = "")
+    FileSpan(size_t sLine = -1, size_t sCol = -1, size_t eLine = -1, size_t eCol = -1, const std::string& path = "")
         : start(sLine, sCol, path), end(eLine, eCol, path) {}
 
     bool isValid() const;
@@ -39,9 +39,9 @@ extern FileSpan currentSpan;
 
 void setSpan(const filePosition& start, const filePosition& end);
 void setSpan(const FileSpan& span);
-void setSpan(int startLine, int startCol, int endLine, int endCol, const std::string& path);
+void setSpan(size_t startLine, size_t startCol, size_t endLine, size_t endCol, const std::string& path);
 FileSpan getSpan();
-void setSpanFromPosition(int line, int column, const std::string& path);
+void setSpanFromPosition(size_t line, size_t column, const std::string& path);
 
 extern bool allThreadsDone;
 

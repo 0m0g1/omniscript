@@ -1,7 +1,8 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
 #include <omniscript/Console.h>
-#include <omniscript/utils.h>
+#include <omniscript/Utils.h>
+#include <stdexcept>
 #include <cctype>
 #include <algorithm>
 #include <sstream>
@@ -167,6 +168,39 @@ Token Lexer::getNextToken() {
         if (debugMode_) debugPrintToken(errorToken);
         return errorToken;
     }
+}
+
+Token Lexer::peekToken(unsigned long long offset) {
+    // Check if the token is already in the cache
+    if (offset < tokenCache_.size()) {
+        return getCachedToken(offset);
+    }
+
+    // Save current lexer state to restore after peeking
+    size_t savedPosition = currentPosition_;
+    size_t savedLine = line_;
+    size_t savedColumn = column_;
+    std::optional<Token> savedPendingNewline = pendingNewlineToken_;
+    size_t savedCachePosition = cachePosition_;
+
+    // Advance to the desired offset by getting tokens
+    Token token;
+    for (unsigned long long i = tokenCache_.size(); i <= offset; ++i) {
+        token = getNextToken();
+        cacheToken(token);
+        if (token.getType() == TokenTypes::EOI) {
+            break;
+        }
+    }
+
+    // Restore lexer state
+    currentPosition_ = savedPosition;
+    line_ = savedLine;
+    column_ = savedColumn;
+    pendingNewlineToken_ = savedPendingNewline;
+    cachePosition_ = savedCachePosition;
+
+    return token;
 }
 
 void Lexer::skipWhitespace() {
@@ -618,5 +652,229 @@ bool LexerIterator::operator==(const LexerIterator& other) const {
 bool LexerIterator::operator!=(const LexerIterator& other) const {
     return !(*this == other);
 }
+
+namespace LexerUtils {
+
+std::string toLowerCaseString(const std::string& str) {
+    std::string result = str;
+    std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) { return std::tolower(c); });
+    return result;
+}
+
+double parseFloat(const std::string& str) {
+    try {
+        size_t pos;
+        double result = std::stod(str, &pos);
+        if (pos != str.size()) {
+            throw std::invalid_argument("Invalid float format: " + str);
+        }
+        return result;
+    } catch (const std::exception& e) {
+        throw std::invalid_argument("Failed to parse float: " + str);
+    }
+}
+
+int64_t parseInteger(const std::string& str, int base) {
+    try {
+        size_t pos;
+        int64_t result = std::stoll(str, &pos, base);
+        if (pos != str.size()) {
+            throw std::invalid_argument("Invalid integer format: " + str);
+        }
+        return result;
+    } catch (const std::exception& e) {
+        throw std::invalid_argument("Failed to parse integer: " + str);
+    }
+}
+
+std::u32string utf8ToUtf32(const std::string& str) {
+    // Simplified implementation; consider using a library like utf8cpp for robust UTF-8 to UTF-32 conversion
+    std::u32string result;
+    for (size_t i = 0; i < str.size(); ++i) {
+        uint32_t codepoint = static_cast<unsigned char>(str[i]);
+        if (codepoint <= 0x7F) {
+            result.push_back(codepoint);
+        } else {
+            // Handle multi-byte UTF-8 sequences (placeholder)
+            result.push_back('?');
+        }
+    }
+    return result;
+}
+
+bool isValidNumber(const std::string& str) {
+    if (str.empty()) return false;
+    std::regex numberRegex("^-?(0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+|[0-9]+)(\\.[0-9]+)?([eE][+-]?[0-9]+)?$");
+    return std::regex_match(str, numberRegex);
+}
+
+std::string escapeString(const std::string& str) {
+    std::string result;
+    for (char c : str) {
+        switch (c) {
+            case '\n': result += "\\n"; break;
+            case '\t': result += "\\t"; break;
+            case '\r': result += "\\r"; break;
+            case '\b': result += "\\b"; break;
+            case '\f': result += "\\f"; break;
+            case '\v': result += "\\v"; break;
+            case '\a': result += "\\a"; break;
+            case '\\': result += "\\\\"; break;
+            case '\'': result += "\\'"; break;
+            case '"': result += "\\\""; break;
+            case '?': result += "\\?"; break;
+            default: result += c; break;
+        }
+    }
+    return result;
+}
+
+std::string unescapeString(const std::string& str) {
+    std::string result;
+    for (size_t i = 0; i < str.length(); ++i) {
+        if (str[i] == '\\' && i + 1 < str.length()) {
+            ++i;
+            switch (str[i]) {
+                case 'n': result += '\n'; break;
+                case 't': result += '\t'; break;
+                case 'r': result += '\r'; break;
+                case 'b': result += '\b'; break;
+                case 'f': result += '\f'; break;
+                case 'v': result += '\v'; break;
+                case 'a': result += '\a'; break;
+                case '\\': result += '\\'; break;
+                case '\'': result += '\''; break;
+                case '"': result += '"'; break;
+                case '?': result += '?'; break;
+                default: result += '\\'; result += str[i]; break;
+            }
+        } else {
+            result += str[i];
+        }
+    }
+    return result;
+}
+
+bool isWhitespace(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
+bool isNewline(char c) {
+    return c == '\n' || c == '\r';
+}
+
+bool isIdentifierChar(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+bool isDigitChar(char c) {
+    return c >= '0' && c <= '9';
+}
+
+bool isHexDigitChar(char c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+bool isBinaryDigitChar(char c) {
+    return c == '0' || c == '1';
+}
+
+bool isOctalDigitChar(char c) {
+    return c >= '0' && c <= '7';
+}
+
+bool isValidStringEscape(char c) {
+    return c == 'n' || c == 't' || c == 'r' || c == 'b' || c == 'f' ||
+           c == 'v' || c == 'a' || c == '\\' || c == '\'' || c == '"' ||
+           c == '?' || c == '0' || c == 'x' || c == 'u' || c == 'U';
+}
+
+bool isValidIntegerSuffix(const std::string& suffix) {
+    return suffix.empty() || suffix == "u" || suffix == "l" || suffix == "ul" ||
+           suffix == "ll" || suffix == "ull";
+}
+
+bool isValidFloatSuffix(const std::string& suffix) {
+    return suffix.empty() || suffix == "f" || suffix == "l";
+}
+
+bool isValidIdentifierName(const std::string& name) {
+    if (name.empty()) return false;
+    if (!isIdentifierChar(name[0]) || isDigitChar(name[0])) return false;
+    for (char c : name) {
+        if (!isIdentifierChar(c)) return false;
+    }
+    return true;
+}
+
+bool isReservedKeyword(const std::string& word) {
+    static const std::unordered_set<std::string> reserved = {
+        "if", "else", "while", "for", "function", "fn", "let", "var",
+        "const", "true", "false", "null", "nullptr", "return", "break",
+        "continue", "struct", "class", "enum", "namespace", "using",
+        "public", "private", "protected", "static", "virtual", "override",
+        "final", "extern", "intrinsic", "volatile", "new", "delete",
+        "this", "super", "extends", "implements", "import", "export",
+        "module", "async", "await", "yield", "typeof", "instanceof"
+    };
+    return reserved.find(word) != reserved.end();
+}
+
+bool isValidUTF8(const std::string& str) {
+    // Simplified; consider using utf8cpp for robust validation
+    return !str.empty();
+}
+
+std::string utf32ToUtf8(const std::u32string& str) {
+    // Simplified; consider using utf8cpp
+    std::string result;
+    for (char32_t c : str) {
+        if (c <= 0x7F) {
+            result += static_cast<char>(c);
+        } else {
+            result += '?';
+        }
+    }
+    return result;
+}
+
+uint32_t getUnicodeCategory(uint32_t codepoint) {
+    // Placeholder; implement proper Unicode category lookup if needed
+    return 0;
+}
+
+std::string getFileExtension(const std::string& path) {
+    size_t pos = path.find_last_of('.');
+    return pos != std::string::npos ? path.substr(pos) : "";
+}
+
+std::string getFileName(const std::string& path) {
+    size_t pos = path.find_last_of("/\\");
+    return pos != std::string::npos ? path.substr(pos + 1) : path;
+}
+
+std::string getDirectory(const std::string& path) {
+    size_t pos = path.find_last_of("/\\");
+    return pos != std::string::npos ? path.substr(0, pos) : "";
+}
+
+bool isSourceFile(const std::string& path) {
+    std::string ext = getFileExtension(path);
+    return ext == ".oms" || ext == ".os" || ext == ".omniscript";
+}
+
+size_t hashString(const std::string& str) {
+    return std::hash<std::string>{}(str);
+}
+
+bool stringEquals(const std::string& a, const std::string& b) {
+    return a == b;
+}
+
+int stringCompare(const std::string& a, const std::string& b) {
+    return a.compare(b);
+}
+
+} // namespace LexerUtils
 
 } // namespace Omniscript

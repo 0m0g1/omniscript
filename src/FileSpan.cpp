@@ -46,7 +46,7 @@ void setSpan(const FileSpan& span) {
     currentSpan = span;
 }
 
-void setSpan(int startLine, int startCol, int endLine, int endCol, const std::string& path) {
+void setSpan(size_t startLine, size_t startCol, size_t endLine, size_t endCol, const std::string& path) {
     currentSpan.start.line = startLine;
     currentSpan.start.col = startCol;
     currentSpan.start.filePath = path;
@@ -60,7 +60,7 @@ FileSpan getSpan() {
     return currentSpan;
 }
 
-void setSpanFromPosition(int line, int column, const std::string& path) {
+void setSpanFromPosition(size_t line, size_t column, const std::string& path) {
     filePosition pos;
     pos.line = line;
     pos.col = column;
