@@ -185,7 +185,7 @@ void Console::showSourceLine(const std::string& filePath, int lineNumber, const 
 void Console::showSourceContext(const FileSpan& span, int contextLines) {
     if (!span.isValid()) return;
     
-    int startLine = std::max(1, span.start.line - contextLines);
+    int startLine = std::max(1, static_cast<int>(span.start.line - contextLines));
     int endLine = span.end.line + contextLines;
     
     for (int i = startLine; i <= endLine; i++) {

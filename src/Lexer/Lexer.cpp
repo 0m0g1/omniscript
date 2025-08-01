@@ -323,14 +323,29 @@ std::string Lexer::peekString(size_t length) const {
 
 void Lexer::advance(size_t count) {
     for (size_t i = 0; i < count && !isAtEnd(); ++i) {
-        if (isNewline(getCurrentChar())) {
+        char c = getCurrentChar();
+        if (isNewline(c)) {
+            size_t newlineColumn = column_;
+            if (c == '\r' && peek() == '\n') {
+                if (i + 1 < count) {
+                    currentPosition_ += 2; // Skip \r\n
+                    i++; // Account for \n
+                } else {
+                    currentPosition_++; // Skip \r, leave \n for next call
+                }
+            } else {
+                currentPosition_++; // Skip \n or lone \r
+            }
             line_++;
             column_ = 1;
             stats_.totalLines++;
+            // if (config_.trackNewlines && !pendingNewlineToken_.has_value()) {
+            //     pendingNewlineToken_ = TokenFactory::createOperator(TokenTypes::Newline, line_ - 1, newlineColumn, sourceFilePath_);
+            // }
         } else {
             column_++;
+            currentPosition_++;
         }
-        currentPosition_++;
     }
 }
 

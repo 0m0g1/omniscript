@@ -134,6 +134,74 @@ std::string getTokenTypeName(TokenTypes type) {
     return (it != tokenTypeNames.end()) ? it->second : "Unknown";
 }
 
+std::unordered_map<TokenTypes, std::string> operatorSymbols = {
+    {TokenTypes::Plus, "+"},
+    {TokenTypes::Minus, "-"},
+    {TokenTypes::Multiply, "*"},
+    {TokenTypes::Divide, "/"},
+    {TokenTypes::Modulo, "%"},
+    {TokenTypes::Power, "**"},
+    {TokenTypes::Increment, "++"},
+    {TokenTypes::Decrement, "--"},
+    {TokenTypes::FloorDivide, "//"},
+
+    {TokenTypes::Assign, "="},
+    {TokenTypes::PlusAssign, "+="},
+    {TokenTypes::MinusAssign, "-="},
+    {TokenTypes::MultiplyAssign, "*="},
+    {TokenTypes::DivideAssign, "/="},
+    {TokenTypes::ModuloAssign, "%="},
+    {TokenTypes::PowerAssign, "**="},
+
+    {TokenTypes::Equals, "=="},
+    {TokenTypes::NotEquals, "!="},
+    {TokenTypes::LessThan, "<"},
+    {TokenTypes::GreaterThan, ">"},
+    {TokenTypes::LessEqual, "<="},
+    {TokenTypes::GreaterEqual, ">="},
+
+    {TokenTypes::LogicalAnd, "&&"},
+    {TokenTypes::LogicalOr, "||"},
+    {TokenTypes::LogicalNot, "!"},
+    {TokenTypes::BitwiseAnd, "&"},
+    {TokenTypes::BitwiseOr, "|"},
+    {TokenTypes::BitwiseXor, "^"},
+    {TokenTypes::Tilde, "~"},
+
+    {TokenTypes::ShiftLeft, "<<"},
+    {TokenTypes::ShiftRight, ">>"},
+    {TokenTypes::ShiftLeftAssign, "<<="},
+    {TokenTypes::ShiftRightAssign, ">>="},
+    {TokenTypes::BitwiseAndAssign, "&="},
+    {TokenTypes::BitwiseOrAssign, "|="},
+    {TokenTypes::BitwiseXorAssign, "^="},
+
+    {TokenTypes::Arrow, "->"},
+    {TokenTypes::ScopeResolution, "::"},
+
+    {TokenTypes::LeftParen, "("},
+    {TokenTypes::RightParen, ")"},
+    {TokenTypes::LeftBrace, "{"},
+    {TokenTypes::RightBrace, "}"},
+    {TokenTypes::LeftBracket, "["},
+    {TokenTypes::RightBracket, "]"},
+    {TokenTypes::Semicolon, ";"},
+    {TokenTypes::Comma, ","},
+    {TokenTypes::Dot, "."},
+    {TokenTypes::Colon, ":"},
+    {TokenTypes::QuestionMark, "?"},
+    {TokenTypes::Ellipsis, "..."},
+    {TokenTypes::NullCoalescing, "??"},
+    {TokenTypes::AtSymbol, "@"},
+    {TokenTypes::Hash, "#"},
+    {TokenTypes::Dollar, "$"},
+};
+
+std::string getOperatorSymbol(TokenTypes type) {
+    auto it = operatorSymbols.find(type);
+    return (it != operatorSymbols.end()) ? it->second : "";
+}
+
 bool isBinaryOperator(TokenTypes tokenType) {
     switch (tokenType) {
         case TokenTypes::Plus:
@@ -250,6 +318,29 @@ bool isArithmeticOperator(TokenTypes tokenType) {
         case TokenTypes::Modulo:
         case TokenTypes::Power:
         case TokenTypes::FloorDivide:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool isPunctuationOperator(TokenTypes tokenType) {
+    switch (tokenType) {
+        case TokenTypes::LeftParen:
+        case TokenTypes::RightParen:
+        case TokenTypes::LeftBrace:
+        case TokenTypes::RightBrace:
+        case TokenTypes::LeftBracket:
+        case TokenTypes::RightBracket:
+        case TokenTypes::Semicolon:
+        case TokenTypes::Comma:
+        case TokenTypes::Dot:
+        case TokenTypes::Colon:
+        case TokenTypes::DoubleColon:
+        case TokenTypes::QuestionMark:
+        case TokenTypes::Ellipsis:
+        case TokenTypes::NullCoalescing:
+        case TokenTypes::SafeNavigation:
             return true;
         default:
             return false;
@@ -399,12 +490,13 @@ Token createBoolean(bool value, size_t line, size_t column, const std::string& p
 Token createOperator(TokenTypes type, size_t line, size_t column, const std::string& path) {
     if (!isBinaryOperator(type) && !isUnaryOperator(type) && 
         !isAssignmentOperator(type) && !isComparisonOperator(type) &&
-        !isLogicalOperator(type) && !isBitwiseOperator(type)) {
+        !isLogicalOperator(type) && !isBitwiseOperator(type) &&
+        !isPunctuationOperator(type)) {
         Token token(TokenTypes::Invalid, std::string("Invalid operator"), line, column, path);
         token.setStringValue("Invalid operator");
         return token;
     }
-    Token token(type, std::string(getTokenTypeName(type)), line, column, path);
+    Token token(type, std::string(getOperatorSymbol(type)), line, column, path);
     token.setStringValue(getTokenTypeName(type));
     return token;
 }

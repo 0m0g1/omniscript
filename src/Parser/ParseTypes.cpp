@@ -608,10 +608,9 @@ std::vector<std::string> Parser::parseType() {
         return dataTypes;
     }
 
-    while ((currentToken.getType() == TokenTypes::Multiply ||
+    while (currentToken.getType() == TokenTypes::Multiply ||
             currentToken.getType() == TokenTypes::BitwiseAnd ||
-            currentToken.getType() == TokenTypes::QuestionMark) &&
-           !hasWhitespace(currentToken)) {
+            currentToken.getType() == TokenTypes::QuestionMark) {
         
         dataTypes.push_back(currentToken.getValue());
         prevColumn = currentToken.getColumn();

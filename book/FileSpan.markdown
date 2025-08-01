@@ -1,16 +1,10 @@
-# FileSpan: Source Code Position and Span Tracking for OmniScript++
-
-The `FileSpan` module in the OmniScript++ (OS) compiler provides utilities for tracking source code positions and spans, enabling precise error reporting and debugging. This document covers both the declarations (from `FileSpan.h`) and definitions (from `core.cpp`) of the `filePosition` and `FileSpan` structures, as well as related global variables and functions. These components are essential for associating compiler diagnostics (e.g., syntax errors in OS code like `Vec2 can +`) with specific locations in source files, supporting professional-grade compiler development.
+# FileSpan
 
 ## Purpose
-- **Source Position Tracking**: The `filePosition` structure records a single point in the source code (line, column, file path), used for pinpointing errors or warnings.
-- **Source Span Management**: The `FileSpan` structure tracks a range of source code (from start to end positions), ideal for reporting issues that span multiple lines or columns, such as a malformed `Sprite` struct definition.
-- **Global Span Management**: The `currentSpan` global variable and associated functions (`setSpan`, `getSpan`, `setSpanFromPosition`) allow the compiler to maintain and query the current source location during parsing, semantic analysis, or code generation.
-- **Thread Synchronization**: The `allThreadsDone` flag supports multi-threaded compilation scenarios, such as the threaded starfield example in OS, ensuring proper cleanup after all threads complete.
+The `FileSpan` component is a critical utility in the OmniScript++ (OS) compiler for tracking source code locations. It enables precise diagnostic reporting by associating errors, warnings, and other messages with specific ranges of source code (e.g., lines and columns in a file). By maintaining start and end positions, `FileSpan` supports detailed error messages, such as those used in syntax or semantic errors, and facilitates context display (e.g., showing offending source lines with caret indicators). In professional compiler design, accurate source tracking is essential for user-friendly diagnostics, and `FileSpan` exemplifies this practice in the OS compiler.
 
-## FileSpan.h Declarations
-
-The `FileSpan.h` header declares the `filePosition` and `FileSpan` structures, along with global variables and functions for span management. Below is the complete header content:
+## Declarations
+Below is the header file for `FileSpan`, defining the `filePosition` and `FileSpan` structures, along with global functions for managing a current span.
 
 ```cpp
 #pragma once
@@ -21,13 +15,13 @@ namespace Omniscript {
 
 // Position structure
 struct filePosition {
-    int line = -1;
-    int col = -1;
+    size_t line = -1;
+    size_t col = -1;
     std::string filePath;
 
     filePosition() = default;
 
-    filePosition(int l, int c, const std::string& path)
+    filePosition(size_t l, size_t c, const std::string& path)
         : line(l), col(c), filePath(path) {}
 
     std::string toString() const;
@@ -38,7 +32,7 @@ struct FileSpan {
     filePosition start;
     filePosition end;
 
-    FileSpan(int sLine = -1, int sCol = -1, int eLine = -1, int eCol = -1, const std::string& path = "")
+    FileSpan(size_t sLine = -1, size_t sCol = -1, size_t eLine = -1, size_t eCol = -1, const std::string& path = "")
         : start(sLine, sCol, path), end(eLine, eCol, path) {}
 
     bool isValid() const;
@@ -54,43 +48,27 @@ extern FileSpan currentSpan;
 
 void setSpan(const filePosition& start, const filePosition& end);
 void setSpan(const FileSpan& span);
-void setSpan(int startLine, int startCol, int endLine, int endCol, const std::string& path);
+void setSpan(size_t startLine, size_t startCol, size_t endLine, size_t endCol, const std::string& path);
 FileSpan getSpan();
-void setSpanFromPosition(int line, int column, const std::string& path);
+void setSpanFromPosition(size_t line, size_t column, const std::string& path);
 
 extern bool allThreadsDone;
 
 }  // namespace Omniscript
 ```
 
-### Declaration Details
-- **filePosition**:
-  - **Fields**: `line` (int, default -1), `col` (int, default -1), `filePath` (std::string).
-  - **Constructors**:
-    - Default constructor initializes `line` and `col` to -1, `filePath` to empty.
-    - Parameterized constructor sets `line`, `col`, and `filePath`.
-  - **Method**: `toString()` returns a string representation (e.g., `file.os:10:5`).
-- **FileSpan**:
-  - **Fields**: `start` and `end` of type `filePosition`.
-  - **Constructor**: Initializes `start` and `end` with provided line, column, and path values.
-  - **Methods**:
-    - `isValid()`: Checks if the span is valid (both `start` and `end` lines are non-negative).
-    - `merge(const FileSpan&)`: Merges another span into this one, extending to cover both.
-    - `toString()`: Returns a string representation (e.g., `file.os:10:5 - file.os:12:3`).
-    - `isBefore(const filePosition&, const filePosition&)`: Static helper to compare positions.
-- **Global Variables**:
-  - `currentSpan`: A global `FileSpan` tracking the current source location.
-  - `allThreadsDone`: A boolean flag indicating whether all compilation threads have finished.
-- **Global Functions**:
-  - `setSpan(filePosition, filePosition)`: Sets `currentSpan` with start and end positions.
-  - `setSpan(FileSpan)`: Sets `currentSpan` to a given span.
-  - `setSpan(int, int, int, int, std::string)`: Sets `currentSpan` with start/end line, column, and path.
-  - `getSpan()`: Returns the current span.
-  - `setSpanFromPosition(int, int, std::string)`: Sets `currentSpan` to a single position (start = end).
+### Explanation
+- **`filePosition`**: Represents a single point in the source code, with `line`, `col`, and `filePath`. The default constructor initializes invalid positions (`-1`), while the parameterized constructor sets specific values. The `toString()` method formats the position as `file:line:col`.
+- **`FileSpan`**: Encapsulates a range of source code using `start` and `end` `filePosition` objects. The constructor allows initialization with line, column, and file path. Key methods include:
+  - `isValid()`: Checks if the span has valid line numbers (≥ 0).
+  - `merge()`: Combines two spans by selecting the earliest start and latest end positions.
+  - `toString()`: Formats the span as `start - end`.
+  - `isBefore()`: A private static method to compare positions, ensuring correct merging logic.
+- **Global Functions**: Functions like `setSpan()` and `getSpan()` manage a global `currentSpan`, enabling components like the parser to track the current source location during compilation. `setSpanFromPosition()` sets a single-point span.
+- **`allThreadsDone`**: An external boolean, likely used for thread synchronization, but not directly related to `FileSpan`’s core functionality.
 
-## core.cpp Definitions
-
-The `core.cpp` file provides the implementation of the methods declared in `FileSpan.h`. Below is the relevant portion of `core.cpp`:
+## Definitions
+Below is the implementation file for `FileSpan`, defining the methods declared in the header.
 
 ```cpp
 #include <omniscript/FileSpan.h>
@@ -140,7 +118,7 @@ void setSpan(const FileSpan& span) {
     currentSpan = span;
 }
 
-void setSpan(int startLine, int startCol, int endLine, int endCol, const std::string& path) {
+void setSpan(size_t startLine, size_t startCol, size_t endLine, size_t endCol, const std::string& path) {
     currentSpan.start.line = startLine;
     currentSpan.start.col = startCol;
     currentSpan.start.filePath = path;
@@ -154,7 +132,7 @@ FileSpan getSpan() {
     return currentSpan;
 }
 
-void setSpanFromPosition(int line, int column, const std::string& path) {
+void setSpanFromPosition(size_t line, size_t column, const std::string& path) {
     filePosition pos;
     pos.line = line;
     pos.col = column;
@@ -163,76 +141,60 @@ void setSpanFromPosition(int line, int column, const std::string& path) {
     currentSpan.end = pos;
 }
 
-} // namespace Omniscript
-```
-
-### Definition Details
-- **filePosition::toString()**:
-  - Concatenates `filePath`, `line`, and `col` into a string (e.g., `file.os:10:5`).
-- **FileSpan::isValid()**:
-  - Returns true if both `start.line` and `end.line` are non-negative, indicating a valid span.
-- **FileSpan::merge(const FileSpan&)**:
-  - If the other span is invalid, does nothing.
-  - If the current span is invalid, copies the other span.
-  - Otherwise, updates `start` to the earlier position and `end` to the later position using `isBefore`.
-- **FileSpan::toString()**:
-  - Returns a string combining `start.toString()` and `end.toString()` (e.g., `file.os:10:5 - file.os:12:3`).
-- **FileSpan::isBefore(const filePosition&, const filePosition&)**:
-  - Compares two positions in the same file:
-    - Returns false if file paths differ.
-    - Returns true if `a.line < b.line` or if lines are equal and `a.col < b.col`.
-- **setSpan(filePosition, filePosition)**:
-  - Assigns the provided `start` and `end` positions to `currentSpan`.
-- **setSpan(FileSpan)**:
-  - Copies the provided span to `currentSpan`.
-- **setSpan(int, int, int, int, std::string)**:
-  - Sets `currentSpan`’s `start` and `end` fields with the provided line, column, and path values.
-- **getSpan()**:
-  - Returns a copy of `currentSpan`.
-- **setSpanFromPosition(int, int, std::string)**:
-  - Creates a `filePosition` with the given line, column, and path, and sets both `currentSpan.start` and `currentSpan.end` to this position.
-
-## Usage in OS Compiler
-- **Error Reporting**: The `Console` class uses `FileSpan` to report errors with precise source locations. For example, a syntax error in an OS `Vec2 can +` method would include a `FileSpan` indicating the problematic line and column.
-- **Parser Integration**: During tokenization, the parser updates `currentSpan` to reflect the current token’s position, ensuring accurate diagnostics for constructs like `Sprite` or `DynArray<T>`.
-- **Multi-Threading**: The `allThreadsDone` flag is used in multi-threaded compilation scenarios (e.g., JIT compilation of the starfield example) to synchronize thread completion before cleanup.
-- **Debugging**: `toString()` methods provide human-readable output for debugging, integrated with `Console`’s `showSourceContext` to display source code snippets.
-
-## Example Usage
-Consider an OS source file `example.os` with a syntax error:
-```os
-struct Vec2 {
-    x: float;
-    y: float;
-
-    Vec2 can + (other: Vec2) => Vec2 {  // Error: missing semicolon
-        return Vec2 { x: this.x + other.x, y: this.y + other.y }
-    }
 }
 ```
-The parser might detect the missing semicolon and set the span:
-```cpp
-Omniscript::setSpan(5, 1, 5, 1, "example.os"); // Point to the end of the return statement
-console.reportError(Omniscript::Console::SYNTAX_ERROR, "Missing semicolon", Omniscript::getSpan());
+
+### Explanation
+- **`filePosition::toString()`**: Concatenates file path, line, and column into a string (e.g., `main.os:10:5`).
+- **`FileSpan::isValid()`**: Ensures both start and end lines are non-negative, indicating a valid span.
+- **`FileSpan::merge()`**: Updates the span to encompass another valid span, using `isBefore()` to compare positions. If the current span is invalid, it adopts the other span.
+- **`FileSpan::toString()`**: Combines start and end position strings (e.g., `main.os:10:5 - main.os:10:15`).
+- **`FileSpan::isBefore()`**: Compares two positions, returning `false` for different files (a simplification, as noted in the code) or ordering by line and column.
+- **Global Functions**: Implementations of `setSpan()` variants assign values to `currentSpan`, while `getSpan()` retrieves it. `setSpanFromPosition()` creates a single-point span for cases like token start positions.
+
+## Usage in OS Compiler
+The `FileSpan` component is used throughout the OS compiler to track source locations during parsing, semantic analysis, and code generation. For example, consider an OS script (`examples/types.os`) with a syntax error:
+
+```os
+let x: Vec2 = 42; // Type mismatch
 ```
-Output:
+
+The parser records the span of the expression `42` using `setSpan(1, 14, 1, 16, "types.os")`. When the type checker detects a mismatch (expecting `Vec2`, got `int`), it calls `Console::reportError()` with `getSpan()`, producing output like:
+
 ```
-syntax error: Missing semicolon
-  --> example.os:5:1
-    5 |        return Vec2 { x: this.x + other.x, y: this.y + other.y }
-      |        ^
+type error: Expected Vec2, got int
+  --> types.os:1:14-16
+    1 | let x: Vec2 = 42;
+                  ^^
 ```
+
+This precise location tracking enhances developer experience by pinpointing errors, a hallmark of professional compilers.
+
+## Development Notes
+The `FileSpan` component was designed early in the OS compiler’s development to establish a robust foundation for diagnostics. Key design decisions include:
+- **Separate `filePosition` Structure**: Allows fine-grained position tracking and reuse in other components.
+- **Global `currentSpan`**: Simplifies span management across parsing phases but assumes single-threaded parsing (note the `allThreadsDone` variable, suggesting future thread-safety considerations).
+- **Merge Functionality**: Supports combining spans for constructs spanning multiple tokens (e.g., expressions or statements).
+Challenges included defining `isBefore()` for cross-file comparisons, resolved by returning `false` for different files, with a comment noting potential lexicographical ordering. This component was implemented before the parser to ensure all subsequent components could rely on location tracking.
+
+## Dependencies
+- **Standard Library**: Uses `<string>` for file paths and string formatting.
+- **No Other OS Components**: `FileSpan` is a foundational utility, independent of other compiler components, though it is heavily used by `Console` for diagnostic reporting.
+
+## Source Code
+- Header: [https://github.com/0m0g1/omniscript/blob/main/include/omniscript/FileSpan.h](https://github.com/0m0g1/omniscript/blob/main/include/omniscript/FileSpan.h)
+- Implementation: [https://github.com/0m0g1/omniscript/blob/main/src/FileSpan.cpp](https://github.com/0m0g1/omniscript/blob/main/src/FileSpan.cpp)
 
 ## Integration with Project
-- **File Placement**: Save `FileSpan.h` in `include/omniscript/FileSpan.h` and `core.cpp` in `src/core.cpp` to align with the `premake5.lua` project structure.
-- **Build**: The `premake5.lua` script includes `src/**.cpp` and `include/` in the build, so no modifications are needed.
-- **Dependencies**: Requires `<string>` from the C++ standard library, included in `FileSpan.h`.
+- **File Placement**:
+  - Header: `include/omniscript/FileSpan.h`
+  - Implementation: `src/FileSpan.cpp`
+- **Build System**: The `premake5.lua` script includes `FileSpan.cpp` in the source file list for compilation. The header is placed in the include directory, accessible to other components like `Console`. No special build flags are required, as `FileSpan` uses standard C++ features.
+- **Compatibility**: Works with the OS compiler’s build system, which generates Makefiles via `premake5 gmake2` and supports Debug/Release modes.
 
 ## Adding to the Index
-To include this document in your documentation index (`index.md`):
-```markdown
-| FileSpan: Source Code Position and Span Tracking | Documents the filePosition and FileSpan structures for tracking source code locations in the OS compiler, used for precise error reporting. | [FileSpan](FileSpan.md) |
-```
+Add the following entry to `index.md` under the Component Reference table:
 
-## Conclusion
-The `FileSpan` module is a cornerstone of the OS compiler’s diagnostic system, providing robust source code position and span tracking. By combining `filePosition` and `FileSpan` with global span management, the compiler can deliver precise, context-rich error messages, enhancing developer experience. The implementations in `core.cpp` are efficient and thread-safe, supporting the professional-grade requirements of the OmniScript++ project.
+```markdown
+| FileSpan | Tracks source code locations for precise diagnostics. | [FileSpan](FileSpan.md) |
+```

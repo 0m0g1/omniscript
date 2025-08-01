@@ -170,6 +170,12 @@ extern std::unordered_map<TokenTypes, std::string> tokenTypeNames;
 // Function to get the name of a TokenType
 std::string getTokenTypeName(TokenTypes type);
 
+// Create a map from TokenTypes to operator symbol
+extern std::unordered_map<TokenTypes, std::string> operatorSymbols;
+
+// Function to get the symbol of an operator
+std::string getOperatorSymbol(TokenTypes type);
+
 // Check if the current operator is a binary operator
 bool isBinaryOperator(TokenTypes tokenType);
 bool isUnaryOperator(TokenTypes tokenType);
@@ -178,6 +184,7 @@ bool isComparisonOperator(TokenTypes tokenType);
 bool isLogicalOperator(TokenTypes tokenType);
 bool isBitwiseOperator(TokenTypes tokenType);
 bool isArithmeticOperator(TokenTypes tokenType);
+bool isPunctuationOperator(TokenTypes tokenType);
 
 // Token precedence for parsing
 int getOperatorPrecedence(TokenTypes tokenType);

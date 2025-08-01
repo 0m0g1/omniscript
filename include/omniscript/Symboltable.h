@@ -43,6 +43,8 @@ struct SymbolInfo {
     SymbolInfo() = default;
     SymbolInfo(T val, const std::string& n, bool constant = false, bool pub = true)
         : value(std::move(val)), name(n), isConstant(constant), isPublic(pub) {}
+    SymbolInfo(T val, const std::string& n, const std::string& t, bool constant = false, bool pub = true)
+        : value(std::move(val)), name(n), type(t), isConstant(constant), isPublic(pub) {}
 };
 
 // Overload information for functions
@@ -77,9 +79,9 @@ struct ModuleInfo {
     bool isSystem = false;
     
     ModuleInfo() = default;
-    ModuleInfo(const std::string& n, const std::string& path, 
-               std::shared_ptr<SymbolTable<T, TypeT>> table)
-        : name(n), fullPath(path), symbolTable(std::move(table)) {}
+    ModuleInfo(const std::string& n, const std::string& path, const std::string& ver,
+           std::shared_ptr<SymbolTable<T, TypeT>> table)
+        : name(n), fullPath(path), version(ver), symbolTable(std::move(table)) {}
 };
 
 // Symbol lookup result
@@ -106,7 +108,7 @@ struct LookupResult {
 
 // Utility functions and type traits
 namespace SymbolTableUtils {
-    std::string normalizePath(const std::string& path) {
+    inline std::string normalizePath(const std::string& path) {
         std::string result = path;
         std::replace(result.begin(), result.end(), '\\', '/');
         while (!result.empty() && result.back() == '/') {
@@ -115,7 +117,7 @@ namespace SymbolTableUtils {
         return result;
     }
 
-    std::vector<std::string> splitPath(const std::string& path) {
+    inline std::vector<std::string> splitPath(const std::string& path) {
         std::vector<std::string> parts;
         std::string normalized = normalizePath(path);
         std::stringstream ss(normalized);
@@ -128,7 +130,7 @@ namespace SymbolTableUtils {
         return parts;
     }
 
-    std::string joinPath(const std::vector<std::string>& components) {
+    inline std::string joinPath(const std::vector<std::string>& components) {
         if (components.empty()) return "";
         std::stringstream ss;
         for (size_t i = 0; i < components.size(); ++i) {
@@ -140,7 +142,7 @@ namespace SymbolTableUtils {
         return ss.str();
     }
 
-    std::string resolvePath(const std::string& basePath, const std::string& relativePath) {
+    inline std::string resolvePath(const std::string& basePath, const std::string& relativePath) {
         std::vector<std::string> baseParts = splitPath(basePath);
         std::vector<std::string> relParts = splitPath(relativePath);
         
@@ -166,7 +168,7 @@ namespace SymbolTableUtils {
         return joinPath(result);
     }
 
-    bool isValidModuleName(const std::string& name) {
+    inline bool isValidModuleName(const std::string& name) {
         if (name.empty()) return false;
         std::regex validName("^[a-zA-Z_][a-zA-Z0-9_]*(/[a-zA-Z_][a-zA-Z0-9_]*)*$");
         return std::regex_match(name, validName);
@@ -189,7 +191,7 @@ public:
     // Event callback types
     using SymbolCallback = std::function<void(const std::string&, const T&)>;
     using ScopeCallback = std::function<void(const std::string&)>;
-    
+
     // Constructor and destructor
     explicit SymbolTable(SymbolTablePtr parent = nullptr, const std::string& name = "")
         : name_(name), parent_(parent), threadSafeMode_(false) {}
@@ -1233,8 +1235,8 @@ public:
 
 private:
     // ==================== PRIVATE MEMBERS ====================
-    static std::unordered_map<std::string, ModuleInfoType> globalModules_;
-    static std::mutex modulesMutex_;
+    static inline std::unordered_map<std::string, ModuleInfoType> globalModules_;
+    static inline std::mutex modulesMutex_;
     std::string name_;
     WeakSymbolTablePtr parent_;
     std::vector<SymbolTablePtr> children_;
@@ -1417,13 +1419,6 @@ private:
         return ss.str();
     }
 };
-
-// Static member definitions
-template <typename T, typename TypeT>
-std::unordered_map<std::string, ModuleInfo<T, TypeT>> SymbolTable<T, TypeT>::globalModules_;
-
-template <typename T, typename TypeT>
-std::mutex SymbolTable<T, TypeT>::modulesMutex_;
 
 namespace SymbolTableUtils {
     template<typename T>

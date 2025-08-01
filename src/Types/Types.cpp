@@ -178,7 +178,23 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
             }
             nullableDepth++;
         } else {
-            TYPE_ERROR("Unexpected token '" + dataTypes[index] + "' after base type at token " + std::to_string(index));
+            std::string seen;
+            for (size_t i = 0; i <= index; ++i) {
+                if (i > 0) seen += " ";
+                seen += dataTypes[i];
+            }
+
+            std::string remaining;
+            for (size_t i = index; i < dataTypes.size(); ++i) {
+                if (i > index) remaining += " ";
+                remaining += dataTypes[i];
+            }
+
+            TYPE_ERROR(
+                "Unexpected token '" + dataTypes[index] + "' after parsing type: '" + seen + "'. "
+                "Remaining unparsed: '" + remaining + "'."
+            );
+            
             return Type::createInvalid();
         }
         index++;
