@@ -217,7 +217,7 @@ void LLVMJITBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
         
         checkTimeLimit(config);
         
-        if (peakMemoryUsage > config.maxMemoryUsage) {
+        if (config.maxMemoryUsage != 0 && peakMemoryUsage > config.maxMemoryUsage) {
             std::string message = Console::formatString(
                 "Compilation stopped because the program used %d MB of memory, exceeding your limit of %d MB.",
                 peakMemoryUsage / (1024 * 1024), config.maxMemoryUsage / (1024 * 1024)

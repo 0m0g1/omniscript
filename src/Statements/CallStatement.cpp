@@ -630,7 +630,7 @@ bool Call::processNamedArguments(
     std::vector<std::shared_ptr<Expression>>& collectedArgs) {
     
     // Initialize collectedArgs with nullptrs for all parameters
-    collectedArgs.resize(parameters.size(), nullptr);
+    // collectedArgs.resize(parameters.size(), nullptr);
     
     for (const auto& arg : args) {
         if (auto namedArg = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {

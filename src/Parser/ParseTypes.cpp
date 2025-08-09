@@ -938,7 +938,7 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
     span.end.filePath = previousToken.getFilePath();
 
     auto typeDecl = std::make_shared<TypeDeclaration>(typeName, type);
-    typeDecl->setPosition(startToken, previousToken);
+    typeDecl->setPosition(startToken, currentToken);
     typeDecl->setSpan(span);
     return typeDecl;
 }
@@ -1035,7 +1035,7 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
     span.end.filePath = previousToken.getFilePath();
 
     // auto usingAlias = std::make_shared<TypeDeclaration>(aliasName, typePath);
-    // usingAlias->setPosition(startToken, previousToken);
+    // usingAlias->setPosition(startToken, currentToken);
     // usingAlias->setSpan(span);
 
     // DEBUG_LOG("Parsed using alias: " + aliasName + " = " + join(typePath, "."));

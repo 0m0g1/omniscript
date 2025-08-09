@@ -22,7 +22,7 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe" // or correct path to GDB
+            "miDebuggerPath": "C:/msys64/mingw64/bin/gdb.exe" // or correct path to GDB
         },
         {
             "name": "DEBUG JIT",
@@ -41,7 +41,7 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe",
+            "miDebuggerPath": "C:/msys64/mingw64/bin/gdb.exe",
             "logging": {
                 "moduleLoad": true,
                 "trace": true
@@ -64,7 +64,7 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe" // or correct path to GDB
+            "miDebuggerPath": "C:/msys64/mingw64/bin/gdb.exe" // or correct path to GDB
         },
         {
             "name": "DEBUG JIT",
@@ -83,7 +83,7 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe",
+            "miDebuggerPath": "C:/msys64/mingw64/bin/gdb.exe",
             "logging": {
                 "moduleLoad": true,
                 "trace": true

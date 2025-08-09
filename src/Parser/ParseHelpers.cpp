@@ -14,10 +14,6 @@ namespace Omniscript {
 
 std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
     Token startToken = currentToken;
-    FileSpan span;
-    span.start.line = startToken.getLine();
-    span.start.col = startToken.getColumn();
-    span.start.filePath = startToken.getFilePath();
 
     eat(TokenTypes::LeftParen, [&]() {
         std::string suggestion = Console::formatString(
@@ -32,7 +28,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
             Console::formatString("Expected '(' for parameter list, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
-            span
+            FileSpan(
+                startToken.getLine(), startToken.getColumn(),
+                currentToken.getLine(), currentToken.getColumn(),
+                startToken.getFilePath()
+            )
         );
     });
     
@@ -51,7 +51,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
                     Console::SYNTAX_ERROR,
                     "Cannot have a standalone variadic",
                     "To resolve this:\n1. Add a parameter to capture variadic arguments\n2. Ensure variadic follows a named parameter",
-                    span
+                    FileSpan(
+                        startToken.getLine(), startToken.getColumn(),
+                        currentToken.getLine(), currentToken.getColumn(),
+                        startToken.getFilePath()
+                    )
                 );
                 return parameters;
             }
@@ -61,7 +65,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
                     Console::SYNTAX_ERROR,
                     "Invalid variadic parameter",
                     "To resolve this:\n1. Ensure variadic follows a valid parameter\n2. Check parameter syntax",
-                    span
+                    FileSpan(
+                        startToken.getLine(), startToken.getColumn(),
+                        currentToken.getLine(), currentToken.getColumn(),
+                        startToken.getFilePath()
+                    )
                 );
                 return parameters;
             }
@@ -86,7 +94,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
                 Console::formatString("Expected parameter name, found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 suggestion,
-                span
+                FileSpan(
+                    startToken.getLine(), startToken.getColumn(),
+                    currentToken.getLine(), currentToken.getColumn(),
+                    startToken.getFilePath()
+                )
             );
             return parameters;
         }
@@ -100,7 +112,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
                     Console::SYNTAX_ERROR,
                     "Invalid parameter type",
                     "To resolve this:\n1. Verify type syntax\n2. Ensure type is defined\n3. Check for valid type identifiers",
-                    span
+                    FileSpan(
+                        startToken.getLine(), startToken.getColumn(),
+                        currentToken.getLine(), currentToken.getColumn(),
+                        startToken.getFilePath()
+                    )
                 );
                 return parameters;
             }
@@ -114,7 +130,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
                     Console::SYNTAX_ERROR,
                     "Invalid default value expression",
                     "To resolve this:\n1. Provide a valid default value\n2. Check expression syntax\n3. Ensure valid literals or identifiers",
-                    span
+                    FileSpan(
+                        startToken.getLine(), startToken.getColumn(),
+                        currentToken.getLine(), currentToken.getColumn(),
+                        startToken.getFilePath()
+                    )
                 );
                 return parameters;
             }
@@ -125,8 +145,7 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
         auto parameter = std::make_shared<ParameterStatement>(paramName, defaultValue);
         parameter->isVariadic = isVariadic;
         parameter->setType(paramType);
-        parameter->setPosition(paramStartToken, previousToken);
-        parameter->setSpan(span);
+        parameter->setPosition(paramStartToken, currentToken);
         parameters.push_back(parameter);
 
         if (currentToken.getType() == TokenTypes::Comma) {
@@ -137,7 +156,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
                 Console::formatString("Expected ',' or ')', found '%s'", 
                     getTokenTypeName(currentToken.getType()).c_str()),
                 "To resolve this:\n1. Separate parameters with ',' or close with ')'\n2. Check parameter list syntax\n3. Ensure valid parameter declarations",
-                span
+                FileSpan(
+                    startToken.getLine(), startToken.getColumn(),
+                    currentToken.getLine(), currentToken.getColumn(),
+                    startToken.getFilePath()
+                )
             );
             return parameters;
         }
@@ -156,13 +179,13 @@ std::vector<std::shared_ptr<Statement>> Parser::parseParameters() {
             Console::formatString("Expected ')' to close parameter list, found '%s'", 
                 getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
-            span
+            FileSpan(
+                startToken.getLine(), startToken.getColumn(),
+                currentToken.getLine(), currentToken.getColumn(),
+                startToken.getFilePath()
+            )
         );
     });
-
-    span.end.line = previousToken.getLine();
-    span.end.col = previousToken.getColumn();
-    span.end.filePath = previousToken.getFilePath();
 
     return parameters;
 }
@@ -193,10 +216,6 @@ std::string Parser::generateSpecializedNameForCall(
 
 std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start, TokenTypes end, TokenTypes assignOp) {
     Token startToken = currentToken;
-    FileSpan span;
-    span.start.line = startToken.getLine();
-    span.start.col = startToken.getColumn();
-    span.start.filePath = startToken.getFilePath();
 
     DEBUG_LOG("Parsing the arguments");
     std::vector<std::shared_ptr<Statement>> args;
@@ -214,14 +233,18 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
             Console::formatString("Expected '%s' for argument list, found '%s'", 
                 getTokenTypeName(start).c_str(), getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
-            span
+            FileSpan(
+                startToken.getLine(), startToken.getColumn(),
+                currentToken.getLine(), currentToken.getColumn(),
+                startToken.getFilePath()
+            )
         );
     });
 
     int argCount = 0;
 
     while (currentToken.getType() != end && currentToken.getType() != TokenTypes::EOI) {
-        Token argStartToken = currentToken;
+        Token startToken = currentToken;
         std::shared_ptr<Statement> arg;
 
         if (currentToken.getType() == TokenTypes::Identifier && lexer.peekToken(1).getType() == assignOp) {
@@ -241,7 +264,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
                     Console::formatString("Expected '%s' for named argument, found '%s'", 
                         getTokenTypeName(assignOp).c_str(), getTokenTypeName(currentToken.getType()).c_str()),
                     suggestion,
-                    span
+                    FileSpan(
+                        startToken.getLine(), startToken.getColumn(),
+                        currentToken.getLine(), currentToken.getColumn(),
+                        startToken.getFilePath()
+                    )
                 );
             });
             arg = parseExpression();
@@ -250,7 +277,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
                     Console::SYNTAX_ERROR,
                     "Invalid named argument expression",
                     "To resolve this:\n1. Provide a valid expression for named argument\n2. Check expression syntax\n3. Ensure valid literals or identifiers",
-                    span
+                    FileSpan(
+                        startToken.getLine(), startToken.getColumn(),
+                        currentToken.getLine(), currentToken.getColumn(),
+                        startToken.getFilePath()
+                    )
                 );
                 return args;
             }
@@ -261,14 +292,17 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
                     Console::SYNTAX_ERROR,
                     "Invalid argument expression",
                     "To resolve this:\n1. Provide a valid expression\n2. Check expression syntax\n3. Ensure valid literals or identifiers",
-                    span
+                    FileSpan(
+                        startToken.getLine(), startToken.getColumn(),
+                        currentToken.getLine(), currentToken.getColumn(),
+                        startToken.getFilePath()
+                    )
                 );
                 return args;
             }
         }
 
-        arg->setPosition(argStartToken, previousToken);
-        arg->setSpan(span);
+        arg->setPosition(startToken, previousToken);
         args.push_back(arg);
 
         if (currentToken.getType() == TokenTypes::Comma) {
@@ -278,7 +312,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
                     Console::SYNTAX_ERROR,
                     "Unexpected comma before closing parenthesis",
                     "To resolve this:\n1. Remove trailing comma\n2. Ensure arguments are properly separated\n3. Check argument list syntax",
-                    span
+                    FileSpan(
+                        startToken.getLine(), startToken.getColumn(),
+                        currentToken.getLine(), currentToken.getColumn(),
+                        startToken.getFilePath()
+                    )
                 );
                 return args;
             }
@@ -288,7 +326,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
                 Console::formatString("Expected ',' or '%s', found '%s'", 
                     getTokenTypeName(end).c_str(), getTokenTypeName(currentToken.getType()).c_str()),
                 "To resolve this:\n1. Separate arguments with ',' or close with '%s'\n2. Check argument list syntax\n3. Ensure valid argument declarations",
-                span
+                FileSpan(
+                    startToken.getLine(), startToken.getColumn(),
+                    currentToken.getLine(), currentToken.getColumn(),
+                    startToken.getFilePath()
+                )
             );
             return args;
         }
@@ -309,13 +351,13 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
             Console::formatString("Expected '%s' to close argument list, found '%s'", 
                 getTokenTypeName(end).c_str(), getTokenTypeName(currentToken.getType()).c_str()),
             suggestion,
-            span
+            FileSpan(
+                startToken.getLine(), startToken.getColumn(),
+                currentToken.getLine(), currentToken.getColumn(),
+                startToken.getFilePath()
+            )
         );
     });
-
-    span.end.line = previousToken.getLine();
-    span.end.col = previousToken.getColumn();
-    span.end.filePath = previousToken.getFilePath();
 
     DEBUG_LOG("Done parsing the arguments");
     return args;

@@ -180,13 +180,13 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
     if (variableType == TokenTypes::Const) {
         auto constant = std::make_shared<AssignVariable>(variableName, type, lambda);
         constant->markAsConstant();
-        constant->setPosition(startToken, previousToken);
+        constant->setPosition(startToken, currentToken);
         constant->setSpan(span);
         return constant;
     }
 
     auto assign = std::make_shared<AssignVariable>(variableName, type, lambda);
-    assign->setPosition(startToken, previousToken);
+    assign->setPosition(startToken, currentToken);
     assign->setSpan(span);
     return assign;
 }
@@ -336,7 +336,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
         
                 if (auto objConstructor = std::dynamic_pointer_cast<ObjectConstructorStatement>(result)) {
                     objConstructor->setInstanceName(variableName);
-                    objConstructor->setPosition(startToken, previousToken);
+                    objConstructor->setPosition(startToken, currentToken);
                     declarations.push_back(objConstructor);
                 } else if (auto call = std::dynamic_pointer_cast<Call>(result)) {
                     call->setInstanceName(variableName);
@@ -344,13 +344,13 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                     if (variableType == TokenTypes::Const) {
                         call->markAsConstant();
                     }
-                    call->setPosition(startToken, previousToken);
+                    call->setPosition(startToken, currentToken);
                     declarations.push_back(call);
                 } else if (auto funcDecl = std::dynamic_pointer_cast<FunctionDeclaration>(result)) {
                     if (auto named = std::dynamic_pointer_cast<NamedStatement>(funcDecl)) {
                         named->setName(variableName);
                     }
-                    funcDecl->setPosition(startToken, previousToken);
+                    funcDecl->setPosition(startToken, currentToken);
                     declarations.push_back(funcDecl);
                 } else {
                     currentValue = result;
@@ -380,11 +380,11 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 if (variableType == TokenTypes::Const) {
                     auto constant = std::make_shared<AssignVariable>(variableName, currentType, currentValue);
                     constant->markAsConstant();
-                    constant->setPosition(startToken, previousToken);
+                    constant->setPosition(startToken, currentToken);
                     declarations.push_back(constant);
                 } else {
                     auto assignment = std::make_shared<AssignVariable>(variableName, currentType, currentValue);
-                    assignment->setPosition(startToken, previousToken);
+                    assignment->setPosition(startToken, currentToken);
                     declarations.push_back(assignment);
                 }
             }
@@ -403,7 +403,7 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
 
         if (declarations.size() > 1) {
             auto block = std::make_shared<BlockStatement>(declarations);
-            block->setPosition(startToken, previousToken);
+            block->setPosition(startToken, currentToken);
             block->setSpan(span);
             return block;
         } else if (declarations.size() == 1) {
@@ -560,25 +560,25 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
         if (variableType == TokenTypes::Const) {
             auto constant = std::make_shared<AssignVariable>(variableName, type, value);
             constant->markAsConstant();
-            constant->setPosition(startToken, previousToken);
+            constant->setPosition(startToken, currentToken);
             constant->setSpan(span);
             return constant;
         }
         auto assignment = std::make_shared<AssignVariable>(variableName, type, value);
-        assignment->setPosition(startToken, previousToken);
+        assignment->setPosition(startToken, currentToken);
         assignment->setSpan(span);
         return assignment;
     }
 
     if (auto varGetter = std::dynamic_pointer_cast<GetVariable>(assignee)) {
         auto reassignment = std::make_shared<AssignVariable>(varGetter->getName(), type, value, true);
-        reassignment->setPosition(startToken, previousToken);
+        reassignment->setPosition(startToken, currentToken);
         reassignment->setSpan(span);
         return reassignment;
     } else if (auto reassignAccess = std::dynamic_pointer_cast<Access>(assignee)) {
         auto accessClone = std::dynamic_pointer_cast<Access>(reassignAccess->clone());
         accessClone->setAssignmentValueTo(value);
-        accessClone->setPosition(startToken, previousToken);
+        accessClone->setPosition(startToken, currentToken);
         accessClone->setSpan(span);
         return accessClone;
     }

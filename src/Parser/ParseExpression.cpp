@@ -221,6 +221,7 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
 }
 
 std::shared_ptr<Statement> Parser::factor() {
+    Token startToken = currentToken;
     DEBUG_LOG("Factoring a '" + getTokenTypeName(currentToken.getType()) + "' with value '" + currentToken.getValue() + "'.");
 
     std::shared_ptr<Statement> left;
@@ -389,6 +390,8 @@ std::shared_ptr<Statement> Parser::factor() {
 
         left = std::make_shared<AddressOf>(varName);
     }
+
+    left->setPosition(startToken, currentToken);
 
     return left;
 }

@@ -96,6 +96,8 @@
         "ranges": "cpp",
         "span": "cpp",
         "valarray": "cpp",
-        "*.def": "cpp"
-    }
+        "*.def": "cpp",
+        "xstddef": "cpp"
+    },
+    "cmake.sourceDirectory": "C:/Users/PC/Desktop/omniscript/dependencies/glfw/glfw-3.4"
 }

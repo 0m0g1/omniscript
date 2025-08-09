@@ -39,8 +39,8 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     });
     
     std::shared_ptr<Statement> expr = std::make_shared<GetVariable>(rootIdentifier);
-    expr->setPosition(startToken, previousToken);
-    expr->setSpan(span);
+    expr->setPosition(startToken, currentToken);
+
     std::vector<std::string> accessContext = { rootIdentifier };
     std::string currentMember = rootIdentifier;
     
@@ -72,7 +72,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             // For other expressions, create Call with proper context
             auto call = std::make_shared<Call>(expr, currentMember, args);
             call->setPosition(currentStartToken, previousToken);
-            call->setSpan(span);
+
             
             // Set access context (excluding the current member being called)
             std::vector<std::string> callContext = accessContext;
@@ -378,7 +378,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
     span.end.line = previousToken.getLine();
     span.end.col = previousToken.getColumn();
     span.end.filePath = previousToken.getFilePath();
-    expr->setSpan(span);
+    expr->setPosition(startToken, currentToken);
     
     return expr;
 }

@@ -13,14 +13,16 @@
 
 namespace Omniscript {
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTableType scope) {
-    setSpan(value->getSpan());
     DEBUG_LOG();
     if (!value) {
         console.error("There is no value to be codegened.");
     }
+    
     if (!scope) {
         console.error("There is no scope for codegen to perform its operations in.");
     }
+    
+    setSpan(value->getSpan());
 
     DEBUG_LOG("Calling codegen on scope '" + scope->getName() + "' for '" + value->toString() + "'.");
     

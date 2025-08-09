@@ -42,7 +42,7 @@ std::shared_ptr<Statement> Parser::parseBlock() {
     }
 
     auto block = std::make_shared<BlockStatement>(statements);
-    block->setPosition(startToken, previousToken);
+    block->setPosition(startToken, currentToken);
     return block;
 }
 

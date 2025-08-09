@@ -213,13 +213,6 @@ void Lexer::skipWhitespace() {
             } else {
                 advance();
             }
-            line_++;
-            column_ = 1;
-            stats_.totalLines++;
-            if (config_.trackNewlines) {
-                pendingNewlineToken_ = TokenFactory::createOperator(TokenTypes::Newline, line_ - 1, newlineColumn, sourceFilePath_);
-                return;
-            }
         } else {
             advance();
         }
@@ -339,9 +332,6 @@ void Lexer::advance(size_t count) {
             line_++;
             column_ = 1;
             stats_.totalLines++;
-            // if (config_.trackNewlines && !pendingNewlineToken_.has_value()) {
-            //     pendingNewlineToken_ = TokenFactory::createOperator(TokenTypes::Newline, line_ - 1, newlineColumn, sourceFilePath_);
-            // }
         } else {
             column_++;
             currentPosition_++;

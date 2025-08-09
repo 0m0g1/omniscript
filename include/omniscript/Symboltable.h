@@ -42,9 +42,9 @@ struct SymbolInfo {
     
     SymbolInfo() = default;
     SymbolInfo(T val, const std::string& n, bool constant = false, bool pub = true)
-        : value(std::move(val)), name(n), isConstant(constant), isPublic(pub) {}
+        : value(val), name(n), isConstant(constant), isPublic(pub) {}
     SymbolInfo(T val, const std::string& n, const std::string& t, bool constant = false, bool pub = true)
-        : value(std::move(val)), name(n), type(t), isConstant(constant), isPublic(pub) {}
+        : value(val), name(n), type(t), isConstant(constant), isPublic(pub) {}
 };
 
 // Overload information for functions
@@ -59,7 +59,7 @@ struct OverloadInfo {
         : name(n), isPublic(pub) {}
     
     void addOverload(T overload) {
-        overloads.push_back(std::move(overload));
+        overloads.push_back(overload);
     }
     
     size_t getOverloadCount() const { return overloads.size(); }
@@ -207,7 +207,7 @@ public:
 
     // ==================== BASIC VALUE MANAGEMENT ====================
     void set(const std::string& name, T value, bool isPublic = true) {
-        setVariable(name, std::move(value), isPublic);
+        setVariable(name, value, isPublic);
     }
 
     T get(const std::string& name) const {
@@ -220,24 +220,24 @@ public:
     
     bool setVariable(const std::string& name, T value, bool isPublic = true) {
         return threadSafeMode_ ? withWriteLock([&]() {
-            return setSymbolInternal(name, std::move(value), false, isPublic);
-        }) : setSymbolInternal(name, std::move(value), false, isPublic);
+            return setSymbolInternal(name, value, false, isPublic);
+        }) : setSymbolInternal(name, value, false, isPublic);
     }
 
     bool setConstant(const std::string& name, T value, bool isPublic = true) {
         return threadSafeMode_ ? withWriteLock([&]() {
-            return setSymbolInternal(name, std::move(value), true, isPublic);
-        }) : setSymbolInternal(name, std::move(value), true, isPublic);
+            return setSymbolInternal(name, value, true, isPublic);
+        }) : setSymbolInternal(name, value, true, isPublic);
     }
 
     bool addOverloadable(const std::string& name, T value, bool isPublic = true) {
         return threadSafeMode_ ? withWriteLock([&]() {
-            overloads_[name].addOverload(std::move(value));
+            overloads_[name].addOverload(value);
             overloads_[name].isPublic = isPublic;
             notifySymbolChanged(name, value);
             return true;
         }) : [&]() {
-            overloads_[name].addOverload(std::move(value));
+            overloads_[name].addOverload(value);
             overloads_[name].isPublic = isPublic;
             notifySymbolChanged(name, value);
             return true;
@@ -260,7 +260,7 @@ public:
         return threadSafeMode_ ? withWriteLock([&]() {
             auto it = symbols_.find(name);
             if (it != symbols_.end() && !it->second.isConstant) {
-                it->second.value = std::move(newValue);
+                it->second.value = newValue;
                 notifySymbolChanged(name, newValue);
                 return true;
             }
@@ -268,7 +268,7 @@ public:
         }) : [&]() {
             auto it = symbols_.find(name);
             if (it != symbols_.end() && !it->second.isConstant) {
-                it->second.value = std::move(newValue);
+                it->second.value = newValue;
                 notifySymbolChanged(name, newValue);
                 return true;
             }
@@ -430,11 +430,11 @@ public:
     addType(const std::string& name, U type, bool isPublic = true) {
         if (threadSafeMode_) {
             return withWriteLock([&]() {
-                types_[name] = std::move(type);
+                types_[name] = type;
                 return true;
             });
         } else {
-            types_[name] = std::move(type);
+            types_[name] = type;
             return true;
         }
     }
@@ -1265,7 +1265,7 @@ private:
         if (validator && !validator(name, value)) {
             return false;
         }
-        symbols_[name] = SymbolInfoType{std::move(value), name, "", isConstant, isPublic};
+        symbols_[name] = SymbolInfoType{value, name, "", isConstant, isPublic};
         notifySymbolChanged(name, value);
         return true;
     }

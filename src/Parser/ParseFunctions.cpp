@@ -207,7 +207,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         function->isExtern = true;
         function->libraryPaths = libraryPaths;
         function->externName = functionName;
-        function->setPosition(startToken, previousToken);
+        function->setPosition(startToken, currentToken);
         function->setSpan(span);
 
         span.end.line = previousToken.getLine();
@@ -238,7 +238,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         assignment->libraryPaths.genericDynamic  = libraryPaths.genericDynamic;   // fallback .so/.dll/.dylib
         assignment->libraryPaths.genericStatic   = libraryPaths.genericStatic;    // fallback .a/.lib
 
-        assignment->setPosition(startToken, previousToken);
+        assignment->setPosition(startToken, currentToken);
         assignment->setSpan(span);
 
         span.end.line = previousToken.getLine();
@@ -286,7 +286,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                 function->isExtern = true;
                 function->libraryPaths = libraryPaths;
                 function->externName = functionName;
-                function->setPosition(startToken, previousToken);
+                function->setPosition(startToken, currentToken);
                 function->setSpan(span);
     
                 functions.push_back(function);
@@ -313,7 +313,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                 assignment->libraryPaths.genericDynamic  = libraryPaths.genericDynamic;   // fallback .so/.dll/.dylib
                 assignment->libraryPaths.genericStatic   = libraryPaths.genericStatic;    // fallback .a/.lib
 
-                assignment->setPosition(startToken, previousToken);
+                assignment->setPosition(startToken, currentToken);
                 assignment->setSpan(span);
 
                 functions.push_back(assignment);
@@ -355,7 +355,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
         span.end.filePath = previousToken.getFilePath();
 
         auto block = std::make_shared<BlockStatement>(functions);
-        block->setPosition(startToken, previousToken);
+        block->setPosition(startToken, currentToken);
         block->setSpan(span);
         return block;
     }
@@ -430,7 +430,7 @@ std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
 
     function->isIntrinsic = true;
     function->intrinsicName = functionName;
-    function->setPosition(startToken, previousToken);
+    function->setPosition(startToken, currentToken);
     function->setSpan(span);
 
     span.end.line = previousToken.getLine();
@@ -593,13 +593,13 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                     
                     func->addGenericParam(typeParam.first);
                     func->bindGeneric(typeParam.first, resolveType(constraint));
-                    func->setPosition(startToken, previousToken);
+                    func->setPosition(startToken, currentToken);
                     func->setSpan(span);
                     
                     monomorphizedFunctions.push_back(func);
                 }
                 auto block = std::make_shared<BlockStatement>(monomorphizedFunctions);
-                block->setPosition(startToken, previousToken);
+                block->setPosition(startToken, currentToken);
                 block->setSpan(span);
                 return block;
             }
@@ -638,7 +638,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                 }
             }
 
-            func->setPosition(startToken, previousToken);
+            func->setPosition(startToken, currentToken);
             func->setSpan(span);
             monomorphizedFunctions.push_back(func);
 
@@ -654,7 +654,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
         }
 
         auto block = std::make_shared<BlockStatement>(monomorphizedFunctions);
-        block->setPosition(startToken, previousToken);
+        block->setPosition(startToken, currentToken);
         block->setSpan(span);
         return block;
     }
@@ -662,7 +662,7 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     // Normal function without generics
     returnType = resolveType(returnDataType);
     auto function = std::make_shared<FunctionDeclaration>(name, parameters, body, returnType);
-    function->setPosition(startToken, previousToken);
+    function->setPosition(startToken, currentToken);
     function->setSpan(span);
     return function;
 }

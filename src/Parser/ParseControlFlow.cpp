@@ -190,7 +190,7 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
     span.end.filePath = previousToken.getFilePath();
 
     auto forLoop = std::make_shared<ForLoop>(initialization, condition, increment, body);
-    forLoop->setPosition(startToken, previousToken);
+    forLoop->setPosition(startToken, currentToken);
     forLoop->setSpan(span);
     DEBUG_LOG("Completed parsing for loop");
     return forLoop;
@@ -246,7 +246,7 @@ std::shared_ptr<Statement> Parser::parseContinue() {
     span.end.filePath = previousToken.getFilePath();
 
     auto continueStmt = std::make_shared<ContinueStatement>();
-    continueStmt->setPosition(startToken, previousToken);
+    continueStmt->setPosition(startToken, currentToken);
     continueStmt->setSpan(span);
     DEBUG_LOG("Completed parsing continue statement");
     return continueStmt;
@@ -302,7 +302,7 @@ std::shared_ptr<Statement> Parser::parseBreak() {
     span.end.filePath = previousToken.getFilePath();
 
     auto breakStmt = std::make_shared<BreakStatement>();
-    breakStmt->setPosition(startToken, previousToken);
+    breakStmt->setPosition(startToken, currentToken);
     breakStmt->setSpan(span);
     DEBUG_LOG("Completed parsing break statement");
     return breakStmt;
@@ -577,7 +577,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
     span.end.filePath = previousToken.getFilePath();
 
     auto statement = std::make_shared<IfStatement>(conditions, bodies, elseBody);
-    statement->setPosition(startToken, previousToken);
+    statement->setPosition(startToken, currentToken);
     statement->setSpan(span);
     DEBUG_LOG("Completed parsing if statement with " + std::to_string(conditions.size()) + " branches");
     return statement;
@@ -695,7 +695,7 @@ std::shared_ptr<Statement> Parser::parseWhileStatement() {
     span.end.filePath = previousToken.getFilePath();
 
     auto whileLoop = std::make_shared<WhileStatement>(condition, whileBody);
-    whileLoop->setPosition(startToken, previousToken);
+    whileLoop->setPosition(startToken, currentToken);
     whileLoop->setSpan(span);
     DEBUG_LOG("Completed parsing while statement");
     return whileLoop;
@@ -774,7 +774,7 @@ std::shared_ptr<Statement> Parser::parseReturnStatement() {
     span.end.col = previousToken.getColumn();
     span.end.filePath = previousToken.getFilePath();
 
-    result->setPosition(startToken, previousToken);
+    result->setPosition(startToken, currentToken);
     result->setSpan(span);
     DEBUG_LOG("Completed parsing return statement");
     return result;

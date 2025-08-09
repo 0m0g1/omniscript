@@ -341,6 +341,7 @@ bool isPunctuationOperator(TokenTypes tokenType) {
         case TokenTypes::Ellipsis:
         case TokenTypes::NullCoalescing:
         case TokenTypes::SafeNavigation:
+        case TokenTypes::Arrow:
             return true;
         default:
             return false;
@@ -498,6 +499,7 @@ Token createOperator(TokenTypes type, size_t line, size_t column, const std::str
     }
     Token token(type, std::string(getOperatorSymbol(type)), line, column, path);
     token.setStringValue(getTokenTypeName(type));
+    token.setValue(getOperatorSymbol(type));
     return token;
 }
 
