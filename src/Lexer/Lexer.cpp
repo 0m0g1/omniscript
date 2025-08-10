@@ -680,15 +680,21 @@ double parseFloat(const std::string& str) {
 }
 
 int64_t parseInteger(const std::string& str, int base) {
+    if (base != 0 && (base < 2 || base > 36)) {
+        throw std::invalid_argument("Base must be 0 or between 2 and 36");
+    }
+
     try {
-        size_t pos;
+        size_t pos = 0;
         int64_t result = std::stoll(str, &pos, base);
         if (pos != str.size()) {
             throw std::invalid_argument("Invalid integer format: " + str);
         }
         return result;
-    } catch (const std::exception& e) {
-        throw std::invalid_argument("Failed to parse integer: " + str);
+    } catch (const std::invalid_argument& e) {
+        throw std::invalid_argument("Failed to parse integer '" + str + "': " + e.what());
+    } catch (const std::out_of_range& e) {
+        throw std::out_of_range("Integer out of range for '" + str + "': " + e.what());
     }
 }
 

@@ -81,7 +81,7 @@ void Application::initializeGlobalState() noexcept {
 
 void Application::cleanupGlobalState() noexcept {
     OMNISCRIPT_PROFILE_FUNCTION();
-    console.clear();
+    // console.clear();
     detail::globalInterner.clear();
     error::globalErrorCollector.clear();
     std::signal(SIGINT, SIG_DFL);

@@ -228,20 +228,19 @@ std::shared_ptr<Statement> Parser::factor() {
 
     if (currentToken.getType() == TokenTypes::IntegerLiteral) {
         eat(TokenTypes::IntegerLiteral);
-        std::string valueStr = previousToken.getValue();
+
+        auto value = std::get<int64_t>(previousToken.getVariantValue());
     
         try {
-            long long value = std::stoll(valueStr);
-    
             if (value >= std::numeric_limits<int32_t>::min() && value <= std::numeric_limits<int32_t>::max()) {
                 left = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
             } else if (value >= std::numeric_limits<int64_t>::min() && value <= std::numeric_limits<int64_t>::max()) {
                 left = std::make_shared<IntegerLiteral>(static_cast<int64_t>(value));
             } else {
-                left = std::make_shared<ASTBigInt>(valueStr);
+                left = std::make_shared<ASTBigInt>(previousToken.getValue());
             }
         } catch (const std::out_of_range&) {
-            left = std::make_shared<ASTBigInt>(valueStr);
+            left = std::make_shared<ASTBigInt>(previousToken.getValue());
         }
     }
 

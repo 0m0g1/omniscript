@@ -120,7 +120,6 @@ GENERATED += $(OBJDIR)/IRGeneratorOptionalHelpers.o
 GENERATED += $(OBJDIR)/IRGeneratorTargetHelpers.o
 GENERATED += $(OBJDIR)/IRGeneratorTypes.o
 GENERATED += $(OBJDIR)/IndexAccessStatment.o
-GENERATED += $(OBJDIR)/JITBackend.o
 GENERATED += $(OBJDIR)/LLVMAOTBackend.o
 GENERATED += $(OBJDIR)/LLVMExternalFunctionResolver.o
 GENERATED += $(OBJDIR)/LLVMJITBackend.o
@@ -203,7 +202,6 @@ OBJECTS += $(OBJDIR)/IRGeneratorOptionalHelpers.o
 OBJECTS += $(OBJDIR)/IRGeneratorTargetHelpers.o
 OBJECTS += $(OBJDIR)/IRGeneratorTypes.o
 OBJECTS += $(OBJDIR)/IndexAccessStatment.o
-OBJECTS += $(OBJDIR)/JITBackend.o
 OBJECTS += $(OBJDIR)/LLVMAOTBackend.o
 OBJECTS += $(OBJDIR)/LLVMExternalFunctionResolver.o
 OBJECTS += $(OBJDIR)/LLVMJITBackend.o
@@ -310,9 +308,6 @@ endif
 # #############################################
 
 $(OBJDIR)/Application.o: src/Application.cpp
-	@echo "$(notdir $<)"
-	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
-$(OBJDIR)/JITBackend.o: src/Backends/JITBackend.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/IRGenerator.o: src/Backends/llvm/IRGenerator.cpp
