@@ -630,7 +630,7 @@ bool Call::processNamedArguments(
     std::vector<std::shared_ptr<Expression>>& collectedArgs) {
     
     // Initialize collectedArgs with nullptrs for all parameters
-    // collectedArgs.resize(parameters.size(), nullptr);
+    collectedArgs.resize(parameters.size(), nullptr);
     
     for (const auto& arg : args) {
         if (auto namedArg = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
@@ -709,14 +709,14 @@ bool Call::processPositionalArguments(
     size_t namedArgsCount,
     std::vector<std::shared_ptr<Expression>>& collectedArgs) 
 {
-    // First get ALL potential overloads
-    auto overloads = scope->getOverloads(callee);
-    if (overloads.empty()) {
-        overloads = findOverloadsInContext(scope);
-    }
+    // // First get ALL potential overloads
+    // auto overloads = scope->getOverloads(callee);
+    // if (overloads.empty()) {
+    //     overloads = findOverloadsInContext(scope);
+    // }
 
     // Resolve the specific overload to use
-    auto called = resolveOverload(overloads, scope);
+    auto called = findCallable(callee, scope);
     
     if (!called) {
         called = scope->get(callee);
@@ -895,27 +895,27 @@ bool Call::handleVariadicParameter(
         }
         
         // Check type compatibility
-        if (!Type::isSameOrCastableTo(value->getType(), expectedType)) {
-            std::string suggestion = Console::formatString(
-                "To resolve this:\n"
-                "1. Check type requirements\n"
-                "2. Available conversions:\n"
-                " - Explicit cast: `(%s)value`\n"
-                " - Conversion method: `value.to_%s()`\n"
-                "3. Verify source type implements required traits",
-                expectedType->toString().c_str(),
-                expectedType->toString().c_str()
-            );
-            console.reportError(
-                Console::TYPE_ERROR,
-                Console::formatString("Variadic argument type '%s' does not match expected type '%s'", 
-                    value->getType()->toString().c_str(), expectedType->toString().c_str()),
-                suggestion,
-                arg->getSpan()
-            );
-            positionalArgIndex++;
-            continue;
-        }
+        // if (!Type::isSameOrCastableTo(value->getType(), expectedType)) {
+        //     std::string suggestion = Console::formatString(
+        //         "To resolve this:\n"
+        //         "1. Check type requirements\n"
+        //         "2. Available conversions:\n"
+        //         " - Explicit cast: `(%s)value`\n"
+        //         " - Conversion method: `value.to_%s()`\n"
+        //         "3. Verify source type implements required traits",
+        //         expectedType->toString().c_str(),
+        //         expectedType->toString().c_str()
+        //     );
+        //     console.reportError(
+        //         Console::TYPE_ERROR,
+        //         Console::formatString("Variadic argument type '%s' does not match expected type '%s'", 
+        //             value->getType()->toString().c_str(), expectedType->toString().c_str()),
+        //         suggestion,
+        //         arg->getSpan()
+        //     );
+        //     positionalArgIndex++;
+        //     continue;
+        // }
         
         variadicArgs.push_back(value);
         varArgsCount++;
@@ -1227,25 +1227,25 @@ bool Call::matchArgumentsToParameters(
                               arg->defaultValue->getRootType());
                 auto expectedType = param->getType()->isArray() ? param->getType()->getBasePointeeType() : param->getType();
                 
-                if (!Type::isSameOrCastableTo(argType, expectedType)) {
-                    std::string suggestion = Console::formatString(
-                        "To resolve this:\n"
-                        "1. Check type requirements for variadic parameter\n"
-                        "2. Available conversions:\n"
-                        " - Explicit cast: `(%s)value`\n"
-                        " - Conversion method: `value.to_%s()`\n"
-                        "3. Verify source type implements required traits",
-                        expectedType->toString().c_str(),
-                        expectedType->toString().c_str()
-                    );
-                    console.reportError(
-                        Console::TYPE_ERROR,
-                        Console::formatString("Variadic argument type '%s' does not match expected type '%s' for parameter '%s'", 
-                            argType->toString().c_str(), expectedType->toString().c_str(), paramName.c_str()),
-                        suggestion
-                    );
-                    return false;
-                }
+                // if (!Type::isSameOrCastableTo(argType, expectedType)) {
+                //     std::string suggestion = Console::formatString(
+                //         "To resolve this:\n"
+                //         "1. Check type requirements for variadic parameter\n"
+                //         "2. Available conversions:\n"
+                //         " - Explicit cast: `(%s)value`\n"
+                //         " - Conversion method: `value.to_%s()`\n"
+                //         "3. Verify source type implements required traits",
+                //         expectedType->toString().c_str(),
+                //         expectedType->toString().c_str()
+                //     );
+                //     console.reportError(
+                //         Console::TYPE_ERROR,
+                //         Console::formatString("Variadic argument type '%s' does not match expected type '%s' for parameter '%s'", 
+                //             argType->toString().c_str(), expectedType->toString().c_str(), paramName.c_str()),
+                //         suggestion
+                //     );
+                //     return false;
+                // }
                 positionalIndex++;
             }
             break;

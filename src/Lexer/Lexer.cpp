@@ -34,7 +34,8 @@ const std::unordered_set<std::string> Lexer::reservedWords_ = {
     "continue", "struct", "class", "enum", "namespace", "using",
     "public", "private", "protected", "static", "virtual", "override",
     "final", "extern", "intrinsic", "volatile", "new", "delete",
-    "this", "super", "extends", "implements", "import", "export",
+    // "this", todo: handle this differently 
+    "super", "extends", "implements", "import", "export",
     "module", "async", "await", "yield", "typeof", "instanceof"
 };
 
@@ -172,9 +173,10 @@ Token Lexer::getNextToken() {
 
 Token Lexer::peekToken(unsigned long long offset) {
     // Check if the token is already in the cache
-    if (offset < tokenCache_.size()) {
-        return getCachedToken(offset);
-    }
+    // Todo:: cache lookahead tokens
+    // if (offset < tokenCache_.size()) {
+    //     return getCachedToken(offset);
+    // }
 
     // Save current lexer state to restore after peeking
     size_t savedPosition = currentPosition_;
@@ -185,13 +187,21 @@ Token Lexer::peekToken(unsigned long long offset) {
 
     // Advance to the desired offset by getting tokens
     Token token;
-    for (unsigned long long i = tokenCache_.size(); i <= offset; ++i) {
+    for (unsigned long long i = 0; i < offset; i++) {
         token = getNextToken();
-        cacheToken(token);
         if (token.getType() == TokenTypes::EOI) {
             break;
         }
     }
+
+    // Todo:: handle caching here
+    // for (unsigned long long i = tokenCache_.size(); i <= offset; ++i) {
+    //     token = getNextToken();
+    //     cacheToken(token);
+    //     if (token.getType() == TokenTypes::EOI) {
+    //         break;
+    //     }
+    // }
 
     // Restore lexer state
     currentPosition_ = savedPosition;

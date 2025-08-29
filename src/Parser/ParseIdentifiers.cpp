@@ -50,15 +50,15 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
         if (currentToken.getType() == TokenTypes::LeftParen) {
             // Function/method call
             std::vector<std::shared_ptr<Statement>> args = parseArguments();
-            if (args.empty() && currentToken.getType() != TokenTypes::RightParen) {
-                console.reportError(
-                    Console::SYNTAX_ERROR,
-                    "Failed to parse function call arguments",
-                    "To resolve this:\n1. Verify argument syntax\n2. Check for valid expressions\n3. Ensure proper parentheses",
-                    span
-                );
-                return expr;
-            }
+            // if (args.empty() && currentToken.getType() != TokenTypes::RightParen) {
+            //     console.reportError(
+            //         Console::SYNTAX_ERROR,
+            //         "Failed to parse function call arguments",
+            //         "To resolve this:\n1. Verify argument syntax\n2. Check for valid expressions\n3. Ensure proper parentheses",
+            //         span
+            //     );
+            //     return expr;
+            // }
             
             // If the current expression is a MemberAccess, mark it as a call and set arguments
             if (auto memberAccess = std::dynamic_pointer_cast<MemberAccess>(expr)) {

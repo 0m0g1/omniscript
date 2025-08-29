@@ -95,6 +95,25 @@ class Parser {
 
         bool tryParseTypeParametersLookahead(int& i);
         bool checkIfLambdaExpression();
+        
+        // New lambda parsing helper functions
+        int parseParameterList(int startIndex);
+        int parseOptionalTypeAnnotation(int startIndex);
+        int parseFunctionType(int startIndex);
+        int parseFunctionParameters(int startIndex);
+        int parseRegularType(int startIndex);
+        int parseTypeExpression(int startIndex);
+        int parseDottedIdentifier(int startIndex);
+        int parseArrayTypes(int startIndex);
+        int parseArrayType(int startIndex);
+        int parseOptionalDefaultValue(int startIndex);
+        int parseOptionalReturnType(int startIndex);
+        
+        // Lookahead versions for lambda detection (don't report errors)
+        int parseParameterListLookahead(int startIndex);
+        int parseOptionalReturnTypeLookahead(int startIndex);
+        int parseTypeLookahead(int startIndex);
+        
         bool isGenericCallOrConstructor();
         std::shared_ptr<Statement> parseStruct();
         std::shared_ptr<Statement> parseEnum();

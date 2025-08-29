@@ -250,7 +250,14 @@ std::shared_ptr<Statement> Parser::parseStruct() {
             }
 
             auto field = std::make_shared<ParameterStatement>(fieldName, value);
-            field->setType(resolveType(type));
+
+            if (!type.empty()) {
+                field->setType(resolveType(type));
+            } else {
+                auto typed = std::dynamic_pointer_cast<TypedStatement>(value);
+                field->setType(typed->getType());
+            }
+
             body.push_back(field);
             eat(TokenTypes::Semicolon);
 

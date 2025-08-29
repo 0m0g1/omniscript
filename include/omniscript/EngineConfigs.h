@@ -297,10 +297,8 @@ struct Config {
     TargetArch resolveTargetArch() const;
     TargetOS resolveTargetOS() const;
     std::string getModeString() const;
-
-private:
-    static bool isValidVersion(const std::string& version);
     static std::string profilerTypeToString(ProfilerType type);
+    static bool isValidVersion(const std::string& version);
 };
 
 } // namespace Omniscript

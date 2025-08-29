@@ -9,10 +9,6 @@ Below is the header file for `Console`, defining the `Console` class, enums, and
 ```cpp
 #pragma once
 
-#ifdef DEBUG
-#undef DEBUG
-#endif
-
 #include <omniscript/FileSpan.h>
 #include <unordered_map>
 #include <chrono>

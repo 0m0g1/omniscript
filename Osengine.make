@@ -130,6 +130,7 @@ GENERATED += $(OBJDIR)/LexStrings.o
 GENERATED += $(OBJDIR)/Lexer.o
 GENERATED += $(OBJDIR)/LinuxLLVMFunctionResolver.o
 GENERATED += $(OBJDIR)/LiteralStatements.o
+GENERATED += $(OBJDIR)/LookAheads.o
 GENERATED += $(OBJDIR)/MemberAccessStatement.o
 GENERATED += $(OBJDIR)/ModuleAndImportStatements.o
 GENERATED += $(OBJDIR)/ParseAssignments.o
@@ -212,6 +213,7 @@ OBJECTS += $(OBJDIR)/LexStrings.o
 OBJECTS += $(OBJDIR)/Lexer.o
 OBJECTS += $(OBJDIR)/LinuxLLVMFunctionResolver.o
 OBJECTS += $(OBJDIR)/LiteralStatements.o
+OBJECTS += $(OBJDIR)/LookAheads.o
 OBJECTS += $(OBJDIR)/MemberAccessStatement.o
 OBJECTS += $(OBJDIR)/ModuleAndImportStatements.o
 OBJECTS += $(OBJDIR)/ParseAssignments.o
@@ -431,6 +433,9 @@ $(OBJDIR)/LexStrings.o: src/Lexer/LexStrings.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/Lexer.o: src/Lexer/Lexer.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/LookAheads.o: src/Parser/LookAheads.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/ParseAssignments.o: src/Parser/ParseAssignments.cpp

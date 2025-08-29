@@ -8,18 +8,18 @@ struct Position {
    }
 }
 
-// struct Particle {
-//    position = Position{5, 10};
-//    constructor(x: float, y: float) => void {
-//       this.position.x = x;
-//       this.position.y = y;
-//    }
-//    log() => void {
-//       printf("Particle(");
-//       this.position.log();
-//       printf(")");
-//    }
-// }
+struct Particle {
+   position = Position{5, 10};
+   constructor(x: float, y: float) => void {
+      this.position.x = x;
+      this.position.y = y;
+   }
+   log() => void {
+      printf("Particle(");
+      this.position.log();
+      printf(")");
+   }
+}
 
-// let p1 = Particle{100, 300};
-// p1.log();
+let p1 = Particle{100, 300};
+p1.log();
