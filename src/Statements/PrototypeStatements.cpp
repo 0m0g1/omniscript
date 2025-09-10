@@ -75,22 +75,25 @@ std::shared_ptr<Expression> ParameterStatement::express(SymbolTableType scope) {
                 auto clone = typed->clone();
                 auto result = clone->express(scope);
                 auto resultType = result->getType();
+                // setType(resultType);
                 isValidDefaultValue = true;
                 // Previously: console.error("The the default value " + defaultValue->toString() + " of parameter '" + name + "' has no type.");
-                std::string suggestion = Console::formatString(
-                    "To resolve this:\n"
-                    "1. Ensure default value '%s' has a defined type\n"
-                    "2. Check for proper type annotations\n"
-                    "3. Verify expression initialization",
-                    defaultValue->toString().c_str()
-                );
-                console.reportError(
-                    Console::TYPE_ERROR,
-                    Console::formatString("The default value '%s' of parameter '%s' has no type",
-                                     defaultValue->toString().c_str(), name.c_str()),
-                    suggestion,
-                    defaultValue->getSpan()
-                );
+                if (!resultType) {
+                    std::string suggestion = Console::formatString(
+                        "To resolve this:\n"
+                        "1. Ensure default value '%s' has a defined type\n"
+                        "2. Check for proper type annotations\n"
+                        "3. Verify expression initialization",
+                        defaultValue->toString().c_str()
+                    );
+                    console.reportError(
+                        Console::TYPE_ERROR,
+                        Console::formatString("The default value '%s' of parameter '%s' has no type",
+                                         defaultValue->toString().c_str(), name.c_str()),
+                        suggestion,
+                        defaultValue->getSpan()
+                    );
+                }
             }
         } else {
             isValidDefaultValue = false;
