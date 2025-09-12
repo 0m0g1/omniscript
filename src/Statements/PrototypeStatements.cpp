@@ -505,7 +505,7 @@ std::shared_ptr<Expression> ObjectConstructorStatement::express(SymbolTableType 
         return nullptr;
     }
     
-    type = std::make_shared<UserDefinedType>(objectType);
+    type = scope->getType(objectType);
     
     // Always create instance with default values first (empty args)
     std::vector<std::shared_ptr<Statement>> emptyArgs = {};
