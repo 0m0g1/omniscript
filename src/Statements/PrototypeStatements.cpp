@@ -210,7 +210,7 @@ std::shared_ptr<Expression> ClassMember::express(SymbolTableType scope) {
 
 std::shared_ptr<Expression> ConstructStructPrototype::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
-    DEBUG_LOG("[ConstructStructPrototype] Constructing a struct expression");
+    DEBUG_LOG("[ConstructStructPrototype] Constructing a struct " + name + " expression");
 
     std::vector<std::shared_ptr<Expression>> fields;
     std::vector<std::shared_ptr<Expression>> methods;

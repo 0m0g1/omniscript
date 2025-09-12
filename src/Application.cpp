@@ -60,7 +60,7 @@ int Application::run() noexcept {
         return 1;
     }
 
-    console.info("Engine execution completed successfully");
+    console.info("\nEngine execution completed successfully");
 
     if (config_->diagnostics.debugMode) {
         const auto& stats = *result;

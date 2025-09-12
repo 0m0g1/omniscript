@@ -924,7 +924,8 @@ bool Call::handleVariadicParameter(
 
     // Add all variadic arguments to collected args
     for (auto& varArg : variadicArgs) {
-        collectedArgs.push_back(varArg);
+        collectedArgs[i] = varArg;
+        i++;
     }
 
     // For external functions, we just pass the arguments directly

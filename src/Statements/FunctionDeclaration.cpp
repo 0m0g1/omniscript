@@ -202,23 +202,6 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
                 if (mangledName == funcExpr->mangledName) {
                     body->isGlobal = false;
                     std::vector<std::shared_ptr<Expression>> functionBody = body->expressAsVector(localScope);
-                    if (functionBody.empty()) {
-                        std::string suggestion = Console::formatString(
-                            "To resolve this:\n"
-                            "1. Verify function body for '%s' contains valid statements\n"
-                            "2. Check for correct block syntax\n"
-                            "3. Add debug output to trace body evaluation",
-                            name.c_str()
-                        );
-                        console.reportError(
-                            Console::RUNTIME_ERROR,
-                            Console::formatString("Failed to evaluate function body for '%s'",
-                                             name.c_str()),
-                            suggestion,
-                            body->getSpan()
-                        );
-                        return;
-                    }
                     funcExpr->body = functionBody;
                 }
             }
@@ -244,23 +227,6 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
             return;
         }
         std::vector<std::shared_ptr<Expression>> functionBody = body->expressAsVector(localScope);
-        if (functionBody.empty()) {
-            std::string suggestion = Console::formatString(
-                "To resolve this:\n"
-                "1. Verify function body for '%s' contains valid statements\n"
-                "2. Check for correct block syntax\n"
-                "3. Add debug output to trace body evaluation",
-                name.c_str()
-            );
-            console.reportError(
-                Console::RUNTIME_ERROR,
-                Console::formatString("Failed to evaluate function body for '%s'",
-                                 name.c_str()),
-                suggestion,
-                body->getSpan()
-            );
-            return;
-        }
         funcExpr->body = functionBody;
     }
 
