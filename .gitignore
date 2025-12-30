@@ -8,3 +8,5 @@ example.txt
 /omniscript-language-server
 .VSCodeCounter
 omniscript_errors.log
+Makefile
+Osengine.make
