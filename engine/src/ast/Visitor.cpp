@@ -1,0 +1,22 @@
+// Ast.cpp (or AstAccept.cpp) - define accept() methods
+#include <omniscript/ast/Ast.h>
+#include <omniscript/ast/Visitor.h>
+
+namespace Omniscript {
+
+void Program::accept(AstVisitor& v) { v.visit(*this); }
+
+void BlockStmt::accept(AstVisitor& v) { v.visit(*this); }
+void ExprStmt::accept(AstVisitor& v) { v.visit(*this); }
+void VarDeclStmt::accept(AstVisitor& v) { v.visit(*this); }
+void IfStmt::accept(AstVisitor& v) { v.visit(*this); }
+void WhileStmt::accept(AstVisitor& v) { v.visit(*this); }
+void ReturnStmt::accept(AstVisitor& v) { v.visit(*this); }
+
+void IdentifierExpr::accept(AstVisitor& v) { v.visit(*this); }
+void LiteralExpr::accept(AstVisitor& v) { v.visit(*this); }
+void GroupExpr::accept(AstVisitor& v) { v.visit(*this); }
+void UnaryExpr::accept(AstVisitor& v) { v.visit(*this); }
+void BinaryExpr::accept(AstVisitor& v) { v.visit(*this); }
+
+} // namespace Omniscript

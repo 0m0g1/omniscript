@@ -27,7 +27,9 @@ private:
 
     Token tokenizeIdentifierOrKeyword();
     Token tokenizeNumber();
-    Token tokenizeString();         // "..."
+    Token tokenizeString();  
+    Token tokenizeOperatorOrPunct();     // LexOperators.cpp
+
 
 private:
     std::size_t m_current_position = 0;
