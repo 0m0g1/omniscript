@@ -5,6 +5,8 @@
 
 namespace Omniscript {
 
+// ---------------- ctors ----------------
+
 Token::Token(TokenType type)
     : m_type(type)
     , m_span() {}
@@ -18,8 +20,33 @@ Token::Token(TokenType type,
     , m_value(std::move(value))
     , m_span(std::move(span)) {}
 
-// If you kept the convenience ctor in the header (line/column/path),
-// it will delegate to the FileSpan-based ctor there; no extra .cpp needed.
+Token::Token(TokenType type,
+             std::string lexeme,
+             std::string value,
+             std::size_t line,
+             std::size_t column,
+             std::string filePath)
+    : Token(type,
+            std::move(lexeme),
+            std::move(value),
+            FileSpan{
+                FilePosition{line, column, filePath},
+                FilePosition{line, column, std::move(filePath)}
+            }) {}
+
+Token::Token(TokenType type,
+             std::string lexeme,
+             std::string value,
+             std::size_t sLine, std::size_t sCol,
+             std::size_t eLine, std::size_t eCol,
+             std::string filePath)
+    : Token(type,
+            std::move(lexeme),
+            std::move(value),
+            FileSpan{
+                FilePosition{sLine, sCol, filePath},
+                FilePosition{eLine, eCol, std::move(filePath)}
+            }) {}
 
 // ---------------- classification ----------------
 

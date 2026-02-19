@@ -1,4 +1,6 @@
 #include <omniscript/Engine.h>
+#include <omniscript/lexer/Lexer.h>
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -28,7 +30,13 @@ int Engine::run() {
         }
 
         const std::string source = readSourceFile(m_argv[1]);
-        std::cout << source << "\n";
+        
+        Lexer lexer(source, m_argv[1]);
+        Token currentToken = lexer.getNextToken();
+        while (currentToken.type() != TokenType::EndOfInput) {
+            std::cout << currentToken.toString() << std::endl;
+            currentToken = lexer.getNextToken();
+        }
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
