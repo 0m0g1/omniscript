@@ -1,39 +1,39 @@
 #include <omniscript/Engine.h>
 #include <iostream>
-
-#if defined(OMNI_HAS_LLVM)
-  #include <llvm/IR/LLVMContext.h>
-  #include <llvm/IR/Module.h>
-  #include <llvm/IR/IRBuilder.h>
-  #include <llvm/Support/raw_ostream.h>
-#endif
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
 
 namespace Omniscript {
 
-
 Engine::Engine(int argc, char** argv)
   : m_argc(argc), m_argv(argv) {}
-  
+
+std::string Engine::readSourceFile(const std::string& file_path) const {
+    std::ifstream in(file_path); // text mode
+    if (!in) {
+        throw std::runtime_error("Cannot open file: " + file_path);
+    }
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
+}
+
 int Engine::run() {
-    std::cout << "hello world\n";
+    try {
+        if (m_argc < 2 || !m_argv || !m_argv[1]) {
+            std::cerr << "Usage: " << (m_argv && m_argv[0] ? m_argv[0] : "omniscript")
+                      << " <source-file>\n";
+            return 2;
+        }
 
-#if defined(OMNI_HAS_LLVM)
-    llvm::LLVMContext ctx;
-    auto m = std::make_unique<llvm::Module>("test", ctx);
-    llvm::IRBuilder<> b(ctx);
-
-    auto* fnTy = llvm::FunctionType::get(b.getInt32Ty(), false);
-    auto* fn = llvm::Function::Create(fnTy, llvm::Function::ExternalLinkage, "main", m.get());
-    auto* entry = llvm::BasicBlock::Create(ctx, "entry", fn);
-    b.SetInsertPoint(entry);
-    b.CreateRet(b.getInt32(0));
-
-    llvm::outs() << *m << "\n";
-#else
-    std::cout << "(LLVM backend not enabled in this build)\n";
-#endif
-
-    return 0;
+        const std::string source = readSourceFile(m_argv[1]);
+        std::cout << source << "\n";
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << "\n";
+        return 1;
+    }
 }
 
-}
+} // namespace Omniscript

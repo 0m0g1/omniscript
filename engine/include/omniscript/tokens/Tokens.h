@@ -5,7 +5,7 @@
 #include <ostream>
 #include <string>
 
-#include "FileSpan.hpp" // adjust include path/name as needed
+#include <omniscript/FileSpan.h> // adjust include path/name as needed
 
 namespace Omniscript {
 
@@ -91,11 +91,7 @@ public:
     Token(TokenType type,
           std::string lexeme,
           std::string value,
-          FileSpan span = {})
-        : m_type(type),
-          m_lexeme(std::move(lexeme)),
-          m_value(std::move(value)),
-          m_span(std::move(span)) {}
+          FileSpan span = {});
 
     // Convenience ctor: single-point token location (span start=end)
     Token(TokenType type,
@@ -103,12 +99,7 @@ public:
           std::string value,
           std::size_t line,
           std::size_t column,
-          std::string filePath = {})
-        : m_type(type),
-          m_lexeme(std::move(lexeme)),
-          m_value(std::move(value)),
-          m_span(FilePosition(line, column, std::move(filePath)),
-                 FilePosition(line, column, m_span.start.filePath)) {}
+          std::string filePath = {});
 
     // Convenience ctor: explicit start/end range in same file
     Token(TokenType type,
@@ -116,11 +107,7 @@ public:
           std::string value,
           std::size_t sLine, std::size_t sCol,
           std::size_t eLine, std::size_t eCol,
-          std::string filePath = {})
-        : m_type(type),
-          m_lexeme(std::move(lexeme)),
-          m_value(std::move(value)),
-          m_span(sLine, sCol, eLine, eCol, std::move(filePath)) {}
+          std::string filePath = {});
 
     // ----- getters -----
     TokenType type() const noexcept { return m_type; }
