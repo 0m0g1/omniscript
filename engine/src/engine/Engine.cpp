@@ -3,9 +3,7 @@
 #include <omniscript/parser/Parser.h>
 #include <omniscript/ast/Ast.h>
 #include <omniscript/ast/AstPrint.h>
-#include <omniscript/ast/AstStatement.h>
-#include <omniscript/extern/CHeaderParser.h>
-#include <omniscript/extern/OsEmitter.h>     // <-- ADD THIS
+#include <omniscript/extern/ExternResolver.h>  // <-- FFI expansion
 
 #include <filesystem>
 #include <fstream>
@@ -37,67 +35,68 @@ int Engine::run() {
         const std::string sourcePath = m_argv[1];
         const std::string source     = readSourceFile(sourcePath);
 
+        // ---- 1. Parse the .os source file ----
         Lexer  lexer(source, sourcePath.c_str());
         Parser parser(lexer);
         auto   program = parser.parse();
 
-        std::cout << "Parsed " << program->statements.size() << " statements\n";
+        std::cout << "Parsed " << program->statements.size()
+                  << " statements (before FFI expansion)\n";
 
-        // ---- PRINT AST ----
+        // ---- 2. Expand extern headers -> inject AST nodes ----
+        {
+            namespace fs = std::filesystem;
+
+            extern_support::ResolverConfig cfg;
+
+            // Always search in the .os file's own directory first
+            cfg.includeDirs.push_back(
+                fs::path(sourcePath).has_parent_path()
+                    ? fs::path(sourcePath).parent_path().string()
+                    : std::string(".")
+            );
+
+            // Accept extra -I / --include dirs from the command line
+            for (int i = 2; i < m_argc; ++i) {
+                std::string arg = m_argv[i];
+                if ((arg == "--include" || arg == "-I") && i + 1 < m_argc)
+                    cfg.includeDirs.push_back(m_argv[++i]);
+                else if (arg.size() > 2 && arg[0] == '-' && arg[1] == 'I')
+                    cfg.includeDirs.push_back(arg.substr(2));
+            }
+
+            // During development: print the generated .os text before parsing it
+            cfg.debugPrint = true;
+            cfg.debugOut   = &std::cout;
+
+            cfg.emitOpts.sourceComments   = true;
+            cfg.emitOpts.skipPrivateNames = true;
+            cfg.emitOpts.structsAsOpaque  = false;
+
+            extern_support::ExternResolver resolver(
+                std::move(cfg),
+                fs::path(sourcePath).has_parent_path()
+                    ? fs::path(sourcePath).parent_path().string()
+                    : std::string(".")
+            );
+
+            // Mutates program.statements in-place:
+            // for every ExternStmt with header paths, appends the
+            // generated FunctionDeclStmt / VarDeclStmt / etc. right after it.
+            resolver.expand(*program);
+        }
+
+        std::cout << "\nAfter FFI expansion: "
+                  << program->statements.size() << " statements\n\n";
+
+        // ---- 3. Print the full expanded AST ----
         {
             AstPrinter printer(std::cout, PrintMode::Recursive);
             printer.print(*program);
         }
 
-        // ================================================================
-        // FFI: parse every extern header and emit the .os equivalent
-        // ================================================================
-        namespace fs = std::filesystem;
-        const fs::path baseDir = fs::path(sourcePath).has_parent_path()
-                                 ? fs::path(sourcePath).parent_path()
-                                 : fs::path(".");
-
-        // One emitter, shared across all extern blocks in the file
-        extern_support::EmitOptions emitOpts;
-        emitOpts.sourceComments   = true;   // // method comments
-        emitOpts.skipPrivateNames = true;   // skip _foo names
-        emitOpts.structsAsOpaque  = false;  // show fields
-        extern_support::OsEmitter emitter(emitOpts);
-
-        for (const auto& st : program->statements) {
-            if (!st) continue;
-            auto* ex = dynamic_cast<const ExternStmt*>(st.get());
-            if (!ex || ex->headerPaths.empty()) continue;
-
-            for (const auto& hp : ex->headerPaths) {
-                // Resolve the header path relative to the .os source file
-                fs::path headerPath = fs::path(hp);
-                if (headerPath.is_relative())
-                    headerPath = (baseDir / headerPath).lexically_normal();
-                const std::string resolved = headerPath.string();
-
-                std::cout << "\n// " << std::string(72, '=') << '\n';
-                std::cout << "// Header : " << hp
-                          << "  (resolved: " << resolved << ")\n";
-                std::cout << "// " << std::string(72, '=') << '\n';
-
-                try {
-                    const std::string headerSrc = readSourceFile(resolved);
-
-                    extern_support::CHeaderParser p(headerSrc, resolved);
-                    const extern_support::CHeaderResult result = p.parse();
-
-                    // Print the .os extern block
-                    emitter.emit(std::cout, result, ex->libraryPaths);
-
-                } catch (const std::exception& e) {
-                    std::cout << "// ERROR parsing '" << hp << "': " << e.what() << "\n";
-                }
-            }
-        }
-        // ================================================================
-
         return 0;
+
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;
