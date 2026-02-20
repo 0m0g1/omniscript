@@ -136,21 +136,20 @@ std::vector<ParamDecl> Parser::parseParameters() {
     return out;
 }
 
-// Minimal type parser:
-// TypeName := Identifier ( '*' )*
-std::vector<Token> Parser::parseType() {
-    std::vector<Token> tks;
+std::vector<ExprPtr> Parser::parseArguments() {
+    std::vector<ExprPtr> args;
 
-    if (!check(TokenType::Identifier))
-        throw ParseError("Expected type name.", current());
-    tks.push_back(advance()); // consume base type identifier
+    // empty: ()
+    if (check(TokenType::RightParen)) return args;
 
-    while (match(TokenType::Star)) {
-        // Keep the actual consumed '*' token (no synthetic tokens needed).
-        tks.push_back(previous());
+    while (true) {
+        args.push_back(parseExpression());
+
+        if (!match(TokenType::Comma)) break;
+        if (check(TokenType::RightParen)) break; // allow trailing comma
     }
 
-    return tks;
+    return args;
 }
 
 } // namespace Omniscript

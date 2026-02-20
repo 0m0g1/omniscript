@@ -24,6 +24,7 @@ struct AstVisitor {
     // Expressions
     virtual void visit(IdentifierExpr&) = 0;
     virtual void visit(LiteralExpr&) = 0;
+    virtual void visit(CallExpr&) = 0;
     virtual void visit(GroupExpr&) = 0;
     virtual void visit(UnaryExpr&) = 0;
     virtual void visit(BinaryExpr&) = 0;

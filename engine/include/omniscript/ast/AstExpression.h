@@ -5,14 +5,37 @@
 #include <omniscript/ast/Ast.h>
 
 namespace Omniscript {
+struct IdentifierPath {
+    // Identifiers in order: ["std", "io", "File"]
+    std::vector<Token> parts;
+
+    // Separators between parts: "::" or "."
+    // size == parts.size()-1
+    std::vector<TokenType> seps;
+
+    FileSpan span{};
+};
 
 // ----------------- Expressions -----------------
 
 struct IdentifierExpr final : Expr {
-    Token name;
+    IdentifierPath name;
 
-    explicit IdentifierExpr(Token n)
-        : Expr(NodeKind::IdentifierExpr, n.span()), name(std::move(n)) {}
+    explicit IdentifierExpr(IdentifierPath p)
+        : Expr(NodeKind::IdentifierExpr, p.span), name(std::move(p)) {}
+
+    void accept(AstVisitor& v) override;
+};
+
+struct CallExpr final : Expr {
+    // simplest: callee is a path like AudioAccess.getAvailableSoundDevices
+    IdentifierPath callee;
+    std::vector<ExprPtr> args;
+
+    CallExpr(IdentifierPath c, std::vector<ExprPtr> a, FileSpan s = {})
+        : Expr(NodeKind::CallExpr, std::move(s)),
+          callee(std::move(c)),
+          args(std::move(a)) {}
 
     void accept(AstVisitor& v) override;
 };

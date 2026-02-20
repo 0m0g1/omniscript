@@ -308,12 +308,28 @@ ExprPtr Parser::parsePrefix() {
 }
 
 ExprPtr Parser::parsePrimary() {
-    Token t = advance(); // consume current
+    // ---- identifier path / call ----
+    if (check(TokenType::Identifier)) {
+        IdentifierPath path = parseIdentifiers("Expected identifier.");
+
+        // Function call?  foo(...) or ns::foo(...)
+        if (match(TokenType::LeftParen)) {
+            auto args = parseArguments();
+            Token rp = m_current_token;
+            eat(TokenType::RightParen, "Expected ')' after call arguments.");
+
+            FileSpan s = mergeSpans(path.span, rp.span());
+            return std::make_unique<CallExpr>(std::move(path), std::move(args), s);
+        }
+
+        // Plain identifier expression
+        return std::make_unique<IdentifierExpr>(std::move(path));
+    }
+
+    // ---- everything else: consume one token and switch ----
+    Token t = advance();
 
     switch (t.type()) {
-        case TokenType::Identifier:
-            return std::make_unique<IdentifierExpr>(std::move(t));
-
         case TokenType::IntegerLiteral:
         case TokenType::FloatLiteral:
         case TokenType::StringLiteral:
@@ -326,9 +342,9 @@ ExprPtr Parser::parsePrimary() {
 
         case TokenType::LeftParen: {
             auto inner = parseExpression();
-            // capture ')' for span
-            const Token rp = m_current_token;
+            Token rp = m_current_token;
             eat(TokenType::RightParen, "Expected ')' after expression.");
+
             FileSpan s = mergeSpans(t.span(), rp.span());
             return std::make_unique<GroupExpr>(std::move(inner), s);
         }

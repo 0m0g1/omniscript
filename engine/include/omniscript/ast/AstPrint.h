@@ -31,6 +31,7 @@ struct AstPrinter final : AstVisitor {
     void visit(ReturnStmt&) override;
 
     void visit(IdentifierExpr&) override;
+    void visit(CallExpr& n) override;
     void visit(LiteralExpr&) override;
     void visit(GroupExpr&) override;
     void visit(UnaryExpr&) override;

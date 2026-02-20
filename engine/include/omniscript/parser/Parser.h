@@ -49,7 +49,9 @@ private:
     void skipExternSeparators();             // semicolons/newlines inside extern block
 
     StmtPtr parseFunctionDeclaration();
+    std::vector<ExprPtr> parseArguments();
     std::vector<ParamDecl> parseParameters();
+    IdentifierPath parseIdentifiers(const char* contextMsg);
     std::vector<Token> parseType();      // minimal
     StmtPtr parseBlock();                    // { ... }
     StmtPtr parseIf();

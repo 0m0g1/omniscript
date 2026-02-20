@@ -61,6 +61,7 @@ void AstPrinter::printNonRecursive(Node& root) {
             case NodeKind::Program:         ss << "Program"; break;
             case NodeKind::ExternStmt:      ss << "ExternStmt"; break;
             case NodeKind::ImportStmt:      ss << "ImportStmt"; break;
+            case NodeKind::CallExpr:        ss << "CallExpr"; break;
             case NodeKind::FunctionDeclStmt:ss << "FunctionDeclStmt"; break;
             case NodeKind::BlockStmt:       ss << "BlockStmt"; break;
             case NodeKind::ExprStmt:        ss << "ExprStmt"; break;
@@ -105,6 +106,12 @@ void AstPrinter::printNonRecursive(Node& root) {
             case NodeKind::FunctionDeclStmt: {
                 auto& n = static_cast<FunctionDeclStmt&>(*f.node);
                 if (n.body) stack.push_back(Frame{ n.body.get(), "body", f.depth + 1 });
+            } break;
+
+            case NodeKind::CallExpr: {
+                auto& n = static_cast<CallExpr&>(*f.node);
+                for (int i = (int)n.args.size() - 1; i >= 0; --i)
+                    stack.push_back(Frame{ n.args[i].get(), "arg", f.depth + 1 });
             } break;
 
             case NodeKind::BlockStmt: {
@@ -292,9 +299,58 @@ void AstPrinter::visit(ReturnStmt& n) {
     popIndent();
 }
 
+static std::string pathText(const IdentifierPath& p) {
+    std::ostringstream ss;
+
+    for (size_t i = 0; i < p.parts.size(); ++i) {
+        if (i > 0) {
+            // print separator between parts
+            if (i - 1 < p.seps.size()) {
+                switch (p.seps[i - 1]) {
+                    case TokenType::Dot:             ss << ".";  break;
+                    case TokenType::ScopeResolution: ss << "::"; break;
+                    default:                         ss << "?";  break;
+                }
+            } else {
+                ss << "?";
+            }
+        }
+        ss << tokText(p.parts[i]);
+    }
+
+    return ss.str();
+}
+
+void AstPrinter::visit(CallExpr& n) {
+    line("CallExpr");
+    pushIndent();
+
+    // callee path: std::io.print or foo.bar
+    {
+        std::ostringstream ss;
+        ss << "callee=";
+        for (size_t i = 0; i < n.callee.parts.size(); ++i) {
+            ss << tokText(n.callee.parts[i]);
+            if (i < n.callee.seps.size()) {
+                ss << (n.callee.seps[i] == TokenType::Dot ? "." : "::");
+            }
+        }
+        line(ss.str());
+    }
+
+    line("args:");
+    pushIndent();
+    for (auto& a : n.args) {
+        printChild(a.get(), "arg");
+    }
+    popIndent();
+
+    popIndent();
+}
+
 void AstPrinter::visit(IdentifierExpr& n) {
     std::ostringstream ss;
-    ss << "IdentifierExpr name=" << tokText(n.name);
+    ss << "IdentifierExpr name=" << pathText(n.name);
     line(ss.str());
 }
 

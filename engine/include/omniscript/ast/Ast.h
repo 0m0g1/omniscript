@@ -32,6 +32,7 @@ enum class NodeKind : std::uint16_t {
     UnaryExpr,
     BinaryExpr,
     GroupExpr,
+    CallExpr,
 };
 
 enum class VarFlavor : std::uint8_t { Let, Var, Const };

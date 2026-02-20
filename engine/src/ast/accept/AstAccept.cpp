@@ -18,6 +18,7 @@ void ReturnStmt::accept(AstVisitor& v) { v.visit(*this); }
 
 void IdentifierExpr::accept(AstVisitor& v) { v.visit(*this); }
 void LiteralExpr::accept(AstVisitor& v) { v.visit(*this); }
+void CallExpr::accept(AstVisitor& v) { v.visit(*this); }
 void GroupExpr::accept(AstVisitor& v) { v.visit(*this); }
 void UnaryExpr::accept(AstVisitor& v) { v.visit(*this); }
 void BinaryExpr::accept(AstVisitor& v) { v.visit(*this); }

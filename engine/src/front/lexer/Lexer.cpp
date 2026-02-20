@@ -43,11 +43,62 @@ bool Lexer::match(char c) {
 void Lexer::skipWhitespaceExceptNewline() {
     while (!atEnd()) {
         char c = current();
+
+        // ---- whitespace (but NOT '\n') ----
         if (c == ' ' || c == '\t' || c == '\r') {
             advance();
             continue;
         }
-        break; // keep '\n' as a token
+
+        // ---- single-line comment: // ... (stop before newline) ----
+        if (c == '/' && next() == '/') {
+            // consume "//"
+            advance();
+            advance();
+
+            // consume until newline or EOF, but DO NOT consume '\n'
+            while (!atEnd() && current() != '\n') {
+                advance();
+            }
+            continue; // loop again; newline will be returned as a token by getNextToken()
+        }
+
+        // ---- block / nested comment: /* ... */ ----
+        if (c == '/' && next() == '*') {
+            // consume "/*"
+            advance();
+            advance();
+
+            int depth = 1;
+            while (!atEnd() && depth > 0) {
+                // detect nested open "/*"
+                if (current() == '/' && next() == '*') {
+                    advance();
+                    advance();
+                    ++depth;
+                    continue;
+                }
+
+                // detect close "*/"
+                if (current() == '*' && next() == '/') {
+                    advance();
+                    advance();
+                    --depth;
+                    continue;
+                }
+
+                // normal char (advance() already updates line/col on '\n')
+                advance();
+            }
+
+            // If depth > 0 here, comment was unterminated.
+            // You can choose to return an Error token later, but for now just stop.
+            // (Or throw; up to you.)
+            continue;
+        }
+
+        // nothing to skip
+        break;
     }
 }
 
