@@ -196,41 +196,45 @@ void OsEmitter::emitVariable(std::ostream& os, const CVarDecl& var) const {
 }
 
 // =============================================================================
-// emitStruct
+// emitStruct  — emits a real OS struct declaration (OUTSIDE the extern block)
 // =============================================================================
 
 void OsEmitter::emitStruct(std::ostream& os, const CStructDecl& s) const {
     if (shouldSkip(s.name)) return;
 
-    if (!s.isDefinition) {
-        os << m_opts.indent << "// [opaque " << s.kind << "] " << s.name << '\n';
+    if (!s.isDefinition || s.fields.empty()) {
+        // Opaque / forward-declared: just a comment, no code emitted
+        os << "// [opaque " << s.kind << "] " << s.name << '\n';
         return;
     }
 
     if (m_opts.structsAsOpaque) {
-        os << m_opts.indent << "// [" << s.kind << ' ' << s.name
-           << " — use void* for FFI]\n";
+        os << "// [" << s.kind << ' ' << s.name << " — passed as void*]\n";
         return;
     }
 
-    os << m_opts.indent << "// " << s.kind << ' ' << s.name;
+    // Real struct declaration in OS syntax
+    // class / union are both represented as 'struct' for now
+    os << "struct " << s.name;
     if (!s.bases.empty()) {
-        os << " :";
+        // OS has no inheritance yet — note bases as a comment
+        os << " /* :";
         for (const auto& b : s.bases) os << ' ' << b;
+        os << " */";
     }
     os << " {\n";
 
     for (const auto& f : s.fields) {
         if (f.name.empty()) continue;
         if (m_opts.skipPrivateNames && f.name[0] == '_') continue;
+        if (f.isStatic) continue; // static fields aren't layout members
 
-        os << m_opts.indent << m_opts.indent;
-        if (f.isStatic) os << "static ";
-        os << f.name << ": " << toOsType(f.type);
+        os << m_opts.indent << f.name << ": " << toOsType(f.type);
         if (f.isBitField) os << "  // bitfield:" << f.bitWidth;
-        os << '\n';
+        os << ";\n";
     }
-    os << m_opts.indent << "// }\n";
+
+    os << "}\n";
 }
 
 // =============================================================================
@@ -246,7 +250,6 @@ void OsEmitter::emitEnum(std::ostream& os, const CEnumDecl& e) const {
     for (const auto& [k, v] : e.enumerators) {
         if (m_opts.skipPrivateNames && !k.empty() && k[0] == '_') continue;
 
-        // Underlying type -> OS type; default to int
         const std::string osType = e.underlying.empty()
             ? "int"
             : toOsType(CType{ {}, e.underlying, 0, false, false, false, "" });
@@ -264,7 +267,6 @@ void OsEmitter::emitEnum(std::ostream& os, const CEnumDecl& e) const {
 void OsEmitter::emitTypedef(std::ostream& os, const CTypedef& td) const {
     if (shouldSkip(td.alias)) return;
 
-    // Function-pointer typedef
     if (td.underlyingType.base.find("(*)") != std::string::npos) {
         os << m_opts.indent << "// [fn-ptr typedef] "
            << td.alias << " = " << td.underlyingType.toString() << '\n';
@@ -272,9 +274,7 @@ void OsEmitter::emitTypedef(std::ostream& os, const CTypedef& td) const {
     }
 
     const std::string mapped = mapPrimitive(td.underlyingType.base);
-    const std::string rhs    = mapped.empty()
-        ? toOsType(td.underlyingType)
-        : mapped;
+    const std::string rhs    = mapped.empty() ? toOsType(td.underlyingType) : mapped;
 
     os << m_opts.indent << "// "
        << (td.isUsing ? "using" : "typedef")
@@ -282,7 +282,8 @@ void OsEmitter::emitTypedef(std::ostream& os, const CTypedef& td) const {
 }
 
 // =============================================================================
-// emitBody
+// emitBody — only fn / let / const / enum go inside the extern block
+// structs are hoisted outside by emit()
 // =============================================================================
 
 void OsEmitter::emitBody(std::ostream& os, const CHeaderResult& result) const {
@@ -298,11 +299,8 @@ void OsEmitter::emitBody(std::ostream& os, const CHeaderResult& result) const {
         os << '\n';
     }
 
-    if (!result.structs.empty()) {
-        os << m_opts.indent << "// -- structs / classes --\n";
-        for (const auto& s : result.structs) emitStruct(os, s);
-        os << '\n';
-    }
+    // NOTE: structs are intentionally NOT emitted here.
+    // They are hoisted to the top level by emit() below.
 
     if (!result.variables.empty()) {
         os << m_opts.indent << "// -- variables --\n";
@@ -317,19 +315,34 @@ void OsEmitter::emitBody(std::ostream& os, const CHeaderResult& result) const {
 }
 
 // =============================================================================
-// emit  (full extern block)
+// emit  — full output:
+//
+//   struct Vec2 { ... }          <- hoisted before the extern block
+//   struct Rect { ... }
+//
+//   extern "lib.dll", "lib.a" {
+//       const A: u32 = 1;        <- enums as consts
+//       let g_counter: int;      <- variables
+//       fn add_i32(...) => int;  <- functions
+//   }
 // =============================================================================
 
 void OsEmitter::emit(std::ostream& os,
                      const CHeaderResult& result,
                      const std::vector<std::string>& libraryPaths) const {
-    // Warnings
     if (!result.errors.empty()) {
         for (const auto& e : result.errors)
             os << "// WARNING: " << e << '\n';
     }
 
-    // extern "path1",\n       "path2" {
+    // 1. Hoist struct declarations above the extern block
+    if (!result.structs.empty()) {
+        os << "// -- structs from: " << result.filePath << " --\n";
+        for (const auto& s : result.structs) emitStruct(os, s);
+        os << '\n';
+    }
+
+    // 2. extern "path" { ... } block
     os << "extern ";
     if (libraryPaths.empty()) {
         os << '"' << result.filePath << '"';

@@ -14,6 +14,7 @@ struct AstVisitor {
     virtual void visit(ExternStmt&) = 0;
     virtual void visit(ImportStmt&) = 0;
     virtual void visit(FunctionDeclStmt&) = 0;
+    virtual void visit(StructDeclStmt& n) = 0; 
     virtual void visit(BlockStmt&) = 0;
     virtual void visit(ExprStmt&) = 0;
     virtual void visit(VarDeclStmt&) = 0;

@@ -5,8 +5,6 @@
 namespace Omniscript {
 
 static std::string tokText(const Token& t) {
-    // Adjust depending on your Token API (lexeme/text/value)
-    // Fallback: if you don't have text, remove this from output.
     return t.toString();
 }
 
@@ -40,7 +38,6 @@ void AstPrinter::printChild(Node* n, const char* label) {
         n->accept(*this);
         popIndent();
     } else {
-        // In non-recursive mode, just show one line summary
         std::ostringstream ss;
         ss << label << ": <" << static_cast<int>(n->kind) << ">";
         line(ss.str());
@@ -48,8 +45,6 @@ void AstPrinter::printChild(Node* n, const char* label) {
 }
 
 void AstPrinter::printNonRecursive(Node& root) {
-    // Simple stack-based preorder traversal with indentation depth tracking.
-    // Prints each node once; children discovered based on node type.
     std::vector<Frame> stack;
     stack.push_back(Frame{&root, "root", 0});
 
@@ -58,22 +53,23 @@ void AstPrinter::printNonRecursive(Node& root) {
         std::ostringstream ss;
         ss << label << ": ";
         switch (n.kind) {
-            case NodeKind::Program:         ss << "Program"; break;
-            case NodeKind::ExternStmt:      ss << "ExternStmt"; break;
-            case NodeKind::ImportStmt:      ss << "ImportStmt"; break;
-            case NodeKind::CallExpr:        ss << "CallExpr"; break;
-            case NodeKind::FunctionDeclStmt:ss << "FunctionDeclStmt"; break;
-            case NodeKind::BlockStmt:       ss << "BlockStmt"; break;
-            case NodeKind::ExprStmt:        ss << "ExprStmt"; break;
-            case NodeKind::VarDeclStmt:     ss << "VarDeclStmt"; break;
-            case NodeKind::IfStmt:          ss << "IfStmt"; break;
-            case NodeKind::WhileStmt:       ss << "WhileStmt"; break;
-            case NodeKind::ReturnStmt:      ss << "ReturnStmt"; break;
-            case NodeKind::IdentifierExpr:  ss << "IdentifierExpr"; break;
-            case NodeKind::LiteralExpr:     ss << "LiteralExpr"; break;
-            case NodeKind::UnaryExpr:       ss << "UnaryExpr"; break;
-            case NodeKind::BinaryExpr:      ss << "BinaryExpr"; break;
-            case NodeKind::GroupExpr:       ss << "GroupExpr"; break;
+            case NodeKind::Program:          ss << "Program";          break;
+            case NodeKind::ExternStmt:       ss << "ExternStmt";       break;
+            case NodeKind::ImportStmt:       ss << "ImportStmt";       break;
+            case NodeKind::CallExpr:         ss << "CallExpr";         break;
+            case NodeKind::FunctionDeclStmt: ss << "FunctionDeclStmt"; break;
+            case NodeKind::BlockStmt:        ss << "BlockStmt";        break;
+            case NodeKind::ExprStmt:         ss << "ExprStmt";         break;
+            case NodeKind::VarDeclStmt:      ss << "VarDeclStmt";      break;
+            case NodeKind::IfStmt:           ss << "IfStmt";           break;
+            case NodeKind::WhileStmt:        ss << "WhileStmt";        break;
+            case NodeKind::ReturnStmt:       ss << "ReturnStmt";       break;
+            case NodeKind::StructDeclStmt:   ss << "StructDeclStmt";   break;
+            case NodeKind::IdentifierExpr:   ss << "IdentifierExpr";   break;
+            case NodeKind::LiteralExpr:      ss << "LiteralExpr";      break;
+            case NodeKind::UnaryExpr:        ss << "UnaryExpr";        break;
+            case NodeKind::BinaryExpr:       ss << "BinaryExpr";       break;
+            case NodeKind::GroupExpr:        ss << "GroupExpr";        break;
         }
         line(ss.str());
     };
@@ -84,7 +80,6 @@ void AstPrinter::printNonRecursive(Node& root) {
 
         emitNodeHeader(*f.node, f.label, f.depth);
 
-        // Push children in reverse order so they print in natural order.
         switch (f.node->kind) {
             case NodeKind::Program: {
                 auto& n = static_cast<Program&>(*f.node);
@@ -98,20 +93,21 @@ void AstPrinter::printNonRecursive(Node& root) {
                     stack.push_back(Frame{n.statements[i].get(), "stmt", f.depth + 1});
             } break;
 
-            case NodeKind::ImportStmt: {
-                // ImportStmt is a leaf (it just describes what to import)
-                // so it has no children to push.
-            } break;
+            case NodeKind::ImportStmt:
+                break; // leaf
 
             case NodeKind::FunctionDeclStmt: {
                 auto& n = static_cast<FunctionDeclStmt&>(*f.node);
-                if (n.body) stack.push_back(Frame{ n.body.get(), "body", f.depth + 1 });
+                if (n.body) stack.push_back(Frame{n.body.get(), "body", f.depth + 1});
             } break;
+
+            case NodeKind::StructDeclStmt:
+                break; // fields are printed inline by visit(), no sub-nodes to recurse
 
             case NodeKind::CallExpr: {
                 auto& n = static_cast<CallExpr&>(*f.node);
                 for (int i = (int)n.args.size() - 1; i >= 0; --i)
-                    stack.push_back(Frame{ n.args[i].get(), "arg", f.depth + 1 });
+                    stack.push_back(Frame{n.args[i].get(), "arg", f.depth + 1});
             } break;
 
             case NodeKind::BlockStmt: {
@@ -127,19 +123,20 @@ void AstPrinter::printNonRecursive(Node& root) {
 
             case NodeKind::VarDeclStmt: {
                 auto& n = static_cast<VarDeclStmt&>(*f.node);
-                if (n.initializer) stack.push_back(Frame{n.initializer.get(), "init", f.depth + 1});
+                if (n.initializer)
+                    stack.push_back(Frame{n.initializer.get(), "init", f.depth + 1});
             } break;
 
             case NodeKind::IfStmt: {
                 auto& n = static_cast<IfStmt&>(*f.node);
-                if (n.elseBranch)  stack.push_back(Frame{n.elseBranch.get(), "else", f.depth + 1});
-                if (n.thenBranch)  stack.push_back(Frame{n.thenBranch.get(), "then", f.depth + 1});
-                if (n.condition)   stack.push_back(Frame{n.condition.get(), "cond", f.depth + 1});
+                if (n.elseBranch)  stack.push_back(Frame{n.elseBranch.get(),  "else", f.depth + 1});
+                if (n.thenBranch)  stack.push_back(Frame{n.thenBranch.get(),  "then", f.depth + 1});
+                if (n.condition)   stack.push_back(Frame{n.condition.get(),   "cond", f.depth + 1});
             } break;
 
             case NodeKind::WhileStmt: {
                 auto& n = static_cast<WhileStmt&>(*f.node);
-                if (n.body)      stack.push_back(Frame{n.body.get(), "body", f.depth + 1});
+                if (n.body)      stack.push_back(Frame{n.body.get(),      "body", f.depth + 1});
                 if (n.condition) stack.push_back(Frame{n.condition.get(), "cond", f.depth + 1});
             } break;
 
@@ -161,24 +158,22 @@ void AstPrinter::printNonRecursive(Node& root) {
             case NodeKind::BinaryExpr: {
                 auto& n = static_cast<BinaryExpr&>(*f.node);
                 if (n.right) stack.push_back(Frame{n.right.get(), "right", f.depth + 1});
-                if (n.left)  stack.push_back(Frame{n.left.get(), "left", f.depth + 1});
+                if (n.left)  stack.push_back(Frame{n.left.get(),  "left",  f.depth + 1});
             } break;
 
             case NodeKind::IdentifierExpr:
             case NodeKind::LiteralExpr:
-                // leaf nodes
-                break;
+                break; // leaves
         }
     }
 
     indent = 0;
 }
 
-// -------- Recursive visitor printing --------
+// -------- Recursive visitor --------
 
 void AstPrinter::visit(Program& n) {
     if (mode == PrintMode::NonRecursive) return printNonRecursive(n);
-
     line("Program");
     pushIndent();
     for (auto& s : n.statements) printChild(s.get(), "stmt");
@@ -205,14 +200,11 @@ void AstPrinter::visit(ImportStmt& n) {
 
     std::ostringstream ss;
     ss << "ImportStmt kind=" << kindToString(n.kind);
-
     if (n.kind != ImportKind::All) {
         ss << " name=" << tokText(n.name);
-        if (n.alias.type() != TokenType::Invalid) {
+        if (n.alias.type() != TokenType::Invalid)
             ss << " as=" << tokText(n.alias);
-        }
     }
-
     line(ss.str());
 }
 
@@ -220,34 +212,48 @@ void AstPrinter::visit(FunctionDeclStmt& n) {
     line("FunctionDeclStmt");
     pushIndent();
 
-    // name
-    {
-        std::ostringstream ss;
-        ss << "name=" << tokText(n.name);
-        line(ss.str());
-    }
+    { std::ostringstream ss; ss << "name=" << tokText(n.name); line(ss.str()); }
 
-    // params (depending on your ParamDecl shape)
     line("params:");
     pushIndent();
     for (auto& p : n.params) {
         std::ostringstream ss;
-        ss << "param name=" << tokText(p.name); // adjust to your ParamDecl
+        ss << "param name=" << tokText(p.name);
+        if (!p.typeToks.empty()) {
+            ss << " type=";
+            for (auto& t : p.typeToks) ss << tokText(t);
+        }
+        if (p.isVarArg) ss << " (vararg)";
         line(ss.str());
     }
     popIndent();
 
-    // return type tokens, if you store them that way
     if (!n.returnType.empty()) {
         std::ostringstream ss;
-        ss << "returnTypeTokens=";
+        ss << "returnType=";
         for (auto& t : n.returnType) ss << tokText(t) << " ";
         line(ss.str());
     }
 
-    // body
-    printChild(n.body.get(), "body");
+    { std::ostringstream ss; ss << "isPrototype=" << (n.isPrototype ? "true" : "false"); line(ss.str()); }
 
+    printChild(n.body.get(), "body");
+    popIndent();
+}
+
+void AstPrinter::visit(StructDeclStmt& n) {
+    std::ostringstream header;
+    header << "StructDeclStmt name=" << tokText(n.name);
+    line(header.str());
+
+    pushIndent();
+    for (auto& f : n.fields) {
+        std::ostringstream ss;
+        ss << "field " << tokText(f.name) << ": ";
+        for (auto& t : f.typeToks) ss << tokText(t);
+        if (f.defaultValue) ss << " = <expr>";
+        line(ss.str());
+    }
     popIndent();
 }
 
@@ -269,7 +275,6 @@ void AstPrinter::visit(VarDeclStmt& n) {
     std::ostringstream ss;
     ss << "VarDeclStmt " << flavorToString(n.flavor) << " name=" << tokText(n.name);
     line(ss.str());
-
     pushIndent();
     printChild(n.initializer.get(), "initializer");
     popIndent();
@@ -278,7 +283,7 @@ void AstPrinter::visit(VarDeclStmt& n) {
 void AstPrinter::visit(IfStmt& n) {
     line("IfStmt");
     pushIndent();
-    printChild(n.condition.get(), "condition");
+    printChild(n.condition.get(),  "condition");
     printChild(n.thenBranch.get(), "then");
     printChild(n.elseBranch.get(), "else");
     popIndent();
@@ -288,7 +293,7 @@ void AstPrinter::visit(WhileStmt& n) {
     line("WhileStmt");
     pushIndent();
     printChild(n.condition.get(), "condition");
-    printChild(n.body.get(), "body");
+    printChild(n.body.get(),      "body");
     popIndent();
 }
 
@@ -301,10 +306,8 @@ void AstPrinter::visit(ReturnStmt& n) {
 
 static std::string pathText(const IdentifierPath& p) {
     std::ostringstream ss;
-
     for (size_t i = 0; i < p.parts.size(); ++i) {
         if (i > 0) {
-            // print separator between parts
             if (i - 1 < p.seps.size()) {
                 switch (p.seps[i - 1]) {
                     case TokenType::Dot:             ss << ".";  break;
@@ -317,34 +320,26 @@ static std::string pathText(const IdentifierPath& p) {
         }
         ss << tokText(p.parts[i]);
     }
-
     return ss.str();
 }
 
 void AstPrinter::visit(CallExpr& n) {
     line("CallExpr");
     pushIndent();
-
-    // callee path: std::io.print or foo.bar
     {
         std::ostringstream ss;
         ss << "callee=";
         for (size_t i = 0; i < n.callee.parts.size(); ++i) {
             ss << tokText(n.callee.parts[i]);
-            if (i < n.callee.seps.size()) {
+            if (i < n.callee.seps.size())
                 ss << (n.callee.seps[i] == TokenType::Dot ? "." : "::");
-            }
         }
         line(ss.str());
     }
-
     line("args:");
     pushIndent();
-    for (auto& a : n.args) {
-        printChild(a.get(), "arg");
-    }
+    for (auto& a : n.args) printChild(a.get(), "arg");
     popIndent();
-
     popIndent();
 }
 
@@ -371,7 +366,6 @@ void AstPrinter::visit(UnaryExpr& n) {
     std::ostringstream ss;
     ss << "UnaryExpr op=" << tokText(n.op);
     line(ss.str());
-
     pushIndent();
     printChild(n.right.get(), "right");
     popIndent();
@@ -381,11 +375,10 @@ void AstPrinter::visit(BinaryExpr& n) {
     std::ostringstream ss;
     ss << "BinaryExpr op=" << tokText(n.op);
     line(ss.str());
-
     pushIndent();
-    printChild(n.left.get(), "left");
+    printChild(n.left.get(),  "left");
     printChild(n.right.get(), "right");
     popIndent();
 }
 
-} // namespace Omni
+} // namespace Omniscript

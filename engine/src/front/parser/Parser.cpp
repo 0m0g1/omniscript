@@ -120,6 +120,10 @@ StmtPtr Parser::parseStatement() {
         return parseVarDecl(VarFlavor::Const);
     }
 
+    if (match(TokenType::Struct)) {
+        return parseStructDeclaration();
+    }
+
     return parseExprStatement();
 }
 
@@ -199,12 +203,20 @@ StmtPtr Parser::parseReturn() {
 }
 
 StmtPtr Parser::parseVarDecl(VarFlavor flavor) {
-    // require identifier
     if (!check(TokenType::Identifier))
         throw ParseError("Expected identifier after let/var/const.", m_current_token);
 
     Token name = advance(); // consume identifier
 
+    // Optional type annotation:  name : Type
+    std::vector<Token> declaredType;
+    if (match(TokenType::Colon)) {
+        declaredType = parseType();
+        if (declaredType.empty())
+            throw ParseError("Expected type name after ':'.", current());
+    }
+
+    // Optional initializer:  = expr
     ExprPtr init = nullptr;
     if (match(TokenType::Assign)) {
         init = parseExpression();
@@ -212,8 +224,16 @@ StmtPtr Parser::parseVarDecl(VarFlavor flavor) {
 
     FileSpan s = name.span();
     if (init) s = mergeSpans(s, init->span);
+    else if (!declaredType.empty()) s = mergeSpans(s, declaredType.back().span());
 
-    auto stmt = std::make_unique<VarDeclStmt>(flavor, std::move(name), std::move(init), s);
+    auto stmt = std::make_unique<VarDeclStmt>(
+        flavor,
+        std::move(name),
+        std::move(declaredType),
+        std::move(init),
+        s
+    );
+
     eatStatementTerminator();
     return stmt;
 }

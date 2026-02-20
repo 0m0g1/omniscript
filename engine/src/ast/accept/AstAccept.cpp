@@ -9,6 +9,7 @@ void Program::accept(AstVisitor& v) { v.visit(*this); }
 void ExternStmt::accept(AstVisitor& v) { v.visit(*this); }
 void ImportStmt::accept(AstVisitor& v) { v.visit(*this); }
 void FunctionDeclStmt::accept(AstVisitor& v) { v.visit(*this); }
+void StructDeclStmt::accept(AstVisitor& v) { v.visit(*this); }
 void BlockStmt::accept(AstVisitor& v) { v.visit(*this); }
 void ExprStmt::accept(AstVisitor& v) { v.visit(*this); }
 void VarDeclStmt::accept(AstVisitor& v) { v.visit(*this); }

@@ -23,6 +23,7 @@ struct AstPrinter final : AstVisitor {
     void visit(ExternStmt&) override;
     void visit(ImportStmt&) override;
     void visit(FunctionDeclStmt&) override;
+    void visit(StructDeclStmt&) override;
     void visit(BlockStmt&) override;
     void visit(ExprStmt&) override;
     void visit(VarDeclStmt&) override;

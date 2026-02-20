@@ -19,6 +19,7 @@ enum class NodeKind : std::uint16_t {
     ExternStmt,
     ImportStmt,
     FunctionDeclStmt,
+    StructDeclStmt,
     BlockStmt,
     ExprStmt,
     VarDeclStmt,
