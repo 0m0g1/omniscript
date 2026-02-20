@@ -59,6 +59,9 @@ void AstPrinter::printNonRecursive(Node& root) {
         ss << label << ": ";
         switch (n.kind) {
             case NodeKind::Program:         ss << "Program"; break;
+            case NodeKind::ExternStmt:      ss << "ExternStmt"; break;
+            case NodeKind::ImportStmt:      ss << "ImportStmt"; break;
+            case NodeKind::FunctionDeclStmt:ss << "FunctionDeclStmt"; break;
             case NodeKind::BlockStmt:       ss << "BlockStmt"; break;
             case NodeKind::ExprStmt:        ss << "ExprStmt"; break;
             case NodeKind::VarDeclStmt:     ss << "VarDeclStmt"; break;
@@ -86,6 +89,22 @@ void AstPrinter::printNonRecursive(Node& root) {
                 auto& n = static_cast<Program&>(*f.node);
                 for (int i = (int)n.statements.size() - 1; i >= 0; --i)
                     stack.push_back(Frame{n.statements[i].get(), "stmt", f.depth + 1});
+            } break;
+
+            case NodeKind::ExternStmt: {
+                auto& n = static_cast<ExternStmt&>(*f.node);
+                for (int i = (int)n.statements.size() - 1; i >= 0; --i)
+                    stack.push_back(Frame{n.statements[i].get(), "stmt", f.depth + 1});
+            } break;
+
+            case NodeKind::ImportStmt: {
+                // ImportStmt is a leaf (it just describes what to import)
+                // so it has no children to push.
+            } break;
+
+            case NodeKind::FunctionDeclStmt: {
+                auto& n = static_cast<FunctionDeclStmt&>(*f.node);
+                if (n.body) stack.push_back(Frame{ n.body.get(), "body", f.depth + 1 });
             } break;
 
             case NodeKind::BlockStmt: {
@@ -156,6 +175,72 @@ void AstPrinter::visit(Program& n) {
     line("Program");
     pushIndent();
     for (auto& s : n.statements) printChild(s.get(), "stmt");
+    popIndent();
+}
+
+void AstPrinter::visit(ExternStmt& n) {
+    line("ExternStmt");
+    pushIndent();
+    for (auto& s : n.statements) printChild(s.get(), "stmt");
+    popIndent();
+}
+
+void AstPrinter::visit(ImportStmt& n) {
+    auto kindToString = [](ImportKind k) -> const char* {
+        switch (k) {
+            case ImportKind::Fn:    return "fn";
+            case ImportKind::Var:   return "let";
+            case ImportKind::Const: return "const";
+            case ImportKind::All:   return "*";
+        }
+        return "?";
+    };
+
+    std::ostringstream ss;
+    ss << "ImportStmt kind=" << kindToString(n.kind);
+
+    if (n.kind != ImportKind::All) {
+        ss << " name=" << tokText(n.name);
+        if (n.alias.type() != TokenType::Invalid) {
+            ss << " as=" << tokText(n.alias);
+        }
+    }
+
+    line(ss.str());
+}
+
+void AstPrinter::visit(FunctionDeclStmt& n) {
+    line("FunctionDeclStmt");
+    pushIndent();
+
+    // name
+    {
+        std::ostringstream ss;
+        ss << "name=" << tokText(n.name);
+        line(ss.str());
+    }
+
+    // params (depending on your ParamDecl shape)
+    line("params:");
+    pushIndent();
+    for (auto& p : n.params) {
+        std::ostringstream ss;
+        ss << "param name=" << tokText(p.name); // adjust to your ParamDecl
+        line(ss.str());
+    }
+    popIndent();
+
+    // return type tokens, if you store them that way
+    if (!n.returnType.empty()) {
+        std::ostringstream ss;
+        ss << "returnTypeTokens=";
+        for (auto& t : n.returnType) ss << tokText(t) << " ";
+        line(ss.str());
+    }
+
+    // body
+    printChild(n.body.get(), "body");
+
     popIndent();
 }
 

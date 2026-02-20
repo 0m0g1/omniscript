@@ -5,26 +5,15 @@
 namespace Omniscript {
 
 // Forward decls
-struct Program;
-
-struct BlockStmt;
-struct ExprStmt;
-struct VarDeclStmt;
-struct IfStmt;
-struct WhileStmt;
-struct ReturnStmt;
-
-struct IdentifierExpr;
-struct LiteralExpr;
-struct GroupExpr;
-struct UnaryExpr;
-struct BinaryExpr;
 
 struct AstVisitor {
     virtual ~AstVisitor() = default;
 
     // Statements / Program
     virtual void visit(Program&) = 0;
+    virtual void visit(ExternStmt&) = 0;
+    virtual void visit(ImportStmt&) = 0;
+    virtual void visit(FunctionDeclStmt&) = 0;
     virtual void visit(BlockStmt&) = 0;
     virtual void visit(ExprStmt&) = 0;
     virtual void visit(VarDeclStmt&) = 0;

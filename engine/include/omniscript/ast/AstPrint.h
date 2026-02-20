@@ -5,7 +5,7 @@
 #include <vector>
 
 #include <omniscript/ast/Ast.h>
-#include <omniscript/ast/Visitor.h>
+#include <omniscript/ast/AstVisitor.h>
 
 namespace Omniscript {
 
@@ -20,6 +20,9 @@ struct AstPrinter final : AstVisitor {
 
     // Visitor overrides
     void visit(Program&) override;
+    void visit(ExternStmt&) override;
+    void visit(ImportStmt&) override;
+    void visit(FunctionDeclStmt&) override;
     void visit(BlockStmt&) override;
     void visit(ExprStmt&) override;
     void visit(VarDeclStmt&) override;

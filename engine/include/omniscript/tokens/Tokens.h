@@ -15,17 +15,71 @@ enum class TokenType : std::int32_t {
     Invalid,
     Error,
 
-    // Keywords
-    If, ElseIf, Else, While, For, Continue, Break, Return,
-    Function, Let, Var, Const, New, Delete,
-    Class, Struct, Namespace, Using,
-    Public, Private, Protected,
-    Override, Virtual, Static, Final,
-    True, False, Null, Nullptr,
-    Enum, Extends, Variant, Any,
-    Import, Include, From, Module,
-    Extern, Intrinsic, Volatile,
-    As, Type,
+    // Keywords (control flow)
+    If,
+    ElseIf,
+    Else,
+    While,
+    For,
+    Continue,
+    Break,
+    Return,
+
+    // Keywords (functions / decl)
+    Function,
+    Let,
+    Var,
+    Const,
+
+    // Keywords (allocation)
+    New,
+    Delete,
+
+    // Keywords (types / OOP)
+    Class,
+    Struct,
+    Enum,
+    Extends,
+    Implements,   // NEW: from older reservedWords_
+    Namespace,
+    Using,
+    Variant,
+    Any,
+
+    // Keywords (access / modifiers / linkage)
+    Public,
+    Private,
+    Protected,
+    Static,
+    Virtual,
+    Override,
+    Final,
+    Extern,       // from older
+    Intrinsic,    // from older
+    Volatile,     // from older
+
+    // Keywords (modules)
+    Import,
+    Export,       // NEW: from older reservedWords_
+    Include,
+    From,
+    Module,
+
+    // Keywords (misc)
+    As,
+    Type,
+    Super,        // NEW: from older reservedWords_
+    Async,        // NEW: from older reservedWords_
+    Await,        // NEW: from older reservedWords_
+    Yield,        // NEW: from older reservedWords_
+    Typeof,       // NEW: from older reservedWords_
+    Instanceof,   // NEW: from older reservedWords_
+
+    // Keywords (literals)
+    True,
+    False,
+    Null,
+    Nullptr,
 
     // Identifiers & literals
     Identifier,

@@ -1,62 +1,67 @@
+#include <iostream>
 #include <omniscript/parser/Parser.h>
 
 namespace Omniscript {
 
-Parser::Parser(Lexer& lexer) : m_lexer(lexer) {}
+Parser::Parser(Lexer& lexer)
+    : m_lexer(lexer),
+      m_current_token(m_lexer.getNextToken()),
+      m_previous_token(Token(TokenType::EndOfInput)) // sentinel; adjust if you have a better "invalid" token
+{}
 
-const Token& Parser::peek(int n) {
-    // Your Lexer already supports peekToken(n). We'll rely on it.
-    // We'll keep a local cache only for "current token" style.
-    if (n == 1) {
-        if (!m_hasLookahead) {
-            m_lookahead = m_lexer.getNextToken();
-            m_hasLookahead = true;
-        }
-        return m_lookahead;
-    }
-    // For n>1 just ask lexer directly
-    static Token temp;
-    temp = m_lexer.peekToken(n);
-    return temp;
-}
+// ----------------- token helpers (NO parser peeking) -----------------
 
 Token Parser::advance() {
-    if (!m_hasLookahead) {
-        return m_lexer.getNextToken();
-    }
-    m_hasLookahead = false;
-    return std::move(m_lookahead);
+    std::cout << m_current_token.toString() << std::endl;
+    m_previous_token = std::move(m_current_token);
+    m_current_token  = m_lexer.getNextToken();
+    return m_previous_token; // return the token we just consumed
 }
 
-bool Parser::check(TokenType t) {
-    return peek(1).type() == t;
+bool Parser::check(TokenType t) const {
+    return m_current_token.type() == t;
 }
 
 bool Parser::match(TokenType t) {
-    if (check(t)) { advance(); return true; }
-    return false;
+    if (!check(t)) return false;
+    advance();
+    return true;
 }
 
-Token Parser::consume(TokenType t, const char* message) {
-    if (check(t)) return advance();
-    throw ParseError(message, peek(1));
+void Parser::eat(TokenType t, const char* message) {
+    if (check(t)) {
+        advance();
+        return;
+    }
+    throw ParseError(message, m_current_token);
 }
 
-void Parser::consumeStatementTerminator() {
-    // Accept ';' or newline as statement terminator (you have TokenType::Newline)
-    // Many languages accept optional semicolons; tweak to your taste.
-    if (match(TokenType::Semicolon)) return;
-    while (match(TokenType::Newline)) {} // allow blank lines
-    // If next token is '}' or EOF, allow implicit terminator
+// optional: newline/semicolon handling
+void Parser::eatStatementTerminator() {
+    // 1) Accept optional semicolons (one or many)
+    if (match(TokenType::Semicolon)) {
+        while (match(TokenType::Semicolon)) {}
+        while (match(TokenType::Newline)) {}
+        return;
+    }
+
+    // 2) If your lexer emits Newline tokens, accept them too
+    if (match(TokenType::Newline)) {
+        while (match(TokenType::Newline)) {}
+        return;
+    }
+
+    // 3) Allow implicit terminator before '}' or EOF
     if (check(TokenType::RightBrace) || check(TokenType::EndOfInput)) return;
-    // Otherwise require semicolon/newline
-    // If you want strict semicolons, remove this flexibility.
-    throw ParseError("Expected ';' or newline after statement.", peek(1));
+
+    // 4) Otherwise error
+    throw ParseError("Expected ';' or newline after statement.", m_current_token);
 }
+
+// ----------------- top-level -----------------
 
 std::unique_ptr<Program> Parser::parse() {
     std::vector<StmtPtr> stmts;
-    FileSpan startSpan{};
 
     // Skip initial newlines
     while (match(TokenType::Newline)) {}
@@ -64,9 +69,10 @@ std::unique_ptr<Program> Parser::parse() {
     while (!check(TokenType::EndOfInput)) {
         auto st = parseStatement();
         if (!st) break;
-        if (stmts.empty()) startSpan = st->span;
         stmts.push_back(std::move(st));
-        while (match(TokenType::Newline)) {} // eat extra newlines between statements
+
+        // eat extra newlines between statements
+        while (match(TokenType::Newline)) {}
     }
 
     FileSpan progSpan{};
@@ -79,6 +85,14 @@ std::unique_ptr<Program> Parser::parse() {
 StmtPtr Parser::parseStatement() {
     // Skip extra newlines
     while (match(TokenType::Newline)) {}
+
+    if (match(TokenType::Extern)) {
+        return parseExtern();
+    }
+
+    if (match(TokenType::Function)) {
+        return parseFunctionDeclaration();
+    }
 
     if (match(TokenType::LeftBrace)) {
         return parseBlock();
@@ -110,32 +124,35 @@ StmtPtr Parser::parseStatement() {
 }
 
 StmtPtr Parser::parseBlock() {
-    // We already consumed '{' in parseStatement
+    // '{' already consumed by parseStatement()
     std::vector<StmtPtr> stmts;
 
     // allow leading newlines
     while (match(TokenType::Newline)) {}
 
-    FileSpan blockStart = peek(1).span(); // not perfect; improved below
     while (!check(TokenType::RightBrace) && !check(TokenType::EndOfInput)) {
         stmts.push_back(parseStatement());
         while (match(TokenType::Newline)) {}
     }
 
-    Token rbrace = consume(TokenType::RightBrace, "Expected '}' to close block.");
+    // capture right brace for span
+    const Token rbrace = m_current_token;
+    eat(TokenType::RightBrace, "Expected '}' to close block.");
+
     FileSpan span{};
     if (!stmts.empty()) span = mergeSpans(stmts.front()->span, rbrace.span());
     else span = rbrace.span();
+
     return std::make_unique<BlockStmt>(std::move(stmts), span);
 }
 
 StmtPtr Parser::parseIf() {
     // Expect: if (expr) stmt (else stmt)?
-    Token ifTok = Token(TokenType::If); // not stored; span from condition/branches
+    eat(TokenType::LeftParen, "Expected '(' after 'if'.");
 
-    consume(TokenType::LeftParen, "Expected '(' after 'if'.");
     auto cond = parseExpression();
-    Token rp = consume(TokenType::RightParen, "Expected ')' after if condition.");
+
+    eat(TokenType::RightParen, "Expected ')' after if condition.");
 
     auto thenBranch = parseStatement();
     StmtPtr elseBranch = nullptr;
@@ -144,27 +161,22 @@ StmtPtr Parser::parseIf() {
     if (match(TokenType::Else)) {
         elseBranch = parseStatement();
     } else if (match(TokenType::ElseIf)) {
-        // Represent else-if as else { if (...) ... } or as nested IfStmt directly
-        // We'll parse as nested IfStmt for simplicity.
-        elseBranch = parseIf(); // parseIf expects 'if' already consumed, but ElseIf consumed.
-        // Fix: ElseIf is a keyword; treat it like "if" and parse same shape:
-        // We'll do a small workaround:
-        // (Alternative: change grammar to tokenize ElseIf as Else + If.)
+        // NOTE: This only works if ElseIf is treated like "if" (i.e., grammar shape matches).
+        // Many languages tokenize it as Else + If to avoid special-casing.
+        elseBranch = parseIf();
     }
-
-    // Better: handle ElseIf explicitly:
-    // If you keep TokenType::ElseIf, implement it properly instead of the above.
-    // For now: simplest is to NOT use ElseIf token; treat it as Else + If in lexer.
 
     FileSpan s = mergeSpans(cond->span, thenBranch->span);
     if (elseBranch) s = mergeSpans(s, elseBranch->span);
+
     return std::make_unique<IfStmt>(std::move(cond), std::move(thenBranch), std::move(elseBranch), s);
 }
 
 StmtPtr Parser::parseWhile() {
-    consume(TokenType::LeftParen, "Expected '(' after 'while'.");
+    eat(TokenType::LeftParen, "Expected '(' after 'while'.");
     auto cond = parseExpression();
-    consume(TokenType::RightParen, "Expected ')' after while condition.");
+    eat(TokenType::RightParen, "Expected ')' after while condition.");
+
     auto body = parseStatement();
     FileSpan s = mergeSpans(cond->span, body->span);
     return std::make_unique<WhileStmt>(std::move(cond), std::move(body), s);
@@ -173,21 +185,25 @@ StmtPtr Parser::parseWhile() {
 StmtPtr Parser::parseReturn() {
     // return expr? ;
     if (check(TokenType::Semicolon) || check(TokenType::Newline) || check(TokenType::RightBrace)) {
-        auto stmt = std::make_unique<ReturnStmt>(nullptr, peek(1).span());
-        // optional terminator consumption
-        if (!check(TokenType::RightBrace)) consumeStatementTerminator();
+        auto stmt = std::make_unique<ReturnStmt>(nullptr, m_current_token.span());
+        if (!check(TokenType::RightBrace)) eatStatementTerminator();
         return stmt;
     }
 
     auto value = parseExpression();
     auto s = value->span;
+
     auto stmt = std::make_unique<ReturnStmt>(std::move(value), s);
-    consumeStatementTerminator();
+    eatStatementTerminator();
     return stmt;
 }
 
 StmtPtr Parser::parseVarDecl(VarFlavor flavor) {
-    Token name = consume(TokenType::Identifier, "Expected identifier after let/var/const.");
+    // require identifier
+    if (!check(TokenType::Identifier))
+        throw ParseError("Expected identifier after let/var/const.", m_current_token);
+
+    Token name = advance(); // consume identifier
 
     ExprPtr init = nullptr;
     if (match(TokenType::Assign)) {
@@ -198,24 +214,25 @@ StmtPtr Parser::parseVarDecl(VarFlavor flavor) {
     if (init) s = mergeSpans(s, init->span);
 
     auto stmt = std::make_unique<VarDeclStmt>(flavor, std::move(name), std::move(init), s);
-    consumeStatementTerminator();
+    eatStatementTerminator();
     return stmt;
 }
 
 StmtPtr Parser::parseExprStatement() {
     auto e = parseExpression();
     auto s = e->span;
+
     auto stmt = std::make_unique<ExprStmt>(std::move(e), s);
-    consumeStatementTerminator();
+    eatStatementTerminator();
     return stmt;
 }
 
 // ----------------- Expressions (Pratt) -----------------
 
 int Parser::precedenceOf(TokenType t) const {
-    // Keep this small now; expand later.
     switch (t) {
-        case TokenType::Power: return 70;               // **
+        case TokenType::Power: return 70; // **
+
         case TokenType::Star:
         case TokenType::Slash:
         case TokenType::Percent: return 60;
@@ -247,7 +264,8 @@ int Parser::precedenceOf(TokenType t) const {
 }
 
 bool Parser::isRightAssociative(TokenType t) const {
-    return t == TokenType::Power || t == TokenType::Assign ||
+    return t == TokenType::Power ||
+           t == TokenType::Assign ||
            t == TokenType::PlusAssign || t == TokenType::MinusAssign ||
            t == TokenType::StarAssign || t == TokenType::SlashAssign ||
            t == TokenType::PercentAssign || t == TokenType::PowerAssign;
@@ -257,13 +275,14 @@ ExprPtr Parser::parseExpression(int minPrec) {
     auto left = parsePrefix();
 
     while (true) {
-        TokenType tt = peek(1).type();
-        int prec = precedenceOf(tt);
+        // Look at the *current* token as the infix operator
+        const TokenType tt = m_current_token.type();
+        const int prec = precedenceOf(tt);
         if (prec < minPrec || prec == 0) break;
 
-        Token op = advance();
+        Token op = advance(); // consume operator token
 
-        int nextMin = prec + (isRightAssociative(op.type()) ? 0 : 1);
+        const int nextMin = prec + (isRightAssociative(op.type()) ? 0 : 1);
         auto right = parseExpression(nextMin);
 
         FileSpan s = mergeSpans(left->span, right->span);
@@ -274,19 +293,22 @@ ExprPtr Parser::parseExpression(int minPrec) {
 }
 
 ExprPtr Parser::parsePrefix() {
-    // unary operators: ! - + ++ -- ~
-    TokenType tt = peek(1).type();
-    if (tt == TokenType::LogicalNot || tt == TokenType::Minus || tt == TokenType::Plus || tt == TokenType::BitNot) {
+    // unary operators: ! - + ~
+    const TokenType tt = m_current_token.type();
+    if (tt == TokenType::LogicalNot || tt == TokenType::Minus ||
+        tt == TokenType::Plus || tt == TokenType::BitNot) {
+
         Token op = advance();
         auto right = parsePrefix();
         FileSpan s = mergeSpans(op.span(), right->span);
         return std::make_unique<UnaryExpr>(std::move(op), std::move(right), s);
     }
+
     return parsePrimary();
 }
 
 ExprPtr Parser::parsePrimary() {
-    Token t = advance();
+    Token t = advance(); // consume current
 
     switch (t.type()) {
         case TokenType::Identifier:
@@ -304,7 +326,9 @@ ExprPtr Parser::parsePrimary() {
 
         case TokenType::LeftParen: {
             auto inner = parseExpression();
-            Token rp = consume(TokenType::RightParen, "Expected ')' after expression.");
+            // capture ')' for span
+            const Token rp = m_current_token;
+            eat(TokenType::RightParen, "Expected ')' after expression.");
             FileSpan s = mergeSpans(t.span(), rp.span());
             return std::make_unique<GroupExpr>(std::move(inner), s);
         }

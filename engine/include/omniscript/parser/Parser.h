@@ -1,7 +1,12 @@
+// ==============================
+// //engine/include/omniscript/parser/Parser.h  (REWRITTEN)
+// ==============================
 #pragma once
+
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include <omniscript/lexer/Lexer.h>
 #include <omniscript/ast/Ast.h>
@@ -22,16 +27,31 @@ public:
     std::unique_ptr<Program> parse();
 
 private:
-    // ----- token helpers -----
-    const Token& peek(int n = 1);
-    Token advance();
-    bool check(TokenType t);
-    bool match(TokenType t);
-    Token consume(TokenType t, const char* message);
+    // ----- token helpers (NO peeking here) -----
+    const Token& current() const { return m_current_token; }
+    const Token& previous() const { return m_previous_token; }
+
+    Token advance();                         // consumes current -> previous, loads next into current
+    bool check(TokenType t) const;           // checks current token type
+    bool match(TokenType t);                 // if check(t) { advance(); return true; }
+    void eat(TokenType t, const char* message); // consume if matches, else throw
+
+    // Optional: statement separator handling
+    void eatStatementTerminator();           // ';' or newline or implicit before '}' / EOF
 
     // ----- statements -----
     StmtPtr parseStatement();
-    StmtPtr parseBlock();                 // { ... }
+    StmtPtr parseExtern();
+
+    // extern-only helpers
+    StmtPtr parseImport();                   // parses: import fn/let/const IDENT [as IDENT] OR import *
+    bool isExternDeclStart() const;          // fn / let / const / import
+    void skipExternSeparators();             // semicolons/newlines inside extern block
+
+    StmtPtr parseFunctionDeclaration();
+    std::vector<ParamDecl> parseParameters();
+    std::vector<Token> parseType();      // minimal
+    StmtPtr parseBlock();                    // { ... }
     StmtPtr parseIf();
     StmtPtr parseWhile();
     StmtPtr parseReturn();
@@ -46,13 +66,14 @@ private:
     int precedenceOf(TokenType t) const;
     bool isRightAssociative(TokenType t) const;
 
-    // optional: newline/semicolon handling
-    void consumeStatementTerminator();
-
 private:
     Lexer& m_lexer;
-    Token m_lookahead;     // current token
-    bool m_hasLookahead = false;
+
+    // Parser-owned stream state:
+    // - m_current_token is the token at the parser cursor
+    // - m_previous_token is the last token consumed by advance()
+    Token m_current_token;
+    Token m_previous_token;
 };
 
 } // namespace Omniscript
