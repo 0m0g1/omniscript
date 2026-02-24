@@ -4,8 +4,8 @@
     {
       "name": "Linux (clang)",
       "compilerPath": "/usr/bin/clang++",
-      "cppStandard": "c++20",
-      "cStandard": "c17",
+      "cppStandard": "c++23",
+      "cStandard": "c23",
       "intelliSenseMode": "linux-clang-x64",
       "includePath": [
         "${workspaceFolder}/engine/include"
@@ -14,8 +14,8 @@
     {
       "name": "Windows (clang)",
       "compilerPath": "C:/Program Files/LLVM/bin/clang++.exe",
-      "cppStandard": "c++20",
-      "cStandard": "c17",
+      "cppStandard": "c++23",
+      "cStandard": "c23",
       "intelliSenseMode": "windows-clang-x64",
       "includePath": [
         "${workspaceFolder}/engine/include"

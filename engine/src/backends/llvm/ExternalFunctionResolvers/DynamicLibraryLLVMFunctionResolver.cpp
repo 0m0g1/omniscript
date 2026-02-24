@@ -21,14 +21,12 @@ llvm::Function* DynamicLibraryResolver::resolve(IRGenerator& generator, const st
     // Check if the symbol exists in the dynamic library
     void* symbol = dynLib.getAddressOfSymbol(name.c_str());
     if (!symbol) {
-        console.error("Symbol '" + name + "' does not exist in the library '" + libPath_ + "'.");
+        // console.error("Symbol '" + name + "' does not exist in the library '" + libPath_ + "'.");
         return nullptr;
     }
     
     // Create the function
-    llvm::Function* func = llvm::Function::Create(
-        funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
-    );
+    llvm::Function* func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, generator.getModule());
     
     // Add library dependency
     LinkDependencies::LibraryInfo info;

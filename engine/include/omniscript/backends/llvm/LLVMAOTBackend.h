@@ -23,16 +23,12 @@ public:
     ~LLVMAOTBackend() override = default;
 
     void initialize(const Config& config) override;
-
-    // In AOT mode, execute usually means "codegen + emit"
     void execute(const Program& program, const Config& config) override;
-
     void emitToFile(const Config& config) override;
 
 private:
     std::shared_ptr<IRGenerator> m_irGen;
 
-    // Multi-target support (mirrors legacy)
     std::vector<std::pair<std::string, std::shared_ptr<llvm::TargetMachine>>> m_targetMachines;
 
     std::string m_outputPath;
@@ -46,31 +42,22 @@ private:
     bool m_profilerInitialized = false;
 
 private:
-    // Emission methods
-    void emitObjectFile(const std::string& objFile, const std::shared_ptr<llvm::TargetMachine>& tm);
-    void emitAssemblyFile(const std::string& asmFile, const std::shared_ptr<llvm::TargetMachine>& tm);
-    void emitLLVMIR(const std::string& irFile);
-    void emitBitcode(const std::string& bcFile);
-
-    // Optional extras (keep parity with your Config::OutputFormat)
-    void emitMachineCode(const std::string& mcFile, const std::shared_ptr<llvm::TargetMachine>& tm);
-
-    // Linking (optional; you can stub these first)
-    void linkExecutable(const std::string& objFile, const std::string& exeFile, const Config& config);
-
-    // Target machine configuration
     void setupTargetMachine(const Config& config);
     llvm::TargetOptions buildTargetOptions(const Config& config);
     std::optional<llvm::Reloc::Model> getRelocationModel(const Config& config);
     std::optional<llvm::CodeModel::Model> getCodeModel(const Config& config);
-
     llvm::CodeGenOptLevel mapOptimizationLevel(int level);
     void configureTargetMachineSettings(const Config& config, std::shared_ptr<llvm::TargetMachine> tm);
 
-    // External resolvers
     void setupExternalResolvers(const Config& config);
 
-    // Utility methods
+    // Emission
+    void emitObjectFile(const std::string& objFile, const std::shared_ptr<llvm::TargetMachine>& tm);
+    void emitAssemblyFile(const std::string& asmFile, const std::shared_ptr<llvm::TargetMachine>& tm);
+    void emitLLVMIR(const std::string& irFile);
+    void emitBitcode(const std::string& bcFile);
+    void linkExecutable(const std::string& objFile, const std::string& exeFile, const Config& config);
+
     std::filesystem::path getTemporaryPath(const Config& config, const std::string& extension);
 
     void updateFileCache(const Config& config);

@@ -18,9 +18,7 @@ const std::string& StaticLibraryResolver::getLibraryPath() const {
 llvm::Function* StaticLibraryResolver::resolve(IRGenerator& generator, const std::string& name,
                        llvm::FunctionType* funcType, LinkDependencies& deps) {
     // Create the function declaration
-    llvm::Function* func = llvm::Function::Create(
-        funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
-    );
+    llvm::Function* func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, generator.getModule());
     
     // If the user specified a static library path, split it into directory and lib name
     if (!specifiedLibraryPath.empty()) {

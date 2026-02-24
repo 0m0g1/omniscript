@@ -21,9 +21,7 @@ llvm::Function* LinuxResolver::resolve(IRGenerator& generator, const std::string
     }
     
     // Create the function
-    llvm::Function* func = llvm::Function::Create(
-        funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
-    );
+    llvm::Function* func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, generator.getModule());
     
     // Most Linux functions are in libc (no explicit linking needed)
     // Add specific library dependencies as needed

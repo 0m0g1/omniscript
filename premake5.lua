@@ -3,7 +3,7 @@ workspace "OmniScript"
   architecture "x86_64"
   configurations { "Debug", "Release" }
   startproject "Osengine"
-  cppdialect "C++20"
+  cppdialect "C++23"
   toolset "clang"
 
 outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"

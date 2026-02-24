@@ -1,6 +1,9 @@
 #pragma once
-#include <string>
-#include <vector>
+#include <algorithm>   // transform, find, count
+#include <sstream>     // stringstream
+#include <unordered_map>
+#include <vector>      // if you use vector
+#include <string>      // if you use string
 #include <unordered_set>
 
 // Auto-detect target architecture and OS

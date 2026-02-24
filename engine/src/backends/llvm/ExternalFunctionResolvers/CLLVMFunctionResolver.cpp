@@ -55,9 +55,7 @@ llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::stri
     }
     
     // Create the function
-    llvm::Function* func = llvm::Function::Create(
-        funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
-    );
+    llvm::Function* func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, generator.getModule());
     
     // Apply platform-specific attributes
     applyPlatformSpecificAttributes(func, name);

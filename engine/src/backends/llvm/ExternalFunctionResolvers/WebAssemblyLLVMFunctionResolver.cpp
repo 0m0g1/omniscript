@@ -13,9 +13,7 @@ llvm::Function* WebAssemblyResolver::resolve(IRGenerator& generator, const std::
     }
     
     // Create the function
-    llvm::Function* func = llvm::Function::Create(
-        funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
-    );
+    llvm::Function* func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, generator.getModule());
     
     // Apply WebAssembly-specific attributes
     applyWasmAttributes(func, name);

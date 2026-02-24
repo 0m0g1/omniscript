@@ -30,9 +30,7 @@ llvm::Function* WindowsAPIResolver::resolve(IRGenerator& generator, const std::s
     }
     
     // Create the function
-    llvm::Function* func = llvm::Function::Create(
-        funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
-    );
+    llvm::Function* func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, generator.getModule());
     
     // Set calling convention based on architecture
     if (sizeof(void*) == 8) {

@@ -22,9 +22,7 @@ llvm::Function* DarwinResolver::resolve(IRGenerator& generator, const std::strin
     }
     
     // Create the function
-    llvm::Function* func = llvm::Function::Create(
-        funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
-    );
+    llvm::Function* func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, generator.getModule());
     
     // Add framework dependency
     if (requiredFramework != "System") {

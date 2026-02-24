@@ -1,3 +1,10 @@
+#include <set>
+#include <map>
+#include <string>
+#include <vector>
+#include <unordered_set>
+#include <unordered_map>
+#include <filesystem>
 #include <omniscript/backends/llvm/IRGenerator.h>
 #include <omniscript/backends/llvm/LLVMExternalFunctionResolver.h>
 #include <omniscript/backends/llvm/ExternalFunctionResolvers/CLLVMResolver.h>
