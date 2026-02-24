@@ -1,4 +1,4 @@
-// include/omniscript/Backends/AOTBackend.h
+// include/omniscript/backends/AOTBackend.h
 #pragma once
 
 #include <omniscript/backends/Backend.h>
