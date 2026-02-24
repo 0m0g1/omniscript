@@ -4,6 +4,7 @@
 #include <omniscript/ast/Ast.h>
 #include <omniscript/ast/AstPrint.h>
 #include <omniscript/extern/ExternResolver.h>  // <-- FFI expansion
+#include <omniscript/semantics/SymbolTable.h>
 
 #include <filesystem>
 #include <fstream>
@@ -38,7 +39,7 @@ int Engine::run() {
         // ---- 1. Parse the .os source file ----
         Lexer  lexer(source, sourcePath.c_str());
         Parser parser(lexer);
-        auto   program = parser.parse();
+        auto program = parser.parse();
 
         std::cout << "Parsed " << program->statements.size()
                   << " statements (before FFI expansion)\n";
@@ -93,6 +94,22 @@ int Engine::run() {
         {
             AstPrinter printer(std::cout, PrintMode::Recursive);
             printer.print(*program);
+        }
+
+        // ---- 4. Evaluate / semantic checks ----
+        {
+            SymbolTable globalScope(nullptr);
+            EvalContext ctx;
+
+            // (Optional) define builtins here:
+            // globalScope.define({SymbolKind::Function, "print", Type::Function({Type::String()}, Type::Void()), false, {}}, ctx.diags);
+
+            const bool ok = program->evaluate(globalScope, ctx);
+
+            if (!ok || ctx.diags.hasErrors()) {
+                ctx.diags.print(std::cerr);
+                return 1;
+            }
         }
 
         return 0;

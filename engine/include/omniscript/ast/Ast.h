@@ -1,3 +1,4 @@
+//engine/include/omniscript/ast/Ast.h
 #pragma once
 
 #include <cstdint>
@@ -8,6 +9,8 @@
 
 #include <omniscript/FileSpan.h>
 #include <omniscript/tokens/Tokens.h>
+#include <omniscript/semantics/SymbolTable.h>
+#include <omniscript/semantics/Type.h>
 
 namespace Omniscript {
 
@@ -63,8 +66,15 @@ struct Node {
     virtual void accept(AstVisitor& v) = 0;
 };
 
-struct Stmt : Node { using Node::Node; };
-struct Expr : Node { using Node::Node; };
+struct Stmt : Node {
+    using Node::Node;
+    virtual bool evaluate(SymbolTable& scope, EvalContext& ctx) = 0;
+};
+
+struct Expr : Node {
+    using Node::Node;
+    virtual Type evaluate(SymbolTable& scope, EvalContext& ctx) = 0;
+};
 
 // ----------------- Helpers -----------------
 
@@ -83,6 +93,7 @@ struct Program final : Node {
         : Node(NodeKind::Program, std::move(s)), statements(std::move(stmts)) {}
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx);
 };
 
 } // namespace Omniscript

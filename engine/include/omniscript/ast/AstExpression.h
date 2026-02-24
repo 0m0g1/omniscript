@@ -25,6 +25,7 @@ struct IdentifierExpr final : Expr {
         : Expr(NodeKind::IdentifierExpr, p.span), name(std::move(p)) {}
 
     void accept(AstVisitor& v) override;
+    Type evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct CallExpr final : Expr {
@@ -38,6 +39,7 @@ struct CallExpr final : Expr {
           args(std::move(a)) {}
 
     void accept(AstVisitor& v) override;
+    Type evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct LiteralExpr final : Expr {
@@ -47,6 +49,7 @@ struct LiteralExpr final : Expr {
         : Expr(NodeKind::LiteralExpr, t.span()), literal(std::move(t)) {}
 
     void accept(AstVisitor& v) override;
+    Type evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct GroupExpr final : Expr {
@@ -56,6 +59,7 @@ struct GroupExpr final : Expr {
         : Expr(NodeKind::GroupExpr, std::move(s)), inner(std::move(e)) {}
 
     void accept(AstVisitor& v) override;
+    Type evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct UnaryExpr final : Expr {
@@ -66,6 +70,7 @@ struct UnaryExpr final : Expr {
         : Expr(NodeKind::UnaryExpr, std::move(s)), op(std::move(o)), right(std::move(r)) {}
 
     void accept(AstVisitor& v) override;
+    Type evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct BinaryExpr final : Expr {
@@ -80,6 +85,7 @@ struct BinaryExpr final : Expr {
           right(std::move(r)) {}
 
     void accept(AstVisitor& v) override;
+    Type evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 } // namespace Omniscript

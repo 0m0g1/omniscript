@@ -27,6 +27,7 @@ struct ImportStmt final : Stmt {
       : Stmt(NodeKind::ImportStmt, std::move(s)), kind(k), name(std::move(n)), alias(std::move(a)) {}
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 enum class ExternLang : std::uint8_t { Auto, C, Cpp };
@@ -51,6 +52,7 @@ struct ExternStmt final : Stmt {
           statements(std::move(stmts)) {}
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 // ----------------- Declarations -----------------
@@ -86,6 +88,7 @@ struct FunctionDeclStmt final : Stmt {
     }
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct BlockStmt final : Stmt {
@@ -95,6 +98,7 @@ struct BlockStmt final : Stmt {
         : Stmt(NodeKind::BlockStmt, std::move(s)), statements(std::move(stmts)) {}
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct ExprStmt final : Stmt {
@@ -104,6 +108,7 @@ struct ExprStmt final : Stmt {
         : Stmt(NodeKind::ExprStmt, std::move(s)), expr(std::move(e)) {}
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct VarDeclStmt final : Stmt {
@@ -122,6 +127,7 @@ struct VarDeclStmt final : Stmt {
     }
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct IfStmt final : Stmt {
@@ -136,6 +142,7 @@ struct IfStmt final : Stmt {
           elseBranch(std::move(e)) {}
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct WhileStmt final : Stmt {
@@ -148,6 +155,7 @@ struct WhileStmt final : Stmt {
           body(std::move(b)) {}
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 struct ReturnStmt final : Stmt {
@@ -157,6 +165,7 @@ struct ReturnStmt final : Stmt {
         : Stmt(NodeKind::ReturnStmt, std::move(s)), value(std::move(v)) {}
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 // -----------------------------------------------------------------------
@@ -193,6 +202,7 @@ struct StructDeclStmt final : Stmt {
     }
 
     void accept(AstVisitor& v) override;
+    bool evaluate(SymbolTable& scope, EvalContext& ctx) override;
 };
 
 } // namespace Omniscript
