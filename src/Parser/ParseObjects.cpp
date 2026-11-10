@@ -1,0 +1,302 @@
+// ParseObjects.cpp
+#include <omniscript/Statements/Statement.h>
+#include <omniscript/Statements/CallableStatement.h>
+#include <omniscript/Statements/FunctionStatement.h>
+#include <omniscript/Statements/ModuleAndImportStatements.h>
+#include <omniscript/Statements/ClassConstructorStatement.h>
+#include <omniscript/Statements/StructConstructorStatement.h>
+
+#include <omniscript/Core.h>
+#include <omniscript/utils.h>
+#include <omniscript/Parser.h>
+#include <omniscript/Tokens.h>
+#include <omniscript/omniscript_pch.h>
+#include <omniscript/Statements/Statement.h>
+#include <omniscript/Types/Types.h>
+#include <omniscript/Symboltable.h>
+
+namespace Omniscript {
+
+std::shared_ptr<Statement> Parser::parseObject() {
+    // eat(TokenTypes::LeftBrace);
+
+    // bool isDictionary = true;
+    // auto object = std::make_shared<Object>(); // Start with a generic Object
+
+    // while (currentToken.getType() != TokenTypes::RightBrace) {
+    //     std::string propertyName;
+    //     std::shared_ptr<Statement> propertyValue;
+
+    //     // Accept identifiers, string literals, and numbers as keys
+    //     if (currentToken.getType() == TokenTypes::Identifier || 
+    //         currentToken.getType() == TokenTypes::StringLiteral || 
+    //         currentToken.getType() == TokenTypes::IntegerLiteral) {
+            
+    //         // Convert numbers to strings for consistent key handling
+    //         if (currentToken.getType() == TokenTypes::IntegerLiteral) {
+    //             propertyName = std::to_string(std::stoi(currentToken.getValue()));
+    //         } else {
+    //             propertyName = currentToken.getValue();
+    //         }
+
+    //         // If the key is an identifier, it cannot be part of a dictionary
+    //         if (currentToken.getType() == TokenTypes::Identifier) {
+    //             isDictionary = false;
+    //         }
+    
+    //         eat(currentToken.getType());
+
+    //         // Check for a colon to determine key-value pair
+    //         if (currentToken.getType() == TokenTypes::Colon) {
+    //             eat(TokenTypes::Colon);
+    //             propertyValue = parseExpression(); // Parse the value expression
+    //         } else {
+    //             // If there's no colon, it behaves like an object property
+    //             isDictionary = false;
+    //             propertyValue = std::make_shared<GetVariable>(propertyName);
+    //         }
+
+    //         // Set the property on the object
+    //         // object->setProperty(propertyName, propertyValue);
+    //     } else {
+    //         eat(TokenTypes::RightBrace, "Invalid property name in object or dictionary.");
+    //     }
+
+    //     // Handle commas or terminate on the right brace
+    //     if (currentToken.getType() == TokenTypes::Comma) {
+    //         eat(TokenTypes::Comma);
+    //     } else if (currentToken.getType() != TokenTypes::RightBrace) {
+    //         eat(TokenTypes::RightBrace, "Expected ',' or '}' in object or dictionary.");
+    //     }
+    // }
+    
+    // eat(TokenTypes::RightBrace);
+
+    // // Convert to Dictionary if all keys are valid for dictionary
+    // if (isDictionary) {
+    //     auto dictionary = std::make_shared<Dictionary>();
+    //     for (const auto& [key, value] : object->properties) {
+    //         dictionary->setProperty(key, value);
+    //     }
+    //     return std::make_shared<ObjectConstructorStatement>(dictionary);
+    // } 
+    // return std::make_shared<ObjectConstructorStatement>(object);
+    return nullptr;
+}
+
+std::shared_ptr<Statement> Parser::parseClass() {
+    Token startToken = currentToken;
+    eat(TokenTypes::Class);
+    std::string className = currentToken.getValue();
+    eat(TokenTypes::Identifier);
+
+    parameterType types;
+    if (currentToken.getType() == TokenTypes::LessThan) {
+        types = parseTypeParametersForDeclaration();
+    }
+
+    std::vector<std::string> parentClasses;
+    if (currentToken.getType() == TokenTypes::Colon) {
+        eat(TokenTypes::Colon);
+        while (currentToken.getType() != TokenTypes::LeftBrace) {
+            if (currentToken.getType() == TokenTypes::Comma) eat(TokenTypes::Comma);
+            if (currentToken.getType() == TokenTypes::Public || currentToken.getType() == TokenTypes::Private)
+                eat(currentToken.getType()); // Ignore for now
+            std::string parent = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+            parentClasses.push_back(parent);
+        }
+    }
+
+    std::shared_ptr<Type> thisType = Type::createUserDefinedType(className, Kind::Class);
+    std::vector<std::shared_ptr<ClassMember>> members;
+
+    eat(TokenTypes::LeftBrace);
+
+    bool hasConstructor = false;
+    bool hasDestructor = false;
+
+    while (currentToken.getType() != TokenTypes::RightBrace) {
+        MemberModifiers modifiers = parseMemberModifiers();
+
+        std::string memberName;
+        bool isDestructor = false;
+        if (currentToken.getType() == TokenTypes::Tilde) {
+            eat(currentToken.getType());
+            // memberName = "~";
+            isDestructor = true;
+        }
+
+        if (currentToken.getType() != TokenTypes::Identifier) {
+            eat(TokenTypes::Identifier, "Expected identifier in class body.");
+            return nullptr;
+        }
+
+        memberName += currentToken.getValue();
+        eat(TokenTypes::Identifier);
+
+        if (memberName == "constructor") hasConstructor = true;
+        if (isDestructor && memberName == "destructor") hasDestructor = true;
+
+        std::shared_ptr<Type> typeExpr = nullptr;
+        if (currentToken.getType() == TokenTypes::Colon) {
+            eat(TokenTypes::Colon);
+            auto parsedType = parseType();
+            typeExpr = resolveType(parsedType);
+        }
+
+        std::shared_ptr<Statement> valueExpr = nullptr;
+        if (currentToken.getType() == TokenTypes::Assign) {
+            eat(TokenTypes::Assign);
+            valueExpr = parseExpression();
+            if (auto ctxAware = std::dynamic_pointer_cast<ContextAwareStatement>(valueExpr)) {
+                ctxAware->pushContext(className);
+            }
+        } else if (currentToken.getType() == TokenTypes::LeftParen) {
+            valueExpr = parseLambdaFunction(className + "." + memberName);
+            auto methodExpr = std::dynamic_pointer_cast<FunctionDeclaration>(valueExpr);
+            if (!methodExpr) {
+                console.reportError(Console::SYNTAX_ERROR,
+                    "Could not parse method '" + memberName + "' of class '" + className + "'.",
+                    FileSpan{});
+                return nullptr;
+            }
+            methodExpr->pushContext(className);
+        }
+
+        auto member = std::make_shared<ClassMember>(memberName, typeExpr, valueExpr, modifiers);
+        members.push_back(member);
+
+        if (currentToken.getType() == TokenTypes::Semicolon) {
+            eat(TokenTypes::Semicolon);
+        }
+    }
+
+    eat(TokenTypes::RightBrace);
+    
+    if (!hasConstructor) {
+        MemberModifiers modifiers;
+        auto emptyBody = BlockStatement::create();
+        auto defaultCtor = std::make_shared<FunctionDeclaration>(
+            className + ".constructor",
+            std::vector<std::shared_ptr<Statement>>{},
+            emptyBody,
+            resolveType({"void"})
+        );
+        auto ctorMember = std::make_shared<ClassMember>(
+            className,
+            resolveType({"void"}),
+            defaultCtor,
+            modifiers
+        );
+        members.insert(members.begin(), ctorMember);
+    }
+    
+    if (!hasDestructor) {
+        MemberModifiers modifiers;
+        auto emptyBody = BlockStatement::create();
+        auto defaultDtor = std::make_shared<FunctionDeclaration>(
+            className + ".destructor",
+            std::vector<std::shared_ptr<Statement>>{},
+            emptyBody,
+            resolveType({"void"})
+        );
+        auto dtorMember = std::make_shared<ClassMember>(
+            "~" + className,
+            resolveType({"void"}),
+            defaultDtor,
+            modifiers
+        );
+        members.push_back(dtorMember);
+    }    
+
+    auto classStatement = std::make_shared<ConstructClassPrototype>(className, parentClasses, members);
+    classStatement->setPosition(startToken, currentToken);
+    return classStatement;
+}
+
+std::shared_ptr<Statement> Parser::parseStruct() {
+    Token startToken = currentToken;
+    eat(TokenTypes::Struct);
+    std::string structName = currentToken.getValue();
+    eat(TokenTypes::Identifier);
+
+    std::shared_ptr<Type> thisType = Type::createUserDefinedType(structName, Kind::Struct);
+    std::vector<std::shared_ptr<Statement>> body;
+
+    eat(TokenTypes::LeftBrace);
+
+    while (currentToken.getType() != TokenTypes::RightBrace) {
+
+        if (currentToken.getType() == TokenTypes::Identifier) {
+            std::string fieldName = currentToken.getValue();
+            eat(TokenTypes::Identifier);
+
+            // `name(` is a method. Deciding this from the token right after the name (as
+            // parseClass does) avoids checkIfLambdaExpression(), which misreads parameter
+            // lists containing pointer types such as `char*` or `void**`.
+            if (currentToken.getType() == TokenTypes::LeftParen) {
+                auto func = parseLambdaFunction(structName + "." + fieldName);
+                if (!func) {
+                    return nullptr; // the lambda parser already reported the error
+                }
+                body.push_back(func);
+
+                if (currentToken.getType() == TokenTypes::Semicolon) {
+                    eat(TokenTypes::Semicolon);
+                }
+                continue;
+            }
+
+            std::vector<std::string> type;
+            std::shared_ptr<Statement> value = nullptr;
+
+            if (currentToken.getType() == TokenTypes::Colon) {
+                eat(TokenTypes::Colon);
+                type = parseType();
+            }
+
+            if (currentToken.getType() == TokenTypes::Assign) {
+                eat(TokenTypes::Assign);
+                value = parseExpression();
+            }
+
+            auto field = std::make_shared<ParameterStatement>(fieldName, value);
+
+            if (!type.empty()) {
+                field->setType(resolveType(type));
+            } else if (!value) {
+                console.reportError(
+                    Console::SYNTAX_ERROR,
+                    "Field '" + fieldName + "' in struct '" + structName +
+                    "' needs a type (': Type') or an initial value.",
+                    FileSpan{});
+                return nullptr;
+            } else if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
+                if (typed->getType()) {
+                    field->setType(typed->getType());
+                }
+            }
+            // An initializer that is not a typed statement leaves the field type unset
+            // here so a later stage can infer it, instead of dereferencing null.
+
+            body.push_back(field);
+            eat(TokenTypes::Semicolon);
+
+        } else {
+            console.reportError(Console::SYNTAX_ERROR,
+                "Unexpected token '" + currentToken.getValue() + "' in struct '" + structName + "' body.",
+                FileSpan{});
+            return nullptr;
+        }
+
+    }
+
+    eat(TokenTypes::RightBrace);
+
+    auto structStatement = std::make_shared<ConstructStructPrototype>(structName, body);
+    structStatement->setPosition(startToken, currentToken);
+    return structStatement;
+}
+
+}
