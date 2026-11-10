@@ -9,10 +9,33 @@
 #include <omniscript/Parser.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
+#include <omniscript/Types/Types.h>
+#include <omniscript/Expressions/LiteralExpressions.h>
+#include <omniscript/Statements/LiteralStatements.h>
 
 namespace Omniscript {
 
 std::shared_ptr<Statement> Parser::parseIdentifier() {
+    if (currentToken.getType() == TokenTypes::Identifier && currentToken.getValue() == "sizeof") {
+        Token startToken = currentToken;
+        eat(TokenTypes::Identifier); // eat "sizeof"
+        eat(TokenTypes::LeftParen);
+        
+        // Parse the type inside the parentheses
+        std::vector<std::string> typeTokens = parseType();
+        auto type = resolveType(typeTokens);
+        
+        eat(TokenTypes::RightParen);
+        
+        // Evaluate the size at compile time
+        int size = type->getSize();
+        
+        // Return an integer literal Statement
+        auto literal = std::make_shared<IntegerLiteral>(size);
+        literal->setPosition(startToken, currentToken);
+        return literal;
+    }
+
     Token startToken = currentToken;
     FileSpan span;
     span.start.line = startToken.getLine();

@@ -29,9 +29,9 @@
 namespace Omniscript {
 void IRGenerator::createEntryFunction() {
     DEBUG_LOG("creating the entry function '__top_level'.");
-    // Always create __top_level__ as the entry point
+    // CHANGE: Always create __top_level__ as returning i32 (process exit code)
     llvm::FunctionType* funcType = llvm::FunctionType::get(
-        llvm::Type::getVoidTy(*Context), 
+        llvm::Type::getInt32Ty(*Context), 
         false  // no parameters
     );
     
@@ -65,15 +65,17 @@ void IRGenerator::addMainFunction() {
     // Get or create the top-level function
     llvm::Function* topFunc = Module->getFunction("__top_level__");
     if (!topFunc) {
+        // CHANGE: Fallback creation uses i32
         llvm::FunctionType* topType = 
-            llvm::FunctionType::get(llvm::Type::getVoidTy(*Context), false);
+            llvm::FunctionType::get(llvm::Type::getInt32Ty(*Context), false);
         topFunc = llvm::Function::Create(topType, 
                                        llvm::Function::ExternalLinkage, 
                                        "__top_level__", 
                                        Module.get());
         llvm::BasicBlock* topEntry = llvm::BasicBlock::Create(*Context, "entry", topFunc);
         Builder->SetInsertPoint(topEntry);
-        Builder->CreateRetVoid();
+        // CHANGE: Return 0 by default
+        Builder->CreateRet(Builder->getInt32(0));
     }
 
     // Create main with the simplest valid signature (main(void))
@@ -90,11 +92,9 @@ void IRGenerator::addMainFunction() {
     llvm::BasicBlock* mainEntry = llvm::BasicBlock::Create(*Context, "entry", mainFn);
     Builder->SetInsertPoint(mainEntry);
     
-    // Call the top-level function
-    Builder->CreateCall(topFunc);
-    
-    // Return 0 (success)
-    Builder->CreateRet(llvm::ConstantInt::get(intType, 0));
+    // CHANGE: Call the top-level function and return its result
+    llvm::Value* topLevelResult = Builder->CreateCall(topFunc);
+    Builder->CreateRet(topLevelResult);
     
     // Verify the top-level function doesn't call main
     for (auto &BB : *topFunc) {
@@ -111,7 +111,6 @@ void IRGenerator::addMainFunction() {
 }
 
 llvm::Function* IRGenerator::getOrCreateGlobalInitFunction() {
-    // const char* initName = "__startup__";
     const char* initName = "__top_level__";
     
     // First check if function already exists
@@ -119,9 +118,9 @@ llvm::Function* IRGenerator::getOrCreateGlobalInitFunction() {
         return existing;
     }
 
-    // Create function type (void -> void)
+    // CHANGE: Function type is i32 -> i32
     auto* funcType = llvm::FunctionType::get(
-        Builder->getVoidTy(), 
+        Builder->getInt32Ty(), 
         false
     );
 
@@ -141,7 +140,8 @@ llvm::Function* IRGenerator::getOrCreateGlobalInitFunction() {
     );
 
     Builder->SetInsertPoint(entry);
-    Builder->CreateRetVoid(); // Ensure the function has a return
+    // CHANGE: Return 0 by default
+    Builder->CreateRet(Builder->getInt32(0));
 
     // Get or create `llvm.global_ctors`
     llvm::GlobalVariable* globalCtors = Module->getNamedGlobal("llvm.global_ctors");
@@ -235,7 +235,7 @@ llvm::Value* IRGenerator::createCall(
         return Builder->getInt32(0);  // Return dummy value instead of nullptr
     }
 
-    // 1. Find the callable value [original code unchanged]
+    // 1. Find the callable value
     llvm::Value* funcValue = nullptr;
     bool isDynamicFunction = !functionTypeName.empty();
     
@@ -250,7 +250,7 @@ llvm::Value* IRGenerator::createCall(
         return nullptr;
     }
 
-    // 2. Determine the function type [original code unchanged]
+    // 2. Determine the function type
     llvm::FunctionType* funcType = nullptr;
     
     if (auto* func = llvm::dyn_cast<llvm::Function>(funcValue)) {
@@ -302,7 +302,7 @@ llvm::Value* IRGenerator::createCall(
         return nullptr;
     }
 
-    // 3. Validate arguments [original code unchanged]
+    // 3. Validate arguments
     bool isVarArg = funcType->isVarArg();
     size_t fixedParams = funcType->getNumParams();
     
@@ -311,7 +311,7 @@ llvm::Value* IRGenerator::createCall(
         return nullptr;
     }
 
-    // 4. Cast arguments if needed [original code unchanged]
+    // 4. Cast arguments if needed
     for (size_t i = 0; i < std::min(args.size(), fixedParams); ++i) {
         if (args[i]->getType() != funcType->getParamType(i)) {
             args[i] = generateCast(args[i], funcType->getParamType(i));
@@ -322,7 +322,7 @@ llvm::Value* IRGenerator::createCall(
         }
     }
 
-    // 5. Create the call [original code unchanged]
+    // 5. Create the call
     llvm::CallInst* call = nullptr;
     
     if (auto* func = llvm::dyn_cast<llvm::Function>(funcValue)) {
@@ -1103,7 +1103,13 @@ void IRGenerator::generateFunctionBody(
         if (function->getReturnType()->isVoidTy()) {
             DEBUG_LOG("Creating void return for function: " + function->getName().str());
             Builder->CreateRetVoid();
-        } else if (retVal) {
+        } 
+        // CHANGE: Handle __top_level__ explicit default return
+        else if (function->getName() == "__top_level__") {
+            DEBUG_LOG("Creating default i32 return 0 for __top_level__");
+            Builder->CreateRet(Builder->getInt32(0));
+        }
+        else if (retVal) {
             DEBUG_LOG("Creating return with value type: " + debugType(retVal->getType()));
             DEBUG_LOG("Function expects return type: " + debugType(function->getReturnType()));
 

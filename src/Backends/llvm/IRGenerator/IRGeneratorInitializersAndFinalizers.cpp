@@ -21,18 +21,28 @@ void IRGenerator::finalize() {
         return;
     }
 
+    // __top_level__ returns i32 (the process exit code), so default returns must be `ret i32 0`,
+    // not `ret void`. Fall back to ret void only if it was somehow declared void.
+    llvm::Type* topRetTy = topFunc->getReturnType();
+    auto emitDefaultReturn = [&]() {
+        if (topRetTy->isVoidTy())
+            Builder->CreateRetVoid();
+        else
+            Builder->CreateRet(llvm::Constant::getNullValue(topRetTy));
+    };
+
     // Handle empty function case
     if (topFunc->empty()) {
         llvm::BasicBlock* entry = llvm::BasicBlock::Create(*Context, "entry", topFunc);
         Builder->SetInsertPoint(entry);
-        Builder->CreateRetVoid();
+        emitDefaultReturn();
         return;
     }
 
     // Get the last basic block
     llvm::BasicBlock* lastBlock = &topFunc->back();
 
-    // If the block has no terminator, add a `ret void`
+    // If the block has no terminator, add the default return (`ret i32 0`)
     if (lastBlock->empty() || !lastBlock->back().isTerminator()) {
         Builder->SetInsertPoint(lastBlock);
         
@@ -41,7 +51,7 @@ void IRGenerator::finalize() {
             Builder->SetInsertPoint(lastBlock);
         }
         
-        Builder->CreateRetVoid();
+        emitDefaultReturn();
     }
 }
 

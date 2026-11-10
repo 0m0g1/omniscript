@@ -4,7 +4,9 @@
 
 namespace Omniscript {
 llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* expectedReturnType) {
+    (void)expectedReturnType; // the function's own return type is authoritative
     llvm::Function* currentFunction = Builder->GetInsertBlock()->getParent();
+    
     if (!currentFunction) {
         std::string suggestion = "To resolve this:\n"
                                "1. Ensure return statement is within a function body\n"
@@ -58,7 +60,13 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
         return Builder->CreateRetVoid();
     }
 
+    llvm::Type* funcRetTy = currentFunction->getReturnType();
+
     if (!returnValue) {
+        // A bare `return` in the top-level script means "exit code 0"
+        if (currentFunction->getName() == "__top_level__") {
+            return Builder->CreateRet(llvm::Constant::getNullValue(funcRetTy));
+        }
         std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Provide a return value for non-void function '%s'\n"
@@ -75,22 +83,27 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
         return nullptr;
     }
 
-    if (returnValue->getType() != expectedReturnType) {
-        std::string suggestion = Console::formatString(
-            "To resolve this:\n"
-            "1. Ensure return value type matches expected type '%s'\n"
-            "2. Check expression type for '%s'\n"
-            "3. Consider explicit type casting",
-            debugType(expectedReturnType).c_str(), debugType(returnValue->getType()).c_str()
-        );
-        console.reportError(
-            Console::TYPE_ERROR,
-            Console::formatString("Return type mismatch: expected '%s', got '%s'",
-                             debugType(expectedReturnType).c_str(), debugType(returnValue->getType()).c_str()),
-            suggestion,
-            FileSpan() // Default span as no statement context
-        );
-        return nullptr;
+    // Cast to the function's actual return type (e.g. `return 1` in __top_level__ -> i32)
+    if (returnValue->getType() != funcRetTy) {
+        llvm::Value* casted = generateCast(returnValue, funcRetTy);
+        if (!casted) {
+            std::string suggestion = Console::formatString(
+                "To resolve this:\n"
+                "1. Ensure return value type matches expected type '%s'\n"
+                "2. Check expression type for '%s'\n"
+                "3. Consider explicit type casting",
+                debugType(funcRetTy).c_str(), debugType(returnValue->getType()).c_str()
+            );
+            console.reportError(
+                Console::TYPE_ERROR,
+                Console::formatString("Return type mismatch: expected '%s', got '%s'",
+                                 debugType(funcRetTy).c_str(), debugType(returnValue->getType()).c_str()),
+                suggestion,
+                FileSpan() // Default span as no statement context
+            );
+            return nullptr;
+        }
+        returnValue = casted;
     }
 
     return Builder->CreateRet(returnValue);

@@ -39,8 +39,12 @@ std::shared_ptr<Expression> ReturnStatement::express(SymbolTableType scope) {
     if (returnValue) {
         extendContextOf(returnValue);
         if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
-            stmt->setType(type);
+            // NEW: Do not force a 'Void' type onto a concrete value like '1'
+            if (type && !type->isVoidLike()) {
+                stmt->setType(type);
+            }
         }
+        
         result = returnValue->express(scope);
 
         if (!result) {
@@ -59,6 +63,11 @@ std::shared_ptr<Expression> ReturnStatement::express(SymbolTableType scope) {
                 returnValue->getSpan()
             );
             return nullptr;
+        }
+
+        // NEW: If the type was lost (Void) but the value has a real type, adopt it
+        if (type->isVoidLike() && result->getType() && !result->getType()->isVoidLike()) {
+            type = result->getType();
         }
 
         DEBUG_LOG("[Return] The result of the return value is '" + result->toString() + "' of kind '" + result->getType()->toString() + "'.");
