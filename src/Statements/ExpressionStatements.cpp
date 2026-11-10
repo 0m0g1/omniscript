@@ -346,7 +346,14 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
     if (!type) {
         if (op.isComparisonOperator()) {
             type = resolveType({ "bool" });
-            if (Type::isSameOrCastableTo(rightType, leftType)) {
+            if (rightType->isNull() && leftType->isNullable()) {
+                // `x == null` on a nullable: give the null literal the nullable's type and keep the
+                // operand's own type. Retyping the operand to Null<Unknown> lost the nullable type,
+                // and the untyped literal crashed Null::express.
+                if (rightTyped) rightTyped->setType(leftType);
+            } else if (leftType->isNull() && rightType->isNullable()) {
+                if (leftTyped) leftTyped->setType(rightType);
+            } else if (Type::isSameOrCastableTo(rightType, leftType)) {
                 if (leftType->isPointer()) {
                     if (rightTyped) rightTyped->setType(leftType->getPointeeType());
                 } else {

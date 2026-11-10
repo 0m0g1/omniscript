@@ -190,7 +190,7 @@ std::shared_ptr<Expression> Null::express(SymbolTableType scope) {
     }
     std::shared_ptr<Expression> result;
 
-    if (type->isNullable()) {
+    if (type && type->isNullable()) {
         auto nullable = std::dynamic_pointer_cast<NullableType>(type);
         auto nullableExpr = std::make_shared<NullableExpression>();
         nullableExpr->type = nullable->innerType ? nullable->innerType : Type::createPrimitiveType(Kind::Void);
@@ -212,7 +212,8 @@ std::shared_ptr<Expression> PointerLiteral::express(SymbolTableType scope) {
 
     // Handle null pointer case
     if (address == 0) {
-        result = make_expression<NullPointerExpression>(type->getPointeeType());
+        result = make_expression<NullPointerExpression>(
+            type ? type->getPointeeType() : Type::createPrimitiveType(Kind::Void));
     } else {
         // Create raw pointer expression
         auto pointeeType = type ? type->getPointeeType() : Type::createPrimitiveType(Kind::Void);

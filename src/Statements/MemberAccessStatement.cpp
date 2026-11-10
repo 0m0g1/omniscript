@@ -19,6 +19,19 @@
 
 namespace Omniscript {
 
+namespace {
+// `Stats?` has no members of its own: member lookups (fields and methods) go through the wrapped
+// type, otherwise the base type name comes out as "<null>" and `r.report()` is looked up as
+// "<null>.report".
+std::shared_ptr<Type> unwrapNullableType(std::shared_ptr<Type> t) {
+    while (auto nullable = std::dynamic_pointer_cast<NullableType>(t)) {
+        if (!nullable->innerType) break;
+        t = nullable->innerType;
+    }
+    return t;
+}
+} // namespace
+
 MemberAccess::MemberAccess(const std::string& obj, const std::string& member, std::shared_ptr<Statement> assignVal) {
     this->objectName = obj;
     this->memberName = member;
@@ -83,7 +96,7 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
             return nullptr;
         }
         baseExpr = std::make_shared<VariableAccessExpression>(objectName, expr->getType());
-        baseTypeName = extractTypeName(expr->getType());
+        baseTypeName = extractTypeName(unwrapNullableType(expr->getType()));
         resolvedObjectName = objectName;
     } else {
         // Handle expression-based object
@@ -92,7 +105,7 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
             console.reportError(Console::SEMANTIC_ERROR, "Failed to evaluate base expression for member access", FileSpan{});
             return nullptr;
         }
-        baseTypeName = extractTypeName(baseExpr->getType());
+        baseTypeName = extractTypeName(unwrapNullableType(baseExpr->getType()));
         if (auto named = std::dynamic_pointer_cast<NamedStatement>(object)) {
             resolvedObjectName = named->getName();
         }
@@ -102,7 +115,8 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
         return nullptr;
     }
     
-    DEBUG_LOG("Base type name: " + baseTypeName);
+    DEBUG_LOG("Base type name: " + baseTypeName + " (from '" +
+              (baseExpr->getType() ? baseExpr->getType()->toString() : std::string("<no type>")) + "')");
 
     if (isMethodCall() || !arguments.empty()) {
         DEBUG_LOG("[MemberAccess] Detected method call: " + baseTypeName + "." + memberName);
@@ -154,7 +168,7 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
             }
 
             std::shared_ptr<Statement> thisRef;
-            auto baseType = baseExpr->getType();
+            auto baseType = unwrapNullableType(baseExpr->getType());
             if (baseType && baseType->isPointer()) {
                 // The base is already a pointer (e.g. 'this' inside a method): pass it as-is
                 // instead of taking the address of a pointer (which gave '* * T').

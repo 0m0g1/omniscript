@@ -248,6 +248,11 @@ bool Type::isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>
 
     if (from->kind != to->kind) return false;
 
+    // Types with no extra attributes are the same whenever their kinds match. Without this,
+    // two separate Bool (or Void) type objects compared as different, so `flag = true;`
+    // on a bool variable reported "Reassignment type mismatch ... 'Bool' vs 'Bool'".
+    if (from->isBool() || from->isVoidLike()) return true;
+
     if (from->kind == Kind::FixedArray) {
         auto fromArr = std::dynamic_pointer_cast<FixedArrayType>(from);
         auto toArr = std::dynamic_pointer_cast<FixedArrayType>(to);

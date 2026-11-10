@@ -1,6 +1,13 @@
 #include <omniscript/Backends/llvm/IRGenerator.h>
 
 namespace Omniscript {
+// Nullable<T> is lowered as an *unnamed* literal struct { i1 hasValue, T value } (see resolveLLVMType).
+// Checked structurally here so this does not depend on isNullableStruct()'s exact rules.
+static bool looksNullable(llvm::Type* t) {
+    auto* st = llvm::dyn_cast<llvm::StructType>(t);
+    return st && !st->hasName() && st->getNumElements() == 2 && st->getElementType(0)->isIntegerTy(1);
+}
+
 llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes op, bool isPostfix) {
     if (!operand) {
         console.reportError(Console::SEMANTIC_ERROR, "Invalid unary operation", FileSpan{});
@@ -72,8 +79,24 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
     if (op == TokenTypes::Equals || op == TokenTypes::NotEquals) {
         bool isEqualOp = (op == TokenTypes::Equals);
 
+        // A `null` literal reaches here in several shapes depending on how it was generated:
+        // void, a null pointer constant (Kind::Null lowers to ptr), or an all-zero / hasValue=false
+        // Nullable constant. Nullable layout is { i1 hasValue, T value }.
+        auto isNullLiteral = [&](llvm::Value* v) -> bool {
+            if (v->getType()->isVoidTy()) return true;
+            if (llvm::isa<llvm::ConstantPointerNull>(v)) return true;
+            if (looksNullable(v->getType())) {
+                if (llvm::isa<llvm::ConstantAggregateZero>(v)) return true;
+                if (auto* cs = llvm::dyn_cast<llvm::ConstantStruct>(v)) {
+                    auto* flag = llvm::dyn_cast<llvm::ConstantInt>(cs->getOperand(0));
+                    return flag && flag->isZero();
+                }
+            }
+            return false;
+        };
+
         // Left is nullable, right is null
-        if (isNullableStruct(left->getType()) && right->getType()->isVoidTy()) {
+        if (looksNullable(left->getType()) && isNullLiteral(right)) {
             llvm::Value* hasValue = Builder->CreateExtractValue(left, {0}, "hasValue");
             return Builder->CreateICmpEQ(
                 hasValue, 
@@ -83,7 +106,7 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         }
 
         // Right is nullable, left is null
-        if (isNullableStruct(right->getType()) && left->getType()->isVoidTy()) {
+        if (looksNullable(right->getType()) && isNullLiteral(left)) {
             llvm::Value* hasValue = Builder->CreateExtractValue(right, {0}, "hasValue");
             return Builder->CreateICmpEQ(
                 hasValue, 
@@ -92,8 +115,27 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
             );
         }
 
+        // Nullable == Nullable (neither side is a null literal):
+        // equal when both are null, or both have a value and the values match.
+        if (looksNullable(left->getType()) && looksNullable(right->getType())) {
+            llvm::Value* lHas = Builder->CreateExtractValue(left, {0}, "lhasValue");
+            llvm::Value* rHas = Builder->CreateExtractValue(right, {0}, "rhasValue");
+            llvm::Value* lVal = Builder->CreateExtractValue(left, {1}, "lvalue");
+            llvm::Value* rVal = Builder->CreateExtractValue(right, {1}, "rvalue");
+            if (!lVal->getType()->isIntOrIntVectorTy() && !lVal->getType()->isPtrOrPtrVectorTy()) {
+                console.reportError(Console::TYPE_ERROR,
+                    "Cannot compare two nullable values of type '" + debugType(lVal->getType()) +
+                    "' with '=='; compare against null or compare the fields instead.", FileSpan{});
+                return nullptr;
+            }
+            llvm::Value* bothNull = Builder->CreateAnd(Builder->CreateNot(lHas), Builder->CreateNot(rHas));
+            llvm::Value* bothSame = Builder->CreateAnd(Builder->CreateAnd(lHas, rHas), Builder->CreateICmpEQ(lVal, rVal));
+            llvm::Value* eq = Builder->CreateOr(bothNull, bothSame, "nullable_eq");
+            return isEqualOp ? eq : Builder->CreateNot(eq, "nullable_ne");
+        }
+
         // Nullable == Non-nullable
-        if (isNullableStruct(left->getType()) && !isNullableStruct(right->getType()) && !right->getType()->isVoidTy()) {
+        if (looksNullable(left->getType()) && !looksNullable(right->getType()) && !right->getType()->isVoidTy()) {
             llvm::Value* leftHasValue = Builder->CreateExtractValue(left, {0}, "hasValue");
             llvm::Value* leftValue = Builder->CreateExtractValue(left, {1}, "value");
 
@@ -105,7 +147,7 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         }
 
         // Non-nullable == Nullable
-        if (!isNullableStruct(left->getType()) && isNullableStruct(right->getType()) && !left->getType()->isVoidTy()) {
+        if (!looksNullable(left->getType()) && looksNullable(right->getType()) && !left->getType()->isVoidTy()) {
             llvm::Value* rightHasValue = Builder->CreateExtractValue(right, {0}, "hasValue");
             llvm::Value* rightValue = Builder->CreateExtractValue(right, {1}, "value");
 

@@ -866,6 +866,9 @@ llvm::Function* IRGenerator::createFunction(
     bool isVarArg
 ) {
     llvm::Function* function = registerFunction(name, returnType, params, scope, isVarArg);
+    if (!function) {
+        return nullptr; // a parameter or return type failed to resolve (already reported)
+    }
     
     // Generate function body
     generateFunctionBody(name, function, params, body, scope);
@@ -881,6 +884,11 @@ llvm::Function* IRGenerator::registerFunction(
     bool isVarArg
 ) {
     DEBUG_LOG("Creating function: " + name + " with parameter size " + std::to_string(params.size()));
+
+    if (!returnType) {
+        console.reportError(Console::TYPE_ERROR, "Cannot create function '" + name + "': unresolved return type", FileSpan{});
+        return nullptr;
+    }
     
     // Create function type
     std::vector<llvm::Type*> paramTypes;
@@ -888,8 +896,12 @@ llvm::Function* IRGenerator::registerFunction(
         auto& param = params[i];
         auto type = param->getType();
         auto llvmType = resolveLLVMType(type);
+        if (!llvmType) {
+            console.reportError(Console::TYPE_ERROR, "Cannot create function '" + name + "': unresolved type for parameter '" + param->name + "'", FileSpan{});
+            return nullptr;
+        }
         auto parameter = std::dynamic_pointer_cast<FunctionInputExpression>(param);
-        if (parameter->isVariadic) {
+        if (parameter && parameter->isVariadic) {
             llvm::Type* countType = llvm::Type::getInt32Ty(*Context);
             paramTypes.push_back(countType);
             
@@ -924,11 +936,11 @@ llvm::Function* IRGenerator::registerFunction(
     unsigned idx = 0;
     bool foundArgsCount = false;
     for (auto& arg : function->args()) {
-        auto& param = params[idx];
-        
         if (idx >= params.size()) {
             console.reportError(Console::SEMANTIC_ERROR, "Parameter index out of bounds: " + std::to_string(idx), FileSpan{});
+            break;
         }
+        auto& param = params[idx];
 
         arg.setName(param->name);
         

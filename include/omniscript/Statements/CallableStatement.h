@@ -12,19 +12,20 @@ public TypedStatement,
 public ContextAwareStatement {
 public:
     bool isVariadic = false;
-    bool isConstant;
+    bool isConstant = false;
     std::shared_ptr<Statement> defaultValue;
 
     ParameterStatement(
         std::string name,
         std::shared_ptr<Statement> defaultValue = nullptr,
         bool isConst = false
-    ) : defaultValue(defaultValue), isConstant(isConst) {
+    ) : isConstant(isConst), defaultValue(defaultValue) {
             setName(name);
         }
     
     ParameterStatement(const ParameterStatement& other)
         : NamedStatement(other), TypedStatement(other),
+          isVariadic(other.isVariadic), isConstant(other.isConstant),
           defaultValue(other.defaultValue ? other.defaultValue->clone() : nullptr) 
     {
         setSpan(other.getSpan());
@@ -325,4 +326,4 @@ public:
     };
 };
 
-} //namespace Omniscript 
+} //namespace Omniscript

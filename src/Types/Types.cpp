@@ -20,7 +20,7 @@ static const std::unordered_map<std::string_view, Kind> baseTypeMap = {
     {"int256", Kind::Int256}, {"i256", Kind::Int256},
     {"int512", Kind::Int512}, {"i512", Kind::Int512},
     {"int1024", Kind::Int1024}, {"i1024", Kind::Int1024},
-    {"int1024", Kind::BigInt},
+    {"bigint", Kind::BigInt},
     {"usize", Kind::Size_t}, {"size_t", Kind::Size_t},
     {"uint", Kind::UInt32}, {"u32", Kind::UInt32}, {"uint32", Kind::UInt32},
     {"uint8", Kind::UInt8}, {"u8", Kind::UInt8},

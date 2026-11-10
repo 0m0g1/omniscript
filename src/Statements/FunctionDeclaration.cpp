@@ -71,7 +71,18 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
             }
         }
     } else if (type->isGeneric()) {
-        type = resolveGeneric(type->getName());
+        auto resolvedGeneric = resolveGeneric(type->getName());
+        if (!resolvedGeneric) {
+            console.reportError(
+                Console::TYPE_ERROR,
+                Console::formatString("Return type parameter '%s' of function '%s' is not bound to a concrete type",
+                                 type->getName().c_str(), name.c_str()),
+                "To resolve this:\n1. Constrain the type parameter with 'extends'\n2. Call the function with a concrete type, e.g. 'f<i32>(...)'",
+                getSpan()
+            );
+            return;
+        }
+        type = resolvedGeneric;
         returnType = type;
     } else {
         returnType = type;
@@ -93,10 +104,21 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
         DEBUG_LOG("[Function] The parameter is '" + param->toString() + "'.");
         if (auto typed = std::dynamic_pointer_cast<TypedStatement>(param)) {
             auto paramType = typed->getType();
-            DEBUG_LOG("[Function] Parameter has type '" + paramType->toString() + "'.");
+            DEBUG_LOG("[Function] Parameter has type '" + (paramType ? paramType->toString() : std::string("<none>")) + "'.");
             
-            if (paramType->isGeneric()) {
-                typed->setType(resolveGeneric(paramType->getName()));
+            if (paramType && paramType->isGeneric()) {
+                auto resolvedParam = resolveGeneric(paramType->getName());
+                if (!resolvedParam) {
+                    console.reportError(
+                        Console::TYPE_ERROR,
+                        Console::formatString("Type parameter '%s' of parameter '%s' is not bound to a concrete type",
+                                         paramType->getName().c_str(), param->toString().c_str()),
+                        "To resolve this:\n1. Constrain the type parameter with 'extends'\n2. Call the function with a concrete type, e.g. 'f<i32>(...)'",
+                        param->getSpan()
+                    );
+                    return;
+                }
+                typed->setType(resolvedParam);
             }
         }
         auto result = param->express(localScope);
@@ -122,14 +144,12 @@ void FunctionDeclaration::registerInScope(SymbolTableType scope) {
                 isVarArg = true;
                 DEBUG_LOG("The function is variadic");
             }
-            if (paramIndex == 0 && paramStmt->getName() == "this") {
-                std::dynamic_pointer_cast<FunctionInputExpression>(result)->isConstant = true;
-            } else {
-                std::dynamic_pointer_cast<FunctionInputExpression>(result)->isConstant = false;
+            if (auto inputExpr = std::dynamic_pointer_cast<FunctionInputExpression>(result)) {
+                inputExpr->isConstant = (paramIndex == 0 && paramStmt->getName() == "this");
             }
         }
         argValues.push_back(result);
-        DEBUG_LOG("[Function] Parameter '" + result->name + "' has type " + result->getType()->toString());
+        DEBUG_LOG("[Function] Parameter '" + result->name + "' has type " + (result->getType() ? result->getType()->toString() : std::string("<none>")));
         paramIndex++;
     }
     
@@ -188,7 +208,7 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
                 if (!isExtern && !isIntrinsic) {
                     for (const auto& parameter : funcExpr->parameters) {
                         auto param = std::dynamic_pointer_cast<FunctionInputExpression>(parameter);
-                        if (param->isVariadic) {
+                        if (param && param->isVariadic) {
                             // override the variadic's name with a static array
                             auto argsCount = std::make_shared<Integer<int>>(0);
                             auto argsArray = std::make_shared<ArrayExpression>(param->getType());

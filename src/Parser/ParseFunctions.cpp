@@ -511,6 +511,45 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     return parseFunctionDeclaration("", paramTypes, type);
 }
 
+// Replaces every use of the type parameter `name` inside `type` with `concrete`,
+// looking through references, pointers, nullable, array and smart pointer wrappers.
+static std::shared_ptr<Type> substituteTypeParam(
+    const std::shared_ptr<Type>& type,
+    const std::string& name,
+    const std::shared_ptr<Type>& concrete
+) {
+    if (!type || !concrete) return type;
+
+    if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
+        return udt->name == name ? concrete : type;
+    }
+    if (auto ref = std::dynamic_pointer_cast<ReferenceType>(type)) {
+        auto inner = substituteTypeParam(ref->referentType, name, concrete);
+        return inner == ref->referentType ? type : Type::createReferenceType(inner);
+    }
+    if (auto ptr = std::dynamic_pointer_cast<PointerType>(type)) {
+        auto inner = substituteTypeParam(ptr->pointeeType, name, concrete);
+        return inner == ptr->pointeeType ? type : Type::createPointerType(inner, ptr->isConst, ptr->isVolatile);
+    }
+    if (auto nullable = std::dynamic_pointer_cast<NullableType>(type)) {
+        auto inner = substituteTypeParam(nullable->innerType, name, concrete);
+        return inner == nullable->innerType ? type : Type::createNullableType(inner);
+    }
+    if (auto fixedArr = std::dynamic_pointer_cast<FixedArrayType>(type)) {
+        auto inner = substituteTypeParam(fixedArr->elementType, name, concrete);
+        return inner == fixedArr->elementType ? type : Type::createFixedArrayType(inner, fixedArr->size);
+    }
+    if (auto dynArr = std::dynamic_pointer_cast<DynamicArrayType>(type)) {
+        auto inner = substituteTypeParam(dynArr->elementType, name, concrete);
+        return inner == dynArr->elementType ? type : Type::createDynamicArrayType(inner);
+    }
+    if (auto smart = std::dynamic_pointer_cast<SmartPointerType>(type)) {
+        auto inner = substituteTypeParam(smart->pointeeType, name, concrete);
+        return inner == smart->pointeeType ? type : Type::createSmartPointerType(smart->getKind(), inner);
+    }
+    return type;
+}
+
 std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     const std::string& definedName,
     parameterType paramTypes,
@@ -566,6 +605,21 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     if (paramTypes.empty()) {
         if (currentToken.getType() == TokenTypes::LessThan) {
             types = parseTypeParametersForDeclaration();
+
+            // Generics are monomorphized at parse time, so every type parameter declared on a
+            // function needs an 'extends' constraint, otherwise T is never bound to a type.
+            for (const auto& tp : types) {
+                if (tp.second.empty()) {
+                    console.reportError(
+                        Console::SYNTAX_ERROR,
+                        "Type parameter '" + tp.first + "' of function '" + name + "' has no constraint",
+                        "To resolve this:\n"
+                        "1. Constrain the type parameter, e.g. '<" + tp.first + " extends i32 | i64>'\n"
+                        "2. Call it with one of those types, e.g. '" + name + "<i32>(...)'",
+                        span
+                    );
+                }
+            }
         }
     } else {
         types = paramTypes;
@@ -652,8 +706,17 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                         clonedParameters.push_back(param->clone());
                     }
                     
+                    // Substitute the type parameter in the signature, otherwise T stays an unknown user type
+                    auto concreteType = resolveType(constraint);
+                    auto specReturnType = substituteTypeParam(returnType, typeParam.first, concreteType);
+                    for (auto& cp : clonedParameters) {
+                        if (auto ps = std::dynamic_pointer_cast<ParameterStatement>(cp)) {
+                            ps->setType(substituteTypeParam(ps->getType(), typeParam.first, concreteType));
+                        }
+                    }
+
                     auto func = std::make_shared<FunctionDeclaration>(
-                        specializedName, clonedParameters, std::dynamic_pointer_cast<BlockStatement>(body->clone()), returnType);
+                        specializedName, clonedParameters, std::dynamic_pointer_cast<BlockStatement>(body->clone()), specReturnType);
                     
                     func->addGenericParam(typeParam.first);
                     func->bindGeneric(typeParam.first, resolveType(constraint));
@@ -689,8 +752,25 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
             }
 
             std::string specializedName = generateSpecializedNameForDecleration(name, selectedTypes);
+
+            // Each specialization gets its own parameter copies so they never share state
+            std::vector<std::shared_ptr<Statement>> clonedParameters;
+            for (const auto& param : parameters) {
+                clonedParameters.push_back(param->clone());
+            }
+            auto specReturnType = returnType;
+            for (const auto& selected : selectedTypes) {
+                if (selected.second.empty()) continue;
+                auto concreteType = resolveType(selected.second);
+                specReturnType = substituteTypeParam(specReturnType, selected.first, concreteType);
+                for (auto& cp : clonedParameters) {
+                    if (auto ps = std::dynamic_pointer_cast<ParameterStatement>(cp)) {
+                        ps->setType(substituteTypeParam(ps->getType(), selected.first, concreteType));
+                    }
+                }
+            }
             auto func = std::make_shared<FunctionDeclaration>(
-                specializedName, parameters, std::dynamic_pointer_cast<BlockStatement>(body->clone()), returnType);
+                specializedName, clonedParameters, std::dynamic_pointer_cast<BlockStatement>(body->clone()), specReturnType);
 
             for (const auto& genericPair : types) {
                 func->addGenericParam(genericPair.first);
@@ -723,8 +803,9 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
         return block;
     }
 
-    // Normal function without generics
-    returnType = resolveType(returnDataType);
+    // Normal function without generics.
+    // returnType is already resolved above; resolving the empty returnDataType again
+    // (functions declared without '=>') would report "Empty type specification".
     auto function = std::make_shared<FunctionDeclaration>(name, parameters, body, returnType);
     function->setPosition(startToken, currentToken);
     function->setSpan(span);

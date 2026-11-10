@@ -99,7 +99,19 @@ std::shared_ptr<Expression> ReferenceTo::express(SymbolTableType scope) {
             );
             return nullptr;
         }
-        setType(Type::createPointerType(referentExpr->getType()));
+        // A caller (e.g. member-call `this` on a `Stats?` variable) may have pre-set a pointer to the
+        // *wrapped* type. Keep it when the referent is a Nullable<T> and the pre-set pointee is T;
+        // otherwise this would be recomputed as `* Stats?` and fail to bind to a `* Stats` parameter.
+        std::shared_ptr<Type> refType;
+        if (auto nullable = std::dynamic_pointer_cast<NullableType>(referentExpr->getType())) {
+            if (nullable->innerType && type && type->isPointer()) {
+                auto pointee = type->getBasePointeeType();
+                if (pointee && pointee->toString() == nullable->innerType->toString()) {
+                    refType = type;
+                }
+            }
+        }
+        setType(refType ? refType : Type::createPointerType(referentExpr->getType()));
         setRootType(type);
         auto ref = std::make_shared<ReferenceExpression>(name, referentExpr);
         ref->type = type;
@@ -337,7 +349,7 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
 
     if (isReassign) {
         std::shared_ptr<Expression> prevValue = scope->get(variable);
-        if (!Type::isSameOrCastableTo(result->getType(), prevValue->getType())) {
+        if (prevValue && !Type::isSameOrCastableTo(result->getType(), prevValue->getType())) {
             std::string suggestion = "To resolve this:\n"
                                    "1. Check type consistency\n"
                                    "2. Verify assignment compatibility\n"
@@ -361,6 +373,11 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
     }
 
     auto assignment = make_expression<VariableAssignment>(variable, result, isGlobal, true);
+    // The node above takes its type from the initializer, which drops a declared `T?`
+    // (e.g. `let a: Stats? = null;` ended up as plain `Stats`). Keep the declared nullable type.
+    if (type && std::dynamic_pointer_cast<NullableType>(type)) {
+        assignment->type = type;
+    }
     assignment->isStatic = isStatic;
     assignment->isGlobal = isGlobal;
     assignment->isConstant = isConstant;

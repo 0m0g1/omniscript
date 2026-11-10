@@ -288,6 +288,28 @@ llvm::Value* IRGenerator::generateCast(llvm::Value* src, llvm::Type* destType) {
         return src;
     }
 
+    // Nullable<T> is lowered as the literal struct { i1 hasValue, T value } (see resolveLLVMType).
+    // Wrap into it: `null` -> { false, zeroinit }, and a T (or something castable to T) -> { true, T }.
+    // The reverse (unwrapping) is deliberately NOT done here: it needs an explicit null check.
+    if (auto* destStruct = llvm::dyn_cast<llvm::StructType>(destType);
+        destStruct && !destStruct->hasName() && destStruct->getNumElements() == 2 &&
+        destStruct->getElementType(0)->isIntegerTy(1)) {
+        llvm::Type* innerTy = destStruct->getElementType(1);
+        llvm::Value* wrapped = llvm::UndefValue::get(destStruct);
+
+        if (llvm::isa<llvm::ConstantPointerNull>(src)) {
+            wrapped = Builder->CreateInsertValue(wrapped, Builder->getInt1(false), 0, "nullable_null");
+            wrapped = Builder->CreateInsertValue(wrapped, llvm::Constant::getNullValue(innerTy), 1, "nullable_zero");
+            return wrapped;
+        }
+
+        llvm::Value* inner = generateCast(src, innerTy);
+        if (!inner) return nullptr;
+        wrapped = Builder->CreateInsertValue(wrapped, Builder->getInt1(true), 0, "nullable_flag");
+        wrapped = Builder->CreateInsertValue(wrapped, inner, 1, "nullable_value");
+        return wrapped;
+    }
+
     if (srcType->isIntegerTy() && destType->isIntegerTy()) {
         unsigned srcBits = srcType->getIntegerBitWidth();
         unsigned destBits = destType->getIntegerBitWidth();

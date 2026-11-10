@@ -142,7 +142,10 @@ std::shared_ptr<Expression> ParameterStatement::express(SymbolTableType scope) {
         if (type->isPointer()) {
             // NullPointerExpression wraps its argument in a pointer itself, so give it the
             // pointee; passing the pointer type produced '* * T'.
-            result = std::make_shared<NullPointerExpression>(type->getBasePointeeType());
+            // Strip exactly ONE level: getBasePointeeType() strips them all, which turned
+            // `argv: char**` into `char*` and made `argv[1]` a Char.
+            auto pointee = type->getPointeeType();
+            result = std::make_shared<NullPointerExpression>(pointee ? pointee : type->getBasePointeeType());
         } else {
             result = std::make_shared<NullExpression>(type);
         }

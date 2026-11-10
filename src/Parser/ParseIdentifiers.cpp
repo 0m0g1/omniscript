@@ -322,7 +322,11 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             DEBUG_LOG("Generated Specialized Name: " + specializedName);
             
             std::vector<std::shared_ptr<Statement>> args = parseArguments();
-            if (args.empty() && currentToken.getType() != TokenTypes::RightParen) {
+            // 'f<T>()' is valid: parseArguments() consumed the closing ')' and returned an
+            // empty list, so only report an error when no closing parenthesis was consumed.
+            if (args.empty() &&
+                previousToken.getType() != TokenTypes::RightParen &&
+                currentToken.getType() != TokenTypes::RightParen) {
                 console.reportError(
                     Console::SYNTAX_ERROR,
                     "Failed to parse generic call arguments",

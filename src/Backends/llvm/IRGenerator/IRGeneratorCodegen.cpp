@@ -14,6 +14,13 @@
 #include <omniscript/Expressions/ControlFlowExpressions.h>
 
 namespace Omniscript {
+// Nullable<T> is lowered as an *unnamed* literal struct { i1 hasValue, T value } (see resolveLLVMType).
+// Checked structurally here so this does not depend on isNullableStruct()'s exact rules.
+static bool looksNullable(llvm::Type* t) {
+    auto* st = llvm::dyn_cast<llvm::StructType>(t);
+    return st && !st->hasName() && st->getNumElements() == 2 && st->getElementType(0)->isIntegerTy(1);
+}
+
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTableType scope) {
     DEBUG_LOG();
     if (!value) {
@@ -92,6 +99,22 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
     }
 
     // Handle ReferenceValue
+    // Address of a variable's storage. For a Nullable<T> variable ({ i1 hasValue, T value }) the
+    // address handed out is that of the wrapped T value (field 1), so `r.method()` on a `Stats?`
+    // passes a real Stats* as `this` instead of a pointer to the nullable wrapper.
+    auto refToVariableValue = [&](const std::string& varName) -> llvm::Value* {
+        llvm::Value* ref = getReferenceToVariable(varName);
+        if (!ref) return nullptr;
+        llvm::Type* storage = nullptr;
+        if (auto* alloca = llvm::dyn_cast<llvm::AllocaInst>(ref)) storage = alloca->getAllocatedType();
+        else if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(ref)) storage = global->getValueType();
+        if (storage && looksNullable(storage)) {
+            DEBUG_LOG("Reference to nullable variable '" + varName + "': using the address of its value field");
+            return Builder->CreateStructGEP(storage, ref, 1, varName + ".value");
+        }
+        return ref;
+    };
+
     if (auto refValue = std::dynamic_pointer_cast<ReferenceExpression>(value)) {
         // Reference to an lvalue expression with no variable name (e.g. 'this.position'):
         // compute the address of the expression itself instead of looking up a name.
@@ -102,7 +125,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
             addressOf = [&](const std::shared_ptr<Expression>& e) -> llvm::Value* {
                 if (auto var = std::dynamic_pointer_cast<VariableAccessExpression>(e)) {
                     // The scope holds the variable's storage (alloca / global / direct argument)
-                    return getReferenceToVariable(var->variableName);
+                    return refToVariableValue(var->variableName);
                 }
 
                 if (auto member = std::dynamic_pointer_cast<MemberAccessExpression>(e)) {
@@ -166,7 +189,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         }
 
         DEBUG_LOG("Creating reference to variable " + refValue->referentName);
-        return getReferenceToVariable(refValue->referentName);
+        return refToVariableValue(refValue->referentName);
     }
     
     if (auto addressOf = std::dynamic_pointer_cast<AddressOfExpression>(value)) {
@@ -332,13 +355,41 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         DEBUG_LOG("Creating a binary expression: " + binary->left->toString() + " " + binary->op.getValue() + " " + binary->right->toString());
         llvm::Value* lhs = codegen(binary->left, scope);
         llvm::Value* rhs = codegen(binary->right, scope);
-        DEBUG_LOG("lhs type: '" + debugType(lhs->getType()) + "' rhs type: '" + debugType(rhs->getType()) + "'.");
         if (!lhs) {
             console.reportError(Console::SEMANTIC_ERROR, "The lhs value is invalid", FileSpan{});
+            return nullptr;
         }
         if (!rhs) {
             console.reportError(Console::SEMANTIC_ERROR, "The rhs value is invalid", FileSpan{});
+            return nullptr;
         }
+        DEBUG_LOG("lhs type: '" + debugType(lhs->getType()) + "' rhs type: '" + debugType(rhs->getType()) + "'.");
+
+        // `nullable == null` / `nullable != null` / `null == nullable`: decide this from the AST, where a
+        // null literal is unambiguous, rather than guessing from the LLVM value. Nullable layout is
+        // { i1 hasValue, T value } (the null literal above is built with flag = false).
+        if (binary->op.getType() == TokenTypes::Equals || binary->op.getType() == TokenTypes::NotEquals) {
+            auto isNullAst = [](const std::shared_ptr<Expression>& e) {
+                auto n = std::dynamic_pointer_cast<NullableExpression>(e);
+                return n && n->isNull();
+            };
+            bool leftIsNull = isNullAst(binary->left);
+            bool rightIsNull = isNullAst(binary->right);
+            DEBUG_LOG(std::string("null-compare check: leftIsNull=") + (leftIsNull ? "1" : "0") +
+                      " rightIsNull=" + (rightIsNull ? "1" : "0") +
+                      " lhsNullable=" + (looksNullable(lhs->getType()) ? "1" : "0") +
+                      " rhsNullable=" + (looksNullable(rhs->getType()) ? "1" : "0"));
+            if (leftIsNull != rightIsNull) {
+                llvm::Value* nullableVal = rightIsNull ? lhs : rhs;
+                if (looksNullable(nullableVal->getType())) {
+                    llvm::Value* hasValue = Builder->CreateExtractValue(nullableVal, {0}, "hasValue");
+                    return binary->op.getType() == TokenTypes::Equals
+                        ? Builder->CreateNot(hasValue, "isnull")
+                        : hasValue;
+                }
+            }
+        }
+
         return createBinaryExpression(lhs, binary->op.getType(), rhs);
     }
 

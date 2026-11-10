@@ -17,7 +17,22 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Type> type) {
     };
 
     if (auto customType = std::dynamic_pointer_cast<UserDefinedType>(type)) {
-        auto userType = activeScope->getType(customType->getName());
+        const std::string& userTypeName = customType->getName();
+        auto userType = activeScope->getType(userTypeName);
+        if (!userType) {
+            // Fallback: the struct may be registered with LLVM (named struct) but not visible from
+            // the current scope (e.g. top-level statements, method/generic scopes that don't chain
+            // to the scope the struct was declared in). Try the LLVM context's named types.
+            for (const char* prefix : {"", "struct.", "class."}) {
+                if (auto* named = llvm::StructType::getTypeByName(context, std::string(prefix) + userTypeName)) {
+                    DEBUG_LOG("Type '" + userTypeName + "' not in activeScope; resolved via LLVM named struct '" +
+                              std::string(prefix) + userTypeName + "'.");
+                    return named;
+                }
+            }
+            DEBUG_LOG("Type lookup failed for '" + userTypeName + "' (activeScope=" +
+                      std::to_string(reinterpret_cast<uintptr_t>(&*activeScope)) + ")");
+        }
         if (!userType) {
             console.reportError(Console::TYPE_ERROR,
                 "User type '" + customType->getName() + "' is not registered in the active scope",
@@ -31,7 +46,7 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Type> type) {
     if (auto nullable = std::dynamic_pointer_cast<NullableType>(type)) {
         DEBUG_LOG("Resolving nullable type: " + nullable->toString());
 
-        // Nullable<T> is represented as { i1, T } (i1 = isNull flag)
+        // Nullable<T> is represented as { i1, T } (i1 = hasValue flag; null is hasValue=false / zeroinit)
         if (!nullable->innerType) {
             typeError("Nullable type has no inner type");
             return nullptr;
@@ -43,9 +58,9 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Type> type) {
             return nullptr;
         }
 
-        // Create struct: { i1 is_null, T value }
+        // Create struct: { i1 has_value, T value }
         return llvm::StructType::get(*Context, {
-            llvm::Type::getInt1Ty(*Context),  // null flag
+            llvm::Type::getInt1Ty(*Context),  // hasValue flag
             innerLLVMType                     // actual value
         });
     }

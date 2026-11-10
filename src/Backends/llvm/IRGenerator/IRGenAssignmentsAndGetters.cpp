@@ -9,6 +9,8 @@ llvm::Value* IRGenerator::assignVariable(
     SymbolTableType scope
 ) {
     std::string name = statement->variableName;
+    DEBUG_LOG("assignVariable '" + name + "': node type is '" +
+              (statement->getType() ? statement->getType()->toString() : std::string("<none>")) + "'");
     llvm::Type* type = resolveLLVMType(statement->getType());
     DEBUG_LOG("Variable '" + name + "' has type '" + debugType(type) + "'");
 
