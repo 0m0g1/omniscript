@@ -2,8 +2,8 @@
 module std {
     // Tier 1: core
     public module Core = import "standard/1/Core.os";
-    // public module Mem = import "standard/1/Mem.os";
-    // public module String = import "standard/1/String.os";
+    public module Mem = import "standard/1/Mem.os";
+    public module String = import "standard/1/String.os";
     // public module Math = import "standard/1/Math.os";
     // public module Random = import "standard/1/Random.os";
     // public module Time = import "standard/1/Time.os";

@@ -2,6 +2,9 @@
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/CLLVMResolver.h>
 
+#include <cstdarg>
+#include <cstdio>
+#include <cstddef>
 #ifdef _WIN32
     #include <windows.h>
 #else
@@ -9,6 +12,31 @@
 #endif
 
 namespace Omniscript {
+namespace {
+#ifdef _WIN32
+// UCRT's snprintf is an inline header wrapper, not an export, so no CRT DLL has it
+// under that name. Provide a C99-conformant one from the engine itself.
+// Exported so the JIT's process-symbol lookup (EnumProcessModules + GetProcAddress) finds it.
+extern "C" __declspec(dllexport) int os_snprintf(char* buf, size_t size, const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int n = std::vsnprintf(buf, size, fmt, ap);
+    va_end(ap);
+    return n;
+}
+// Referenced below so the linker can't drop the shim from a static library.
+[[maybe_unused]] void* const keepOsSnprintf = reinterpret_cast<void*>(&os_snprintf);
+
+// Omniscript-visible name -> symbol actually emitted into the module.
+const char* shimFor(const std::string& name) {
+    if (name == "snprintf") return "os_snprintf";
+    return nullptr;
+}
+#else
+const char* shimFor(const std::string&) { return nullptr; }
+#endif
+} // namespace
+
 llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::string& name,
                                         llvm::FunctionType* funcType, LinkDependencies& deps) {
     
@@ -40,6 +68,15 @@ llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::stri
     std::string foundLibrary = "";
     bool symbolFound = false;
     
+    // Names the system CRTs don't export (see shimFor): emit the declaration under the shim's symbol.
+    if (const char* shim = shimFor(name)) {
+        llvm::Function* func = llvm::Function::Create(
+            funcType, llvm::Function::ExternalLinkage, shim, generator.getCurrentModule()
+        );
+        applyPlatformSpecificAttributes(func, name);
+        return func;
+    }
+
     // Check each library for the symbol
     for (const auto& [libPath, linkName] : librariesToCheck) {
         if (symbolExistsInLibrary(libPath, name)) {

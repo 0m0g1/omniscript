@@ -700,9 +700,8 @@ llvm::Function* IRGenerator::createExternFunction(
     
     if (configs.mode == CompileMode::JIT) {
         if (genericDynamic.empty() && genericStatic.empty()) {
-            // Linkage-only extern (`extern "C" fn fflush(...)`) — resolve from the
-            // process image. msvcrt.dll is already loaded; CStdLibResolver looks up
-            // symbols via llvm::sys::DynamicLibrary::SearchForAddressOfSymbol.
+            // Linkage-only extern (`extern "C" fn snprintf(...)` without a library).
+            // Use CStdLibResolver, which searches the process image (msvcrt.dll is always loaded).
             auto resolver = tryAddResolver("<process>", [&]() {
                 return std::make_unique<CStdLibResolver>();
             });

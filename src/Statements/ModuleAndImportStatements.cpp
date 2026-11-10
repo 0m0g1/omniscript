@@ -16,20 +16,17 @@
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>
 #include <omniscript/omniscript_pch.h>
-#include <omniscript/Statements/Statement.h>
 #include <omniscript/Symboltable.h>
 
 #include <omniscript/Expressions/AggregateExpressions.h>
 #include <omniscript/Expressions/BlockExpression.h>
+#include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/extern/ExternResolver.h>
 #include <omniscript/Modules/ModuleResolver.h>
 
 namespace Omniscript {
 
 namespace {
-// Finds the file for an include/import path. Tried in order: as given (working directory), next to the
-// importing file, then the standard library ("std/x.os" -> "standard/1/x.os"). Returns the path unchanged
-// if nothing matches so the caller can report the failure.
 std::string resolveSourcePath(const std::string& path, const std::string& importerFile) {
     namespace fs = std::filesystem;
     std::error_code ec;
@@ -48,7 +45,6 @@ std::string resolveSourcePath(const std::string& path, const std::string& import
     return path;
 }
 
-// readFile throws on a missing file; turn that into a failure the caller reports through the console.
 bool tryReadSource(const std::string& path, std::string& out) {
     try {
         out = readFile(path);
@@ -60,12 +56,41 @@ bool tryReadSource(const std::string& path, std::string& out) {
 }
 } // namespace
 
+// ============================================================================
+// renameTypeInPlace: recursively renames a UserDefinedType inside a compound
+// type (pointer, reference, nullable). Mutates in place via the shared_ptr.
+// Used by reinterprateStatement to rewrite struct method signature types
+// (e.g. `out: Buffer*` -> `out: Mem.Buffer*`) so cross-references keep
+// resolving after the struct itself is renamed.
+// ============================================================================
+namespace {
+void renameTypeInPlace(std::shared_ptr<Type> type, const std::string& oldName, const std::string& newName) {
+    if (!type) return;
+
+    if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
+        if (udt->name == oldName) udt->name = newName;
+        return;
+    }
+    if (type->isPointer()) {
+        renameTypeInPlace(type->getPointeeType(), oldName, newName);
+        return;
+    }
+    if (type->isReference()) {
+        renameTypeInPlace(type->getReferencedType(), oldName, newName);
+        return;
+    }
+    if (type->isNullable()) {
+        if (auto nullable = std::dynamic_pointer_cast<NullableType>(type)) {
+            renameTypeInPlace(nullable->innerType, oldName, newName);
+        }
+        return;
+    }
+}
+} // namespace
+
 std::shared_ptr<Expression> IncludeStatement::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
 
-    // A top-level include used to be a no-op here (only CreateModule::express called
-    // getStatements()), so nothing from the included file was ever declared.
-    // Load the file and express its statements in the including scope.
     std::vector<std::shared_ptr<Expression>> expressions;
     for (const auto& stmt : getStatements()) {
         if (!stmt) continue;
@@ -81,14 +106,12 @@ std::shared_ptr<Expression> IncludeStatement::express(SymbolTableType scope) {
 
 std::vector<std::shared_ptr<Statement>> IncludeStatement::getStatements() {
     if (path.empty()) {
-        std::string suggestion = "To resolve this:\n"
-                               "1. Ensure the include directive specifies a valid file path\n"
-                               "2. Check for correct file path syntax\n"
-                               "3. Verify the file exists in the include directory";
         console.reportError(
             Console::RUNTIME_ERROR,
             "Include path is empty",
-            suggestion,
+            "To resolve this:\n1. Ensure the include directive specifies a valid file path\n"
+            "2. Check for correct file path syntax\n"
+            "3. Verify the file exists in the include directory",
             getSpan()
         );
         return {};
@@ -98,17 +121,15 @@ std::vector<std::shared_ptr<Statement>> IncludeStatement::getStatements() {
     std::string sourceCode;
     const bool readOk = tryReadSource(resolvedPath, sourceCode);
     if (!readOk || sourceCode.empty()) {
-        std::string suggestion = Console::formatString(
-            "To resolve this:\n"
-            "1. Verify the file '%s' exists\n"
-            "2. Check file permissions\n"
-            "3. Ensure correct file path is provided",
-            path.c_str()
-        );
         console.reportError(
             Console::RUNTIME_ERROR,
             Console::formatString("Failed to read file: '%s'", path.c_str()),
-            suggestion,
+            Console::formatString(
+                "To resolve this:\n"
+                "1. Verify the file '%s' exists\n"
+                "2. Check file permissions\n"
+                "3. Ensure correct file path is provided",
+                path.c_str()),
             getSpan()
         );
         return {};
@@ -130,9 +151,6 @@ std::vector<std::shared_ptr<Statement>> IncludeStatement::getStatements() {
         }
     }
 
-    // `extern "header.h", "lib.dll" { }` blocks are normally expanded after parsing the main
-    // script; statements pulled in through an include never went through that step, so expand
-    // them here (expand() skips blocks that were already resolved, so this is safe to repeat).
     {
         const std::string sourceDir = std::filesystem::path(resolvedPath).parent_path().string();
         extern_support::ExternResolver resolver(extern_support::ResolverConfig{}, sourceDir);
@@ -152,7 +170,7 @@ std::shared_ptr<Expression> CreateModule::express(SymbolTableType scope) {
 
     auto moduleScope = scope;
 
-    // First process all includes (flatten the hierarchy)
+    // Flatten includes so their declarations become direct members of this module.
     std::vector<std::shared_ptr<Statement>> flattenedStatements;
     for (const auto& stmt : statements) {
         if (auto include = std::dynamic_pointer_cast<IncludeStatement>(stmt)) {
@@ -164,97 +182,155 @@ std::shared_ptr<Expression> CreateModule::express(SymbolTableType scope) {
         }
     }
 
-    // 1. Handle nested modules and prepare parameters
-    std::vector<std::shared_ptr<FunctionDeclaration>> funcs = {};
-    std::vector<MemberModifiers> funcsModifiers = {};
-
-   for (const auto& stmt : flattenedStatements) {
-}
+    // ------------------------------------------------------------------------
+    // PASS 1: register every function declaration in moduleScope so that
+    // sibling functions and struct methods can find them by bare name.
+    //
+    // Each FunctionDeclaration is registered under BOTH:
+    //   - bare name   ("malloc", "panic")  for intra-module calls
+    //   - qualified   ("Mem.malloc")       for external access
+    // Externs keep their bare name (no rename) so they keep C linkage.
+    // ------------------------------------------------------------------------
+    std::vector<std::shared_ptr<FunctionDeclaration>> funcs;
+    std::vector<MemberModifiers> funcsModifiers;
 
     for (const auto& stmt : flattenedStatements) {
-        DEBUG_LOG(stmt->toString());
-        
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
-        
-        auto val = member->getValue();
-        
-        DEBUG_LOG("Handling module member '" + member->toString() + "'."); 
 
-        // Nested module handling
+        extendContextOf(member->getValue());
+
+        if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
+            DEBUG_LOG(func->toString());
+
+            std::string bareName = func->getName();
+            auto funcExpr = reinterprateStatement(func);
+            if (!funcExpr) {
+                console.reportError(
+                    Console::RUNTIME_ERROR,
+                    Console::formatString("Failed to reinterpret function '%s' in module '%s'",
+                                          bareName.c_str(), modulePath.c_str()),
+                    "To resolve this:\n1. Check function syntax\n2. Verify its declarations",
+                    member->getSpan());
+                return nullptr;
+            }
+            std::string qualifiedName = func->getName();
+
+            // Register under the qualified name (external access).
+            const size_t overloadsBefore = moduleScope->getOverloads(qualifiedName).size();
+            func->registerInScope(moduleScope);
+
+            // Also expose the SAME FunctionExpression under the bare name for intra-module calls.
+            // (Calling registerInScope a second time is a no-op: it returns early once
+            // isRegistered is set, so the bare name was never registered. And re-registering would
+            // create a second overload with a different mangled name that never gets a body.)
+            // Sharing one expression means the body compiled in pass 3 serves both names.
+            if (!qualifiedName.empty() && qualifiedName != bareName) {
+                auto registered = moduleScope->getOverloads(qualifiedName);
+                if (registered.size() > overloadsBefore) {
+                    moduleScope->addOverloadable(bareName, registered.back(), true);
+                }
+            }
+
+            funcs.push_back(func);
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // PASS 2: express non-function members (structs, classes, constants,
+    // nested modules). Function declarations were already registered in pass 1
+    // so struct methods can resolve references to sibling functions.
+    // ------------------------------------------------------------------------
+    for (const auto& stmt : flattenedStatements) {
+        DEBUG_LOG(stmt->toString());
+
+        auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
+        if (!member) continue;
+
+        auto val = member->getValue();
+
+        DEBUG_LOG("Handling module member '" + member->toString() + "'.");
+
         if (auto nestedModule = std::dynamic_pointer_cast<ImportModule>(val)) {
             auto nestedExpr = nestedModule->express(moduleScope);
             if (auto block = std::dynamic_pointer_cast<BlockExpression>(nestedExpr)) {
                 for (auto& e : block->values) {
                     expressions.push_back(e);
                 }
-            } else {
+            } else if (nestedExpr) {
                 expressions.push_back(nestedExpr);
             }
-        } else if (auto func = std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue())) {
+            continue;
+        }
+
+        if (std::dynamic_pointer_cast<FunctionDeclaration>(val)) {
             funcsModifiers.push_back(member->getModifiers());
-        } else {
-            // Direct value member parameter
-            auto memberExprValue = reinterprateStatement(member->getValue())->express(moduleScope);
-            if (!memberExprValue) {
-                std::string suggestion = Console::formatString(
+            continue;
+        }
+
+        auto interpreted = reinterprateStatement(member->getValue());
+        if (!interpreted) {
+            console.reportError(
+                Console::RUNTIME_ERROR,
+                Console::formatString("Failed to reinterpret member '%s' in module '%s'",
+                                      member->getName().c_str(), modulePath.c_str()),
+                "To resolve this:\n1. Check member syntax\n2. Verify its declarations",
+                member->getSpan());
+            return nullptr;
+        }
+
+        auto memberExprValue = interpreted->express(moduleScope);
+        if (!memberExprValue) {
+            console.reportError(
+                Console::RUNTIME_ERROR,
+                Console::formatString("Failed to evaluate module member '%s' in module '%s'",
+                                      member->getName().c_str(), modulePath.c_str()),
+                Console::formatString(
                     "To resolve this:\n"
                     "1. Verify member '%s' in module '%s' is correctly defined\n"
                     "2. Check member expression validity\n"
                     "3. Add debug output for member evaluation",
-                    member->getName().c_str(), modulePath.c_str()
-                );
-                console.reportError(
-                    Console::RUNTIME_ERROR,
-                    Console::formatString("Failed to evaluate module member '%s' in module '%s'",
-                                     member->getName().c_str(), modulePath.c_str()),
-                    suggestion,
-                    member->getSpan()
-                );
-                return nullptr;
-            }
-            expressions.push_back(memberExprValue);
+                    member->getName().c_str(), modulePath.c_str()),
+                member->getSpan());
+            return nullptr;
         }
+        expressions.push_back(memberExprValue);
 
-        if (!std::dynamic_pointer_cast<FunctionDeclaration>(member->getValue()) && !expressions.empty()) {
-            DEBUG_LOG("Appending module member '" + member->getName() + "'.");
-            auto memberExpr = std::make_shared<ModuleMemberExpression>(
-                member->getName(),
-                expressions.back(),
-                member->getModifiers()
-            );
-            members.push_back(memberExpr);
-        }
+        auto memberExpr = std::make_shared<ModuleMemberExpression>(
+            member->getName(),
+            memberExprValue,
+            member->getModifiers()
+        );
+        members.push_back(memberExpr);
     }
 
-    for (int i = 0; i < funcs.size(); i++) {
+    // ------------------------------------------------------------------------
+    // PASS 3: express function bodies now that every declaration exists.
+    // ------------------------------------------------------------------------
+    for (size_t i = 0; i < funcs.size(); i++) {
         const auto& func = funcs[i];
         auto result = func->express(moduleScope);
         if (!result) {
-            std::string suggestion = Console::formatString(
-                "To resolve this:\n"
-                "1. Verify function '%s' in module '%s' is correctly defined\n"
-                "2. Check function body and parameters\n"
-                "3. Add debug output for function compilation",
-                func->getName().c_str(), modulePath.c_str()
-            );
             console.reportError(
                 Console::RUNTIME_ERROR,
                 Console::formatString("Failed to compile function '%s' in module '%s'",
-                                 func->getName().c_str(), modulePath.c_str()),
-                suggestion,
-                func->getSpan()
-            );
+                                      func->getName().c_str(), modulePath.c_str()),
+                Console::formatString(
+                    "To resolve this:\n"
+                    "1. Verify function '%s' in module '%s' is correctly defined\n"
+                    "2. Check function body and parameters\n"
+                    "3. Add debug output for function compilation",
+                    func->getName().c_str(), modulePath.c_str()),
+                func->getSpan());
             return nullptr;
         }
         expressions.push_back(result);
 
         auto memberExpr = std::make_shared<ModuleMemberExpression>(
-            expressions.back()->getName(),
-            expressions.back(),
+            result->getName(),
+            result,
             funcsModifiers[i]
         );
-        
         members.push_back(memberExpr);
     }
 
@@ -279,7 +355,7 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
 
     const std::string moduleName = getName();
 
-    // If a member's name already equals the module name (e.g., `module String { struct String {...} }`),
+    // If a member's name already equals the module name (e.g. `module String { struct String {...} }`),
     // don't double it. Otherwise `String` becomes `String.String`, which breaks method lookup on `this`.
     auto makeName = [&](const std::string& oldName) -> std::string {
         if (oldName == moduleName) return context + oldName;
@@ -298,8 +374,6 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
         // Extern functions keep their raw C linkage name (malloc, free, ...).
         if (!function->isExtern) {
             std::string oldName = function->getName();
-            // A free function inside a module is just `name`; a method is `Struct.method`.
-            // If it's a method whose struct name equals the module name, don't prefix with the module.
             auto dotPos = oldName.find('.');
             std::string structPrefix = (dotPos == std::string::npos) ? "" : oldName.substr(0, dotPos);
             if (!structPrefix.empty() && structPrefix == moduleName) {
@@ -316,7 +390,9 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
         std::string newName = makeName(oldName);
         structDeclr->setName(newName);
 
-        // Rename methods: `String.clear` → `<newName>.clear`.
+        // Rename methods + their signature types:
+        //   `Buffer.clear` -> `<newName>.clear`
+        //   `out: Buffer*` -> `out: <newName>*`
         for (auto& member : structDeclr->getBody()) {
             if (auto method = std::dynamic_pointer_cast<FunctionDeclaration>(member)) {
                 std::string mName = method->getName();
@@ -324,6 +400,16 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
                     std::string suffix = mName.substr(oldName.length() + 1);
                     method->setName(newName + "." + suffix);
                 }
+
+                // NEW: rename self-referencing types in method signatures.
+                for (auto& param : method->parameters) {
+                    if (auto stmt = std::dynamic_pointer_cast<ParameterStatement>(param)) {
+                        renameTypeInPlace(stmt->getType(), oldName, newName);
+                    } else if (auto expr = std::dynamic_pointer_cast<FunctionInputExpression>(param)) {
+                        renameTypeInPlace(expr->getType(), oldName, newName);
+                    }
+                }
+                renameTypeInPlace(method->returnType, oldName, newName);
             }
         }
         return structDeclr;
@@ -345,22 +431,30 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
                 std::string suffix = mName.substr(oldName.length() + 1);
                 method->setName(newName + "." + suffix);
             }
+
+            // NEW: rename self-referencing types in method signatures.
+            for (auto& param : method->parameters) {
+                if (auto stmt = std::dynamic_pointer_cast<ParameterStatement>(param)) {
+                    renameTypeInPlace(stmt->getType(), oldName, newName);
+                } else if (auto expr = std::dynamic_pointer_cast<FunctionInputExpression>(param)) {
+                    renameTypeInPlace(expr->getType(), oldName, newName);
+                }
+            }
+            renameTypeInPlace(method->returnType, oldName, newName);
         }
         return classDeclr;
     }
 
-    std::string suggestion = Console::formatString(
-        "To resolve this:\n"
-        "1. Ensure statement '%s' is a valid module member\n"
-        "2. Check for supported statement types (assignment, function, struct, class)\n"
-        "3. Verify statement syntax",
-        statement->toString().c_str()
-    );
     console.reportError(
         Console::RUNTIME_ERROR,
         Console::formatString("Invalid statement type for reinterpretation: '%s'",
-                         statement->toString().c_str()),
-        suggestion,
+                              statement->toString().c_str()),
+        Console::formatString(
+            "To resolve this:\n"
+            "1. Ensure statement '%s' is a valid module member\n"
+            "2. Check for supported statement types (assignment, function, struct, class)\n"
+            "3. Verify statement syntax",
+            statement->toString().c_str()),
         statement->getSpan()
     );
     return nullptr;
@@ -381,15 +475,12 @@ bool equalsIgnoreCase(const std::string& a, const std::string& b) {
     return true;
 }
 
-// Releases the resolver's "currently loading" mark (cycle detection) on every exit path.
 struct LoadGuard {
     ModuleResolver& resolver;
     ModuleId id;
     ~LoadGuard() { resolver.endLoad(id); }
 };
 
-// Flattens includes/blocks and keeps only named declarations. Returns false (and the offending
-// statement's text in `bad`) when a top-level statement can't be a module member.
 bool collectDeclarations(const std::vector<std::shared_ptr<Statement>>& stmts,
                          std::vector<std::shared_ptr<Statement>>& out, std::string& bad) {
     for (const auto& stmt : stmts) {
@@ -408,11 +499,10 @@ bool collectDeclarations(const std::vector<std::shared_ptr<Statement>>& stmts,
     return true;
 }
 
-// What a module looked like when it was first expressed into a scope (for import deduplication).
 struct LoadedModuleInfo {
-    std::string name;    // constant name of the ModuleExpression in the scope
-    std::string prefix;  // "Mod." - members are registered in the scope as "Mod.member"
-    bool flattened;      // loaded by `import * from` as unprefixed declarations (no namespace)
+    std::string name;
+    std::string prefix;
+    bool flattened;
 };
 
 std::unordered_map<std::string, LoadedModuleInfo>& loadedModules() {
@@ -420,8 +510,6 @@ std::unordered_map<std::string, LoadedModuleInfo>& loadedModules() {
     return loaded;
 }
 
-// Re-registers the module member "<prefix><original>" in `scope` under `alias`
-// (values, constants, overload sets and types).
 bool bindMember(SymbolTableType scope, const std::string& prefix,
                 const std::string& original, const std::string& alias) {
     const std::string qualified = prefix + original;
@@ -444,7 +532,6 @@ bool bindMember(SymbolTableType scope, const std::string& prefix,
     return bound;
 }
 
-// Applies `import { a, b as c } from M;` and `import * from M;` after M is expressed.
 bool bindImportedNames(SymbolTableType scope, const ImportModule& imp, const std::string& moduleName,
                        const std::string& prefix, const FileSpan& span) {
     auto moduleExpr = std::dynamic_pointer_cast<ModuleExpression>(scope->get(moduleName));
@@ -498,7 +585,7 @@ bool bindImportedNames(SymbolTableType scope, const ImportModule& imp, const std
         for (const auto& m : moduleExpr->members) {
             if (!m || m->isPrivate()) continue;
             const std::string original = stripPrefix(m->getName());
-            bindMember(scope, prefix, original, original); // members that can't be re-bound are skipped
+            bindMember(scope, prefix, original, original);
         }
     }
     return true;
@@ -509,23 +596,18 @@ bool bindImportedNames(SymbolTableType scope, const ImportModule& imp, const std
 std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (path.empty()) {
-        std::string suggestion = "To resolve this:\n"
-                               "1. Ensure the import directive specifies a valid module path\n"
-                               "2. Check for correct module path syntax\n"
-                               "3. Verify the module file exists";
         console.reportError(
             Console::RUNTIME_ERROR,
             "Module path is empty",
-            suggestion,
+            "To resolve this:\n1. Ensure the import directive specifies a valid module path\n"
+            "2. Check for correct module path syntax\n"
+            "3. Verify the module file exists",
             getSpan()
         );
         return nullptr;
     }
 
-    // 1. Resolve the name to a concrete module (explicit path -> std -> own package -> dependencies).
-    // A path that contains a directory separator or ends in `.os` is always a file path,
-    // regardless of what `isPathImport` was set to (some construction sites — the parser's
-    // `module X = import "..."` alias branch in particular — never set it).
+    // A path with a directory separator or a `.os` suffix is always a file path.
     const bool pathLooksLikeFile =
         path.find('/') != std::string::npos ||
         path.find('\\') != std::string::npos ||
@@ -564,7 +646,6 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
         return nullptr;
     }
 
-    // 2. Cycle detection by canonical module id.
     if (!resolver.beginLoad(resolved.id)) {
         console.reportError(
             Console::RUNTIME_ERROR,
@@ -576,8 +657,6 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
     }
     LoadGuard guard{resolver, resolved.id};
 
-    // 2b. Deduplicate: a module already expressed into this very scope is not expressed again;
-    //     the import only (re)binds names. Registry: SymbolTable::defineModule(<registryKey>, scope).
     const std::string registryKey = resolved.id.registryKey();
     {
         auto cached = loadedModules().find(registryKey);
@@ -604,13 +683,10 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
         }
     }
 
-    // 3. Parse.
     Lexer lexer(resolved.sourceText, resolved.displayPath);
     Parser parser(lexer);
     std::vector<std::shared_ptr<Statement>> statements = parser.parse();
 
-    // 4. Find the module in the file. A file either wraps its declarations in `module X { }`
-    //    or is itself the module (top-level declarations, no wrapper).
     const std::string wanted = lastComponent(moduleName);
     std::vector<std::shared_ptr<CreateModule>> declared;
     for (const auto& stmt : statements) {
@@ -622,8 +698,6 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
     for (const auto& cm : declared) {
         if (moduleName.empty() || equalsIgnoreCase(cm->getName(), wanted)) { createModule = cm; break; }
     }
-    // A logical name maps to exactly one file, so a file with a single module is that module
-    // even when the casing/name differs (std.console -> `module Console`).
     if (!createModule && declared.size() == 1) createModule = declared.front();
 
     if (!createModule && !declared.empty()) {
@@ -638,26 +712,16 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
     }
 
     if (!createModule) {
-        // Unwrapped file: the file itself is the module.
         {
             const std::string sourceDir = std::filesystem::path(resolved.displayPath).parent_path().string();
             extern_support::ExternResolver externs(extern_support::ResolverConfig{}, sourceDir);
-            externs.expand(statements); // `extern "x.h", "lib.dll" { }` blocks -> declarations
+            externs.expand(statements);
         }
 
-        // NEW: Evaluate `import ...` statements in a module file BEFORE collecting
-        // declarations. `import * from X` inside a file brings X's names into the
-        // file's scope; the import itself is not a declaration and must be dropped
-        // from the statement list so `collectDeclarations` doesn't reject it.
-        //
-        // This makes both of these work identically:
-        //   Core.os with `import * from "c/console.os";` at top  → OK
-        //   Core.os with `include "c/console.os";` at top        → OK (already worked)
         std::vector<std::shared_ptr<Statement>> remainingStatements;
         for (auto& stmt : statements) {
             if (!stmt) continue;
             if (auto imp = std::dynamic_pointer_cast<ImportModule>(stmt)) {
-                // Express the import so its names land in `scope`, then drop it.
                 imp->express(scope);
                 continue;
             }
@@ -679,7 +743,6 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
             return nullptr;
         }
 
-        // `import * from std.vulkan;` -> declarations land in the importing scope, unprefixed.
         if (importAll) {
             std::vector<std::shared_ptr<Expression>> expressions;
             for (const auto& decl : declarations) {
@@ -705,25 +768,21 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
         createModule->setSpan(this->getSpan());
     }
 
-    // `import x.y as z` / `module Z = import ...` names the module in the importing scope.
-    // Must happen before extendContextOf(), which records the module's name.
     if (!alias.empty()) createModule->setName(alias);
     extendContextOf(createModule);
     createModule->setPath(resolved.displayPath);
 
     auto mod = createModule->express(scope);
     if (!mod) {
-        std::string suggestion = Console::formatString(
-            "To resolve this:\n"
-            "1. Verify module '%s' contains valid expressions\n"
-            "2. Check module body for errors\n"
-            "3. Add debug output for module evaluation",
-            createModule->getName().c_str()
-        );
         console.reportError(
             Console::RUNTIME_ERROR,
             Console::formatString("Invalid module '%s': not a ModuleExpression", createModule->getName().c_str()),
-            suggestion,
+            Console::formatString(
+                "To resolve this:\n"
+                "1. Verify module '%s' contains valid expressions\n"
+                "2. Check module body for errors\n"
+                "3. Add debug output for module evaluation",
+                createModule->getName().c_str()),
             createModule->getSpan()
         );
         return nullptr;
@@ -741,7 +800,6 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
     return mod;
 }
 
-// Helper function to split module path into components (e.g., Math.Algebra.Matrix -> {"Math", "Algebra", "Matrix"})
 std::vector<std::string> ImportModule::splitModulePath(const std::string& path) {
     std::vector<std::string> components;
     size_t start = 0;
@@ -753,11 +811,10 @@ std::vector<std::string> ImportModule::splitModulePath(const std::string& path) 
         end = path.find('.', start);
     }
 
-    components.push_back(path.substr(start)); // Add the last component
+    components.push_back(path.substr(start));
     return components;
 }
 
-// Recursive function to resolve the module path
 std::shared_ptr<SymbolTableType> ImportModule::resolveModulePath(SymbolTableType scope, const std::vector<std::string>& modulePathComponents) {
     return nullptr;
 }
@@ -769,18 +826,15 @@ std::shared_ptr<Expression> ModuleMember::express(SymbolTableType scope) {
     }
     auto val = value->express(scope);
     if (!val) {
-        std::string suggestion = Console::formatString(
-            "To resolve this:\n"
-            "1. Verify member '%s' expression is valid\n"
-            "2. Check member type and initialization\n"
-            "3. Add debug output for member evaluation",
-            getName().c_str()
-        );
         console.reportError(
             Console::RUNTIME_ERROR,
-            Console::formatString("Failed to evaluate module member '%s'",
-                             getName().c_str()),
-            suggestion,
+            Console::formatString("Failed to evaluate module member '%s'", getName().c_str()),
+            Console::formatString(
+                "To resolve this:\n"
+                "1. Verify member '%s' expression is valid\n"
+                "2. Check member type and initialization\n"
+                "3. Add debug output for member evaluation",
+                getName().c_str()),
             getSpan()
         );
         return nullptr;

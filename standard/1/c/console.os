@@ -1,11 +1,13 @@
 // standard/1/c/console.os
 // Tier 0: raw C console/stdio-stream bindings.
-// PLATFORM: MSVC/MinGW — stdout, stderr, stdin are data symbols in msvcrt.dll,
-//           declared here as extern let so the linker resolves them directly.
+// stdout / stderr / stdin are macros for __acrt_iob_func(N) on modern Windows.
+// The wrapper functions below make them callable from Omniscript.
 
-extern "C" let stdout: void*;
-extern "C" let stderr: void*;
-extern "C" let stdin: void*;
+extern "C" fn __acrt_iob_func(index: uint) => void*;
+
+function stdin()  => void* { return __acrt_iob_func(0); }
+function stdout() => void* { return __acrt_iob_func(1); }
+function stderr() => void* { return __acrt_iob_func(2); }
 
 extern "C" fn printf(fmt: char*, ...) => int;
 extern "C" fn fprintf(f: void*, fmt: char*, ...) => int;

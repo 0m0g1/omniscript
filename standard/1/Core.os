@@ -22,7 +22,13 @@ function assert(cond: bool, msg: char*) => void {
     }
 }
 
-function unreachable() => void { panic("unreachable code reached"); }
+// Inlined (does not call panic) as a workaround for the 'panic' lookup failure.
+function unreachable() => void {
+    fflush(stdout);
+    fputs("panic: unreachable code reached\n", stderr);
+    fflush(stderr);
+    exit(1);
+}
 
 // ---- integers ----
 function minI64(a: i64, b: i64) => i64 { if (a < b) return a; return b; }
