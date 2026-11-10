@@ -45,7 +45,7 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
     span.start.line = startToken.getLine();
     span.start.col = startToken.getColumn();
     span.start.filePath = startToken.getFilePath();
-
+    
     eat(TokenTypes::Extern, [&]() {
         std::string suggestion = Console::formatString(
             "To resolve this:\n"
@@ -62,9 +62,10 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
             span
         );
     });
-
+    
     LibraryPaths libraryPaths;
     std::vector<std::string> paths;
+    bool sawLinkage = false;
 
     // Parse first path
     if (currentToken.getType() != TokenTypes::StringLiteral) {
@@ -113,6 +114,11 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
 
     // Classify and assign paths
     auto classifyPath = [](const std::string& path) -> std::pair<std::string, std::string> {
+        // Language-linkage specifiers — not library paths.
+        if (path == "C" || path == "C++" || path == "c" || path == "c++") {
+            return {"linkage", "linkage"};
+        }
+
         std::string lowerPath = path;
         std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), ::tolower);
 
@@ -148,8 +154,14 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
 
     // Assigns library strings (dll/so/dylib/a/lib) to the matching LibraryPaths slots.
     auto assignLibraryPaths = [&](const std::vector<std::string>& libs, LibraryPaths& out) {
+    
     for (const auto& path : libs) {
         auto [platform, libType] = classifyPath(path);
+
+        if (platform == "linkage") {
+            sawLinkage = true;
+            continue;  // C/C++ linkage specifier, not a library path
+        }
 
         if (libType == "extensionless") {
             if (out.genericDynamic.empty()) {
@@ -223,7 +235,8 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
 
     assignLibraryPaths(paths, libraryPaths);
 
-    if (libraryPaths.genericDynamic.empty() && libraryPaths.genericStatic.empty() &&
+    if (!sawLinkage &&
+        libraryPaths.genericDynamic.empty() && libraryPaths.genericStatic.empty() &&
         libraryPaths.windowsDynamic.empty() && libraryPaths.windowsStatic.empty() &&
         libraryPaths.linuxShared.empty() && libraryPaths.linuxStatic.empty() &&
         libraryPaths.macosShared.empty() && libraryPaths.macosStatic.empty()) {

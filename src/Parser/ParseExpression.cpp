@@ -120,7 +120,7 @@ std::shared_ptr<Statement> Parser::comparisonExpression() {
 
 // Multiplicative, bitwise, and shift operators (highest precedence binary)
 std::shared_ptr<Statement> Parser::term() {
-    std::shared_ptr<Statement> left = parseUnaryExpression();
+    std::shared_ptr<Statement> left = parseAs();
 
     while (currentToken.getType() == TokenTypes::Multiply || currentToken.getType() == TokenTypes::Divide ||
            currentToken.getType() == TokenTypes::Modulo || currentToken.getType() == TokenTypes::BitwiseAnd ||
@@ -148,7 +148,7 @@ std::shared_ptr<Statement> Parser::term() {
             eat(TokenTypes::ShiftRight);
         } 
 
-        std::shared_ptr<Statement> right = parseUnaryExpression(); // Fixed: call same level
+        std::shared_ptr<Statement> right = parseAs(); // Fixed: call same level
         left = std::make_shared<ASTBinaryExpression>(left, opToken, right);
     }
 
@@ -214,7 +214,15 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
         expr = std::make_shared<ASTUnaryExpression>(op, expr, ASTUnaryExpression::Position::Postfix);
     }
 
-    if (currentToken.getType() == TokenTypes::As) {
+    return expr;
+}
+
+// Handles `expr as T` — binds looser than unary operators (`&x as T` = `(&x) as T`)
+// but tighter than binary (`a + b as T` = `a + (b as T)`). Rust/Swift/C++ all agree.
+std::shared_ptr<Statement> Parser::parseAs() {
+    std::shared_ptr<Statement> expr = parseUnaryExpression();
+
+    while (currentToken.getType() == TokenTypes::As) {
         eat(TokenTypes::As);
         std::vector<std::string> typeToCastTo = parseType();
         std::shared_ptr<Type> type = resolveType(typeToCastTo);

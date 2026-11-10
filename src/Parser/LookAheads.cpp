@@ -21,42 +21,67 @@ namespace Omniscript {
 bool Parser::checkIfLambdaExpression() {
     int i = 0;
 
-    // Check if the expression starts with 'identifier' (optional) or '('
-    auto prevTokenNow = currentToken;
-    if (currentToken.getType() == TokenTypes::Identifier) {
-        i++; // Consume the lambda name
-    }
-
-    // Check for parameter list: '(' ... ')'
-    if (lexer.peekToken(i).getType() != TokenTypes::LeftParen) {
-        return false;
-    }
-    i++;
-    i = parseParameterListLookahead(i);
-    if (i == -1) {
-        return false;
-    }
-
-    // Check for lambda arrow '=>'
-    if (lexer.peekToken(i).getType() != TokenTypes::Arrow) {
-        return false;
+    // Optional name (for `fn foo(...)` form, currentToken is 'fn')
+    if (currentToken.getType() == TokenTypes::Function) {
+        i++;
+        if (lexer.peekToken(i).getType() != TokenTypes::Identifier) return false;
+        i++;
+    } else if (currentToken.getType() == TokenTypes::Identifier) {
+        i++;
     } else {
-        i += 2; // Consume '=>' or '-->' or '->'
-    }
-
-    // Check for optional return type
-    i = parseOptionalReturnTypeLookahead(i);
-    if (i == -1) {
         return false;
     }
 
-    // Check for body enclosed in braces '{ ... }'
-    if (lexer.peekToken(i).getType() != TokenTypes::LeftBrace) {
+    // Must have '('
+    if (lexer.peekToken(i).getType() != TokenTypes::LeftParen) return false;
+
+    // Find matching ')' — this walks through any nested parens (e.g. `fn(int) => int` as a param type)
+    int parenDepth = 1;
+    i++;
+    while (parenDepth > 0 && lexer.peekToken(i).getType() != TokenTypes::EOI) {
+        TokenTypes t = lexer.peekToken(i).getType();
+        if (t == TokenTypes::LeftParen)  parenDepth++;
+        if (t == TokenTypes::RightParen) parenDepth--;
+        i++;
+    }
+    if (parenDepth != 0) return false;
+
+    // Must have '=>' — handle both single-token Arrow and two-token Assign + GreaterThan
+    if (lexer.peekToken(i).getType() == TokenTypes::Arrow) {
+        i++;
+    } else if (lexer.peekToken(i).getType() == TokenTypes::Assign &&
+               lexer.peekToken(i + 1).getType() == TokenTypes::GreaterThan) {
+        i += 2;
+    } else {
         return false;
     }
 
-    // If we reach here, the token sequence matches a lambda expression
-    return true;
+    // After '=>', scan for '{'. Track nesting of () and [] so that return types like
+    // `fn(int) => void` or `[4]float` don't confuse the scan. If we hit ';' or '}' first,
+    // it's a declaration (extern) with no body → not a lambda.
+    int bracketDepth = 0;
+    int parenDepth2 = 0;
+    while (lexer.peekToken(i).getType() != TokenTypes::EOI) {
+        TokenTypes t = lexer.peekToken(i).getType();
+
+        if      (t == TokenTypes::LeftBracket)  bracketDepth++;
+        else if (t == TokenTypes::RightBracket) bracketDepth--;
+        else if (t == TokenTypes::LeftParen)    parenDepth2++;
+        else if (t == TokenTypes::RightParen)   parenDepth2--;
+        else if (t == TokenTypes::LeftBrace && bracketDepth == 0 && parenDepth2 == 0) {
+            return true;   // found body — it's a lambda
+        }
+        else if (t == TokenTypes::Semicolon && bracketDepth == 0 && parenDepth2 == 0) {
+            return false;  // no body — extern/declaration
+        }
+        else if (t == TokenTypes::RightBrace) {
+            return false;  // unexpected close
+        }
+
+        i++;
+    }
+
+    return false;
 }
 
 int Parser::parseParameterListLookahead(int startIndex) {

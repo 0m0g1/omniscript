@@ -465,6 +465,12 @@ llvm::Function* IRGenerator::createExternFunction(
         genericDynamic = func->genericDynamic;
     }
 
+        // Treat "C"/"C++" as C/C++ linkage from the process image, not as a library path.
+    if (genericDynamic == "C" || genericDynamic == "C++" || genericDynamic == "c" || genericDynamic == "c++") {
+        genericDynamic.clear();
+        genericStatic.clear();
+    }
+
     // A library that is not found as written (bare name, wrong folder) is looked up under ./dependencies.
     {
         const bool preferMingw = (targetOS == TargetOS::Windows);
@@ -693,28 +699,36 @@ llvm::Function* IRGenerator::createExternFunction(
     };
     
     if (configs.mode == CompileMode::JIT) {
-        // A bare library name is handed to the OS loader (via DynamicLibraryResolver), so the
-        // current-directory fileExists() check must not reject it. Anything with a path must exist.
-        if (!isBareLibraryName(genericDynamic) &&
-            !fileExists(genericDynamic) && (resolvers.find(genericDynamic) == resolvers.end()) && genericDynamic != "C") {
-            // Report each missing library once, not once per imported function.
+        if (genericDynamic.empty() && genericStatic.empty()) {
+            // Linkage-only extern (`extern "C" fn fflush(...)`) — resolve from the
+            // process image. msvcrt.dll is already loaded; CStdLibResolver looks up
+            // symbols via llvm::sys::DynamicLibrary::SearchForAddressOfSymbol.
+            auto resolver = tryAddResolver("<process>", [&]() {
+                return std::make_unique<CStdLibResolver>();
+            });
+            if (resolver) {
+                function = resolver->resolve(*this, externName, funcType, linkerDependencies);
+            }
+        } else if (!isBareLibraryName(genericDynamic) &&
+                   !fileExists(genericDynamic) &&
+                   (resolvers.find(genericDynamic) == resolvers.end()) &&
+                   genericDynamic != "C") {
+            // existing missing-library reporting
             static std::unordered_set<std::string> reportedMissingLibs;
             if (reportedMissingLibs.insert(genericDynamic).second) {
-                console.reportError(Console::LINK_ERROR, "Dynamic library '" + genericDynamic + "' was not found (first needed by function '" + name + "').\n" +
-                                "Try using the full library path.", FileSpan{});
+                console.reportError(Console::LINK_ERROR, "Dynamic library '" + genericDynamic +
+                                     "' was not found (first needed by function '" + name + "').",
+                                     FileSpan{});
             }
             return nullptr;
+        } else {
+            auto resolver = tryAddResolver(genericDynamic, [&]() {
+                return std::make_unique<DynamicLibraryResolver>(genericDynamic);
+            });
+            if (resolver) {
+                function = resolver->resolve(*this, externName, funcType, linkerDependencies);
+            }
         }
-
-        auto resolver = tryAddResolver(genericDynamic, [&]() {
-            return std::make_unique<DynamicLibraryResolver>(genericDynamic);
-        });
-
-        if (resolver) {
-            // For JIT mode, use dynamic library resolver without linker dependencies
-            function = resolver->resolve(*this, externName, funcType, linkerDependencies);
-        }
-        
     } else {
         // AOT mode - enhanced static/dynamic library handling with dynamic Windows API detection
         bool staticExists = !genericStatic.empty() && fileExists(genericStatic);

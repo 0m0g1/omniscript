@@ -290,7 +290,21 @@ std::vector<std::string> Parser::parseType() {
         return prevColumn != -1 && token.getColumn() > prevColumn + 1;
     };
 
+    std::vector<uint64_t> prefixArraySizes;
+    
+    while (currentToken.getType() == TokenTypes::LeftBracket) {
+        eat(TokenTypes::LeftBracket);
+        if (currentToken.getType() == TokenTypes::IntegerLiteral) {
+            prefixArraySizes.push_back(arraySizeFromToken(currentToken));
+            eat(TokenTypes::IntegerLiteral);
+        } else {
+            console.reportError(Console::SYNTAX_ERROR, "Expected integer inside array brackets", "", span);
+        }
+        eat(TokenTypes::RightBracket);
+    }
+
     if (currentToken.getType() == TokenTypes::Function) {
+
         dataTypes.push_back("fn");
         prevColumn = currentToken.getColumn();
         eat(TokenTypes::Function, [&]() {
@@ -753,6 +767,12 @@ std::vector<std::string> Parser::parseType() {
     span.end.line = previousToken.getLine();
     span.end.col = previousToken.getColumn();
     span.end.filePath = previousToken.getFilePath();
+
+    for (uint64_t size : prefixArraySizes) {
+        dataTypes.push_back("[");
+        dataTypes.push_back(std::to_string(size));
+        dataTypes.push_back("]");
+    }
 
     return dataTypes;
 }

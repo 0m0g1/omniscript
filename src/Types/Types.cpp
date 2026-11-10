@@ -121,6 +121,14 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
 
     std::string baseType = dataTypes[index++];
 
+    // NEW: Handle namespaced types (e.g., Str.String)
+    while (index < dataTypes.size() && dataTypes[index] == ".") {
+        index++; // skip "."
+        if (index < dataTypes.size()) {
+            baseType += "." + dataTypes[index++];
+        }
+    }
+
     // Parse array specifications
     std::vector<uint64_t> arrayStack;
     arrayStack.reserve(4); // Optimize for typical array nesting

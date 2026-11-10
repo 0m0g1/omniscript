@@ -264,13 +264,12 @@ void MemberAccess::validateAccessChain(SymbolTableType scope) {
     if (accessContext.empty()) return;
     
     std::string prefix = accessContext[0];
-    for (size_t i = 0; i < accessContext.size() - 1; ++i) {
+    for (size_t i = 0; i + 1 < accessContext.size(); ++i) {
         const std::string& baseName = accessContext[i];
         const std::string& memberName = accessContext[i + 1];
-        
+
         DEBUG_LOG("Validating access for '" + memberName + "' in '" + baseName + "'.");
         validateAccessiblity(baseName, memberName, scope);
-        prefix += "." + memberName;
     }
 }
 

@@ -109,6 +109,25 @@ llvm::Function* DynamicLibraryResolver::resolve(IRGenerator& generator, const st
 }
 
 std::string DynamicLibraryResolver::normalizePath(const std::string& path) {
+    // Linkage-only externs have no library path; don't append extensions to "".
+    if (path.empty() || path == "C" || path == "C++" ||
+        path == "c" || path == "c++") {
+        return "";
+    }
+    // Logical system libraries: extern "@libm" { ... } picks the right file per platform, so one
+    // std source file works everywhere. Returned as-is (bare names go through the system loader).
+    //   @libm : the C math library      @libc : the C runtime
+    if (!path.empty() && path[0] == '@') {
+        const std::string logical = path.substr(1);
+        PlatformInfo::Platform current = PlatformInfo::getCurrentPlatform();
+        if (logical == "libm" || logical == "libc") {
+            if (current == PlatformInfo::Windows) return "ucrtbase.dll";          // UCRT exports C99 math + CRT
+            if (current == PlatformInfo::MacOS)   return "libSystem.B.dylib";     // libm/libc live in libSystem
+            return logical == "libm" ? "libm.so.6" : "libc.so.6";                 // not "libm.so": that is a linker script on glibc
+        }
+        // Unknown logical name: fall through so the normal "library not found" error names it.
+    }
+
     // Convert relative paths to absolute, handle platform-specific extensions
     std::string normalized = path;
     

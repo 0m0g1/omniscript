@@ -75,6 +75,12 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             }
             break;
         }
+        case TokenTypes::Multiply:              // *ptr = value; or *foo()
+        case TokenTypes::BitwiseAnd:            // &foo; (rare but legal)
+        case TokenTypes::LogicalNot:            // !cond;
+        case TokenTypes::Tilde:                 // ~bits;
+        case TokenTypes::Minus:                 // -x;
+        case TokenTypes::Plus:                  // +x;
         case TokenTypes::Increment:
         case TokenTypes::Decrement:
         case TokenTypes::False:

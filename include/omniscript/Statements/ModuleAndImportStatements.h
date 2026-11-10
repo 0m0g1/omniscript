@@ -1,3 +1,4 @@
+// include/omniscript/Statements/ModuleAndImportStatements.h
 #pragma once
 #include <omniscript/Statements/Statement.h>
 #include <memory>
@@ -42,6 +43,7 @@ public:
     std::unordered_map<std::string, std::string> importedAliases;
     std::string path;
     bool importAll;
+    bool isPathImport = false; // true for import "./file.os" (explicit file), false for dotted logical names
 
     ImportModule(const std::string& modName, 
                  const std::string& aliasName, 
@@ -60,31 +62,27 @@ public:
     std::shared_ptr<SymbolTableType> resolveModulePath(SymbolTableType scope, const std::vector<std::string>& modulePathComponents);
 
     std::string toString() const override {
+        // Logical imports print unquoted/dotted; explicit file imports stay quoted.
+        std::string target = isPathImport ? "\"" + moduleName + "\"" : moduleName;
         std::string result = "import ";
         if (importAll) {
-            result += "* from \"" + moduleName + "\"";
+            result += "* from " + target;
         } else if (!importedAliases.empty()) {
             result += "{ ";
             bool first = true;
             for (const auto& pair : importedAliases) {
                 if (!first) result += ", ";
-                result += pair.first;
-                if (pair.first != pair.second) {
-                    result += " as " + pair.second;
-                }
+                // importedAliases maps alias -> original name
+                result += pair.second;
+                if (pair.first != pair.second) result += " as " + pair.first;
                 first = false;
             }
-            result += " } from \"" + moduleName + "\"";
+            result += " } from " + target;
         } else if (!alias.empty()) {
-            result += alias + " from \"" + moduleName + "\"";
+            result += alias + " from " + target;
         } else {
-            result += "\"" + moduleName + "\"";
+            result += target;
         }
-        
-        if (!path.empty() && path != moduleName) {
-            result += " // Path: " + path;
-        }
-        
         return result;
     }
 
@@ -118,6 +116,13 @@ public:
     
     std::string getName() const override { return name; }
     std::string getPath() const { return modulePath; }
+    // Prefix under which this module's members are registered in the scope ("Outer.Inner."),
+    // built exactly like reinterprateStatement() builds it. Valid after extendContextOf().
+    std::string qualifiedPrefix() const {
+        std::string context;
+        for (size_t i = 0; i + 1 < accessContext.size(); ++i) context += accessContext[i] + ".";
+        return context + name + ".";
+    }
     void setPath(const std::string& newPath) { modulePath = newPath; }
     std::vector<std::shared_ptr<Statement>> getStatements() { return statements; }
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }

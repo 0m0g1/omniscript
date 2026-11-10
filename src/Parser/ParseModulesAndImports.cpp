@@ -122,6 +122,30 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
     std::string moduleName;
     std::string alias;
     std::string path;
+    bool isPathImport = false; // true when the target was a string literal (explicit file path)
+
+    // Reads `ident ('.' ident)*` into `out`, e.g. std.net.http
+    auto parseDottedModuleName = [&](std::string& out, const FileSpan& errSpan) -> bool {
+        out = currentToken.getValue();
+        eat(TokenTypes::Identifier);
+        while (currentToken.getType() == TokenTypes::Dot) {
+            eat(TokenTypes::Dot);
+            if (currentToken.getType() != TokenTypes::Identifier) {
+                console.reportError(
+                    Console::SYNTAX_ERROR,
+                    Console::formatString("Expected identifier after '.' in module name, found '%s'",
+                        getTokenTypeName(currentToken.getType()).c_str()),
+                    "To resolve this:\n1. Write the module name as identifiers separated by '.', e.g. std.net.http\n2. Remove any trailing '.'",
+                    errSpan
+                );
+                return false;
+            }
+            out += ".";
+            out += currentToken.getValue();
+            eat(TokenTypes::Identifier);
+        }
+        return true;
+    };
 
     // Handle selective import: `import { console } from "std";`
     if (currentToken.getType() == TokenTypes::LeftBrace) {
@@ -235,11 +259,11 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
         });
 
         if (currentToken.getType() == TokenTypes::Identifier) {
-            moduleName = currentToken.getValue();
-            path = currentToken.getValue();
-            eat(TokenTypes::Identifier);
+            if (!parseDottedModuleName(moduleName, span)) return nullptr;
+            path = moduleName;
         } else if (currentToken.getType() == TokenTypes::StringLiteral) {
             path = currentToken.getValue();
+            isPathImport = true;
             eat(TokenTypes::StringLiteral);
         } else {
             console.reportError(
@@ -272,11 +296,11 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
             );
         });
         if (currentToken.getType() == TokenTypes::Identifier) {
-            moduleName = currentToken.getValue();
-            path = currentToken.getValue();
-            eat(TokenTypes::Identifier);
+            if (!parseDottedModuleName(moduleName, span)) return nullptr;
+            path = moduleName;
         } else if (currentToken.getType() == TokenTypes::StringLiteral) {
             path = currentToken.getValue();
+            isPathImport = true;
             eat(TokenTypes::StringLiteral);
         } else {
             console.reportError(
@@ -290,12 +314,24 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
         }
         importAll = true;
     }
-    // Handle full module import: `import "test.os";` or `import std;`
+    // Handle full module import: `import "test.os";`, `import std;` or `import std.net.http [as h];`
     else if (currentToken.getType() == TokenTypes::Identifier || currentToken.getType() == TokenTypes::StringLiteral) {
         if (currentToken.getType() == TokenTypes::Identifier) {
             moduleName = currentToken.getValue();
-            path = currentToken.getValue();
             eat(TokenTypes::Identifier);
+            
+            // NEW: Handle dotted names (e.g., std.console)
+            while (currentToken.getType() == TokenTypes::Dot) {
+                eat(TokenTypes::Dot);
+                if (currentToken.getType() != TokenTypes::Identifier) {
+                    console.reportError(Console::SYNTAX_ERROR, "Expected identifier after '.' in import", "", span);
+                    return nullptr;
+                }
+                moduleName += ".";
+                moduleName += currentToken.getValue();
+                eat(TokenTypes::Identifier);
+            }
+            path = moduleName;
         } else {
             path = currentToken.getValue();
             eat(TokenTypes::StringLiteral);
@@ -380,6 +416,7 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
     }
 
     auto importStmt = std::make_shared<ImportModule>(moduleName, alias, importedAliases, path, importAll);
+    importStmt->isPathImport = isPathImport;
     importStmt->setSpan(span);
     return importStmt;
 }
@@ -425,6 +462,39 @@ std::shared_ptr<Statement> Parser::parseModule() {
             span
         );
     });
+
+    // --- NEW: Handle top-level aliases: `module Str = import "path.os";` ---
+    if (currentToken.getType() == TokenTypes::Assign) {
+        eat(TokenTypes::Assign);
+        eat(TokenTypes::Import, [&]() {
+            console.reportError(Console::SYNTAX_ERROR, "Expected 'import' after '=' in module alias", "", span);
+        });
+        
+        if (currentToken.getType() != TokenTypes::StringLiteral) {
+            console.reportError(Console::SYNTAX_ERROR, "Expected string literal path after 'import'", "", span);
+            return nullptr;
+        }
+        
+        std::string modulePath = currentToken.getValue();
+        eat(TokenTypes::StringLiteral);
+        eat(TokenTypes::Semicolon, [&]() {
+            console.reportError(Console::SYNTAX_ERROR, "Expected ';' after module alias", "", span);
+        });
+
+        span.end.line = previousToken.getLine();
+        span.end.col = previousToken.getColumn();
+        span.end.filePath = previousToken.getFilePath();
+
+        // Return an ImportModule that binds the file's contents to `moduleName`
+        auto importStmt = std::make_shared<ImportModule>(
+            moduleName, moduleName, 
+            std::unordered_map<std::string, std::string>{}, 
+            modulePath, true
+        );
+        importStmt->setSpan(span);
+        return importStmt;
+    }
+    // --- END NEW ---
 
     eat(TokenTypes::LeftBrace, [&]() {
         std::string suggestion = Console::formatString(
@@ -581,7 +651,10 @@ std::shared_ptr<Statement> Parser::parseModule() {
                 return nullptr;
             }
 
-            auto importStmt = std::make_shared<ImportModule>(moduleAlias, moduleAlias, std::unordered_map<std::string, std::string>{}, modulePath, true);
+            // importAll=false: a nested `module X = import "..."` stays namespaced under X (wildcard means "flatten into scope")
+            auto importStmt = std::make_shared<ImportModule>(moduleAlias, moduleAlias, std::unordered_map<std::string, std::string>{}, modulePath, false);
+            importStmt->isPathImport = true;
+            importStmt->setSpan(span);
             auto wrapped = std::make_shared<ModuleMember>(moduleAlias, importStmt, modifiers);
             members.push_back(wrapped);
             continue;

@@ -119,7 +119,13 @@ llvm::Value* IRGenerator::assignVariable(
             }
         }
 
-        if (!staticExists && !dynamicExists) {
+                // A linkage-only extern (`extern "C" let stdout: void*`) has no library
+        // paths — it resolves from the process image (msvcrt.dll on Windows).
+        // Skip the "not found" check; LLVM will link the ExternalLinkage global
+        // to whatever the loaded process exposes.
+        bool isLinkageOnly = genericStatic.empty() && genericDynamic.empty();
+
+        if (!staticExists && !dynamicExists && !isLinkageOnly) {
             std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Verify external variable '%s' is defined in specified libraries\n"
@@ -137,26 +143,23 @@ llvm::Value* IRGenerator::assignVariable(
             return nullptr;
         }
 
-        // Create external global variable
+        // Create external global variable — works for linkage-only too.
         llvm::GlobalVariable* externVar = new llvm::GlobalVariable(
-            *activeModule,
-            type,
-            isConstant,
-            llvm::GlobalValue::ExternalLinkage,
-            nullptr,  // No initializer for extern variables
-            externName
-        );
+            *activeModule, type, isConstant,
+            llvm::GlobalValue::ExternalLinkage, nullptr, externName);
 
-        // Add to linker dependencies
-        LinkDependencies::LibraryInfo info;
-        if (staticExists) {
-            info.name = genericStatic;
-            info.path = genericStatic;
-        } else if (dynamicExists) {
-            info.name = genericDynamic;
-            info.path = genericDynamic;
+        // Add linker dependencies only if we have an actual library.
+        if (staticExists || dynamicExists) {
+            LinkDependencies::LibraryInfo info;
+            if (staticExists) {
+                info.name = genericStatic;
+                info.path = genericStatic;
+            } else {
+                info.name = genericDynamic;
+                info.path = genericDynamic;
+            }
+            linkerDependencies.addRequiredLibrary(info.name, info);
         }
-        linkerDependencies.addRequiredLibrary(info.name, info);
 
         activeScope->set(name, externVar);
         DEBUG_LOG("Declared external variable '" + name + "' (extern name: '" + externName + "')");

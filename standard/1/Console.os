@@ -1,95 +1,76 @@
-module Console {
-    extern "C" fn printf(fmt: char*, ...) => int;
-    // extern "C" fn Beep(freq: int, duration: int) => int;
-    // extern "C" fn time(ptr: void*) => int;
-    // extern "C" fn localtime(ptr: void*) => void*;
-    // extern "C" fn strftime(buf: void*, size: int, fmt: char*, tm: void*) => int;
+// standard/1/Console.os
+// stdout: print, println, log, info (+ String versions).  stderr: warn, error.
+// Formatting: variadic forwarding is not possible yet, so call the extern printf directly,
+// or build text with String.append / appendInt and print it with printlnString.
+//
+// ASSUMPTION: `Str.String` is how a type from an imported module is named.
 
-//   enum LogLevel { LOG, INFO, WARN, ERROR, DEBUG };
+include "standard/1/String.os";
 
-//   var debugEnabled: bool = false;
+extern "C" fn printf(fmt: char*, ...) => int;
+extern "C" fn fputs(s: char*, f: void*) => int;
+extern "C" fn fflush(f: void*) => int;
+extern "C" fn fgetc(f: void*) => int;
+extern "C" fn __acrt_iob_func(index: uint) => void*;   // Windows UCRT; swap per platform
 
-//   fn setDebug(on: bool) => void {
-//     debugEnabled = on;
-//   }
+let useColor: bool = true;
 
-//   fn getTimestamp() => char* {
-//     var t: int = 0;
-//     time(&t);
-//     var tm = localtime(&t);
-//     var buf: [64]char;
-//     strftime(&buf[0], 64, "%Y-%m-%d %H:%M:%S", tm);
-//     return &buf[0];
-//   }
+function setColor(on: bool) => void { useColor = on; }
 
-//   fn getColor(level: LogLevel) => char* {
-//     if (level == INFO) return "\x1b[32m"; // Green
-//     if (level == WARN) return "\x1b[33m"; // Yellow
-//     if (level == ERROR) return "\x1b[31m"; // Red
-//     if (level == DEBUG) return "\x1b[36m"; // Cyan
-//     return "\x1b[0m"; // Reset
-//   }
+function out() => void* { return __acrt_iob_func(1); }
+function err() => void* { return __acrt_iob_func(2); }
 
-//   fn getLevelLabel(level: LogLevel) => char* {
-//     if (level == INFO) return "INFO";
-//     if (level == WARN) return "WARN";
-//     if (level == ERROR) return "ERROR";
-//     if (level == DEBUG) return "DEBUG";
-//     return "LOG";
-//   }
+// ---- char* ----
+function print(s: char*) => void { fputs(s, out()); }
+function println(s: char*) => void { fputs(s, out()); fputs("\n", out()); }
+function log(s: char*) => void { println(s); }
 
-//   fn write(msg: char*, level: LogLevel = LOG, newline: bool = true) => void {
-//     var timestamp = getTimestamp();
-//     var color = getColor(level);
-//     var label = getLevelLabel(level);
-
-//     printf("%s[%s] [%s] %s\x1b[0m", color, timestamp, label, msg);
-//     if (newline) {
-//       printf("\n");
-//     }
-//   }
-
-    // public fn log(msg: char*) => void {
-    //     write(msg, LOG);
-    // }
-
-//   fn info(msg: char*) => void {
-//     write(msg, INFO);
-//   }
-
-//   fn warn(msg: char*) => void {
-//     write(msg, WARN);
-//   }
-
-//   fn error(msg: char*) => void {
-//     write(msg, ERROR);
-//   }
-
-//   fn debug(msg: char*) => void {
-//     if (debugEnabled) {
-//       write(msg, DEBUG);
-//     }
-//   }
-
-//   fn assert(cond: bool, msg: char* = "") => void {
-//     if (!cond) {
-//       error("Assertion failed:");
-//       if (msg[0] != 0) {
-//         error(msg);
-//       }
-//     }
-//   }
-
-  // fn beep() => void {
-  //   printf("\a");
-  //   Beep(800, 200); // windows
-  // }
-
-  // fn beep(freq: int, duration: int) => void {
-  //   Beep(freq, duration); // windows
-  // }
-
-  // fn clear() => void {
-  //   printf("\x1b[2J\x1b[H"); // ANSI: clear screen and move cursor to top-left
-  // }
+function info(s: char*) => void {
+    if (useColor) fputs("\x1b[36m[info]\x1b[0m ", out()); else fputs("[info] ", out());
+    println(s);
 }
+
+function warn(s: char*) => void {
+    fflush(out());   // keep stdout/stderr ordering sane
+    if (useColor) fputs("\x1b[33m[warn]\x1b[0m ", err()); else fputs("[warn] ", err());
+    fputs(s, err());
+    fputs("\n", err());
+}
+
+function error(s: char*) => void {
+    fflush(out());
+    if (useColor) fputs("\x1b[31m[error]\x1b[0m ", err()); else fputs("[error] ", err());
+    fputs(s, err());
+    fputs("\n", err());
+}
+
+// ---- String* ----
+function printString(s: Str.String*) => void { print(s.cstr()); }
+function printlnString(s: Str.String*) => void { println(s.cstr()); }
+function infoString(s: Str.String*) => void { info(s.cstr()); }
+function warnString(s: Str.String*) => void { warn(s.cstr()); }
+function errorString(s: Str.String*) => void { error(s.cstr()); }
+
+function flush() => void { fflush(out()); }
+
+// Reads a line from stdin into out (no \n / \r\n). false at EOF.
+function readLine(out: Str.String*) => bool {
+    out.clear();
+    let gotAny: bool = false;
+    let done: bool = false;
+    while (!done) {
+        let c: int = fgetc(__acrt_iob_func(0));
+        if (c < 0) {
+            done = true;
+        } else {
+            gotAny = true;
+            if (c == 10) done = true; else out.appendChar(c as char);
+        }
+    }
+    if (!gotAny) return false;
+    if (out.len > 0 && (out.data[out.len - 1] as int) == 13) out.truncate(out.len - 1);
+    return true;
+}
+
+// ANSI clear + cursor home (Windows 10+ needs virtual terminal mode enabled for this).
+function clear() => void { fputs("\x1b[2J\x1b[H", out()); }
