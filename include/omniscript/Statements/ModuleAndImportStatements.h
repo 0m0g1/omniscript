@@ -8,6 +8,8 @@
 
 namespace Omniscript {
 
+std::string canonicalTypeName(const std::string& name);
+
 class IncludeStatement : public Statement {
 public:
     std::string path;  // The path to the file to be included

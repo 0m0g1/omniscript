@@ -569,7 +569,58 @@ struct LoadedModuleInfo {
     std::string name;
     std::string prefix;
     bool flattened;
+    bool sameNamedType = false;   // `module String { struct String {...} }`
 };
+
+// alias-qualified type name -> canonical (originally registered) type name
+std::unordered_map<std::string, std::string>& typeAliases() {
+    static std::unordered_map<std::string, std::string> m;
+    return m;
+}
+
+// Re-registers everything a loaded module put in `scope` under the names a fresh load with the
+// new alias would have produced. The SAME expression/type objects are shared, never copied.
+void aliasLoadedModule(SymbolTableType scope, const LoadedModuleInfo& info, const std::string& newPrefix) {
+    const std::string& oldPrefix = info.prefix;               // e.g. "String."
+    if (oldPrefix.empty() || oldPrefix == newPrefix) return;
+    const std::string oldSelf = oldPrefix.substr(0, oldPrefix.size() - 1);   // "String"
+    const size_t ctxLen = oldPrefix.size() > info.name.size() + 1
+                        ? oldPrefix.size() - info.name.size() - 1 : 0;       // "" or "std."
+
+    // Old key -> every new key a fresh load under the alias could have produced.
+    auto newNamesFor = [&](const std::string& k) {
+        std::vector<std::string> out;
+        if (k.rfind(oldPrefix, 0) == 0)                       // Math.sqrt -> M.sqrt
+            out.push_back(newPrefix + k.substr(oldPrefix.size()));
+        if (info.sameNamedType && (k == oldSelf || k.rfind(oldSelf + ".", 0) == 0))
+            out.push_back(newPrefix + k.substr(ctxLen));      // String.cstr -> Str.String.cstr
+        return out;   // both forms: methods and free functions can't be told apart by name
+    };
+
+    for (const auto& k : scope->getAllSymbolNames(false)) {
+        for (const auto& nn : newNamesFor(k)) {
+            auto found = scope->lookup(k);
+            if (!found.found()) continue;
+            if (found.isOverloadSet()) {
+                if (!scope->getOverloads(nn).empty()) continue;           // already aliased
+                for (const auto& o : found.overloads) scope->addOverloadable(nn, o, true);
+            } else if (found.isConstantValue()) {
+                scope->setConstant(nn, found.value, true);
+            } else if (found.isVariable()) {
+                scope->setVariable(nn, found.value, true);
+            }
+            DEBUG_LOG("[Alias] " + k + " -> " + nn);
+        }
+    }
+    for (const auto& k : scope->getAllTypeNames(false)) {
+        for (const auto& nn : newNamesFor(k)) {
+            if (scope->getType(nn)) continue;
+            scope->addType(nn, scope->getType(k), true);
+            typeAliases()[nn] = k;
+            DEBUG_LOG("[Alias] type " + k + " -> " + nn);
+        }
+    }
+}
 
 std::unordered_map<std::string, LoadedModuleInfo>& loadedModules() {
     static std::unordered_map<std::string, LoadedModuleInfo> loaded;
@@ -736,6 +787,12 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
             if (!info.flattened) {
                 if (!alias.empty() && alias != info.name) {
                     if (auto existing = scope->get(info.name)) scope->setConstant(alias, existing);
+
+                    // Same prefix computation the fresh-load path uses (setName + extendContextOf).
+                    auto probe = std::make_shared<CreateModule>(alias, std::vector<std::shared_ptr<Statement>>{});
+                    probe->setSpan(this->getSpan());
+                    extendContextOf(probe);
+                    aliasLoadedModule(scope, info, probe->qualifiedPrefix());
                 }
                 if ((importAll || !importedAliases.empty()) &&
                     !bindImportedNames(scope, *this, info.name, info.prefix, getSpan())) {
@@ -872,7 +929,11 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
     }
 
     scope->defineModule(registryKey, scope);
-    loadedModules()[registryKey] = LoadedModuleInfo{createModule->getName(), createModule->qualifiedPrefix(), false};
+    {
+        const std::string q = createModule->qualifiedPrefix();   // e.g. "String."
+        const bool same = q.size() > 1 && static_cast<bool>(scope->getType(q.substr(0, q.size() - 1)));
+        loadedModules()[registryKey] = LoadedModuleInfo{createModule->getName(), q, false, same};
+    }
     if (importAll || !importedAliases.empty()) {
         if (!bindImportedNames(scope, *this, createModule->getName(), createModule->qualifiedPrefix(), getSpan())) {
             return nullptr;
@@ -881,6 +942,11 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
 
     mod->setSpan(this->getSpan());
     return mod;
+}
+
+std::string canonicalTypeName(const std::string& name) {
+    auto it = typeAliases().find(name);
+    return it == typeAliases().end() ? name : it->second;
 }
 
 std::vector<std::string> ImportModule::splitModulePath(const std::string& path) {

@@ -11,6 +11,7 @@
 #include <omniscript/Expressions/AccessExpressions.h>
 #include <omniscript/Expressions/AggregateExpressions.h>
 #include <omniscript/Expressions/AssignmentExpression.h>
+#include <omniscript/Statements/ModuleAndImportStatements.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
 #include <omniscript/Core.h>
@@ -399,12 +400,12 @@ std::string MemberAccess::extractTypeName(std::shared_ptr<Type> type) {
     
     if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
         DEBUG_LOG("Direct type: " + udt->toString());
-        return udt->name;
+        return canonicalTypeName(udt->name);
     }
     
     if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(pointee)) {
         DEBUG_LOG("Pointee type: " + udt->toString());
-        return udt->name;
+        return canonicalTypeName(udt->name);
     }
     
     if (pointee) {
