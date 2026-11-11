@@ -252,6 +252,40 @@ std::shared_ptr<Expression> GetVariable::express(SymbolTableType scope) {
     return varAccess;
 }
 
+// A struct/class declared in a module gets renamed ("String" -> "Str.String") after the parser has
+// already created UserDefinedType placeholders named "String" for local declarations inside method
+// bodies. Type equality is by name, so `let r: String; r.append(x)` fails to bind `this`.
+// Re-point such placeholders at the name the scope now knows the type by (in place, like
+// renameTypeInPlace in ModuleAndImportStatements.cpp).
+static void rebindUserTypeName(const std::shared_ptr<Type>& type, const SymbolTableType& scope) {
+    if (!type) return;
+
+    if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
+        auto resolved = scope->getType(udt->name);
+        if (resolved && resolved != type) {
+            const std::string full = resolved->getName();
+            if (!full.empty() && full != udt->name) {
+                udt->name = full;
+            }
+        }
+        return;
+    }
+    if (type->isPointer()) {
+        rebindUserTypeName(type->getPointeeType(), scope);
+        return;
+    }
+    if (type->isReference()) {
+        rebindUserTypeName(type->getReferencedType(), scope);
+        return;
+    }
+    if (type->isNullable()) {
+        if (auto nullable = std::dynamic_pointer_cast<NullableType>(type)) {
+            rebindUserTypeName(nullable->innerType, scope);
+        }
+        return;
+    }
+}
+
 std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (type && type->isUnresolved()) {
@@ -273,6 +307,8 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
             }
         }
     }
+
+    rebindUserTypeName(type, scope);
 
     DEBUG_LOG("Assigning variable " + variable + (type? " of type " + type->toString() : ""));
 

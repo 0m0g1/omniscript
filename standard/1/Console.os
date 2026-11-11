@@ -5,7 +5,7 @@
 //
 // ASSUMPTION: `Str.String` is how a type from an imported module is named.
 
-include "standard/1/String.os";
+module Str = import "standard/1/String.os";
 
 extern "C" fn printf(fmt: char*, ...) => int;
 extern "C" fn fputs(s: char*, f: void*) => int;

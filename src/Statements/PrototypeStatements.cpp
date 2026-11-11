@@ -1,3 +1,4 @@
+#include <unordered_set>
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/FunctionStatement.h>
 #include <omniscript/Statements/CallableStatement.h>
@@ -317,6 +318,29 @@ std::shared_ptr<Expression> ConstructStructPrototype::express(SymbolTableType sc
             field->parameters.insert(field->parameters.begin(), std::dynamic_pointer_cast<Statement>(thisParam));
         }
         field->registerInScope(scope);
+    }
+
+    // Module-qualified struct ("Str.String"): also expose the bare "String" type and the bare
+    // "String.<method>" names. Method bodies are written with the bare type name
+    // (`let r: String; r.append(x)`), and only signatures get renamed by reinterprateStatement.
+    // Must run after Phase 1 (overloads exist) and before Phase 2 (bodies are compiled).
+    {
+        const auto dot = name.rfind('.');
+        if (dot != std::string::npos) {
+            const std::string bare = name.substr(dot + 1);
+            scope->addType(bare, structType);
+
+            std::unordered_set<std::string> seen;
+            for (const auto& fn : methodDeclr) {
+                const std::string full = fn->getName();                 // "Str.String.append"
+                if (full.rfind(name + ".", 0) != 0) continue;
+                if (!seen.insert(full).second) continue;
+                const std::string alias = bare + full.substr(name.size()); // "String.append"
+                for (const auto& ov : scope->getOverloads(full)) {
+                    scope->addOverloadable(alias, ov, true);
+                }
+            }
+        }
     }
 
     // 🧱 Construct the StructExpression as a Callable
