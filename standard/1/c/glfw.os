@@ -1,0 +1,24 @@
+// standard/1/c/glfw.os  (windowing + input)
+extern "C" fn glfwInit() => int;
+extern "C" fn glfwTerminate() => void;
+extern "C" fn glfwWindowHint(h: int, v: int) => void;
+extern "C" fn glfwCreateWindow(w: int, h: int, title: char*, mon: void*, share: void*) => void*;
+extern "C" fn glfwDestroyWindow(w: void*) => void;
+extern "C" fn glfwMakeContextCurrent(w: void*) => void;
+extern "C" fn glfwWindowShouldClose(w: void*) => int;
+extern "C" fn glfwSetWindowShouldClose(w: void*, v: int) => void;
+extern "C" fn glfwSwapBuffers(w: void*) => void;
+extern "C" fn glfwSwapInterval(n: int) => void;
+extern "C" fn glfwPollEvents() => void;
+extern "C" fn glfwGetTime() => double;
+extern "C" fn glfwSetWindowTitle(w: void*, t: char*) => void;
+extern "C" fn glfwSetWindowSize(w: void*, a: int, b: int) => void;
+extern "C" fn glfwGetWindowSize(w: void*, a: int*, b: int*) => void;
+extern "C" fn glfwGetFramebufferSize(w: void*, a: int*, b: int*) => void;
+extern "C" fn glfwGetKey(w: void*, key: int) => int;
+extern "C" fn glfwGetMouseButton(w: void*, b: int) => int;
+extern "C" fn glfwGetCursorPos(w: void*, x: double*, y: double*) => void;
+extern "C" fn glfwGetProcAddress(name: char*) => void*;
+extern "C" fn glfwVulkanSupported() => int;
+extern "C" fn glfwGetRequiredInstanceExtensions(n: u32*) => char**;
+extern "C" fn glfwCreateWindowSurface(inst: void*, w: void*, alloc: void*, surf: u64*) => int;

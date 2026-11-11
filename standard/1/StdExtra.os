@@ -1,0 +1,41 @@
+// standard/1/StdExtra.os
+// Paste these lines into std.os (or import this file from it) to expose the new modules.
+module Collections = import "standard/1/Collections.os";
+module Map = import "standard/1/Map.os";
+module Set = import "standard/1/Set.os";
+module Queue = import "standard/1/Queue.os";
+module Stack = import "standard/1/Stack.os";
+module Deque = import "standard/1/Deque.os";
+module PriorityQueue = import "standard/1/PriorityQueue.os";
+module Algo = import "standard/1/Algo.os";
+module Text = import "standard/1/Text.os";
+module Json = import "standard/1/Json.os";
+module Csv = import "standard/1/Csv.os";
+module Binary = import "standard/1/Binary.os";
+module Path = import "standard/1/Path.os";
+module Process = import "standard/1/Process.os";
+module Log = import "standard/1/Log.os";
+module Cli = import "standard/1/Cli.os";
+module Config = import "standard/1/Config.os";
+module Uuid = import "standard/1/Uuid.os";
+module DateTime = import "standard/1/DateTime.os";
+module Thread = import "standard/1/Thread.os";
+module Channel = import "standard/1/Channel.os";
+module Net = import "standard/1/Net.os";
+module Window = import "standard/1/Window.os";
+module Input = import "standard/1/Input.os";
+module OpenGL = import "standard/1/OpenGL.os";
+module Audio = import "standard/1/Audio.os";
+module Bench = import "standard/1/Bench.os";
+module Debug = import "standard/1/Debug.os";
+module Regex = import "standard/1/Regex.os";
+module Xml = import "standard/1/Xml.os";
+module Db = import "standard/1/Db.os";
+module Http = import "standard/1/Http.os";
+module Compress = import "standard/1/Compress.os";
+module Crypto = import "standard/1/Crypto.os";
+module Image = import "standard/1/Image.os";
+module Font = import "standard/1/Font.os";
+module Vulkan = import "standard/1/Vulkan.os";
+module Ffi = import "standard/1/Ffi.os";
+// Stubs: Async, Iter, Reflect, Tls, Ws, HttpServer, Video, Gui, Canvas, Yaml, Toml

@@ -1,0 +1,19 @@
+// standard/1/c/net.os  (PLATFORM: WinSock2; POSIX: drop WSA*, closesocket->close)
+extern "C" fn WSAStartup(ver: u16, data: void*) => int;
+extern "C" fn WSACleanup() => int;
+extern "C" fn WSAGetLastError() => int;
+extern "C" fn socket(af: int, kind: int, proto: int) => u64;
+extern "C" fn closesocket(s: u64) => int;
+extern "C" fn connect(s: u64, addr: void*, len: int) => int;
+extern "C" fn bind(s: u64, addr: void*, len: int) => int;
+extern "C" fn listen(s: u64, backlog: int) => int;
+extern "C" fn accept(s: u64, addr: void*, len: int*) => u64;
+extern "C" fn send(s: u64, buf: void*, len: int, flags: int) => int;
+extern "C" fn recv(s: u64, buf: void*, len: int, flags: int) => int;
+extern "C" fn getaddrinfo(host: char*, port: char*, hints: void*, res: void**) => int;
+extern "C" fn freeaddrinfo(res: void*) => void;
+extern "C" fn shutdown(s: u64, how: int) => int;
+extern "C" fn sendto(s: u64, buf: void*, len: int, flags: int, to: void*, tolen: int) => int;
+extern "C" fn recvfrom(s: u64, buf: void*, len: int, flags: int, src: void*, fromlen: int*) => int;
+extern "C" fn inet_pton(af: int, src: char*, dst: void*) => int;
+extern "C" fn inet_ntop(af: int, src: void*, dst: char*, size: u64) => char*;

@@ -1,0 +1,20 @@
+// standard/1/c/thread.os  (PLATFORM: Win32)
+extern "C" fn CreateThread(attr: void*, stack: u64, entry: void*, arg: void*, flags: u32, id: u32*) => void*;
+extern "C" fn WaitForSingleObject(h: void*, ms: u32) => u32;
+extern "C" fn CloseHandle(h: void*) => int;
+extern "C" fn Sleep(ms: u32) => void;
+extern "C" fn GetCurrentThreadId() => u32;
+extern "C" fn InitializeCriticalSection(cs: void*) => void;
+extern "C" fn EnterCriticalSection(cs: void*) => void;
+extern "C" fn TryEnterCriticalSection(cs: void*) => int;
+extern "C" fn LeaveCriticalSection(cs: void*) => void;
+extern "C" fn DeleteCriticalSection(cs: void*) => void;
+extern "C" fn InitializeConditionVariable(cv: void*) => void;
+extern "C" fn SleepConditionVariableCS(cv: void*, cs: void*, ms: u32) => int;
+extern "C" fn WakeConditionVariable(cv: void*) => void;
+extern "C" fn WakeAllConditionVariable(cv: void*) => void;
+extern "C" fn InterlockedExchangeAdd64(p: i64*, v: i64) => i64;
+extern "C" fn InterlockedExchange64(p: i64*, v: i64) => i64;
+extern "C" fn InterlockedCompareExchange64(p: i64*, exch: i64, cmp: i64) => i64;
+extern "C" fn SwitchToThread() => int;
+extern "C" fn GetActiveProcessorCount(group: u16) => u32;
