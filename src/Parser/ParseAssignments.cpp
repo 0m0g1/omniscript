@@ -82,10 +82,9 @@ std::shared_ptr<Statement> Parser::parseAssignment(parameterType paramTypes) {
         );
         console.reportError(
             Console::SYNTAX_ERROR,
-            Console::formatString("Expected identifier for variable name, found '%s'", 
-                getTokenTypeName(currentToken.getType()).c_str()),
+            expectedIdentifierMessage("variable name"),
             suggestion,
-            span
+            errorSpanAtCurrentToken()
         );
         return nullptr;
     }
@@ -227,10 +226,9 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 );
                 console.reportError(
                     Console::SYNTAX_ERROR,
-                    Console::formatString("Expected identifier for variable name, found '%s'", 
-                        getTokenTypeName(currentToken.getType()).c_str()),
+                    expectedIdentifierMessage("variable name"),
                     suggestion,
-                    span
+                    errorSpanAtCurrentToken()
                 );
                 return nullptr;
             }

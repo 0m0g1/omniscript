@@ -833,7 +833,15 @@ llvm::Function* IRGenerator::createExternFunction(
         return nullptr;
     }
 
+    // Register under the mangled name (e.g. "fabs(Double)") for CallExpression's
+    // callee lookup.
     activeScope->set(name, function);
+
+    // Also register under the bare / extern name so `createCall` can find it
+    // when called with either name form.
+    if (!externName.empty() && externName != name) {
+        activeScope->set(externName, function);
+    }
     return function;
 }
 

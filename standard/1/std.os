@@ -1,15 +1,15 @@
 // standard/1/std.os
 module std {
     // Tier 1: core
-    public module Core = import "standard/1/Core.os";
-    public module Mem = import "standard/1/Mem.os";
-    public module String = import "standard/1/String.os";
+    // public module Core = import "standard/1/Core.os";
+    // public module Mem = import "standard/1/Mem.os";
+    // public module String = import "standard/1/String.os";
     // public module Math = import "standard/1/Math.os";
     // public module Random = import "standard/1/Random.os";
     // public module Time = import "standard/1/Time.os";
 
     // // Tier 4: I/O and system
-    // public module Console = import "standard/1/Console.os";
+    public module Console = import "standard/1/Console.os";
     // public module IO = import "standard/1/IO.os";
     // public module Sys = import "standard/1/Sys.os";
 

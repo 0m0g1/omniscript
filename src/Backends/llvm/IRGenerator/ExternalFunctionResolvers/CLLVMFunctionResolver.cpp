@@ -67,12 +67,21 @@ llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::stri
     
     std::string foundLibrary = "";
     bool symbolFound = false;
+
+    // Reuse a function of the same name if the module already has one. Calling Function::Create
+    // with a taken name makes LLVM silently rename the new function ("malloc.1"), and that
+    // renamed symbol cannot be resolved by the JIT.
+    auto declare = [&](const std::string& symbol) -> llvm::Function* {
+        llvm::Module* mod = generator.getCurrentModule();
+        if (llvm::Function* existing = mod->getFunction(symbol)) {
+            return existing;
+        }
+        return llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, symbol, mod);
+    };
     
     // Names the system CRTs don't export (see shimFor): emit the declaration under the shim's symbol.
     if (const char* shim = shimFor(name)) {
-        llvm::Function* func = llvm::Function::Create(
-            funcType, llvm::Function::ExternalLinkage, shim, generator.getCurrentModule()
-        );
+        llvm::Function* func = declare(shim);
         applyPlatformSpecificAttributes(func, name);
         return func;
     }
@@ -92,9 +101,7 @@ llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::stri
     }
     
     // Create the function
-    llvm::Function* func = llvm::Function::Create(
-        funcType, llvm::Function::ExternalLinkage, name, generator.getCurrentModule()
-    );
+    llvm::Function* func = declare(name);
     
     // Apply platform-specific attributes
     applyPlatformSpecificAttributes(func, name);

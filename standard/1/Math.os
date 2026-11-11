@@ -43,7 +43,7 @@ function fract(x: double) => double { return x - CMath.floor(x); }
 
 // C-style remainder (sign follows x) and a mathematical modulo (result in [0, m) for m > 0).
 function fmod(x: double, y: double) => double { return CMath.fmod(x, y); }
-function mod(x: double, m: double) => double {
+function modulo(x: double, m: double) => double {
     let r = CMath.fmod(x, m);
     if (r < 0.0) r = r + m;
     return r;

@@ -1,8 +1,28 @@
 #include <omniscript/Console.h>
 #include <cstdarg>
 #include <fstream> 
+#include <limits>
 
 namespace Omniscript {
+
+namespace {
+// A default-constructed FileSpan holds the max value in every field; never print that as a location.
+template <typename T> bool isUnset(T v) { return v == std::numeric_limits<T>::max(); }
+
+bool isUsable(const FileSpan& s) {
+    return s.isValid() && !isUnset(s.start.line) && !isUnset(s.start.col);
+}
+
+// If only the end is unset, collapse the span onto its start.
+FileSpan normalized(FileSpan s) {
+    if (isUnset(s.end.line) || isUnset(s.end.col)) {
+        s.end.line = s.start.line;
+        s.end.col = s.start.col;
+        s.end.filePath = s.start.filePath;
+    }
+    return s;
+}
+} // namespace
 
 std::string Console::formatString(const char* format, ...) {
     va_list args;
@@ -87,8 +107,9 @@ std::string Console::getErrorTypeName(ErrorType type) const {
     }
 }
 
-std::string Console::formatSpan(const FileSpan& span) const {
-    if (!span.isValid()) {
+std::string Console::formatSpan(const FileSpan& rawSpan) const {
+    const FileSpan span = normalized(rawSpan);
+    if (!isUsable(span)) {
         return "unknown location";
     }
     
@@ -182,8 +203,10 @@ void Console::showSourceLine(const std::string& filePath, int lineNumber, const 
     }
 }
 
-void Console::showSourceContext(const FileSpan& span, int contextLines) {
-    if (!span.isValid()) return;
+void Console::showSourceContext(const FileSpan& rawSpan, int contextLines) {
+    const FileSpan span = normalized(rawSpan);
+    if (!isUsable(span)) return;
+    if (span.start.filePath.empty() || !std::ifstream(span.start.filePath).is_open()) return; // no source to show
     
     int startLine = std::max(1, static_cast<int>(span.start.line - contextLines));
     int endLine = span.end.line + contextLines;
@@ -201,15 +224,18 @@ void Console::showSourceContext(const FileSpan& span, int contextLines) {
                 std::string caret(5, ' ');
                 caret += "| ";
                 
-                int startCol = span.start.col;
-                int endCol = (i == span.end.line) ? span.end.col : line.length();
+                int startCol = static_cast<int>(span.start.col) - 1;            // 0-based index
+                int endCol = (i == span.end.line) ? static_cast<int>(span.end.col) - 1
+                                                  : static_cast<int>(line.length());   // exclusive
+                if (startCol < 0) startCol = 0;
+                if (endCol <= startCol) endCol = startCol + 1;                   // always at least one caret
                 
                 for (int j = 0; j < startCol && j < static_cast<int>(line.length()); j++) {
                     caret += (line[j] == '\t') ? '\t' : ' ';
                 }
                 
                 caret += getColorCode(ERR);
-                for (int j = startCol; j <= endCol && j < line.length(); j++) {
+                for (int j = startCol; j < endCol && j < static_cast<int>(line.length()); j++) {
                     caret += '^';
                 }
                 caret += "\033[0m";
@@ -230,7 +256,7 @@ void Console::reportError(ErrorType errorType, const std::string& message, const
     std::cout << getColorCode(ERR) << getErrorTypeName(errorType) << ": " 
               << "\033[0m" << message << std::endl;
     
-    if (span.isValid()) {
+    if (isUsable(span)) {
         std::cout << getColorCode(INFO) << "  --> " << location << "\033[0m" << std::endl;
         showSourceContext(span, 1);
     }
@@ -257,7 +283,7 @@ void Console::reportWarning(const std::string& message, const FileSpan& span) {
     std::string location = formatSpan(span);
     std::cout << getColorCode(WARN) << "warning: " << "\033[0m" << message << std::endl;
     
-    if (span.isValid()) {
+    if (isUsable(span)) {
         std::cout << getColorCode(INFO) << "  --> " << location << "\033[0m" << std::endl;
         showSourceContext(span, 1);
     }
@@ -267,7 +293,7 @@ void Console::reportNote(const std::string& message, const FileSpan& span) {
     std::string location = formatSpan(span);
     std::cout << getColorCode(NOTE) << "note: " << "\033[0m" << message;
     
-    if (span.isValid()) {
+    if (isUsable(span)) {
         std::cout << " at " << location;
     }
     std::cout << std::endl;
@@ -289,7 +315,7 @@ void Console::reportErrorWithContext(ErrorType errorType, const std::string& mes
         }
         std::cout << std::endl;
         
-        if (context.first.isValid()) {
+        if (isUsable(context.first)) {
             showSourceContext(context.first, 1);
         }
     }

@@ -3,9 +3,12 @@
 llvm_version = "23"
 
 -- MSYS2 environment to pull LLVM from (override with the MSYS2_ROOT env var).
--- Packages named mingw-w64-x86_64-* install into C:/msys64/mingw64.
--- Packages named mingw-w64-ucrt-x86_64-* install into C:/msys64/ucrt64.
-msys_root = os.getenv("MSYS2_ROOT") or "C:/msys64/mingw64"
+-- Packages named mingw-w64-x86_64-* install into C:/msys64/mingw64 (legacy msvcrt.dll runtime).
+-- Packages named mingw-w64-ucrt-x86_64-* install into C:/msys64/ucrt64 (UCRT runtime).
+-- Use ucrt64: the exe and libLLVM must share ONE C runtime, otherwise memory
+-- allocated inside LLVM and freed in the exe corrupts the heap.
+-- Install with: pacman -S mingw-w64-ucrt-x86_64-llvm mingw-w64-ucrt-x86_64-gcc
+msys_root = os.getenv("MSYS2_ROOT") or "C:/msys64/ucrt64"
 
 -- Copies the needed LLVM files from MSYS2 into dependencies/llvm,
 -- but only the pieces that are missing. Runs when you run premake5.
@@ -17,6 +20,19 @@ local function sync_llvm()
 
     local dllA = "libLLVM-" .. llvm_version .. ".dll.a"
     local dll  = "libLLVM-" .. llvm_version .. ".dll"
+
+    -- If the cached copy came from a different MSYS2 environment (e.g. switching
+    -- mingw64 -> ucrt64), wipe it so stale headers/libs/DLLs are not reused.
+    local marker = dest .. "\\.msys_source"
+    if os.isdir(src) and os.isdir(dest) then
+        local f = io.open(marker, "r")
+        local prev = f and f:read("*l") or nil
+        if f then f:close() end
+        if prev ~= src then
+            print("LLVM source changed (" .. tostring(prev) .. " -> " .. src .. "), clearing dependencies/llvm ...")
+            os.execute('rmdir /S /Q "' .. dest .. '"')
+        end
+    end
 
     local needInclude = not os.isdir(dest .. "\\include\\llvm")
                      or not os.isdir(dest .. "\\include\\llvm-c")
@@ -63,7 +79,11 @@ local function sync_llvm()
 
     if not os.isfile(dest .. "\\lib\\" .. dllA) or not os.isfile(dest .. "\\bin\\" .. dll) then
         print("WARNING: " .. dllA .. " / " .. dll .. " not found in MSYS2. " ..
-              "Check 'pacman -Q mingw-w64-x86_64-llvm' and llvm_version.")
+              "Check 'pacman -Q mingw-w64-ucrt-x86_64-llvm' and llvm_version.")
+    else
+        os.mkdir(dest)
+        local f = io.open(marker, "w")
+        if f then f:write(src, "\n") f:close() end
     end
 end
 
@@ -121,10 +141,8 @@ project "Osengine"
         systemversion "latest"
         buildoptions { "-mno-stack-arg-probe" }
 
-        links {
-            "ucrt",
-            "msvcrt"
-        }
+        -- No explicit "ucrt"/"msvcrt" links: the ucrt64 toolchain already links
+        -- UCRT, and naming both pulls two C runtimes into the exe.
 
         postbuildcommands {
             "powershell -Command \"if (-not (Test-Path -Path 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}')) { New-Item -ItemType Directory -Force -Path 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}' }\"",

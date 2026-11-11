@@ -1,3 +1,4 @@
+// MemberAccessStatement.cpp
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/CallableStatement.h>
@@ -67,6 +68,7 @@ std::shared_ptr<Statement> MemberAccess::clone() const {
         cloned->arguments.push_back(arg->clone());
     }
     cloned->isCall = isCall;
+    cloned->setSpan(getSpan());
     return cloned;
 }
 
@@ -133,9 +135,48 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
                 method = overloads[0]; // Use first overload for now
             }
         }
+
+        // Module alias call, e.g. `CMath.fabs(x)` with `module CMath = import "...";`.
+        // The alias is not a value, so it has no type to mangle the method name from
+        // (that is where "<null>.fabs" came from) and there is no 'this' argument.
+        // Only alias-qualified names are tried: falling back to the bare name could
+        // resolve to a wrapper of the same name (Math.os abs -> abs) and recurse forever.
+        std::string moduleCallName;
+        if (!method) {
+            std::string aliasName = resolvedObjectName.empty() ? objectName : resolvedObjectName;
+            std::vector<std::string> candidates;
+            if (!aliasName.empty()) {
+                candidates.push_back(aliasName + "." + memberName);
+                std::string qualifiedName;
+                for (const auto& context : accessContext) {
+                    if (!qualifiedName.empty()) qualifiedName += ".";
+                    qualifiedName += context;
+                    candidates.push_back(qualifiedName + "." + aliasName + "." + memberName);
+                }
+            }
+            for (const auto& candidate : candidates) {
+                DEBUG_LOG("[MemberAccess] Trying module-qualified name: " + candidate);
+                auto found = scope->get(candidate);
+                if (!found) {
+                    auto moduleOverloads = scope->getOverloads(candidate);
+                    if (!moduleOverloads.empty()) found = moduleOverloads[0];
+                }
+                if (found) {
+                    method = found;
+                    moduleCallName = candidate;
+                    break;
+                }
+            }
+        }
         
         if (method) {
             DEBUG_LOG("[MemberAccess] Found method: " + methodName);
+
+            if (!moduleCallName.empty()) {
+                auto moduleCall = std::make_shared<Call>(moduleCallName, arguments);
+                moduleCall->setSpan(this->getSpan());
+                return moduleCall->express(scope);
+            }
             
             // Create the 'this' argument for the method call
             std::shared_ptr<Statement> thisArgument;

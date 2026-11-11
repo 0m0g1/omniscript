@@ -53,7 +53,9 @@ int Application::run() noexcept {
     if (!result) {
         OMNISCRIPT_UNLIKELY
         // Use proper console error reporting
-        REPORT_ERROR(Console::ErrorType::RUNTIME_ERROR, "Engine execution failed: " + result.error());
+        // Not REPORT_ERROR: that carries no source location and Console::reportError exits the process on
+        // RUNTIME_ERROR, which would skip logErrors() below. The detailed diagnostics were already printed.
+        console.error("Engine execution failed: " + result.error());
         error::globalErrorCollector.addError(error::Severity::Error, result.error(), "Execution");
         logErrors(*config_);
         DEBUG_PHASE_END();

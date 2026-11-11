@@ -42,6 +42,25 @@ class Parser {
         void initializeConstants();
 
         void expectSemicolonOrNewLine();
+
+        // Span covering the token the parser is currently looking at (for "unexpected token" errors).
+        FileSpan errorSpanAtCurrentToken() const {
+            FileSpan s;
+            std::string path = currentToken.getFilePath();
+            if (path.empty()) path = lexer.getFilePath();
+            size_t len = currentToken.getValue().size();
+            if (len == 0) len = 1;
+            s.start.line = currentToken.getLine();
+            s.start.col = currentToken.getColumn();
+            s.start.filePath = path;
+            s.end.line = s.start.line;
+            s.end.col = s.start.col + len;
+            s.end.filePath = path;
+            return s;
+        }
+
+        // Message for "expected an identifier" failures; explains reserved keywords.
+        std::string expectedIdentifierMessage(const std::string& what) const;
         
         std::shared_ptr<Statement> parseStatement(bool checkForTerminalChar = true); 
         

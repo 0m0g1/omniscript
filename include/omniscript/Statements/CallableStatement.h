@@ -119,7 +119,7 @@ public:
     std::shared_ptr<Statement> clone() const override {
         std::vector<std::shared_ptr<Statement>> copiedArgs;
         for (const auto& arg : args) {
-            copiedArgs.push_back(arg->clone());
+            copiedArgs.push_back(arg ? arg->clone() : nullptr);
         }
 
         std::shared_ptr<Statement> copiedExpr = expr ? expr->clone() : nullptr;
@@ -140,6 +140,7 @@ public:
             clonedCall->markAsConstant();
         }
 
+        clonedCall->setSpan(getSpan());
         return clonedCall;
     }
 
@@ -286,20 +287,24 @@ public:
         }
 
         // Clone the expression if it exists
+        std::shared_ptr<ObjectConstructorStatement> copy;
         if (expr) {
-            return std::make_shared<ObjectConstructorStatement>(
+            copy = std::make_shared<ObjectConstructorStatement>(
                 expr->clone(),
                 objectType,
                 instanceName,
                 clonedArgs
             );
         } else {
-            return std::make_shared<ObjectConstructorStatement>(
+            copy = std::make_shared<ObjectConstructorStatement>(
                 objectType,
                 instanceName,
                 clonedArgs
             );
         }
+        copy->name = name;
+        copy->setSpan(getSpan());
+        return copy;
     }
 };
 

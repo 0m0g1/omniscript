@@ -51,7 +51,9 @@ Token Lexer::parseIdentifierOrKeyword() {
         TokenTypes tokenType = getKeywordType(keywordCheck);
         if (tokenType != TokenTypes::Invalid) {
             stats_.keywordCount++;
-            return TokenFactory::createKeyword(tokenType, startLine, startColumn, sourceFilePath_);
+            Token keywordToken = TokenFactory::createKeyword(tokenType, startLine, startColumn, sourceFilePath_);
+            keywordToken.setStringValue(rawIdentifier); // keep the word the user typed (mod vs module)
+            return keywordToken;
         }
     }
 

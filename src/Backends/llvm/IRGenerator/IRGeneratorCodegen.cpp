@@ -409,7 +409,28 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
             DEBUG_LOG("Extracting the value of a nullable");
         }
 
-        return getVariable(var->variableName, false);
+        // Module-level consts are registered under their qualified name (e.g. "Math.INF"), but the
+        // front end can leave the short name ("INF") on accesses made inside the module.
+        // If the short name is not in scope, retry qualified by the enclosing module, taken
+        // from the scope name ("Math.isInf(Double)" -> "Math").
+        std::string accessName = var->variableName;
+        if (!activeScope->lookup(accessName).found()) {
+            std::string scopeName = scope->getName();
+            scopeName = scopeName.substr(0, scopeName.find('('));
+            while (true) {
+                size_t dot = scopeName.rfind('.');
+                if (dot == std::string::npos) break;
+                scopeName = scopeName.substr(0, dot);
+                std::string candidate = scopeName + "." + var->variableName;
+                if (activeScope->lookup(candidate).found()) {
+                    DEBUG_LOG("Resolved '" + var->variableName + "' as '" + candidate + "'");
+                    accessName = candidate;
+                    break;
+                }
+            }
+        }
+
+        return getVariable(accessName, false);
     }
 
     if (auto instance = std::dynamic_pointer_cast<InstanceExpression>(value)) {

@@ -35,7 +35,9 @@ public:
     };
     std::shared_ptr<Statement> clone() const override {
         std::shared_ptr<Statement> clonedOperand = operand ? operand->clone() : nullptr;
-        return std::make_shared<ASTUnaryExpression>(op, clonedOperand, position);
+        auto copy = std::make_shared<ASTUnaryExpression>(op, clonedOperand, position);
+        copy->setSpan(getSpan());
+        return copy;
     }
 
 private:
@@ -69,7 +71,9 @@ public:
         std::shared_ptr<Statement> clonedRight = right ? right->clone() : nullptr;
 
         // Return a new ASTBinaryExpression with the cloned operands
-        return std::make_shared<ASTBinaryExpression>(clonedLeft, op, clonedRight);
+        auto copy = std::make_shared<ASTBinaryExpression>(clonedLeft, op, clonedRight);
+        copy->setSpan(getSpan());
+        return copy;
     }
 
     bool hasSideEffects() override;
@@ -104,7 +108,9 @@ public TypedStatement {
         std::shared_ptr<Statement> clonedCondition = condition ? condition->clone() : nullptr;
         std::shared_ptr<Statement> clonedTruthy = truthy ? truthy->clone() : nullptr;
         std::shared_ptr<Statement> clonedFalsey = falsey ? falsey->clone() : nullptr;
-        return std::make_shared<ASTTernaryExpression>(clonedCondition, clonedTruthy, clonedFalsey);
+        auto copy = std::make_shared<ASTTernaryExpression>(clonedCondition, clonedTruthy, clonedFalsey);
+        copy->setSpan(getSpan());
+        return copy;
     }
     private:
         std::shared_ptr<Statement> condition;

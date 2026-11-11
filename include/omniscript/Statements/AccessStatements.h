@@ -112,6 +112,7 @@ public:
             cloned->arguments.push_back(arg->clone());
         }
         cloned->isCall = isCall;
+        cloned->setSpan(getSpan());
         return cloned;
     }
 

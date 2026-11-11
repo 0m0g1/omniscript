@@ -96,6 +96,11 @@ public:
         errorCallback_ = callback; 
     }
     
+    // Keyword helpers (used by the parser for friendlier errors)
+    static bool isKeywordWord(const std::string& word);
+    // Alternative names a user could pick instead of this keyword; empty if none are defined.
+    static const std::vector<std::string>& keywordAlternatives(const std::string& word);
+
     // Statistics
     struct LexerStats {
         size_t totalTokens = 0;

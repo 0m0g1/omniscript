@@ -45,6 +45,7 @@ public:
         auto clone = std::make_shared<AssignVariable>(variable, type, value->clone(), isReassign);
         clone->isExtern = isExtern;
         clone->libraryPaths = libraryPaths;
+        clone->setSpan(getSpan());
         return clone;
     }
     
@@ -92,7 +93,9 @@ public:
         return "Error in '" + toString() + "'.\n" + msg;
     };
     std::shared_ptr<Statement> clone() const override {
-        return std::make_shared<GetVariable>(name);
+        auto clone = std::make_shared<GetVariable>(name);
+        clone->setSpan(getSpan());
+        return clone;
     }
 
 private:
@@ -124,7 +127,9 @@ public:
     std::shared_ptr<Expression> express(SymbolTableType scope);
     std::string toString() const override { return "Addressof:" + name; }
     std::shared_ptr<Statement> clone() const override {
-        return std::make_shared<AddressOf>(name);
+        auto clone = std::make_shared<AddressOf>(name);
+        clone->setSpan(getSpan());
+        return clone;
     }
     bool hasSideEffects() override { return true; };
     bool isCompileTimeEvaluatable() override { return false; };
@@ -142,9 +147,28 @@ public:
 
     std::string getName() const override { return name; }
     std::shared_ptr<Expression> express(SymbolTableType scope);
-    std::string toString() const override { return "ReferenceTo: " + name; }
+
+    std::string toString() const override {
+        // Show referent when present, so `(ReferenceTo: )` in debug logs becomes
+        // `(ReferenceTo: <referent>)` and the bug is visible at a glance.
+        if (name.empty() && referent) return "ReferenceTo: <" + referent->toString() + ">";
+        return "ReferenceTo: " + name;
+    }
+
     std::shared_ptr<Statement> clone() const override {
-        return std::make_shared<ReferenceTo>(name);
+        // FIX: preserve referent. Previous version always used the string constructor
+        // and dropped `referent`, turning `&this.data[i]` into `&""` after cloning.
+        std::shared_ptr<ReferenceTo> copy;
+        if (referent) {
+            copy = std::make_shared<ReferenceTo>(referent->clone());
+        } else {
+            copy = std::make_shared<ReferenceTo>(name);
+        }
+        copy->name = name;
+        copy->type = type;
+        copy->rootType = rootType;
+        copy->setSpan(getSpan());
+        return copy;
     }
 
     std::shared_ptr<Statement> referent = nullptr;

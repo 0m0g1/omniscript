@@ -138,10 +138,9 @@ parameterType Parser::parseTypeParametersForDeclaration() {
                 );
                 console.reportError(
                     Console::SYNTAX_ERROR,
-                    Console::formatString("Expected identifier for type parameter, found '%s'", 
-                        getTokenTypeName(currentToken.getType()).c_str()),
+                    expectedIdentifierMessage("type parameter"),
                     suggestion,
-                    span
+                    errorSpanAtCurrentToken()
                 );
             });
 
@@ -360,10 +359,9 @@ std::vector<std::string> Parser::parseType() {
                             );
                             console.reportError(
                                 Console::SYNTAX_ERROR,
-                                Console::formatString("Expected identifier for parameter name, found '%s'", 
-                                    getTokenTypeName(currentToken.getType()).c_str()),
+                                expectedIdentifierMessage("parameter name"),
                                 suggestion,
-                                span
+                                errorSpanAtCurrentToken()
                             );
                         });
 
@@ -581,10 +579,9 @@ std::vector<std::string> Parser::parseType() {
             );
             console.reportError(
                 Console::SYNTAX_ERROR,
-                Console::formatString("Expected identifier for type, found '%s'", 
-                    getTokenTypeName(currentToken.getType()).c_str()),
+                expectedIdentifierMessage("type"),
                 suggestion,
-                span
+                errorSpanAtCurrentToken()
             );
         });
         
@@ -630,10 +627,9 @@ std::vector<std::string> Parser::parseType() {
     } else {
         console.reportError(
             Console::SYNTAX_ERROR,
-            Console::formatString("Expected identifier for type, found '%s'", 
-                getTokenTypeName(currentToken.getType()).c_str()),
+            expectedIdentifierMessage("type"),
             "To resolve this:\n1. Provide a valid type identifier\n2. Check type syntax\n3. Ensure valid type declaration",
-            span
+            errorSpanAtCurrentToken()
         );
         return dataTypes;
     }
@@ -815,10 +811,9 @@ std::vector<std::string> Parser::parseTypeParametersForCall() {
                 );
                 console.reportError(
                     Console::SYNTAX_ERROR,
-                    Console::formatString("Expected identifier for type parameter, found '%s'", 
-                        getTokenTypeName(currentToken.getType()).c_str()),
+                    expectedIdentifierMessage("type parameter"),
                     suggestion,
-                    span
+                    errorSpanAtCurrentToken()
                 );
             });
 
@@ -904,10 +899,9 @@ std::shared_ptr<Statement> Parser::parseTypeDeclaration() {
         );
         console.reportError(
             Console::SYNTAX_ERROR,
-            Console::formatString("Expected identifier for type name, found '%s'", 
-                getTokenTypeName(currentToken.getType()).c_str()),
+            expectedIdentifierMessage("type name"),
             suggestion,
-            span
+            errorSpanAtCurrentToken()
         );
     });
 
@@ -1024,10 +1018,9 @@ std::shared_ptr<Statement> Parser::parseUsingAlias() {
         );
         console.reportError(
             Console::SYNTAX_ERROR,
-            Console::formatString("Expected identifier for alias name, found '%s'", 
-                getTokenTypeName(currentToken.getType()).c_str()),
+            expectedIdentifierMessage("alias name"),
             suggestion,
-            span
+            errorSpanAtCurrentToken()
         );
     });
 

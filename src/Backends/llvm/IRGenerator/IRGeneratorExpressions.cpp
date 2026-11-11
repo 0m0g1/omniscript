@@ -158,6 +158,27 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         }
     }
 
+    // LLVM requires both operands of an arithmetic / bitwise / comparison instruction to have the
+    // same type. Mixed-width integers happen when a literal (i32) meets a wider value (e.g. u64 `len == 0`).
+    if (op != TokenTypes::LogicalAnd && op != TokenTypes::LogicalOr &&
+        left->getType()->isIntegerTy() && right->getType()->isIntegerTy() &&
+        left->getType() != right->getType() &&
+        left->getType()->getIntegerBitWidth() > 1 && right->getType()->getIntegerBitWidth() > 1) {
+        unsigned lw = left->getType()->getIntegerBitWidth();
+        unsigned rw = right->getType()->getIntegerBitWidth();
+        if (llvm::isa<llvm::ConstantInt>(right)) {
+            // Literal on the right: take the left operand's type.
+            right = Builder->CreateSExtOrTrunc(right, left->getType(), "litcast");
+        } else if (llvm::isa<llvm::ConstantInt>(left)) {
+            left = Builder->CreateSExtOrTrunc(left, right->getType(), "litcast");
+        } else if (lw < rw) {
+            // NOTE: sign-extends; the backend has no signedness info here.
+            left = Builder->CreateSExt(left, right->getType(), "widen");
+        } else {
+            right = Builder->CreateSExt(right, left->getType(), "widen");
+        }
+    }
+
     switch (op) {
         // Arithmetic
         case TokenTypes::Plus:
@@ -193,7 +214,7 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
             
         case TokenTypes::NotEquals:
             return left->getType()->isFloatingPointTy()
-                ? Builder->CreateFCmpONE(left, right, "fnetmp")
+                ? Builder->CreateFCmpUNE(left, right, "fnetmp")
                 : Builder->CreateICmpNE(left, right, "netmp");
             
         case TokenTypes::LessThan:

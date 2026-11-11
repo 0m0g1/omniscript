@@ -208,6 +208,11 @@ std::shared_ptr<Expression> GetVariable::express(SymbolTableType scope) {
 
     std::shared_ptr<Type> symbolType = expr->getType();
 
+    // If the stored expression is the assignment node itself, use its declared (qualified) name.
+    if (auto va = std::dynamic_pointer_cast<VariableAssignment>(expr)) {
+        resolvedName = va->getName();
+    }
+
     if (type) {
         if (!Type::isSameOrCastableTo(symbolType, type)) {
             if (symbolType->isNullable()) {

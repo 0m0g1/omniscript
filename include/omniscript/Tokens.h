@@ -428,6 +428,11 @@ public:
     // Stream output operator
     friend std::ostream& operator<<(std::ostream& os, const Token& token);
 
+    // Helper method to check if a TokenType is a keyword
+    static bool isKeywordType(TokenTypes type) {
+        return type >= TokenTypes::If && type <= TokenTypes::Type;
+    }
+    
 private:
     TokenTypes type_;
     TokenValue value_;           // Strongly typed value
@@ -436,10 +441,6 @@ private:
     size_t column_;
     std::string filePath_;
 
-    // Helper method to check if a TokenType is a keyword
-    static bool isKeywordType(TokenTypes type) {
-        return type >= TokenTypes::If && type <= TokenTypes::Type;
-    }
 };
 
 // Token factory functions for convenience

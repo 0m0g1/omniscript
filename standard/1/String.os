@@ -91,7 +91,8 @@ struct String {
 
     appendN(src: char*, n: u64) => bool {
         if (!this.reserve(this.len + n)) return false;
-        memcpy(&this.data[this.len] as void*, src as void*, n);
+        // FIX: parenthesize & before cast
+        memcpy((&this.data[this.len]) as void*, src as void*, n);
         this.len = this.len + n;
         this.data[this.len] = 0 as char;
         return true;
@@ -110,8 +111,9 @@ struct String {
 
     appendInt(v: i64) => bool {
         let tmp: [32]char;
-        snprintf(&tmp as char*, 32, "%lld", v);
-        return this.append(&tmp as char*);
+        // FIX: parenthesize & before cast
+        snprintf((&tmp) as char*, 32, "%lld", v);
+        return this.append((&tmp) as char*);
     }
 
     clone(out: String*) => bool {
@@ -136,7 +138,8 @@ struct String {
     endsWith(suffix: char*) => bool {
         let n = strlen(suffix);
         if (n > this.len) return false;
-        return memcmp(&this.data[this.len - n] as void*, suffix as void*, n) == 0;
+        // FIX: parenthesize & before cast
+        return memcmp((&this.data[this.len - n]) as void*, suffix as void*, n) == 0;
     }
 
     // Byte index of the first match, or -1.
@@ -175,7 +178,8 @@ struct String {
         let end: u64 = this.len;
         while (end > start && isSpaceChar(this.data[end - 1] as int)) end = end - 1;
         let n: u64 = end - start;
-        if (start > 0 && n > 0) memmove(this.data as void*, &this.data[start] as void*, n);
+        // FIX: parenthesize & before cast
+        if (start > 0 && n > 0) memmove(this.data as void*, (&this.data[start]) as void*, n);
         if (this.data != nullptr) {
             this.len = n;
             this.data[n] = 0 as char;

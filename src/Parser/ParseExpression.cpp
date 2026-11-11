@@ -20,6 +20,8 @@
 
 namespace Omniscript {
 
+extern bool g_deferAssignmentToUnary;  // defined in ParseIdentifiers.cpp
+
 std::shared_ptr<Statement> Parser::parseExpression() {
     return parseTernaryExpression();
 }
@@ -168,7 +170,22 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
     ) {
         TokenTypes op = currentToken.getType();
         eat(op);
+
+        // `*p = v;` -- stop parseIdentifier from swallowing `p = v` as an assignment to `p`.
+        if (op == TokenTypes::Multiply && currentToken.getType() == TokenTypes::Identifier) {
+            g_deferAssignmentToUnary = true;
+        }
         auto operand = parseUnaryExpression();
+        g_deferAssignmentToUnary = false;
+
+        // `*p = v;`, `*p += v;` ... -> store through the pointer.
+        if (op == TokenTypes::Multiply && operand &&
+            isAssignmentExpression(currentToken.getType()) &&
+            currentToken.getType() != TokenTypes::Increment &&
+            currentToken.getType() != TokenTypes::Decrement) {
+            auto deref = std::make_shared<Dereference>(operand, "");
+            return parseAssignment(deref);
+        }
         
         if (op == TokenTypes::Plus) {
             return operand;
@@ -192,13 +209,14 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
             }
         } else if (op == TokenTypes::BitwiseAnd) {
             if (auto variable = std::dynamic_pointer_cast<GetVariable>(operand)) {
-                operand = std::make_shared<ReferenceTo>(variable->getName());
+                return std::make_shared<ReferenceTo>(variable->getName());   // ← return directly
             } else if (auto access = std::dynamic_pointer_cast<Access>(operand)) {
-                // &obj.field / &arr[i]: reference the access expression itself so that codegen
-                // produces its address (GEP) instead of the loaded value.
-                operand = std::make_shared<ReferenceTo>(access);
+                return std::make_shared<ReferenceTo>(access);                // ← return directly
             } else {
-                console.reportError(Console::SEMANTIC_ERROR, "Cannot get the reference of a symbol that isn't a variable '" + operand->toString() + "'.", FileSpan{});
+                console.reportError(Console::SEMANTIC_ERROR,
+                    "Cannot get the reference of a symbol that isn't a variable '"
+                    + operand->toString() + "'.", FileSpan{});
+                return nullptr;
             }
         }
 

@@ -419,7 +419,9 @@ public:
     }
 
     std::shared_ptr<Statement> clone() const override {
-        return std::make_shared<ASTCast>(value->clone(), type);  // Clone using copy constructor
+        auto copy = std::make_shared<ASTCast>(value ? value->clone() : nullptr, targetType);
+        copy->setSpan(getSpan());
+        return copy;
     }
 };
 

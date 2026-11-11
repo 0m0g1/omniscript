@@ -13,6 +13,7 @@
 #include <omniscript/Symboltable.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 #include <omniscript/Expressions/Expressions.h>
+#include <omniscript/Expressions/AccessExpressions.h>
 
 namespace Omniscript {
     
@@ -228,6 +229,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
         auto leftClone = left->clone();
         extendContextOf(leftClone);
         leftResult = leftClone->express(tempScope);
+        if (!leftResult) return nullptr;   // operand failed to resolve; the error was already reported
         leftType = leftResult->getType();
         DEBUG_LOG("The evaluated left operand type is of type '" + leftType->toString() + "'.");
     }
@@ -237,6 +239,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
         auto rightClone = right->clone();
         extendContextOf(rightClone);
         rightResult = rightClone->express(tempScope);
+        if (!rightResult) return nullptr;  // operand failed to resolve; the error was already reported
         rightType = rightResult->getType();
         DEBUG_LOG("The evaluated right operand type is of type '" + rightType->toString() + "'.");
     }
@@ -541,6 +544,36 @@ std::shared_ptr<Expression> ASTUnaryExpression::express(SymbolTableType scope) {
     }
 
     extendContextOf(operand);
+
+    // Prefix `*p` is a dereference: lower it to a DereferenceExpression (same node `*p = v` uses),
+    // whose type is the pointee. The target type pushed in by an enclosing cast (`*p as T`) must
+    // not be forced onto the pointer operand, so this is handled before the generic path below.
+    if (operand && op.getType() == TokenTypes::Multiply && position == Position::Prefix) {
+        auto pointerValue = operand->express(scope);
+        if (!pointerValue) {
+            console.reportError(
+                Console::RUNTIME_ERROR,
+                "Failed to evaluate unary operand",
+                "The operand of '*' could not be evaluated: " + operand->toString(),
+                operand->getSpan()
+            );
+            return nullptr;
+        }
+        auto pointerType = pointerValue->getType();
+        if (!pointerType || !pointerType->isPointer()) {
+            console.reportError(
+                Console::TYPE_ERROR,
+                "Cannot dereference non-pointer type '" + (pointerType ? pointerType->toString() : std::string("<none>")) + "'",
+                "Apply '*' to a pointer value, or use '&' to take an address first.",
+                getSpan()
+            );
+            return nullptr;
+        }
+        auto pointeeType = pointerType->getPointeeType();
+        auto deref = std::make_shared<DereferenceExpression>(pointerValue, nullptr, pointeeType);
+        deref->setSpan(this->getSpan());
+        return deref;
+    }
 
     std::shared_ptr<Expression> operandValue;
 

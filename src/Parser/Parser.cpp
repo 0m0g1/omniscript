@@ -50,6 +50,29 @@ void Parser::initializeFunctions() {
     // Placeholder for future initialization logic
 }
 
+// Message for "expected an identifier" failures; explains reserved keywords.
+std::string Parser::expectedIdentifierMessage(const std::string& what) const {
+    TokenTypes t = currentToken.getType();
+    if (Token::isKeywordType(t)) {
+        std::string word = currentToken.getValue();
+        if (word.empty()) word = getTokenTypeName(t);
+        std::string msg = "'" + word + "' is a reserved keyword and can't be used as a " +
+                            what + ". Try renaming it";
+        const auto& alts = Lexer::keywordAlternatives(word);
+        if (!alts.empty()) {
+            msg += " (e.g. ";
+            for (size_t i = 0; i < alts.size(); ++i) {
+                if (i) msg += " or ";
+                msg += "'" + alts[i] + "'";
+            }
+            msg += ")";
+        }
+        return msg + ".";
+    }
+    return "Expected identifier for " + what + ", found '" + getTokenTypeName(t) + "'";
+}
+        
+
 void Parser::parseProgram() {
     FileSpan span;
     span.start.line = currentToken.getLine();

@@ -15,7 +15,13 @@
 
 namespace Omniscript {
 
+// One-shot flag set by parseUnaryExpression for `*ident = value;` so that the identifier is
+// parsed on its own and the assignment is applied to the dereference, not to the identifier.
+bool g_deferAssignmentToUnary = false;
+
 std::shared_ptr<Statement> Parser::parseIdentifier() {
+    const bool deferAssignment = g_deferAssignmentToUnary;
+    g_deferAssignmentToUnary = false;  // consume: must not leak into nested identifiers
     if (currentToken.getType() == TokenTypes::Identifier && currentToken.getValue() == "sizeof") {
         Token startToken = currentToken;
         eat(TokenTypes::Identifier); // eat "sizeof"
@@ -187,10 +193,9 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
                 );
                 console.reportError(
                     Console::SYNTAX_ERROR,
-                    Console::formatString("Expected identifier for member name, found '%s'", 
-                        getTokenTypeName(currentToken.getType()).c_str()),
+                    expectedIdentifierMessage("member name"),
                     suggestion,
-                    span
+                    errorSpanAtCurrentToken()
                 );
             });
             
@@ -253,10 +258,9 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
                 );
                 console.reportError(
                     Console::SYNTAX_ERROR,
-                    Console::formatString("Expected identifier for member name, found '%s'", 
-                        getTokenTypeName(currentToken.getType()).c_str()),
+                    expectedIdentifierMessage("member name"),
                     suggestion,
-                    span
+                    errorSpanAtCurrentToken()
                 );
             });
             
@@ -374,7 +378,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             continue;
         }
         
-        else if (isAssignmentExpression(currentToken.getType())) {
+        else if (!deferAssignment && isAssignmentExpression(currentToken.getType())) {
             // Assignment
             expr = parseAssignment(expr);
             if (!expr) {

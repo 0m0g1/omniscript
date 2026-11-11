@@ -262,10 +262,9 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
             );
             console.reportError(
                 Console::SYNTAX_ERROR,
-                Console::formatString("Expected identifier for function name, found '%s'", 
-                    getTokenTypeName(currentToken.getType()).c_str()),
+                expectedIdentifierMessage("function name"),
                 suggestion,
-                span
+                errorSpanAtCurrentToken()
             );
         });
 
@@ -341,10 +340,9 @@ std::shared_ptr<Statement> Parser::parseExternFunction() {
                     );
                     console.reportError(
                         Console::SYNTAX_ERROR,
-                        Console::formatString("Expected identifier for function name, found '%s'", 
-                            getTokenTypeName(currentToken.getType()).c_str()),
+                        expectedIdentifierMessage("function name"),
                         suggestion,
-                        span
+                        errorSpanAtCurrentToken()
                     );
                 });
     
@@ -486,10 +484,9 @@ std::shared_ptr<Statement> Parser::parseIntrinsicFunction() {
         );
         console.reportError(
             Console::SYNTAX_ERROR,
-            Console::formatString("Expected identifier for intrinsic function name, found '%s'", 
-                getTokenTypeName(currentToken.getType()).c_str()),
+            expectedIdentifierMessage("intrinsic function name"),
             suggestion,
-            span
+            errorSpanAtCurrentToken()
         );
     });
 
@@ -604,10 +601,9 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
             );
             console.reportError(
                 Console::SYNTAX_ERROR,
-                Console::formatString("Expected identifier for function name, found '%s'", 
-                    getTokenTypeName(currentToken.getType()).c_str()),
+                expectedIdentifierMessage("function name"),
                 suggestion,
-                span
+                errorSpanAtCurrentToken()
             );
         });
     }

@@ -1,3 +1,4 @@
+// ModuleAndImportStatements.cpp
 // src/Statements/ModuleAndImportStatements.cpp
 #include <algorithm>
 #include <filesystem>
@@ -194,6 +195,22 @@ std::shared_ptr<Expression> CreateModule::express(SymbolTableType scope) {
     std::vector<std::shared_ptr<FunctionDeclaration>> funcs;
     std::vector<MemberModifiers> funcsModifiers;
 
+    // A module that declares a struct/class of its own name (`module String { struct String {...} }`)
+    // has methods registered as "String.<method>". Aliasing externs as "String.<name>" would put an
+    // extern (e.g. libc `free`) and the method `String.free` into ONE overload set, and resolving
+    // `s.free()` then hard-errors while trying to bind `this` to the extern's `void*` parameter.
+    bool hasSameNamedType = false;
+    for (const auto& stmt : flattenedStatements) {
+        auto m = std::dynamic_pointer_cast<ModuleMember>(stmt);
+        if (!m) continue;
+        auto v = m->getValue();
+        if (auto sp = std::dynamic_pointer_cast<ConstructStructPrototype>(v)) {
+            if (sp->getName() == getName()) hasSameNamedType = true;
+        } else if (auto cp = std::dynamic_pointer_cast<ConstructClassPrototype>(v)) {
+            if (cp->getName() == getName()) hasSameNamedType = true;
+        }
+    }
+
     for (const auto& stmt : flattenedStatements) {
         auto member = std::dynamic_pointer_cast<ModuleMember>(stmt);
         if (!member) continue;
@@ -219,6 +236,17 @@ std::shared_ptr<Expression> CreateModule::express(SymbolTableType scope) {
             // Register under the qualified name (external access).
             const size_t overloadsBefore = moduleScope->getOverloads(qualifiedName).size();
             func->registerInScope(moduleScope);
+
+            // Externs keep their C linkage name, but callers reach them through the module
+            // alias (CMath.fabs), so expose the same FunctionExpression under the qualified name too.
+            if (func->isExtern && !hasSameNamedType) {
+                auto registered = moduleScope->getOverloads(bareName);
+                if (!registered.empty()) {
+                    std::string ctx;
+                    for (size_t i = 0; i + 1 < accessContext.size(); i++) ctx += accessContext[i] + ".";
+                    moduleScope->addOverloadable(ctx + getName() + "." + bareName, registered.back(), true);
+                }
+            }
 
             // Also expose the SAME FunctionExpression under the bare name for intra-module calls.
             // (Calling registerInScope a second time is a no-op: it returns early once
@@ -268,6 +296,14 @@ std::shared_ptr<Expression> CreateModule::express(SymbolTableType scope) {
             continue;
         }
 
+        // reinterprateStatement renames variables/constants in place ("K" -> "Math.K"), so remember
+        // the bare name first. Functions get a bare alias in pass 1; variables need one too, or
+        // function bodies (which look up `K`, not `Math.K`) cannot see module-level constants.
+        std::string bareVarName;
+        if (auto preAssign = std::dynamic_pointer_cast<AssignVariable>(val)) {
+            if (!preAssign->isExtern) bareVarName = preAssign->getName();
+        }
+
         auto interpreted = reinterprateStatement(member->getValue());
         if (!interpreted) {
             console.reportError(
@@ -295,6 +331,24 @@ std::shared_ptr<Expression> CreateModule::express(SymbolTableType scope) {
             return nullptr;
         }
         expressions.push_back(memberExprValue);
+
+        // Expose the SAME stored value under the bare name for intra-module use (see above).
+        if (!bareVarName.empty()) {
+            if (auto assigned = std::dynamic_pointer_cast<AssignVariable>(interpreted)) {
+                const std::string qualifiedVarName = assigned->getName();
+                if (qualifiedVarName != bareVarName) {
+                    auto stored = moduleScope->lookup(qualifiedVarName);
+                    if (stored.found()) {
+                        DEBUG_LOG("[Module] Aliasing '" + qualifiedVarName + "' as '" + bareVarName + "'.");
+                        if (stored.isConstant) {
+                            moduleScope->setConstant(bareVarName, stored.value, true);
+                        } else {
+                            moduleScope->setVariable(bareVarName, stored.value, true);
+                        }
+                    }
+                }
+            }
+        }
 
         auto memberExpr = std::make_shared<ModuleMemberExpression>(
             member->getName(),
@@ -363,10 +417,22 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
     };
 
     if (auto assignment = std::dynamic_pointer_cast<AssignVariable>(statement)) {
-        // Extern variables keep their raw C linkage name.
-        if (!assignment->isExtern) {
-            assignment->setName(makeName(assignment->getName()));
-        }
+        // Do NOT rename module-level variables. Reasons:
+        //
+        //   1. Intra-module lookups: `qpcFreq() { return g_qpcFreq; }` needs to find
+        //      `g_qpcFreq` by bare name. Renaming it to `Time.g_qpcFreq` in the scope
+        //      breaks that, and the LLVM `activeScope` lookup fails for the same reason.
+        //
+        //   2. External access still works: `Time.g_qpcFreq` from outside resolves via
+        //      `ModuleExpression.members` (`ModuleMemberExpression("g_qpcFreq", ...)`),
+        //      which uses the ORIGINAL member name, not the scope-registered name.
+        //
+        //   3. Externs already skip the rename (same treatment).
+        //
+        // Trade-off: two modules declaring the same global name (`let x = 0` in both)
+        // will produce two LLVM globals that LLVM auto-uniquifies to `@x` and `@x.1`.
+        // The `activeScope["x"]` entry gets overwritten by whichever module runs second.
+        // That's a known limitation — fix later with per-module LLVM scoping if needed.
         return assignment;
     }
 
@@ -711,6 +777,10 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
         return nullptr;
     }
 
+    // Expressions produced by nested imports (`module CMath = import ...;` inside this file).
+    // They must be code-generated with the module, or their externs never reach the IR.
+    std::vector<std::shared_ptr<Expression>> nestedImportExprs;
+
     if (!createModule) {
         {
             const std::string sourceDir = std::filesystem::path(resolved.displayPath).parent_path().string();
@@ -722,7 +792,13 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
         for (auto& stmt : statements) {
             if (!stmt) continue;
             if (auto imp = std::dynamic_pointer_cast<ImportModule>(stmt)) {
-                imp->express(scope);
+                if (auto nested = imp->express(scope)) {
+                    if (auto nestedBlock = std::dynamic_pointer_cast<BlockExpression>(nested)) {
+                        for (auto& e : nestedBlock->values) nestedImportExprs.push_back(e);
+                    } else {
+                        nestedImportExprs.push_back(nested);
+                    }
+                }
                 continue;
             }
             remainingStatements.push_back(stmt);
@@ -744,7 +820,7 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
         }
 
         if (importAll) {
-            std::vector<std::shared_ptr<Expression>> expressions;
+            std::vector<std::shared_ptr<Expression>> expressions = nestedImportExprs;
             for (const auto& decl : declarations) {
                 if (auto expr = decl->express(scope)) expressions.push_back(expr);
             }
@@ -786,6 +862,13 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
             createModule->getSpan()
         );
         return nullptr;
+    }
+
+    // Emit nested-import declarations (externs etc.) ahead of this module's own members.
+    if (!nestedImportExprs.empty()) {
+        if (auto modBlock = std::dynamic_pointer_cast<BlockExpression>(mod)) {
+            modBlock->values.insert(modBlock->values.begin(), nestedImportExprs.begin(), nestedImportExprs.end());
+        }
     }
 
     scope->defineModule(registryKey, scope);

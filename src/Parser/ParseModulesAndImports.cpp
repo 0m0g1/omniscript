@@ -489,8 +489,9 @@ std::shared_ptr<Statement> Parser::parseModule() {
         auto importStmt = std::make_shared<ImportModule>(
             moduleName, moduleName, 
             std::unordered_map<std::string, std::string>{}, 
-            modulePath, true
+            modulePath, false   // importAll=false: keep contents namespaced under the alias
         );
+        importStmt->isPathImport = true;
         importStmt->setSpan(span);
         return importStmt;
     }
@@ -638,7 +639,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
                 return nullptr;
             }
 
-            Lexer lexer(sourceCode);
+            Lexer lexer(sourceCode, modulePath);
             Parser parser(lexer);
             std::vector<std::shared_ptr<Statement>> moduleStatements = parser.parse();
             if (moduleStatements.empty()) {

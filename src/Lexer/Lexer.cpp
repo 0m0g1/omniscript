@@ -28,6 +28,36 @@ const std::unordered_map<std::string, TokenTypes> Lexer::keywordMap_ = {
     {"as", TokenTypes::As}, {"type", TokenTypes::Type}
 };
 
+// Alternative names offered when a keyword is used where an identifier is required.
+// Keywords not listed here simply get no suggestion ("Try renaming it.").
+static const std::unordered_map<std::string, std::vector<std::string>> kKeywordAlternatives = {
+    {"mod", {"modulo", "remainder"}},       {"module", {"moduleName", "unit"}},
+    {"type", {"kind", "typeName"}},         {"from", {"source", "origin"}},
+    {"new", {"create", "make"}},            {"delete", {"remove", "erase"}},
+    {"class", {"klass", "cls"}},            {"struct", {"record"}},
+    {"enum", {"enumeration"}},              {"namespace", {"scope", "ns"}},
+    {"using", {"usage"}},                   {"static", {"isStatic"}},
+    {"any", {"anything"}},                  {"variant", {"variantValue"}},
+    {"final", {"isFinal", "last"}},         {"const", {"constant"}},
+    {"extern", {"external"}},               {"include", {"includes"}},
+    {"import", {"importer"}},               {"null", {"nothing", "empty"}},
+    {"volatile", {"isVolatile"}},           {"as", {"asType"}},
+    {"xor", {"exclusiveOr"}},               {"public", {"isPublic"}},
+    {"private", {"isPrivate"}},             {"protected", {"isProtected"}},
+    {"override", {"overridden"}},           {"virtual", {"isVirtual"}},
+    {"extends", {"parent", "base"}},        {"intrinsic", {"builtin"}}
+};
+
+bool Lexer::isKeywordWord(const std::string& word) {
+    return keywordMap_.count(LexerUtils::toLowerCaseString(word)) > 0;
+}
+
+const std::vector<std::string>& Lexer::keywordAlternatives(const std::string& word) {
+    static const std::vector<std::string> none;
+    auto it = kKeywordAlternatives.find(LexerUtils::toLowerCaseString(word));
+    return it != kKeywordAlternatives.end() ? it->second : none;
+}
+
 const std::unordered_set<std::string> Lexer::reservedWords_ = {
     "if", "else", "while", "for", "function", "fn", "let", "var",
     "const", "true", "false", "null", "nullptr", "return", "break",
