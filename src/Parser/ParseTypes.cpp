@@ -276,7 +276,17 @@ static uint64_t arraySizeFromToken(const Token& t) {
     return std::stoull(t.getValue());
 }
 
+// A '>>' token closing two nested generic lists (List<List<i64>>) is consumed once by the
+// inner list; the outer list then closes using this pending half instead of eating a token.
+static int pendingCloseAngles = 0;
+static int parseTypeDepth = 0;
+
 std::vector<std::string> Parser::parseType() {
+    struct DepthGuard {
+        DepthGuard() { ++parseTypeDepth; }
+        ~DepthGuard() { if (--parseTypeDepth == 0) pendingCloseAngles = 0; }
+    } depthGuard;
+
     FileSpan span;
     span.start.line = currentToken.getLine();
     span.start.col = currentToken.getColumn();
@@ -621,6 +631,34 @@ std::vector<std::string> Parser::parseType() {
                     span
                 );
             });
+        }
+
+        // Generic type arguments: List<i64>, Map<string, List<i64>>
+        if (currentToken.getType() == TokenTypes::LessThan) {
+            dataTypes.push_back("<");
+            prevColumn = currentToken.getColumn();
+            eat(TokenTypes::LessThan);
+            while (true) {
+                std::vector<std::string> arg = parseType();
+                if (arg.empty()) return dataTypes;
+                dataTypes.insert(dataTypes.end(), arg.begin(), arg.end());
+                if (currentToken.getType() == TokenTypes::Comma) {
+                    dataTypes.push_back(",");
+                    eat(TokenTypes::Comma);
+                    continue;
+                }
+                break;
+            }
+            dataTypes.push_back(">");
+            if (pendingCloseAngles > 0) {
+                pendingCloseAngles--;
+            } else if (currentToken.getType() == TokenTypes::ShiftRight) {
+                eat(TokenTypes::ShiftRight);
+                pendingCloseAngles = 1;
+            } else {
+                prevColumn = currentToken.getColumn();
+                eat(TokenTypes::GreaterThan, "Expected '>' to close generic type arguments.");
+            }
         }
     } else if (!prefixModifiers.empty()) {
         return prefixModifiers;

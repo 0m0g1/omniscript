@@ -3,12 +3,15 @@
 
 namespace Omniscript {
 
+using GenericParamList = std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>>;
+
 class ConstructStructPrototype : 
 public NamedStatement, 
 public TypedStatement {
 public:
-    ConstructStructPrototype(const std::string& structName, const std::vector<std::shared_ptr<Statement>>& structBody) :
-    body(structBody) {
+    ConstructStructPrototype(const std::string& structName, const std::vector<std::shared_ptr<Statement>>& structBody,
+                             const GenericParamList& structTypeParams = {}) :
+    body(structBody), typeParams(structTypeParams) {
         setName(structName);
     }
     
@@ -21,8 +24,13 @@ public:
     };
 
     std::vector<std::shared_ptr<Statement>> getBody() const { return body; }
+
+    // Non-empty for `struct List<T> {...}`: this prototype is a template, not a concrete type.
+    const GenericParamList& getTypeParams() const { return typeParams; }
+    bool isGeneric() const { return !typeParams.empty(); }
 private:
     std::vector<std::shared_ptr<Statement>> body;
+    GenericParamList typeParams;
 };
 
 } // namespace Omniscript

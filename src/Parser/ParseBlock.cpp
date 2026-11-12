@@ -13,12 +13,22 @@ std::shared_ptr<Statement> Parser::parseBlock() {
 
     std::vector<std::shared_ptr<Statement>> statements;
 
+    // Every push must be null-guarded. `parseStatement()` returns null for
+    // empty statements (stray semicolons, blank lines) and on error; the
+    // block statement has no business carrying nulls downstream — codegen
+    // and toString() both dereference them without checking.
+    auto pushIfValid = [&](std::shared_ptr<Statement> stmt) {
+        if (stmt) {
+            statements.push_back(std::move(stmt));
+        }
+    };
+
     if (currentToken.getType() == TokenTypes::LeftBrace) {
 
         eat(TokenTypes::LeftBrace);
 
         while (currentToken.getType() != TokenTypes::RightBrace && currentToken.getType() != TokenTypes::EOI) {
-            statements.push_back(parseStatement());
+            pushIfValid(parseStatement());
         }
 
         eat(TokenTypes::RightBrace);
@@ -28,14 +38,9 @@ std::shared_ptr<Statement> Parser::parseBlock() {
         }
 
     } else if (currentToken.getType() == TokenTypes::Return) {
-
-        // parseReturnStatement already consumes the terminating ';' or newline.
-        // (The old extra eat(Semicolon) here ran unconditionally -- its condition used
-        // '||' and was always true -- so `if (c) return x;` demanded a second ';'.)
-        statements.push_back(parseReturnStatement());
-
+        pushIfValid(parseReturnStatement());
     } else {
-        statements.push_back(parseStatement());
+        pushIfValid(parseStatement());
     }
 
     auto block = std::make_shared<BlockStatement>(statements);

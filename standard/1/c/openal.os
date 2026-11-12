@@ -1,12 +1,21 @@
-// standard/1/c/openal.os  (miniaudio, via a thin C shim exposing ma_* simple API)
-extern "C" fn ma_engine_init(cfg: void*, eng: void*) => int;
-extern "C" fn ma_engine_uninit(eng: void*) => void;
-extern "C" fn ma_engine_play_sound(eng: void*, path: char*, group: void*) => int;
-extern "C" fn ma_engine_set_volume(eng: void*, v: float) => int;
-extern "C" fn ma_sound_init_from_file(eng: void*, path: char*, flags: u32, grp: void*, fence: void*, snd: void*) => int;
-extern "C" fn ma_sound_start(snd: void*) => int;
-extern "C" fn ma_sound_stop(snd: void*) => int;
-extern "C" fn ma_sound_uninit(snd: void*) => void;
-extern "C" fn ma_sound_set_volume(snd: void*, v: float) => void;
-extern "C" fn ma_sound_set_looping(snd: void*, l: u32) => void;
-extern "C" fn ma_sound_is_playing(snd: void*) => u32;
+// standard/1/c/openal.os  (OpenAL Soft, 64-bit)
+extern "dependencies/openal-soft-1.24.3-bin/bin/Win64/soft_oal.dll" {
+    fn alcOpenDevice(name: char*) => void*;
+    fn alcCloseDevice(dev: void*) => int;
+    fn alcCreateContext(dev: void*, attrs: int*) => void*;
+    fn alcMakeContextCurrent(ctx: void*) => int;
+    fn alcDestroyContext(ctx: void*) => void;
+    fn alGetError() => int;
+    fn alGenBuffers(n: int, bufs: u32*) => void;
+    fn alDeleteBuffers(n: int, bufs: u32*) => void;
+    fn alBufferData(buf: u32, fmt: int, data: void*, size: int, freq: int) => void;
+    fn alGenSources(n: int, srcs: u32*) => void;
+    fn alDeleteSources(n: int, srcs: u32*) => void;
+    fn alSourcei(src: u32, param: int, v: int) => void;
+    fn alSourcef(src: u32, param: int, v: float) => void;
+    fn alGetSourcei(src: u32, param: int, v: int*) => void;
+    fn alSourcePlay(src: u32) => void;
+    fn alSourceStop(src: u32) => void;
+    fn alSourcePause(src: u32) => void;
+    fn alListenerf(param: int, v: float) => void;
+}

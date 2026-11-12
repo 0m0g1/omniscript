@@ -94,6 +94,11 @@ public:
     std::vector<std::shared_ptr<Type>> typeParams;
     std::vector<std::shared_ptr<Type>> baseTypes; // For inheritance
 
+    // Set only on instantiated generics: List<i64> -> templateName "List", typeArgs [i64].
+    // `name` of an instance is mangled (e.g. "List_i64"). Empty/unset on plain types.
+    std::string templateName;
+    std::vector<std::shared_ptr<Type>> typeArgs;
+
     UserDefinedType(const std::string& name, Kind kind = Kind::UserDefined)
         : Type(kind), name(name) {}
 
@@ -114,6 +119,8 @@ public:
         cloned->paramTypes = paramTypes;
         cloned->typeParams = typeParams;
         cloned->baseTypes = baseTypes;
+        cloned->templateName = templateName;
+        cloned->typeArgs = typeArgs;
         return cloned;
     }
 

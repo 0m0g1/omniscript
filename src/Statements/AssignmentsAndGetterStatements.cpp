@@ -340,6 +340,18 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
         }
 
         if (value) {
+            // Propagate the declared type onto the value BEFORE expressing it.
+            // Without this, `let i: u64 = 1;` produces `IntegerLiteral(1)` with type
+            // == nullptr, and `IntegerLiteral::express` defaults to Int32 — so any
+            // literal > 2^31 silently truncates into a 4-byte value in an 8-byte slot.
+            if (type) {
+                if (auto typedValue = std::dynamic_pointer_cast<TypedStatement>(value)) {
+                    if (!typedValue->getType() || typedValue->getType()->isInvalid()) {
+                        typedValue->setType(type);
+                        typedValue->setRootType(type);
+                    }
+                }
+            }
             result = value->express(scope);
             if (!result) {
                 std::string suggestion = "To resolve this:\n"

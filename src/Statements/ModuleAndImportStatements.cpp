@@ -65,24 +65,28 @@ bool tryReadSource(const std::string& path, std::string& out) {
 // resolving after the struct itself is renamed.
 // ============================================================================
 namespace {
-void renameTypeInPlace(std::shared_ptr<Type> type, const std::string& oldName, const std::string& newName) {
+void renameTypeInPlace(std::shared_ptr<Type> type, const std::string& oldName, const std::string& newName,
+                       const std::vector<std::string>& skip = {}) {
     if (!type) return;
 
     if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
+        // Generic type parameters (T, U...) are placeholders resolved at instantiation,
+        // never module members.
+        for (const auto& s : skip) if (udt->name == s) return;
         if (udt->name == oldName) udt->name = newName;
         return;
     }
     if (type->isPointer()) {
-        renameTypeInPlace(type->getPointeeType(), oldName, newName);
+        renameTypeInPlace(type->getPointeeType(), oldName, newName, skip);
         return;
     }
     if (type->isReference()) {
-        renameTypeInPlace(type->getReferencedType(), oldName, newName);
+        renameTypeInPlace(type->getReferencedType(), oldName, newName, skip);
         return;
     }
     if (type->isNullable()) {
         if (auto nullable = std::dynamic_pointer_cast<NullableType>(type)) {
-            renameTypeInPlace(nullable->innerType, oldName, newName);
+            renameTypeInPlace(nullable->innerType, oldName, newName, skip);
         }
         return;
     }
@@ -455,6 +459,8 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
         std::string oldName = structDeclr->getName();
         std::string newName = makeName(oldName);
         structDeclr->setName(newName);
+        std::vector<std::string> skip;
+        for (const auto& tp : structDeclr->getTypeParams()) skip.push_back(tp.first);
 
         // Rename methods + their signature types:
         //   `Buffer.clear` -> `<newName>.clear`
@@ -470,12 +476,12 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
                 // NEW: rename self-referencing types in method signatures.
                 for (auto& param : method->parameters) {
                     if (auto stmt = std::dynamic_pointer_cast<ParameterStatement>(param)) {
-                        renameTypeInPlace(stmt->getType(), oldName, newName);
+                        renameTypeInPlace(stmt->getType(), oldName, newName, skip);
                     } else if (auto expr = std::dynamic_pointer_cast<FunctionInputExpression>(param)) {
-                        renameTypeInPlace(expr->getType(), oldName, newName);
+                        renameTypeInPlace(expr->getType(), oldName, newName, skip);
                     }
                 }
-                renameTypeInPlace(method->returnType, oldName, newName);
+                renameTypeInPlace(method->returnType, oldName, newName, skip);
             }
         }
         return structDeclr;
@@ -485,6 +491,8 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
         std::string oldName = classDeclr->getName();
         std::string newName = makeName(oldName);
         classDeclr->setName(newName);
+        std::vector<std::string> skip;
+        for (const auto& tp : classDeclr->getTypeParams()) skip.push_back(tp.first);
 
         // Class bodies store ClassMember wrappers; unwrap to reach FunctionDeclaration.
         for (auto& classMember : classDeclr->getBody()) {
@@ -501,12 +509,12 @@ std::shared_ptr<Statement> CreateModule::reinterprateStatement(std::shared_ptr<S
             // NEW: rename self-referencing types in method signatures.
             for (auto& param : method->parameters) {
                 if (auto stmt = std::dynamic_pointer_cast<ParameterStatement>(param)) {
-                    renameTypeInPlace(stmt->getType(), oldName, newName);
+                    renameTypeInPlace(stmt->getType(), oldName, newName, skip);
                 } else if (auto expr = std::dynamic_pointer_cast<FunctionInputExpression>(param)) {
-                    renameTypeInPlace(expr->getType(), oldName, newName);
+                    renameTypeInPlace(expr->getType(), oldName, newName, skip);
                 }
             }
-            renameTypeInPlace(method->returnType, oldName, newName);
+            renameTypeInPlace(method->returnType, oldName, newName, skip);
         }
         return classDeclr;
     }

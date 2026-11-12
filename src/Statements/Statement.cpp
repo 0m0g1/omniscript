@@ -49,12 +49,18 @@ std::vector<std::shared_ptr<Expression>> BlockStatement::expressAsVector(SymbolT
     std::vector<std::shared_ptr<Expression>> results = {};
     
     // // Generate code for each statement in order
-    for (const auto& stmt : statements) {
+    for (size_t idx = 0; idx < statements.size(); ++idx) {
+        const auto& stmt = statements[idx];
         if (!stmt) {
+            console.reportWarning(
+                Console::formatString(
+                    "Null statement at index %zu / %zu in block",
+                    idx, statements.size()),
+                getSpan());
             continue;
         }
-        // Handle type propagation if needed
         DEBUG_LOG(stmt->toString());
+        
         if (auto typed = std::dynamic_pointer_cast<ScopedStatement>(stmt)) {
             if (type) {
                 typed->setType(type);

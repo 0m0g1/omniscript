@@ -21,6 +21,89 @@ static bool looksNullable(llvm::Type* t) {
     return st && !st->hasName() && st->getNumElements() == 2 && st->getElementType(0)->isIntegerTy(1);
 }
 
+// ---------------------------------------------------------------------------
+// Atomic intrinsics. `intrinsic fn atomic_<op>_<type>(...)` has no llvm.* intrinsic behind it:
+// atomics are instructions, so the function is defined here with a one-block body that the
+// optimizer inlines. Ops: add sub and or xor xchg (ptr, value) -> OLD value,
+// cmpxchg (ptr, expected, desired) -> OLD value, load (ptr), store (ptr, value).
+// Returns nullptr when `intrinsicName` is not an atomic op (caller falls back to llvm.*).
+// ---------------------------------------------------------------------------
+static llvm::Function* defineAtomicIntrinsic(
+    llvm::Module* mod,
+    const std::string& mangledName,
+    std::string intrinsicName,
+    llvm::Type* retTy,
+    const std::vector<llvm::Type*>& paramTys
+) {
+    const std::string intrinsicPrefix = "intrinsic_";
+    if (intrinsicName.rfind(intrinsicPrefix, 0) == 0) intrinsicName = intrinsicName.substr(intrinsicPrefix.size());
+    const std::string atomicPrefix = "atomic_";
+    if (!mod || intrinsicName.rfind(atomicPrefix, 0) != 0) return nullptr;
+
+    std::string rest = intrinsicName.substr(atomicPrefix.size());
+    std::string op = rest.substr(0, rest.find('_'));
+
+    llvm::AtomicRMWInst::BinOp rmw;
+    bool isRmw = true;
+    if (op == "add") rmw = llvm::AtomicRMWInst::Add;
+    else if (op == "sub") rmw = llvm::AtomicRMWInst::Sub;
+    else if (op == "and") rmw = llvm::AtomicRMWInst::And;
+    else if (op == "or")  rmw = llvm::AtomicRMWInst::Or;
+    else if (op == "xor") rmw = llvm::AtomicRMWInst::Xor;
+    else if (op == "xchg") rmw = llvm::AtomicRMWInst::Xchg;
+    else { isRmw = false; }
+
+    const size_t needed = isRmw ? 2 : (op == "cmpxchg" ? 3 : (op == "load" ? 1 : (op == "store" ? 2 : 0)));
+    if (needed == 0 || paramTys.size() != needed) {
+        console.reportError(Console::SEMANTIC_ERROR,
+            "Atomic intrinsic '" + intrinsicName + "' has the wrong number of parameters or an unknown operation",
+            FileSpan{});
+        return nullptr;
+    }
+
+    llvm::Function* fn = mod->getFunction(mangledName);
+    if (fn && !fn->empty()) return fn;   // already defined
+    if (!fn) {
+        auto* fnTy = llvm::FunctionType::get(retTy, paramTys, false);
+        fn = llvm::Function::Create(fnTy, llvm::GlobalValue::InternalLinkage, mangledName, mod);
+    }
+    fn->addFnAttr(llvm::Attribute::AlwaysInline);
+
+    llvm::LLVMContext& ctx = mod->getContext();
+    auto* entry = llvm::BasicBlock::Create(ctx, "entry", fn);
+    llvm::IRBuilder<> b(entry);   // own builder: leaves the generator's insertion point alone
+
+    auto it = fn->arg_begin();
+    llvm::Value* ptr = &*it++;
+    const auto ordering = llvm::AtomicOrdering::SequentiallyConsistent;
+
+    if (op == "load") {
+        llvm::Type* valTy = retTy;
+        llvm::Align align = llvm::Align(mod->getDataLayout().getTypeStoreSize(valTy).getFixedValue());
+        auto* ld = b.CreateAlignedLoad(valTy, ptr, align);
+        ld->setAtomic(ordering);
+        b.CreateRet(ld);
+    } else if (op == "store") {
+        llvm::Value* val = &*it++;
+        llvm::Align align = llvm::Align(mod->getDataLayout().getTypeStoreSize(val->getType()).getFixedValue());
+        auto* st = b.CreateAlignedStore(val, ptr, align);
+        st->setAtomic(ordering);
+        if (retTy->isVoidTy()) b.CreateRetVoid(); else b.CreateRet(val);
+    } else if (op == "cmpxchg") {
+        llvm::Value* expected = &*it++;
+        llvm::Value* desired = &*it++;
+        llvm::Align align = llvm::Align(mod->getDataLayout().getTypeStoreSize(expected->getType()).getFixedValue());
+        auto* x = b.CreateAtomicCmpXchg(ptr, expected, desired, llvm::MaybeAlign(align), ordering, ordering);
+        b.CreateRet(b.CreateExtractValue(x, 0));   // old value, like InterlockedCompareExchange
+    } else {
+        llvm::Value* val = &*it++;
+        llvm::Align align = llvm::Align(mod->getDataLayout().getTypeStoreSize(val->getType()).getFixedValue());
+        auto* r = b.CreateAtomicRMW(rmw, ptr, val, llvm::MaybeAlign(align), ordering);
+        if (retTy->isVoidTy()) b.CreateRetVoid(); else b.CreateRet(r);   // old value
+    }
+    return fn;
+}
+
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTableType scope) {
     DEBUG_LOG();
     if (!value) {
@@ -238,11 +321,18 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
                     if (nameWithoutPrefix.rfind(prefix, 0) == 0)
                         nameWithoutPrefix = nameWithoutPrefix.substr(prefix.size());
 
-                    createIntrinsicFunction(
-                        func->mangledName,
-                        "llvm." + nameWithoutPrefix,
-                        returnType
-                    );
+                    std::vector<llvm::Type*> atomicParamTys;
+                    for (const auto& p : func->parameters) atomicParamTys.push_back(resolveLLVMType(p->getType()));
+                    llvm::Module* atomicMod = currentModule ? &*currentModule : &*Module;
+                    if (auto atomicFn = defineAtomicIntrinsic(atomicMod, func->mangledName, func->intrinsicName, returnType, atomicParamTys)) {
+                        activeScope->set(func->mangledName, atomicFn);   // same registration createIntrinsicFunction does
+                    } else {
+                        createIntrinsicFunction(
+                            func->mangledName,
+                            "llvm." + nameWithoutPrefix,
+                            returnType
+                        );
+                    }
                 } else {
                     registerFunction(
                         func->mangledName,
@@ -306,6 +396,14 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
             // Strip 'intrinsic_' prefix if present
             if (nameWithoutPrefix.rfind(prefix, 0) == 0) {
                 nameWithoutPrefix = nameWithoutPrefix.substr(prefix.size());
+            }
+
+            std::vector<llvm::Type*> atomicParamTys;
+            for (const auto& p : func->parameters) atomicParamTys.push_back(resolveLLVMType(p->getType()));
+            llvm::Module* atomicMod = currentModule ? &*currentModule : &*Module;
+            if (auto atomicFn = defineAtomicIntrinsic(atomicMod, func->mangledName, func->intrinsicName, returnType, atomicParamTys)) {
+                activeScope->set(func->mangledName, atomicFn);   // same registration createIntrinsicFunction does
+                return atomicFn;
             }
 
             return createIntrinsicFunction(

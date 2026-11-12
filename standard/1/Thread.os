@@ -48,11 +48,13 @@ function spawn(entry: fn(void*) => u32, arg: void*, out: Thread*) => bool { retu
 function yieldNow() => void { CT.SwitchToThread(); }
 function cpuCount() => u32 { return CT.GetActiveProcessorCount(0xFFFF); }
 
-// 64-bit atomic integer (use for counters/flags; T-generic version needs compiler intrinsics).
+// 64-bit atomic integer (counters/flags), backed by LLVM atomic instructions (seq_cst).
 struct Atomic {
     v: i64 = 0;
-    load() => i64 { return CT.InterlockedCompareExchange64(&this.v, 0, 0); }
-    store(x: i64) => void { CT.InterlockedExchange64(&this.v, x); }
-    add(x: i64) => i64 { return CT.InterlockedExchangeAdd64(&this.v, x) + x; }   // returns new value
-    compareExchange(expected: i64, desired: i64) => bool { return CT.InterlockedCompareExchange64(&this.v, desired, expected) == expected; }
+    load() => i64 { return CT.atomic_load_i64(&this.v); }
+    store(x: i64) => void { CT.atomic_store_i64(&this.v, x); }
+    add(x: i64) => i64 { return CT.atomic_add_i64(&this.v, x) + x; }   // returns new value
+    compareExchange(expected: i64, desired: i64) => bool {
+        return CT.atomic_cmpxchg_i64(&this.v, expected, desired) == expected;   // (p, expected, desired)
+    }
 }

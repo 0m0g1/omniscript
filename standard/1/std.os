@@ -9,21 +9,21 @@ module std {
     public module CMath = import "standard/1/c/math.os";
     public module CTime = import "standard/1/c/time.os";
     public module COs = import "standard/1/c/os.os";
-    // public module CStdioExtra = import "standard/1/c/stdio_extra.os";
-    // public module CThread = import "standard/1/c/thread.os";
-    // public module CNet = import "standard/1/c/net.os";
-    // public module CDl = import "standard/1/c/dl.os";
-    // public module CGlfw = import "standard/1/c/glfw.os";
-    // public module CVulkan = import "standard/1/c/vulkan.os";
-    // public module COpenGL = import "standard/1/c/opengl.os";
-    // public module COpenAL = import "standard/1/c/openal.os";
-    // public module CCurl = import "standard/1/c/curl.os";
-    // public module CSqlite = import "standard/1/c/sqlite.os";
-    // public module CSsl = import "standard/1/c/ssl.os";
-    // public module CZlib = import "standard/1/c/zlib.os";
-    // public module CFfmpeg = import "standard/1/c/ffmpeg.os";
-    // public module CImage = import "standard/1/c/image.os";
-    // public module CFont = import "standard/1/c/font.os";
+    public module CStdioExtra = import "standard/1/c/stdio_extra.os";
+    public module CThread = import "standard/1/c/thread.os";
+    public module CNet = import "standard/1/c/net.os";
+    public module CDl = import "standard/1/c/dl.os";
+    public module CGlfw = import "standard/1/c/glfw.os";
+    public module CVulkan = import "standard/1/c/vulkan.os";
+    public module COpenGL = import "standard/1/c/opengl.os";
+    public module COpenAL = import "standard/1/c/openal.os";
+    public module CCurl = import "standard/1/c/curl.os";
+    public module CSqlite = import "standard/1/c/sqlite.os";
+    public module CSsl = import "standard/1/c/ssl.os";
+    public module CZlib = import "standard/1/c/zlib.os";
+    public module CFfmpeg = import "standard/1/c/ffmpeg.os";
+    public module CImage = import "standard/1/c/image.os";
+    public module CFont = import "standard/1/c/font.os";
 
     // ---------------- Tier 1: core ----------------
     public module Core = import "standard/1/Core.os";
@@ -35,7 +35,7 @@ module std {
 
     // ---------------- Tier 2: collections and iteration ----------------
     public module List = import "standard/1/List.os";
-    // public module Collections = import "standard/1/Collections.os";
+    public module Collections = import "standard/1/Collections.os";
     // public module Map = import "standard/1/Map.os";
     // public module Set = import "standard/1/Set.os";
     // public module Queue = import "standard/1/Queue.os";
@@ -56,9 +56,9 @@ module std {
     // public module Binary = import "standard/1/Binary.os";
 
     // ---------------- Tier 4: input/output, filesystem, process ----------------
-    public module Console = import "standard/1/Console.os";
-    public module IO = import "standard/1/IO.os";
-    public module Sys = import "standard/1/Sys.os";
+    // public module Console = import "standard/1/Console.os";
+    // public module IO = import "standard/1/IO.os";
+    // public module Sys = import "standard/1/Sys.os";
     // public module Path = import "standard/1/Path.os";
     // public module Fs = import "standard/1/Fs.os";
     // public module Process = import "standard/1/Process.os";

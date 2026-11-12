@@ -9,6 +9,7 @@
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
 #include <omniscript/Core.h>
+#include <omniscript/Semantic/GenericInstantiator.h>
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statements/Statement.h>
@@ -231,6 +232,13 @@ std::shared_ptr<Expression> ClassMember::express(SymbolTableType scope) {
 std::shared_ptr<Expression> ConstructStructPrototype::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG("[ConstructStructPrototype] Constructing a struct " + name + " expression");
+
+    // `struct List<T> {...}` is a template: remember it and emit nothing. Concrete instances
+    // are created by GenericInstantiator::ensureInstance when `List<i64>` is first used.
+    if (isGeneric()) {
+        GenericInstantiator::registerTemplate(name, body, getTypeParams(), scope);
+        return std::make_shared<BlockExpression>(std::vector<std::shared_ptr<Expression>>{});
+    }
 
     std::vector<std::shared_ptr<Expression>> fields;
     std::vector<std::shared_ptr<Expression>> methods;

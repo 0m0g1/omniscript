@@ -72,6 +72,23 @@ std::vector<std::string> parseNestedTokens(const std::vector<std::string>& dataT
     return tokens;
 }
 
+// Mangles type tokens for instantiated generic names, mirroring the `ptr`/`ref`/`_`
+// conventions of Parser::generateSpecializedNameForDecleration (List<i64*> -> List_i64_ptr).
+static std::string mangleTypeTokens(const std::vector<std::string>& tokens) {
+    std::string out;
+    for (const auto& p : tokens) {
+        if (p == ">" || p == "]") continue;
+        if (!out.empty() && out.back() != '_') out += "_";
+        if (p == "*") out += "ptr";
+        else if (p == "&") out += "ref";
+        else if (p == "?") out += "opt";
+        else if (p == "[") out += "arr";
+        else if (p == "." || p == "<" || p == ",") out += "_";
+        else out += p;
+    }
+    return out;
+}
+
 std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     if (dataTypes.empty()) {
         TYPE_ERROR("Empty type specification");
@@ -127,6 +144,28 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
         if (index < dataTypes.size()) {
             baseType += "." + dataTypes[index++];
         }
+    }
+
+    // Generic arguments: List<i64>, Map<string, List<i64*>>, unique_ptr<T>
+    std::vector<std::shared_ptr<Type>> genericArgs;
+    std::vector<std::string> genericArgTokens;
+    bool hasGenericArgs = false;
+    if (index < dataTypes.size() && dataTypes[index] == "<") {
+        hasGenericArgs = true;
+        genericArgTokens = parseNestedTokens(dataTypes, index, "<", ">");
+        std::vector<std::string> current;
+        int depth = 0;
+        auto flush = [&]() {
+            if (!current.empty()) genericArgs.push_back(resolveType(current));
+            current.clear();
+        };
+        for (const auto& tok : genericArgTokens) {
+            if (tok == "<") depth++;
+            else if (tok == ">") depth--;
+            if (tok == "," && depth == 0) flush();
+            else current.push_back(tok);
+        }
+        flush();
     }
 
     // Parse array specifications
@@ -230,19 +269,20 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     } else if (baseType == "unique_ptr" || baseType == "shared_ptr" || baseType == "weak_ptr") {
         Kind pointerKind = (baseType == "unique_ptr") ? Kind::UniquePtr :
                           (baseType == "shared_ptr") ? Kind::SharedPtr : Kind::WeakPtr;
-        auto pointeeTokens = parseNestedTokens(dataTypes, index, "<", ">");
-        if (pointeeTokens.empty() && index < dataTypes.size()) {
-            TYPE_ERROR("Expected pointee type for " + baseType + " at token " + std::to_string(index));
+        if (genericArgs.size() != 1 || !genericArgs[0] || genericArgs[0]->isInvalid()) {
+            TYPE_ERROR("Expected exactly one valid pointee type for " + baseType);
             return Type::createInvalid();
         }
-        auto pointeeType = resolveType(pointeeTokens);
-        if (pointeeType->isInvalid()) {
-            TYPE_ERROR("Invalid pointee type for " + baseType + " at token " + std::to_string(index));
-            return Type::createInvalid();
-        }
-        type = Type::createSmartPointerType(pointerKind, pointeeType);
+        type = Type::createSmartPointerType(pointerKind, genericArgs[0]);
     } else {
-        type = Type::createUserDefinedType(baseType);
+        std::string udtName = hasGenericArgs ? baseType + "_" + mangleTypeTokens(genericArgTokens) : baseType;
+        type = Type::createUserDefinedType(udtName);
+        if (hasGenericArgs) {
+            if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
+                udt->templateName = baseType;
+                udt->typeArgs = genericArgs;
+            }
+        }
         // Attach traits for known user-defined types (e.g., Vec2, Sprite)
         if (baseType == "Vec2" || baseType == "Vec3") {
             type->addTrait(BuiltinTraits::Addable);

@@ -3,6 +3,8 @@
 
 namespace Omniscript {
 
+using GenericParamList = std::vector<std::pair<std::string, std::vector<std::vector<std::string>>>>;
+
 class ClassMember : public Member, public TypedStatement {
 public:
     ClassMember(
@@ -25,8 +27,9 @@ public:
 
 class ConstructClassPrototype : public NamedStatement, public TypedStatement {
 public:
-    ConstructClassPrototype(const std::string& className, const std::vector<std::string>& parentClasses = {}, const std::vector<std::shared_ptr<ClassMember>>& structBody = {}) :
-    parentClasses(parentClasses), body(structBody) {
+    ConstructClassPrototype(const std::string& className, const std::vector<std::string>& parentClasses = {}, const std::vector<std::shared_ptr<ClassMember>>& structBody = {},
+                          const GenericParamList& classTypeParams = {}) :
+    parentClasses(parentClasses), body(structBody), typeParams(classTypeParams) {
         setName(className);
     }
     
@@ -39,9 +42,13 @@ public:
     };
 
     std::vector<std::shared_ptr<ClassMember>> getBody() const { return body; }
+
+    const GenericParamList& getTypeParams() const { return typeParams; }
+    bool isGeneric() const { return !typeParams.empty(); }
 private:
     std::vector<std::string> parentClasses;
     std::vector<std::shared_ptr<ClassMember>> body;
+    GenericParamList typeParams;
 };
 
 } //namespace Omniscript

@@ -366,9 +366,14 @@ public:
     std::string toString() const override {
         std::string result = "Block {\n";
         for (const auto& stmt : statements) {
+            if (!stmt) {
+                result += "    <null statement>\n";   // visible, not silent
+                continue;
+            }
             result += "    " + stmt->toString() + "\n";
         }
-        return result + "}";
+        result += "}";
+        return result;
     }
     std::string formatError(const std::string& msg) const override {
         return "Error in code block.\n" + msg;

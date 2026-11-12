@@ -81,11 +81,15 @@ struct ListI64 {
     }
 
     // Index of the first match, or -1.
+    // (flag pattern: `return` inside a loop body is typed Void by the compiler)
     indexOf(v: i64) => i64 {
-        for (let i: u64 = 0; i < this.len; i++) {
-            if (this.data[i] == v) return i as i64;
+        let found: i64 = -1;
+        let i: u64 = 0;
+        while (i < this.len && found < 0) {
+            if (this.data[i] == v) found = i as i64;
+            i = i + 1;
         }
-        return -1;
+        return found;
     }
 
     contains(v: i64) => bool { return this.indexOf(v) >= 0; }

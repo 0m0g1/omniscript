@@ -152,7 +152,12 @@ Token Lexer::getNumberLiterals(char currentChar) {
             stats_.literalCount++;
             return TokenFactory::createFloat(value, startLine, startColumn, sourceFilePath_);
         }
-        int64_t value = LexerUtils::parseInteger(numberValue, 10);
+        // Use the same unsigned parser the prefixed literals use. `stoll` would
+        // reject anything above INT64_MAX, but a u64 language must accept the
+        // full uint64 range (e.g. FNV offset basis 14695981039346656037).
+        // parseRadixUnsigned wraps the u64 into int64_t via two's complement;
+        // the type checker reinterprets back to u64 when the target type is unsigned.
+        int64_t value = parseRadixUnsigned(numberValue, 10);
         stats_.literalCount++;
         return TokenFactory::createInteger(value, startLine, startColumn, sourceFilePath_);
     } catch (const std::exception&) {

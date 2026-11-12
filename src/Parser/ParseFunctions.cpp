@@ -16,6 +16,7 @@
 #include <omniscript/Types/Types.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/LibraryPaths.h>
+#include <omniscript/Semantic/GenericInstantiator.h>
 
 #include <algorithm>
 #include <cctype>
@@ -519,45 +520,6 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     std::shared_ptr<Type> type
 ) {
     return parseFunctionDeclaration("", paramTypes, type);
-}
-
-// Replaces every use of the type parameter `name` inside `type` with `concrete`,
-// looking through references, pointers, nullable, array and smart pointer wrappers.
-static std::shared_ptr<Type> substituteTypeParam(
-    const std::shared_ptr<Type>& type,
-    const std::string& name,
-    const std::shared_ptr<Type>& concrete
-) {
-    if (!type || !concrete) return type;
-
-    if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
-        return udt->name == name ? concrete : type;
-    }
-    if (auto ref = std::dynamic_pointer_cast<ReferenceType>(type)) {
-        auto inner = substituteTypeParam(ref->referentType, name, concrete);
-        return inner == ref->referentType ? type : Type::createReferenceType(inner);
-    }
-    if (auto ptr = std::dynamic_pointer_cast<PointerType>(type)) {
-        auto inner = substituteTypeParam(ptr->pointeeType, name, concrete);
-        return inner == ptr->pointeeType ? type : Type::createPointerType(inner, ptr->isConst, ptr->isVolatile);
-    }
-    if (auto nullable = std::dynamic_pointer_cast<NullableType>(type)) {
-        auto inner = substituteTypeParam(nullable->innerType, name, concrete);
-        return inner == nullable->innerType ? type : Type::createNullableType(inner);
-    }
-    if (auto fixedArr = std::dynamic_pointer_cast<FixedArrayType>(type)) {
-        auto inner = substituteTypeParam(fixedArr->elementType, name, concrete);
-        return inner == fixedArr->elementType ? type : Type::createFixedArrayType(inner, fixedArr->size);
-    }
-    if (auto dynArr = std::dynamic_pointer_cast<DynamicArrayType>(type)) {
-        auto inner = substituteTypeParam(dynArr->elementType, name, concrete);
-        return inner == dynArr->elementType ? type : Type::createDynamicArrayType(inner);
-    }
-    if (auto smart = std::dynamic_pointer_cast<SmartPointerType>(type)) {
-        auto inner = substituteTypeParam(smart->pointeeType, name, concrete);
-        return inner == smart->pointeeType ? type : Type::createSmartPointerType(smart->getKind(), inner);
-    }
-    return type;
 }
 
 std::shared_ptr<Statement> Parser::parseFunctionDeclaration(

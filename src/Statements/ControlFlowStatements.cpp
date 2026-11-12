@@ -37,14 +37,14 @@ std::shared_ptr<Expression> ReturnStatement::express(SymbolTableType scope) {
 
     std::shared_ptr<Expression> result = nullptr;
     if (returnValue) {
-        extendContextOf(returnValue);
-        if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
-            // NEW: Do not force a 'Void' type onto a concrete value like '1'
-            if (type && !type->isVoidLike()) {
-                stmt->setType(type);
+        if (type) {
+            if (auto typedValue = std::dynamic_pointer_cast<TypedStatement>(returnValue)) {
+                if (!typedValue->getType() || typedValue->getType()->isInvalid()) {
+                    typedValue->setType(type);
+                    typedValue->setRootType(type);
+                }
             }
         }
-        
         result = returnValue->express(scope);
 
         if (!result) {
