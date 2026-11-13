@@ -42,7 +42,14 @@ public:
         return std::string("Error assigning ") + (isConstant ? "constant '" : "variable '") + name + "'.\n" + msg;
     };
     std::shared_ptr<Statement> clone() const override {
-        auto clone = std::make_shared<AssignVariable>(variable, type, value->clone(), isReassign);
+        auto clone = std::make_shared<AssignVariable>(variable, type, value ? value->clone() : nullptr, isReassign);
+        clone->isStatic = isStatic;
+        clone->isConstant = isConstant;
+        clone->isGlobal = isGlobal;
+        clone->isVolatile = isVolatile;
+        clone->externName = externName;
+        clone->intrinsicName = intrinsicName;
+        clone->section = section;
         clone->isExtern = isExtern;
         clone->libraryPaths = libraryPaths;
         clone->setSpan(getSpan());
@@ -110,6 +117,11 @@ public:
     std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
     std::shared_ptr<Expression> express(SymbolTableType scope) override;
     std::string toString() const override { return "GenericAssignment"; }
+    std::shared_ptr<Statement> clone() const override {
+        auto copy = std::make_shared<GenericAssignment>(variable, value ? value->clone() : nullptr);
+        copy->setSpan(getSpan());
+        return copy;
+    }
 
 private:
     std::string variable;

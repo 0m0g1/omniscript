@@ -59,6 +59,7 @@ void IRGenerator::createStructType(const std::string& name, const std::vector<ll
     }
     
     DEBUG_LOG("Created '" + debugType(structType) + "' struct type");
+    DEBUG_LOG("[createStructType] registering '" + name + "' in scope '" + activeScope->getName() + "'");
     activeScope->addType(name, structType);
 
     DEBUG_LOG("Created struct prototype: " + name);

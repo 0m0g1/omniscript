@@ -68,6 +68,7 @@ public:
 };
 
 class Call : public TypedStatement, public NamedStatement, public ContextAwareStatement {
+    friend class GenericInstantiator;
 public:
     Call(const std::string& calleeName, std::vector<std::shared_ptr<Statement>>& arguments) :
         callee(calleeName), args(arguments) {
@@ -239,6 +240,7 @@ private:
 class ObjectConstructorStatement : 
 public TypedStatement,
 public NamedStatement {
+    friend class GenericInstantiator;
 private:
     std::shared_ptr<Statement> expr;
     std::string objectType;
@@ -329,6 +331,12 @@ public:
     std::string formatError(const std::string& msg) const override {
         return "Error in '" + toString() + "'.\n" + msg;
     };
+    std::shared_ptr<Statement> clone() const override {
+        auto copy = std::make_shared<ArgumentStatement>(name, value ? value->clone() : nullptr, isConstant);
+        copy->setType(getType());
+        copy->setSpan(getSpan());
+        return copy;
+    }
 };
 
 } //namespace Omniscript

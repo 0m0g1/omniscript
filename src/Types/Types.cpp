@@ -96,6 +96,61 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
     }
 
     size_t index = 0;
+
+    // NEW: parenthesized sub-type with optional suffix, e.g.
+    //   ["(", "fn", "(", "T", ")", "=>", "T", ")", "[", "8", "]"]
+    // Used by parseType to disambiguate "array of functions" from
+    // "function returning array". Resolves the inner type, then applies
+    // any trailing * / & / ? / [N] modifiers to it.
+    if (dataTypes[index] == "(") {
+        size_t depth = 1;
+        size_t start = index + 1;
+        size_t end = start;
+        while (end < dataTypes.size() && depth > 0) {
+            if (dataTypes[end] == "(") depth++;
+            else if (dataTypes[end] == ")") depth--;
+            if (depth == 0) break;
+            end++;
+        }
+        if (depth != 0) {
+            TYPE_ERROR("Unmatched '(' in type expression");
+            return Type::createInvalid();
+        }
+        std::vector<std::string> inner(dataTypes.begin() + start, dataTypes.begin() + end);
+        std::vector<std::string> rest(dataTypes.begin() + end + 1, dataTypes.end());
+
+        auto innerType = resolveType(inner);
+        if (!innerType || innerType->isInvalid()) return innerType;
+
+        size_t r = 0;
+        while (r < rest.size()) {
+            if (rest[r] == "[") {
+                r++;
+                if (r >= rest.size()) { TYPE_ERROR("Expected size after '['"); return Type::createInvalid(); }
+                uint64_t size;
+                try { size = std::stoull(rest[r]); }
+                catch (...) { TYPE_ERROR("Invalid array size '" + rest[r] + "'"); return Type::createInvalid(); }
+                r++;
+                if (r >= rest.size() || rest[r] != "]") { TYPE_ERROR("Expected ']' after array size"); return Type::createInvalid(); }
+                r++;
+                innerType = Type::createFixedArrayType(innerType, size);
+            } else if (rest[r] == "*") {
+                r++;
+                innerType = Type::createPointerType(innerType);
+            } else if (rest[r] == "&") {
+                r++;
+                innerType = Type::createReferenceType(innerType);
+            } else if (rest[r] == "?") {
+                r++;
+                innerType = Type::createNullableType(innerType);
+            } else {
+                TYPE_ERROR("Unexpected token '" + rest[r] + "' after parenthesized type");
+                return Type::createInvalid();
+            }
+        }
+        return innerType;
+    }
+
     int totalPointerDepth = 0;
     int totalReferenceDepth = 0;
     int nullableDepth = 0;

@@ -48,6 +48,7 @@ private:
 
 // Binary expression statement
 class ASTBinaryExpression : public TypedStatement, public ASTExpression {
+    friend class GenericInstantiator;
 public:
     ASTBinaryExpression(std::shared_ptr<Statement> left = std::shared_ptr<Statement>{}, Token op = Token(), std::shared_ptr<Statement> right = std::shared_ptr<Statement>{})
         : left(left), op(op), right(right) {}
@@ -88,6 +89,7 @@ private:
 class ASTTernaryExpression : 
 public ASTExpression,
 public TypedStatement {
+    friend class GenericInstantiator;
     public:
         ASTTernaryExpression(std::shared_ptr<Statement> condition, std::shared_ptr<Statement> truthy, std::shared_ptr<Statement> falsey) :
         condition(condition), truthy(truthy), falsey(falsey) {}

@@ -18,6 +18,8 @@
 
 namespace Omniscript {
 
+class GenericInstantiator; // body-substitution visitor needs access to private AST members
+
 using SymbolTableType = std::shared_ptr<SymbolTable<std::shared_ptr<Expression>, std::shared_ptr<Type>>>;
 
 class Statement {
@@ -135,6 +137,8 @@ public:
     std::shared_ptr<Type> getType() const { return type; }
     std::shared_ptr<Type> getRootType() const { return rootType; }
     void setRootType(std::shared_ptr<Type> newType) { if (!rootType) { rootType = newType; } }
+    // Unconditional overwrite (setRootType only fills an empty slot). Used by generic monomorphization.
+    void replaceRootType(std::shared_ptr<Type> newType) { rootType = newType; }
     void setTypeName(const std::string& newTypeName) { typeName = newTypeName; }
     void setType(std::shared_ptr<Type> newType) { type = newType; }
     virtual std::string toString() const override { return "TypedStatement"; }
@@ -409,6 +413,7 @@ public:
 };
 
 class ASTCast : public TypedStatement, public ASTExpression {
+    friend class GenericInstantiator;
     std::shared_ptr<Statement> value;
     std::shared_ptr<Type> targetType;
 public:

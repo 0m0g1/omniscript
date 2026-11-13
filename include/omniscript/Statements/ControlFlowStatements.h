@@ -126,6 +126,13 @@ public:
     std::string formatError(const std::string& msg) const override {
         return "Error in while statement.\n" + msg;
     };
+    std::shared_ptr<Statement> clone() const override {
+        auto copy = std::make_shared<WhileStatement>(
+            condition ? condition->clone() : nullptr,
+            body ? std::dynamic_pointer_cast<BlockStatement>(body->clone()) : nullptr);
+        copy->setSpan(getSpan());
+        return copy;
+    }
 
 private:
     // Helper function to evaluate the condition as a boolean
@@ -137,6 +144,7 @@ private:
 };
 
 class ForLoop : public ControlFlowStatement {
+    friend class GenericInstantiator;
 private:
     std::shared_ptr<Statement> initialization;
     std::shared_ptr<Statement> condition;
@@ -156,6 +164,15 @@ public:
     std::string formatError(const std::string& msg) const override {
         return "Error in for loop.\n" + msg;
     };
+    std::shared_ptr<Statement> clone() const override {
+        auto copy = std::make_shared<ForLoop>(
+            initialization ? initialization->clone() : nullptr,
+            condition      ? condition->clone()      : nullptr,
+            increment      ? increment->clone()      : nullptr,
+            body ? std::dynamic_pointer_cast<BlockStatement>(body->clone()) : nullptr);
+        copy->setSpan(getSpan());
+        return copy;
+    }
 };
 
 class BreakStatement : public ControlFlowStatement {
@@ -166,6 +183,11 @@ public:
     std::string formatError(const std::string& msg) const override {
         return "Error in break statement.\n" + msg;
     };
+    std::shared_ptr<Statement> clone() const override {
+        auto copy = std::make_shared<BreakStatement>();
+        copy->setSpan(getSpan());
+        return copy;
+    }
 };
 
 class ContinueStatement : public ControlFlowStatement {
@@ -176,6 +198,11 @@ public:
     std::string formatError(const std::string& msg) const override {
         return "Error in continue statement.\n" + msg;
     };
+    std::shared_ptr<Statement> clone() const override {
+        auto copy = std::make_shared<ContinueStatement>();
+        copy->setSpan(getSpan());
+        return copy;
+    }
 };
 
 } // namespace Omniscript

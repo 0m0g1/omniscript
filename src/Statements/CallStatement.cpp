@@ -99,10 +99,93 @@ FnPtrInfo resolveFunctionPointerType(std::shared_ptr<Type> t, SymbolTableType sc
 std::shared_ptr<Expression> Call::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     DEBUG_LOG();
-    
-    // Check if expr is a MemberAccess that should be handled as a method call
+
     if (auto memberAccess = std::dynamic_pointer_cast<MemberAccess>(expr)) {
         return handleMemberAccessCall(memberAccess, scope);
+    }
+
+        // NEW: call through an expression that yields a function pointer.
+    // Triggers for IndexAccess (arr[i](v)), ArrowAccess (p->fn(v)),
+    // and Dereference ((*fp)(v)). MemberAccess is handled above; bare
+    // GetVariable ("printf(...)", "f(...)") goes through the named-callee
+    // path below, since a name might be a declared function (overloads
+    // table, no value entry) OR a local fn-pointer variable.
+    bool exprIsCallableAccess =
+        std::dynamic_pointer_cast<IndexAccess>(expr) ||
+        std::dynamic_pointer_cast<ArrowAccess>(expr) ||
+        std::dynamic_pointer_cast<Dereference>(expr);
+
+    if (exprIsCallableAccess) {
+        auto calleeValue = expr->express(scope);
+        if (!calleeValue || !calleeValue->getType()) {
+            console.reportError(Console::RUNTIME_ERROR,
+                "Failed to evaluate function-pointer callee",
+                "To resolve this:\n1. Verify the callee expression is valid\n"
+                "2. Check that its type resolves to a function pointer",
+                this->getSpan());
+            return nullptr;
+        }
+        std::shared_ptr<Type> fnType = calleeValue->getType();
+        if (fnType->isPointer() && fnType->getPointeeType() &&
+            fnType->getPointeeType()->isFunction()) {
+            fnType = fnType->getPointeeType();
+        }
+        if (!fnType || !fnType->isFunction()) {
+            console.reportError(Console::TYPE_ERROR,
+                "Expression callee has type '" + fnType->toString() +
+                "' which is not a function type",
+                "To resolve this:\n1. Verify the callee returns a function pointer\n"
+                "2. Check the element type of the array you're indexing",
+                this->getSpan());
+            return nullptr;
+        }
+
+        std::vector<std::shared_ptr<Expression>> argExprs;
+        argExprs.reserve(args.size());
+        for (auto& a : args) {
+            auto e = a->express(scope);
+            if (!e) return nullptr;
+            argExprs.push_back(e);
+        }
+
+        auto callExpr = std::make_shared<CallExpression>(
+            calleeValue, argExprs,
+            std::dynamic_pointer_cast<FunctionType>(fnType));
+        callExpr->setSpan(this->getSpan());
+        return callExpr;
+    }
+
+    // NEW: call through a function-pointer expression, e.g. transforms[j](v),
+    // obj->callback(x), or a local fn pointer. The callee is an arbitrary
+    // expression whose type is FunctionType (or *FunctionType).
+    if (expr && !std::dynamic_pointer_cast<NamedStatement>(expr)) {
+        std::shared_ptr<Type> exprType;
+        if (auto typed = std::dynamic_pointer_cast<TypedStatement>(expr)) {
+            exprType = typed->getType();
+        }
+        if (exprType) {
+            std::shared_ptr<Type> fnType = exprType;
+            if (exprType->isPointer() && exprType->getPointeeType() &&
+                exprType->getPointeeType()->isFunction()) {
+                fnType = exprType->getPointeeType();
+            }
+            if (fnType && fnType->isFunction()) {
+                auto calleeVal = expr->express(scope);
+                if (!calleeVal) return nullptr;
+
+                std::vector<std::shared_ptr<Expression>> argExprs;
+                argExprs.reserve(args.size());
+                for (auto& a : args) {
+                    auto e = a->express(scope);
+                    if (e) argExprs.push_back(e);
+                }
+
+                auto callExpr = std::make_shared<CallExpression>(
+                    calleeVal, argExprs, std::dynamic_pointer_cast<FunctionType>(fnType));
+                callExpr->setSpan(this->getSpan());
+                return callExpr;
+            }
+        }
     }
     
     // Resolve target name and context
@@ -315,6 +398,43 @@ std::shared_ptr<Expression> Call::handleMemberAccessCall(
         auto overloads = scope->getOverloads(methodName);
         if (!overloads.empty()) {
             method = resolveMethodOverload(overloads, memberExpr, scope);
+        }
+    }
+
+        if (!method) {
+        auto userType = std::dynamic_pointer_cast<UserDefinedType>(scope->getType(baseTypeName));
+        if (userType) {
+            for (int i = 0; i < (int)userType->paramTypes.size(); ++i) {
+                if (userType->paramTypes[i]->getParameterName() != callee) continue;
+
+                auto fieldType = userType->paramTypes[i];
+                std::shared_ptr<Type> fnType = fieldType;
+                if (fieldType->isPointer() && fieldType->getPointeeType() &&
+                    fieldType->getPointeeType()->isFunction()) {
+                    fnType = fieldType->getPointeeType();
+                }
+                if (!fnType || !fnType->isFunction()) continue;
+
+                auto fieldAccess = std::make_shared<MemberAccessExpression>(
+                    memberExpr, baseTypeName, "", callee,
+                    i, fieldType, nullptr);
+                fieldAccess->type = fieldType;
+                fieldAccess->setSpan(this->getSpan());
+
+                std::vector<std::shared_ptr<Expression>> argExprs;
+                argExprs.reserve(args.size());
+                for (auto& a : args) {
+                    auto e = a->express(scope);
+                    if (!e) return nullptr;
+                    argExprs.push_back(e);
+                }
+
+                auto callExpr = std::make_shared<CallExpression>(
+                    fieldAccess, argExprs,
+                    std::dynamic_pointer_cast<FunctionType>(fnType));
+                callExpr->setSpan(this->getSpan());
+                return callExpr;
+            }
         }
     }
     
@@ -1286,6 +1406,23 @@ std::shared_ptr<Expression> Call::createCallExpression(
         auto callExpr = std::make_shared<CallExpression>(evaluatedCallee, finalArgs, type);
         callExpr->setSpan(this->getSpan());
         return callExpr;
+    }
+
+        // Function-pointer local (let tf = ... ; tf(v)): the callee is a local
+    // variable whose type is a FunctionType, not a declared FunctionExpression.
+    // Set functionTypeName so codegen looks up "*<callee>" in the active scope.
+    if (!std::dynamic_pointer_cast<FunctionExpression>(called)) {
+        auto callable = std::dynamic_pointer_cast<TypedStatement>(called);
+        if (callable && callable->getType() &&
+            (callable->getType()->isFunction() ||
+             (callable->getType()->isPointer() &&
+              callable->getType()->getPointeeType() &&
+              callable->getType()->getPointeeType()->isFunction()))) {
+            auto fpCall = std::make_shared<CallExpression>(evaluatedCallee, finalArgs, type);
+            fpCall->functionTypeName = evaluatedCallee;
+            fpCall->setSpan(this->getSpan());
+            return fpCall;
+        }
     }
     
     // Handle constructor calls

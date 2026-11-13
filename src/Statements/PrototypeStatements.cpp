@@ -306,6 +306,13 @@ std::shared_ptr<Expression> ConstructStructPrototype::express(SymbolTableType sc
 
     auto structType = Type::createUserDefinedType(name, Kind::Struct, fieldTypes);
     scope->addType(name, structType);
+
+    {
+        auto root = scope->getRoot();
+        if (root && root != scope) {
+            root->addType(name, structType);
+        }
+    }
     
     setType(structType);
     setRootType(structType);

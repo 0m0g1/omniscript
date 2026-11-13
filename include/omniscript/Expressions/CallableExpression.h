@@ -59,6 +59,8 @@ struct CallExpression : public Expression {
     std::string instanceName;
     std::vector<std::shared_ptr<Expression>> args;
     std::vector<std::shared_ptr<MemberExpression>> members;
+    std::shared_ptr<Expression> calleeExpr;
+    std::shared_ptr<FunctionType> calleeFnType;
 
     bool isGlobal;
 
@@ -75,6 +77,14 @@ struct CallExpression : public Expression {
     )
     : calleeName(objectName), instanceName(instanceName), args(args), isGlobal(isGlobal) {
         type = returnType;
+    }
+
+    CallExpression(std::shared_ptr<Expression> calleeExpr,
+               const std::vector<std::shared_ptr<Expression>>& args,
+               std::shared_ptr<FunctionType> fnType)
+        : calleeExpr(calleeExpr), calleeFnType(fnType) {
+        this->args = args;
+        this->type = fnType ? fnType->returnType : nullptr;
     }
 
     

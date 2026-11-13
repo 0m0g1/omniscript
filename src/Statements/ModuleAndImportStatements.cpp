@@ -556,13 +556,31 @@ struct LoadGuard {
 };
 
 bool collectDeclarations(const std::vector<std::shared_ptr<Statement>>& stmts,
-                         std::vector<std::shared_ptr<Statement>>& out, std::string& bad) {
+                         std::vector<std::shared_ptr<Statement>>& out, std::string& bad,
+                         SymbolTableType scope,
+                         std::vector<std::shared_ptr<Expression>>& importExprs) {
     for (const auto& stmt : stmts) {
         if (!stmt) continue;
         if (auto inc = std::dynamic_pointer_cast<IncludeStatement>(stmt)) {
-            if (!collectDeclarations(inc->getStatements(), out, bad)) return false;
+            if (!collectDeclarations(inc->getStatements(), out, bad, scope, importExprs)) return false;
+        } else if (auto imp = std::dynamic_pointer_cast<ImportModule>(stmt)) {
+            // A module import is a directive, not a declaration. Express it so its
+            // names (Core, CMem, ...) land in `scope`, then drop it. This handles
+            // `module X = import "Y";` statements that arrive via an `include`d file —
+            // without this case, they'd fail the "not a declaration" check below.
+            //
+            // The returned expressions (extern declarations, module functions) MUST be kept and
+            // code-generated with the importing module; dropping them leaves e.g. `CMem.realloc`
+            // type-checked but never declared in the IR.
+            if (auto expr = imp->express(scope)) {
+                if (auto impBlock = std::dynamic_pointer_cast<BlockExpression>(expr)) {
+                    for (auto& e : impBlock->values) importExprs.push_back(e);
+                } else {
+                    importExprs.push_back(expr);
+                }
+            }
         } else if (auto block = std::dynamic_pointer_cast<BlockStatement>(stmt)) {
-            if (!collectDeclarations(block->statements, out, bad)) return false;
+            if (!collectDeclarations(block->statements, out, bad, scope, importExprs)) return false;
         } else if (std::dynamic_pointer_cast<NamedStatement>(stmt)) {
             out.push_back(stmt);
         } else {
@@ -872,7 +890,7 @@ std::shared_ptr<Expression> ImportModule::express(SymbolTableType scope) {
 
         std::vector<std::shared_ptr<Statement>> declarations;
         std::string bad;
-        if (!collectDeclarations(statements, declarations, bad)) {
+        if (!collectDeclarations(statements, declarations, bad, scope, nestedImportExprs)) {
             console.reportError(
                 Console::RUNTIME_ERROR,
                 Console::formatString("Module file '%s' has a top-level statement that is not a declaration: %s",

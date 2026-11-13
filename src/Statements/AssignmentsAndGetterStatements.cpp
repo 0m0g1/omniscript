@@ -135,6 +135,25 @@ std::shared_ptr<Expression> ReferenceTo::express(SymbolTableType scope) {
     }
     
     auto variable = scope->getValue(name);
+
+    // `&functionName`: functions live in the overload table, not the value table, so getValue()
+    // is null for them. Produce a function-pointer reference instead of failing.
+    if (!variable) {
+        auto overloads = scope->getOverloads(name);
+        if (!overloads.empty()) {
+            auto funcRef = overloads[0];
+            auto funcExpr = std::dynamic_pointer_cast<FunctionExpression>(funcRef);
+            const std::string refName = (funcExpr && !funcExpr->mangledName.empty()) ? funcExpr->mangledName : name;
+            DEBUG_LOG("Reference to function '" + name + "' resolved as '" + refName + "'.");
+
+            setType(Type::createPointerType(funcRef->getType()));
+            setRootType(type);
+            auto fref = std::make_shared<ReferenceExpression>(refName, funcRef);
+            fref->type = type;
+            fref->setSpan(this->getSpan());
+            return fref;
+        }
+    }
     if (!variable) {
         std::string suggestion = "To resolve this:\n"
                                "1. Check variable initialization\n"

@@ -23,6 +23,8 @@
 
 namespace Omniscript {
 
+static std::string spellConstraintForName(const std::vector<std::string>& parts); // defined below
+
 namespace {
 
 // True for paths that name a C/C++ header (case-insensitive extension check).
@@ -691,6 +693,9 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                     
                     func->addGenericParam(typeParam.first);
                     func->bindGeneric(typeParam.first, resolveType(constraint));
+                    // Rewrite `T` / `name<T>` inside the cloned body (spelling matches the specialized name).
+                    GenericInstantiator::substituteInStatement(func->body,
+                        {GenericBinding{typeParam.first, concreteType, spellConstraintForName(constraint)}});
                     func->setPosition(startToken, currentToken);
                     func->setSpan(span);
                     
@@ -747,11 +752,15 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
                 func->addGenericParam(genericPair.first);
             }
 
+            std::vector<GenericBinding> bodyBindings;
             for (const auto& selected : selectedTypes) {
                 if (!selected.second.empty()) {
-                    func->bindGeneric(selected.first, resolveType(selected.second));
+                    auto concrete = resolveType(selected.second);
+                    func->bindGeneric(selected.first, concrete);
+                    bodyBindings.push_back({selected.first, concrete, spellConstraintForName(selected.second)});
                 }
             }
+            GenericInstantiator::substituteInStatement(func->body, bodyBindings);
 
             func->setPosition(startToken, currentToken);
             func->setSpan(span);
@@ -781,6 +790,23 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
     function->setPosition(startToken, currentToken);
     function->setSpan(span);
     return function;
+}
+
+// Same spelling generateSpecializedNameForDecleration uses for one constraint ("*"->"ptr", "["->"arr"),
+// so a rewritten callee `sort_T` becomes exactly the specialized declaration name `sort_<spelling>`.
+static std::string spellConstraintForName(const std::vector<std::string>& parts) {
+    std::string out;
+    for (size_t j = 0; j < parts.size(); ++j) {
+        const auto& part = parts[j];
+        if (part == "*") out += "ptr";
+        else if (part == "&") out += "ref";
+        else if (part == ".") out += "_";
+        else if (part == "[") out += "arr";
+        else if (part == "]") {}
+        else out += part;
+        if (j + 1 < parts.size()) out += "_";
+    }
+    return out;
 }
 
 std::string Parser::generateSpecializedNameForDecleration( 

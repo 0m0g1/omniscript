@@ -1,4 +1,4 @@
-// IRGenFunctions.cpp
+// src/Backends/LLVM/IRGenFunctions.cpp
 #include <omniscript/Types/Types.h>
 
 #include <omniscript/Backends/LLVM/IRGenerator.h>
@@ -917,6 +917,10 @@ llvm::Function* IRGenerator::registerFunction(
         auto& param = params[i];
         auto type = param->getType();
         auto llvmType = resolveLLVMType(type);
+        // A bare function type is not first-class; function-typed parameters are passed as pointers.
+        if (llvmType && llvmType->isFunctionTy()) {
+            llvmType = llvm::PointerType::getUnqual(*Context);
+        }
         if (!llvmType) {
             console.reportError(Console::TYPE_ERROR, "Cannot create function '" + name + "': unresolved type for parameter '" + param->name + "'", FileSpan{});
             return nullptr;
@@ -1065,6 +1069,35 @@ void IRGenerator::generateFunctionBody(
             Builder->CreateStore(&arg, alloca);
             activeScope->set(argName, alloca);
         }        
+
+        // Function-pointer parameters: register the callee's LLVM FunctionType under
+        // "*<paramName>". With opaque pointers the arg's llvm type is just `ptr`, so
+        // createCall needs this entry to build the indirect call.
+        if (param && param->getType()) {
+            std::shared_ptr<Type> fnType = param->getType();
+            if (fnType->isPointer() && fnType->getPointeeType() && fnType->getPointeeType()->isFunction()) {
+                fnType = fnType->getPointeeType();
+            }
+            if (fnType->isFunction()) {
+                auto fn = std::dynamic_pointer_cast<FunctionType>(fnType);
+                llvm::Type* retTy = fn ? resolveLLVMType(fn->returnType) : nullptr;
+                std::vector<llvm::Type*> pty;
+                bool ok = (retTy != nullptr);
+                if (fn) {
+                    for (const auto& p : fn->parameterTypes) {
+                        llvm::Type* t = resolveLLVMType(p);
+                        if (!t) { ok = false; break; }
+                        pty.push_back(t);
+                    }
+                }
+                if (ok) {
+                    activeScope->addType("*" + argName, llvm::FunctionType::get(retTy, pty, fn->isVarArg));
+                    DEBUG_LOG("Registered function type for parameter '*" + argName + "'");
+                } else {
+                    DEBUG_LOG("Could not resolve function type for parameter '" + argName + "'");
+                }
+            }
+        }
 
         DEBUG_LOG("Stored parameter '" + argName + "' in scope.");
 

@@ -2,40 +2,40 @@
 // Ordered by tier. Uncommented = exists and compiles. Uncomment one at a time as you implement/verify each.
 module std {
     // ---------------- Tier 0: raw C, the escape hatch ----------------
-    public module CMem = import "standard/1/c/mem.os";
-    public module CString = import "standard/1/c/string.os";
-    public module CFile = import "standard/1/c/file.os";
-    public module CConsole = import "standard/1/c/console.os";
-    public module CMath = import "standard/1/c/math.os";
-    public module CTime = import "standard/1/c/time.os";
-    public module COs = import "standard/1/c/os.os";
-    public module CStdioExtra = import "standard/1/c/stdio_extra.os";
-    public module CThread = import "standard/1/c/thread.os";
-    public module CNet = import "standard/1/c/net.os";
-    public module CDl = import "standard/1/c/dl.os";
-    public module CGlfw = import "standard/1/c/glfw.os";
-    public module CVulkan = import "standard/1/c/vulkan.os";
-    public module COpenGL = import "standard/1/c/opengl.os";
-    public module COpenAL = import "standard/1/c/openal.os";
-    public module CCurl = import "standard/1/c/curl.os";
-    public module CSqlite = import "standard/1/c/sqlite.os";
-    public module CSsl = import "standard/1/c/ssl.os";
-    public module CZlib = import "standard/1/c/zlib.os";
-    public module CFfmpeg = import "standard/1/c/ffmpeg.os";
-    public module CImage = import "standard/1/c/image.os";
-    public module CFont = import "standard/1/c/font.os";
+    // public module CMem = import "standard/1/c/mem.os";
+    // public module CString = import "standard/1/c/string.os";
+    // public module CFile = import "standard/1/c/file.os";
+    // public module CConsole = import "standard/1/c/console.os";
+    // public module CMath = import "standard/1/c/math.os";
+    // public module CTime = import "standard/1/c/time.os";
+    // public module COs = import "standard/1/c/os.os";
+    // public module CStdioExtra = import "standard/1/c/stdio_extra.os";
+    // public module CThread = import "standard/1/c/thread.os";
+    // public module CNet = import "standard/1/c/net.os";
+    // public module CDl = import "standard/1/c/dl.os";
+    // public module CGlfw = import "standard/1/c/glfw.os";
+    // public module CVulkan = import "standard/1/c/vulkan.os";
+    // public module COpenGL = import "standard/1/c/opengl.os";
+    // public module COpenAL = import "standard/1/c/openal.os";
+    // public module CCurl = import "standard/1/c/curl.os";
+    // public module CSqlite = import "standard/1/c/sqlite.os";
+    // public module CSsl = import "standard/1/c/ssl.os";
+    // public module CZlib = import "standard/1/c/zlib.os";
+    // public module CFfmpeg = import "standard/1/c/ffmpeg.os";
+    // public module CImage = import "standard/1/c/image.os";
+    // public module CFont = import "standard/1/c/font.os";
 
-    // ---------------- Tier 1: core ----------------
-    public module Core = import "standard/1/Core.os";
-    public module Mem = import "standard/1/Mem.os";
-    public module String = import "standard/1/String.os";
-    public module Math = import "standard/1/Math.os";
-    public module Random = import "standard/1/Random.os";
-    public module Time = import "standard/1/Time.os";
+    // // ---------------- Tier 1: core ----------------
+    // public module Core = import "standard/1/Core.os";
+    // public module Mem = import "standard/1/Mem.os";
+    // public module String = import "standard/1/String.os";
+    // public module Math = import "standard/1/Math.os";
+    // public module Random = import "standard/1/Random.os";
+    // public module Time = import "standard/1/Time.os";
 
-    // ---------------- Tier 2: collections and iteration ----------------
-    public module List = import "standard/1/List.os";
-    public module Collections = import "standard/1/Collections.os";
+    // // ---------------- Tier 2: collections and iteration ----------------
+    // public module List = import "standard/1/List.os";
+    // public module Collections = import "standard/1/Collections.os";
     // public module Map = import "standard/1/Map.os";
     // public module Set = import "standard/1/Set.os";
     // public module Queue = import "standard/1/Queue.os";
@@ -43,12 +43,12 @@ module std {
     // public module Deque = import "standard/1/Deque.os";
     // public module PriorityQueue = import "standard/1/PriorityQueue.os";
     // public module Algo = import "standard/1/Algo.os";
-    // public module Iter = import "standard/1/Iter.os";            // stub
+    // public module Iter = import "standard/1/Iter.os";            
 
     // ---------------- Tier 3: text and data formats ----------------
     // public module Text = import "standard/1/Text.os";
     // public module Regex = import "standard/1/Regex.os";
-    // public module Json = import "standard/1/Json.os";
+    public module Json = import "standard/1/Json.os";
     // public module Csv = import "standard/1/Csv.os";
     // public module Toml = import "standard/1/Toml.os";            // stub
     // public module Yaml = import "standard/1/Yaml.os";            // stub

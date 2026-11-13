@@ -4,6 +4,7 @@
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
+#include <omniscript/Semantic/GenericInstantiator.h>
 #include <omniscript/Expressions/ClassExpression.h>
 #include <omniscript/Expressions/FunctionExpression.h>
 #include <omniscript/Expressions/FunctionInputExpression.h>
@@ -169,6 +170,46 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
                 }
             }
         }
+
+        if (!method) {
+            auto userType = std::dynamic_pointer_cast<UserDefinedType>(scope->getType(baseTypeName));
+            if (userType) {
+                for (int i = 0; i < (int)userType->paramTypes.size(); ++i) {
+                    if (userType->paramTypes[i]->getParameterName() != memberName) continue;
+
+                    auto fieldType = userType->paramTypes[i];
+                    std::shared_ptr<Type> fnType = fieldType;
+                    if (fieldType->isPointer() && fieldType->getPointeeType() &&
+                        fieldType->getPointeeType()->isFunction()) {
+                        fnType = fieldType->getPointeeType();
+                    }
+                    if (!fnType || !fnType->isFunction()) continue;
+
+                    // Express `this.<field>` as a MemberAccessExpression getter.
+                    auto fieldAccess = std::make_shared<MemberAccessExpression>(
+                        baseExpr, baseTypeName, resolvedObjectName, memberName,
+                        i, fieldType, nullptr);
+                    fieldAccess->type = fieldType;
+                    fieldAccess->setSpan(this->getSpan());
+
+                    // Express each argument.
+                    std::vector<std::shared_ptr<Expression>> argExprs;
+                    argExprs.reserve(arguments.size());
+                    for (auto& a : arguments) {
+                        auto e = a->express(scope);
+                        if (!e) return nullptr;
+                        argExprs.push_back(e);
+                    }
+
+                    // Build the call-through-pointer CallExpression (Fix 4 ctor).
+                    auto callExpr = std::make_shared<CallExpression>(
+                        fieldAccess, argExprs,
+                        std::dynamic_pointer_cast<FunctionType>(fnType));
+                    callExpr->setSpan(this->getSpan());
+                    return callExpr;
+                }
+            }
+        }
         
         if (method) {
             DEBUG_LOG("[MemberAccess] Found method: " + methodName);
@@ -176,7 +217,11 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
             if (!moduleCallName.empty()) {
                 auto moduleCall = std::make_shared<Call>(moduleCallName, arguments);
                 moduleCall->setSpan(this->getSpan());
-                return moduleCall->express(scope);
+                auto result = moduleCall->express(scope);
+                if (result && result->getType()) {
+                    this->type = result->getType();   // ← NEW
+                }
+                return result;
             }
             
             // Create the 'this' argument for the method call
@@ -241,8 +286,11 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
             // methodCall->setAccessContext(accessContext); // Remove this line!
             methodCall->setSpan(this->getSpan());
             
-            // Express the call to get the final CallExpression
-            return methodCall->express(scope);
+            auto result = methodCall->express(scope);
+            if (result && result->getType()) {
+                this->type = result->getType();       // ← NEW
+            }
+            return result;
         } else {
             console.reportError(Console::SEMANTIC_ERROR, "Method '" + methodName + "' not found in scope", FileSpan{});
             return nullptr;
@@ -397,22 +445,37 @@ MemberAccess::findVariableInScope(SymbolTableType scope, const std::string& varN
 
 std::string MemberAccess::extractTypeName(std::shared_ptr<Type> type) {
     auto pointee = type->getBasePointeeType();
-    
+
+    // NEW: on-demand instantiation. When the base expression's type is a
+    // generic instance (Iter<i32>, MapIter<i64,f64>, ...) that no code path
+    // has materialized yet, create it now. Otherwise getUserDefinedType
+    // will fail to find "Iter_i32" in scope because it was never added.
+    auto ensureIfGeneric = [](std::shared_ptr<Type> t) {
+        if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(t)) {
+            if (!udt->templateName.empty() && !udt->typeArgs.empty()
+                && GenericInstantiator::hasTemplate(udt->templateName)) {
+                GenericInstantiator::ensureInstance(udt);
+            }
+        }
+    };
+
     if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
+        ensureIfGeneric(type);
         DEBUG_LOG("Direct type: " + udt->toString());
         return canonicalTypeName(udt->name);
     }
-    
+
     if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(pointee)) {
+        ensureIfGeneric(pointee);
         DEBUG_LOG("Pointee type: " + udt->toString());
         return canonicalTypeName(udt->name);
     }
-    
+
     if (pointee) {
         DEBUG_LOG("Fallback pointee: " + pointee->kindName());
         return pointee->getName();
     }
-    
+
     return "<null>";
 }
 

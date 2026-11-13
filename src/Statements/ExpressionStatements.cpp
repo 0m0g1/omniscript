@@ -224,42 +224,51 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
 
     std::shared_ptr<Expression> leftResult;
     std::shared_ptr<Expression> rightResult;
-    if (!leftType || leftType->isInvalid()) {
+    
+        if (!leftType || leftType->isInvalid()) {
         auto tempScope = scope->createChildScope("temp");
         auto leftClone = left->clone();
+        auto leftCloneTyped = std::dynamic_pointer_cast<TypedStatement>(leftClone);
         extendContextOf(leftClone);
         leftResult = leftClone->express(tempScope);
-        if (!leftResult) return nullptr;   // operand failed to resolve; the error was already reported
+        if (!leftResult) return nullptr;
         leftType = leftResult->getType();
+        // Defensive fallback: if the result expression's getType() is null
+        // (e.g. UnaryExpression shadows Expression::type), recover the type
+        // from the AST node — express() sets it as a side effect.
+        if ((!leftType || leftType->isInvalid()) && leftCloneTyped) {
+            leftType = leftCloneTyped->getType();
+        }
+        if (!leftType || leftType->isInvalid()) {
+            console.reportError(Console::INTERNAL_ERROR,
+                "Left operand '" + left->toString() + "' evaluated to a value with no type",
+                "This is a compiler bug — an expression node did not set its type. "
+                "Check ASTUnaryExpression::express and UnaryExpression::getType.",
+                left->getSpan());
+            return nullptr;
+        }
         DEBUG_LOG("The evaluated left operand type is of type '" + leftType->toString() + "'.");
     }
     
     if (!rightType || rightType->isInvalid()) {
         auto tempScope = scope->createChildScope("temp");
         auto rightClone = right->clone();
+        auto rightCloneTyped = std::dynamic_pointer_cast<TypedStatement>(rightClone);
         extendContextOf(rightClone);
         rightResult = rightClone->express(tempScope);
-        if (!rightResult) return nullptr;  // operand failed to resolve; the error was already reported
+        if (!rightResult) return nullptr;
         rightType = rightResult->getType();
+        if ((!rightType || rightType->isInvalid()) && rightCloneTyped) {
+            rightType = rightCloneTyped->getType();
+        }
+        if (!rightType || rightType->isInvalid()) {
+            console.reportError(Console::INTERNAL_ERROR,
+                "Right operand '" + right->toString() + "' evaluated to a value with no type",
+                "This is a compiler bug — an expression node did not set its type.",
+                right->getSpan());
+            return nullptr;
+        }
         DEBUG_LOG("The evaluated right operand type is of type '" + rightType->toString() + "'.");
-    }
-
-    if (!leftType || leftType->isInvalid()) {
-        std::string suggestion = Console::formatString(
-            "To resolve this:\n"
-            "1. Check left operand type declaration\n"
-            "2. Verify expression validity\n"
-            "3. Add debug output for left value\n"
-            "4. Left operand: %s",
-            left->toString().c_str()
-        );
-        console.reportError(
-            Console::TYPE_ERROR,
-            Console::formatString("Left operand '%s' has an invalid type",
-                               left->toString().c_str()),
-            suggestion,
-            left->getSpan()
-        );
     }
     
     if (!rightType || rightType->isInvalid()) {
@@ -583,7 +592,19 @@ std::shared_ptr<Expression> ASTUnaryExpression::express(SymbolTableType scope) {
             operandValue = operand->express(scope);
         } else {
             operandValue = operand->express(scope);
-            setType(stmt->getType());
+            // Read the type from the *result*, not the AST node. Some
+            // operand types (MemberAccess, Call, IndexAccess) return an
+            // expression from express() without setting the AST node's own
+            // type field. Reading stmt->getType() therefore yields null and
+            // propagates a typeless UnaryExpression.
+            if (operandValue && operandValue->getType()) {
+                if (op.getType() == TokenTypes::LogicalNot) {
+                    // `!x` is always Bool, regardless of x's type.
+                    setType(resolveType({ "bool" }));
+                } else {
+                    setType(operandValue->getType());
+                }
+            }
         }
     }
 
@@ -605,7 +626,6 @@ std::shared_ptr<Expression> ASTUnaryExpression::express(SymbolTableType scope) {
     }
 
     bool isPrefix = position == Position::Prefix;
-
     auto unaryExpr = std::make_shared<UnaryExpression>(op, operandValue, type, isPrefix);
     unaryExpr->setSpan(this->getSpan());
     return unaryExpr;

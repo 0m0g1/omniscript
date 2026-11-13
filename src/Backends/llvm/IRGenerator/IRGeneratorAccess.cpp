@@ -1,6 +1,8 @@
 // src/Backends/llvm/IRGenerator/IRGeneratorAccess.cpp
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 
+namespace Omniscript { std::string instanceAliasTarget(const std::string& name); }
+
 namespace Omniscript {
 llvm::Value* IRGenerator::handleAccessExpression(
     std::shared_ptr<AccessExpression> expr, 
@@ -144,6 +146,12 @@ llvm::Value* IRGenerator::handleMemberAccess(
     bool preservePointer
 ) {
     llvm::Type* currentType = activeScope->getType(expr->baseType);
+    if (!currentType) {
+        // A generic instance referred to by the front end's spelling (L.List_Str__String) is
+        // registered under the instantiator's name (L.List_Str_String).
+        const std::string target = instanceAliasTarget(expr->baseType);
+        if (!target.empty()) currentType = activeScope->getType(target);
+    }
     llvm::Value* currentPtr = baseValue;
 
     if (!currentType) {
@@ -398,7 +406,11 @@ llvm::Value* IRGenerator::handleDereference(
             return nullptr;
         }
         
-        if (valueToStore->getType() != pointeeType) {
+        if (pointeeType && (pointeeType->isStructTy() || pointeeType->isArrayTy()) &&
+            valueToStore->getType()->isPointerTy()) {
+            // Aggregates evaluate to their address: store the value, not a bitcast of the pointer.
+            valueToStore = Builder->CreateLoad(pointeeType, valueToStore, "deref.load");
+        } else if (valueToStore->getType() != pointeeType) {
             valueToStore = Builder->CreateBitCast(valueToStore, pointeeType, "bitcast.store");
         }
         Builder->CreateStore(valueToStore, loadedPtr);
@@ -483,7 +495,30 @@ llvm::Value* IRGenerator::handleIndexAccess(
         return nullptr;
     }
     llvm::Type* elemTy = resolveLLVMType(expr->getType());
+    if (!elemTy) return nullptr;
+    // A function-typed element is stored as a pointer (LLVM function types are unsized, so they
+    // cannot be a GEP source element type or a load type).
+    if (elemTy->isFunctionTy()) {
+        elemTy = llvm::PointerType::get(*Context, 0);
+    }
+    if (!elemTy->isSized()) {
+        console.reportError(
+            Console::TYPE_ERROR,
+            "Index expression '" + expr->toString() + "' has an unsized element type '" + debugType(elemTy) + "'",
+            "Index elements must have a size (functions are stored as pointers)",
+            expr->getSpan()
+        );
+        return nullptr;
+    }
     bool isAggregate = elemTy->isStructTy() || elemTy->isArrayTy();
+    DEBUG_LOG("[handleIndexAccess] '" + expr->toString() + "' elemTy='" + debugType(elemTy) +
+              "' base='" + debugType(baseValue->getType()) + "' index='" + debugType(indexValue->getType()) + "'");
+    if (!indexValue->getType()->isIntegerTy()) {
+        console.reportError(Console::TYPE_ERROR,
+            "Index of '" + expr->toString() + "' is not an integer (got '" + debugType(indexValue->getType()) + "')",
+            "Array indices must be integers", expr->getSpan());
+        return nullptr;
+    }
     llvm::Value* elementPtr = Builder->CreateGEP(
         elemTy,  // The type pointed to by the pointer
         baseValue, 

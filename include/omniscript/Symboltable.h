@@ -440,10 +440,12 @@ public:
         if (threadSafeMode_) {
             return withWriteLock([&]() {
                 types_[name] = type;
+                globalTypes()[name] = type;
                 return true;
             });
         } else {
             types_[name] = type;
+            globalTypes()[name] = type;
             return true;
         }
     }
@@ -456,11 +458,17 @@ public:
                 if (auto it = types_.find(name); it != types_.end()) {
                     return it->second;
                 }
+                if (auto it = globalTypes().find(name); it != globalTypes().end()) {
+                    return it->second;
+                }
                 auto parentPtr = parent_.lock();
                 return parentPtr ? parentPtr->template getType<U>(name) : U{};
             });
         } else {
             if (auto it = types_.find(name); it != types_.end()) {
+                return it->second;
+            }
+            if (auto it = globalTypes().find(name); it != globalTypes().end()) {
                 return it->second;
             }
             auto parentPtr = parent_.lock();
@@ -471,17 +479,10 @@ public:
     template <typename U = TypeT>
     typename std::enable_if<!std::is_void<U>::value, bool>::type
     typeExists(const std::string& name) const {
-        if (threadSafeMode_) {
-            return withReadLock([&]() {
-                if (types_.count(name)) return true;
-                auto parentPtr = parent_.lock();
-                return parentPtr && parentPtr->template typeExists<U>(name);
-            });
-        } else {
-            if (types_.count(name)) return true;
-            auto parentPtr = parent_.lock();
-            return parentPtr && parentPtr->template typeExists<U>(name);
-        }
+        if (types_.count(name)) return true;
+        if (globalTypes().count(name)) return true;
+        auto parentPtr = parent_.lock();
+        return parentPtr && parentPtr->template typeExists<U>(name);
     }
     
     template <typename U = TypeT>
@@ -1219,7 +1220,29 @@ public:
         typename std::unordered_map<std::string, SymbolInfoType>::const_iterator current_;
         bool atEnd_;
         mutable value_type currentPair_;
+        typename std::conditional<
+        std::is_void<TypeT>::value, 
+            int, 
+            std::unordered_map<std::string, TypeT>
+            >::type types_;
     };
+
+        // Global type registry: every addType also writes here, every getType
+    // consults here before walking the parent chain. This bridges the semantic
+    // scope tree and the codegen scope tree, which are constructed independently
+    // (IRGenerator gets a fresh root SymbolTable, so a type registered in the
+    // semantic root is invisible from activeScope's chain). Remove this once
+    // IRGenerator is wired to share the semantic root.
+    using GlobalTypeMapType = typename std::conditional<
+        std::is_void<TypeT>::value, 
+        int, 
+        std::unordered_map<std::string, TypeT>
+    >::type;
+
+    static GlobalTypeMapType& globalTypes() {
+        static GlobalTypeMapType instance{};
+        return instance;
+    }
     
     SymbolIterator begin() const {
         return SymbolIterator(this);
@@ -1367,7 +1390,13 @@ private:
     }
 
     const SymbolTablePtr getSharedThis() const {
-        return this->shared_from_this();
+        // shared_from_this() const returns shared_ptr<const SymbolTable> (C++17).
+        // Every path that calls this (getRoot, isChildOf, findScope, ...) only
+        // walks the parent chain read-only, and the table is always owned by a
+        // non-const shared_ptr in practice. const_cast to the non-const handle
+        // restores the shared_ptr<SymbolTable> contract that SymbolTablePtr
+        // promises.
+        return const_cast<SymbolTable*>(this)->shared_from_this();
     }
 
     std::string generateScopePath() const {

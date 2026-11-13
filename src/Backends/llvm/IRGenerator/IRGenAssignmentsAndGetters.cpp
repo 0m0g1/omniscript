@@ -382,6 +382,14 @@ llvm::Value* IRGenerator::assignVariable(
         Builder->CreateStore(zeroInit, alloca);
     }
 
+    // Function-pointer locals need "*<name>" registered so a call like `tf(v)`
+    // can resolve the LLVM function type in createCall. Parameters get this in
+    // generateFunctionBody; locals need it here.
+    if (statement->getType() && statement->getType()->isFunction()) {
+        llvm::Type* fnType = resolveLLVMType(statement->getType());
+        if (fnType) activeScope->addType("*" + name, fnType);
+    }
+
     activeScope->set(name, alloca);
     DEBUG_LOG("Local variable '" + name + "' allocated and initialized");
     return alloca;

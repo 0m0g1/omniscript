@@ -1,7 +1,10 @@
 // src/Backends/llvm/IRGenerator/IRGeneratorCodegen.cpp
 #include <functional>
+#include <map>
+#include <set>
 #include <omniscript/Expressions/Expressions.h>
 #include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Semantic/GenericInstantiator.h>
 #include <omniscript/Expressions/CastExpression.h>
 #include <omniscript/Expressions/BlockExpression.h>
 #include <omniscript/Expressions/TypeExpressions.h>
@@ -115,6 +118,118 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
     }
     
     setSpan(value->getSpan());
+
+    // Generic instances (Iter_i32, Zip_i32_i64, ...) are only *expressed* by GenericInstantiator
+    // and queued; nothing else emits them, so emit them here.
+    //  - emitInstanceNamed: on demand, only the instance a type actually needs (so we never
+    //    emit an instance whose own dependencies are not registered yet).
+    //  - emitAllInstances: everything queued, in creation (dependency) order.
+    //  - instance method bodies are deferred until the outermost block has registered
+    //    every type and function, then flushed.
+    static std::vector<std::shared_ptr<Expression>> genericEmitQueue;
+    static std::vector<std::function<void()>> deferredBodies;
+    static int emitDepth = 0;
+    static int blockDepth = 0;
+    static bool flushingBodies = false;
+    // Struct declarations found anywhere in the program (instances sit in nested blocks, in
+    // creation order, so a Chain_f64 can appear before the Iter_f64 its field needs).
+    // A struct whose by-value field type is not registered yet pulls that declaration forward.
+    static std::map<std::string, std::shared_ptr<StructExpression>> structDecls;
+    static std::set<std::string> startedStructs;
+
+    std::function<void(const std::shared_ptr<Expression>&)> collectStructs =
+        [&](const std::shared_ptr<Expression>& e) {
+            if (!e) return;
+            if (auto st = std::dynamic_pointer_cast<StructExpression>(e)) {
+                structDecls[st->name] = st;
+            } else if (auto cl = std::dynamic_pointer_cast<ClassExpression>(e)) {
+                if (cl->structExpr) structDecls[cl->structExpr->name] = cl->structExpr;
+            } else if (auto b = std::dynamic_pointer_cast<BlockExpression>(e)) {
+                for (const auto& v : b->values) collectStructs(v);
+            }
+        };
+    auto findStructDecl = [&](const std::string& n) -> std::shared_ptr<StructExpression> {
+        auto it = structDecls.find(n);
+        if (it != structDecls.end()) return it->second;
+        for (auto& [q, decl] : structDecls) {
+            if (q.size() > n.size() && q.compare(q.size() - n.size() - 1, std::string::npos, "." + n) == 0)
+                return decl;
+        }
+        return nullptr;
+    };
+
+    auto pullPending = [&]() {
+        for (auto& inst : GenericInstantiator::drainPending()) genericEmitQueue.push_back(inst);
+    };
+    auto instanceName = [](const std::shared_ptr<Expression>& e) -> std::string {
+        if (auto st = std::dynamic_pointer_cast<StructExpression>(e)) return st->name;
+        if (auto cl = std::dynamic_pointer_cast<ClassExpression>(e)) return cl->structExpr ? cl->structExpr->name : "";
+        return "";
+    };
+    auto emitOne = [&](size_t idx) {
+        auto inst = genericEmitQueue[idx];
+        genericEmitQueue.erase(genericEmitQueue.begin() + idx);   // erase first: re-entrancy safe
+        ++emitDepth;
+        codegen(inst, scope);
+        --emitDepth;
+    };
+    auto emitAllInstances = [&]() {
+        pullPending();
+        while (!genericEmitQueue.empty()) {
+            emitOne(0);
+            pullPending();
+        }
+    };
+    auto emitInstanceNamed = [&](const std::string& n) {
+        pullPending();
+        for (size_t i = 0; i < genericEmitQueue.size(); ++i) {
+            const std::string q = instanceName(genericEmitQueue[i]);
+            if (q == n || (q.size() > n.size() && q.compare(q.size() - n.size() - 1, std::string::npos, "." + n) == 0)) {
+                emitOne(i);
+                return;
+            }
+        }
+    };
+    std::function<void(const std::shared_ptr<Type>&)> prepareType = [&](const std::shared_ptr<Type>& t) {
+        if (!t) return;
+        GenericInstantiator::ensureInstancesIn(t);
+        if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(t)) {
+            emitInstanceNamed(udt->getName());
+            // Not in the generic queue and not registered: it is declared elsewhere in the
+            // program (possibly later). Emit its struct now; bodies are deferred via emitDepth.
+            if (!activeScope->getType(udt->getName())) {
+                auto decl = findStructDecl(udt->getName());
+                DEBUG_LOG("[prepareType] '" + udt->getName() + "' unregistered: decl " + std::string(decl ? "found" : "NOT FOUND"));
+                if (decl && !startedStructs.count(decl->name)) {
+                    ++emitDepth;
+                    codegen(decl, scope);
+                    --emitDepth;
+                }
+            }
+        } else if (auto nullable = std::dynamic_pointer_cast<NullableType>(t)) {
+            prepareType(nullable->innerType);
+        } else if (auto fixedArr = std::dynamic_pointer_cast<FixedArrayType>(t)) {
+            prepareType(fixedArr->elementType);
+        }
+        // pointers / references are opaque `ptr`: the pointee need not exist yet.
+    };
+    auto prepareSignature = [&](const std::shared_ptr<Type>& ret,
+                                const std::vector<std::shared_ptr<Expression>>& params) {
+        prepareType(ret);
+        for (const auto& prm : params) if (prm) prepareType(prm->getType());
+    };
+    auto flushDeferredBodies = [&]() {
+        if (flushingBodies) return;
+        flushingBodies = true;
+        emitAllInstances();
+        while (!deferredBodies.empty()) {
+            auto fn = deferredBodies.front();
+            deferredBodies.erase(deferredBodies.begin());
+            fn();
+            emitAllInstances();   // anything a body instantiated lazily
+        }
+        flushingBodies = false;
+    };
 
     DEBUG_LOG("Calling codegen on scope '" + scope->getName() + "' for '" + value->toString() + "'.");
     
@@ -306,11 +421,19 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
     if (auto block = std::dynamic_pointer_cast<BlockExpression>(value)) {
         DEBUG_LOG("Evaluating a block value — First pass (registration)");
 
+        struct BlockGuard { std::function<void()> onExit; ~BlockGuard() { if (onExit) onExit(); } };
+        ++blockDepth;
+        BlockGuard blockGuard{[&]() { if (--blockDepth == 0) flushDeferredBodies(); }};
+
+        collectStructs(block);   // before emitting: instances may need structs declared later in this block
+        emitAllInstances();   // instances created while the program was expressed
+
         for (const auto& expr : block->values) {
             if (auto structExpr = std::dynamic_pointer_cast<StructExpression>(expr)) {
                 codegen(expr, scope);
             } else if (auto func = std::dynamic_pointer_cast<FunctionExpression>(expr)) {
                 DEBUG_LOG("Processing function declaration: " + func->name + " (mangled: " + func->mangledName + ")");
+                prepareSignature(func->returnType, func->parameters);
                 llvm::Type* returnType = resolveLLVMType(func->returnType);
 
                 if (func->isExtern) {
@@ -347,8 +470,8 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         }
 
         for (const auto& expr : block->values) {
-            if (auto structExpr = std::dynamic_pointer_cast<StructExpression>(value)) {
-                continue;
+            if (std::dynamic_pointer_cast<StructExpression>(expr)) {
+                continue;   // structs were emitted in the first pass
             }
 
             if (std::dynamic_pointer_cast<FunctionExpression>(expr)) {
@@ -386,6 +509,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
 
     if (auto func = std::dynamic_pointer_cast<FunctionExpression>(value)) {
         DEBUG_LOG("Creating an overload for function " + func->name + " with mangled name '" + func->mangledName + "'");
+        prepareSignature(func->returnType, func->parameters);
         llvm::Type* returnType = resolveLLVMType(func->returnType);
         if (func->isExtern) {
             return createExternFunction(func, scope);
@@ -437,6 +561,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
             return createReturn(nullptr, nullptr);
         }
         llvm::Value* val = codegen(ret->value, scope);
+        // Aggregates evaluate to their address (arr[i], this.field, a local struct): a by-value
+        // return of a struct/array needs the value itself.
+        if (val && type && val->getType()->isPointerTy() && (type->isStructTy() || type->isArrayTy())) {
+            val = Builder->CreateLoad(type, val, "ret.load");
+        }
         return createReturn(val, type);
     }
 
@@ -572,6 +701,28 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
 
     if (auto call = std::dynamic_pointer_cast<CallExpression>(value)) {
         DEBUG_LOG("Calling " + call->calleeName);
+
+        // NEW: call through an expression (function-pointer value).
+        if (call->calleeExpr) {
+            auto calleeVal = codegen(call->calleeExpr, scope);
+            if (!calleeVal) return nullptr;
+
+            std::vector<llvm::Value*> args;
+            args.reserve(call->args.size());
+            for (const auto& arg : call->args) {
+                if (auto v = codegen(arg, scope)) args.push_back(v);
+                else return nullptr;
+            }
+
+            llvm::Type* llvmFnTy = resolveLLVMType(call->calleeFnType);
+            if (!llvmFnTy || !llvmFnTy->isFunctionTy()) {
+                console.reportError(Console::TYPE_ERROR,
+                    "Cannot resolve function type for expression callee", FileSpan{});
+                return nullptr;
+            }
+            auto* fnTy = llvm::cast<llvm::FunctionType>(llvmFnTy);
+            return Builder->CreateCall(fnTy, calleeVal, args);
+        }
         
         std::vector<llvm::Value*> args;
         args.reserve(call->args.size()); // Pre-reserve to avoid reallocations
@@ -609,6 +760,9 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
     }
 
     if (auto structExpr = std::dynamic_pointer_cast<StructExpression>(value)) {
+        // Emit each struct once (it may already have been pulled forward by a dependent).
+        if (!startedStructs.insert(structExpr->name).second) return nullptr;
+
         std::vector<llvm::Type*> fieldTypes;
         fieldTypes.reserve(structExpr->parameters.size());
         
@@ -616,12 +770,40 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
 
         for (const auto& field : structExpr->parameters) {
             if (auto input = std::dynamic_pointer_cast<FunctionInputExpression>(field)) {
+                prepareType(input->getType());
+                // By-value field of a user type that is declared later in the program: emit it now.
+                // Bodies are deferred (emitDepth) until every type and function is registered.
+                std::function<void(const std::shared_ptr<Type>&)> ensureDeclared =
+                    [&](const std::shared_ptr<Type>& t) {
+                        if (!t) return;
+                        if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(t)) {
+                            if (activeScope->getType(udt->getName())) return;
+                            auto decl = findStructDecl(udt->getName());
+                            DEBUG_LOG("[ensureDeclared] '" + udt->getName() + "' needed by '" + structExpr->name + "': decl " + std::string(decl ? "found" : "NOT FOUND") + " (known=" + std::to_string(structDecls.size()) + ")");
+                            if (decl && !startedStructs.count(decl->name)) {
+                                ++emitDepth;
+                                codegen(decl, scope);
+                                --emitDepth;
+                            }
+                        } else if (auto nl = std::dynamic_pointer_cast<NullableType>(t)) {
+                            ensureDeclared(nl->innerType);
+                        } else if (auto fa = std::dynamic_pointer_cast<FixedArrayType>(t)) {
+                            ensureDeclared(fa->elementType);
+                        }
+                    };
+                ensureDeclared(input->getType());
                 llvm::Type* llvmFieldType = resolveLLVMType(input->getType());
                 if (!llvmFieldType) {
                     console.reportError(Console::TYPE_ERROR, "Failed to generate type for field '" + input->name + "' in struct '" + structExpr->name + "'.", FileSpan{});
                     return nullptr;
                 }
         
+                // A function-typed field (e.g. `transform: fn(T) => U`) is stored as a pointer:
+                // llvm::FunctionType is unsized and is not a valid struct element type.
+                if (llvmFieldType->isFunctionTy()) {
+                    llvmFieldType = llvm::PointerType::get(*Context, 0);
+                }
+
                 fieldTypes.push_back(llvmFieldType);
                 methodsCount--;
             }
@@ -630,6 +812,22 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         // Create the LLVM struct type (opaque or packed depending on your system)
         createStructType(structExpr->name, fieldTypes);
 
+        // Instances nested in a module/struct are named qualified ("Iter.MapIter_i32_i32") but
+        // referenced by their short name ("MapIter_i32_i32") in signatures and fields.
+        // Register the short name too (never overriding an existing type of that name).
+        {
+            size_t dot = structExpr->name.rfind('.');
+            if (dot != std::string::npos) {
+                const std::string shortName = structExpr->name.substr(dot + 1);
+                if (auto* st = llvm::StructType::getTypeByName(*Context, structExpr->name)) {
+                    if (!activeScope->getType(shortName)) {
+                        DEBUG_LOG("[struct] aliasing '" + shortName + "' -> '" + structExpr->name + "'");
+                        activeScope->addType(shortName, st);
+                    }
+                }
+            }
+        }
+
         if (methodsCount > 0) {
             std::vector<llvm::Function*> methods;
     
@@ -637,6 +835,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
     
             for (const auto& field : structExpr->parameters) {
                 if (auto method = std::dynamic_pointer_cast<FunctionExpression>(field)) {
+                    prepareSignature(method->returnType, method->parameters);
                     llvm::Type* returnType = resolveLLVMType(method->returnType);
                     llvm::Function* methd = registerFunction(method->mangledName, returnType, method->parameters, scope);
                     methods.emplace_back(methd);
@@ -646,13 +845,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
             int methodIndex = 0;
             for (const auto& field : structExpr->parameters) {
                 if (auto method = std::dynamic_pointer_cast<FunctionExpression>(field)) {
-                    generateFunctionBody(
-                        method->mangledName,
-                        methods[methodIndex],
-                        method->parameters,
-                        method->body,
-                        scope
-                    );
+                    auto genBody = [this, method, fnPtr = methods[methodIndex], scope]() {
+                        generateFunctionBody(method->mangledName, fnPtr, method->parameters, method->body, scope);
+                    };
+                    if (emitDepth > 0) deferredBodies.push_back(genBody);   // generic instance: defer
+                    else genBody();
                     methodIndex++;
                 }
         }

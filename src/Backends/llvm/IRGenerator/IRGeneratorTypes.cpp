@@ -1,4 +1,7 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
+#include <omniscript/Semantic/GenericInstantiator.h>
+
+namespace Omniscript { std::string instanceAliasTarget(const std::string& name); }
 
 namespace Omniscript {
 llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Type> type) {
@@ -17,21 +20,41 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Type> type) {
     };
 
     if (auto customType = std::dynamic_pointer_cast<UserDefinedType>(type)) {
+        // NEW: on-demand instantiation. A generic instance (Iter_i32, MapIter_i64_f64, ...)
+        // may be referenced by name long before any code path has materialized its
+        // concrete struct. The template is registered by ConstructStructPrototype::express,
+        // so ensureInstance creates the instance right here, before the lookup below.
+        if (!customType->templateName.empty() && !customType->typeArgs.empty()) {
+            if (GenericInstantiator::hasTemplate(customType->templateName)) {
+                DEBUG_LOG("[resolveLLVMType] Instantiating " + customType->getName() +
+                        " from template '" + customType->templateName + "'");
+                GenericInstantiator::ensureInstance(customType);
+            } else {
+                DEBUG_LOG("[resolveLLVMType] Type '" + customType->getName() +
+                        "' has templateName='" + customType->templateName +
+                        "' but no template is registered");
+            }
+        }
+
         const std::string& userTypeName = customType->getName();
         auto userType = activeScope->getType(userTypeName);
         if (!userType) {
-            // Fallback: the struct may be registered with LLVM (named struct) but not visible from
-            // the current scope (e.g. top-level statements, method/generic scopes that don't chain
-            // to the scope the struct was declared in). Try the LLVM context's named types.
-            for (const char* prefix : {"", "struct.", "class."}) {
-                if (auto* named = llvm::StructType::getTypeByName(context, std::string(prefix) + userTypeName)) {
-                    DEBUG_LOG("Type '" + userTypeName + "' not in activeScope; resolved via LLVM named struct '" +
-                              std::string(prefix) + userTypeName + "'.");
-                    return named;
-                }
+            const std::string target = instanceAliasTarget(userTypeName);
+            if (!target.empty()) {
+                userType = activeScope->getType(target);
+                if (userType) activeScope->addType(userTypeName, userType);   // cache the alias
             }
-            DEBUG_LOG("Type lookup failed for '" + userTypeName + "' (activeScope=" +
-                      std::to_string(reinterpret_cast<uintptr_t>(&*activeScope)) + ")");
+        }
+        if (!userType) {
+            DEBUG_LOG("[resolveLLVMType] '" + userTypeName + "' not found in activeScope '" +
+                      activeScope->getName() + "'. Scope chain:");
+            auto s = activeScope;
+            int depth = 0;
+            while (s && depth < 8) {
+                DEBUG_LOG("  [" + std::to_string(depth) + "] scope: " + s->getName());
+                s = s->getParent();
+                depth++;
+            }
         }
         if (!userType) {
             console.reportError(Console::TYPE_ERROR,
@@ -106,11 +129,17 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Type> type) {
 
         if (auto fixedArray = std::dynamic_pointer_cast<FixedArrayType>(type)) {
             uint64_t arraySize = fixedArray->size;
-            DEBUG_LOG("The array is of size '" + std::to_string(arraySize) + "' and holds type '" + elementSourceType->toString() + "'.");
+            DEBUG_LOG("The array is of size '" + std::to_string(arraySize) +
+                    "' and holds type '" + elementSourceType->toString() + "'.");
             auto elementType = resolveLLVMType(elementSourceType);
             if (!elementType) {
                 typeError("Failed to resolve array element type: " + elementSourceType->toString());
                 return nullptr;
+            }
+            // LLVM has no first-class function types. Arrays of functions are
+            // represented as arrays of opaque pointers to those functions.
+            if (elementType->isFunctionTy()) {
+                elementType = llvm::PointerType::get(context, 0);
             }
             return llvm::ArrayType::get(elementType, arraySize);
         }

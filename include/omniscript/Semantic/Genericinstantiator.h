@@ -28,8 +28,31 @@ std::shared_ptr<Type> substituteTypeParam(
     const std::string& name,
     const std::shared_ptr<Type>& concrete);
 
+// One type-parameter binding used when substituting inside a cloned generic body.
+//   name    : the parameter as written in the source ("T")
+//   type    : the concrete type it is bound to
+//   mangled : spelling used in specialized names ("i64", "ptr_i32", "List_i64"). Must equal what the
+//             specialized declaration name was built from, otherwise `sort_T` -> `sort_<mangled>`
+//             will not find the instance. Empty = mangleTypeName(type).
+struct GenericBinding {
+    std::string name;
+    std::shared_ptr<Type> type;
+    std::string mangled;
+};
+
 class GenericInstantiator {
 public:
+    // Walks a cloned generic body in place and substitutes every bound type parameter:
+    // type/rootType on every typed node, Call callee names (`sort_T` -> `sort_i64`),
+    // ObjectConstructorStatement::objectType, cast target types, nested blocks/branches/loops.
+    static void substituteInStatement(const std::shared_ptr<Statement>& stmt,
+                                      const std::vector<GenericBinding>& bindings);
+
+    // `sort_T` -> `sort_i64` for {T: i64}. Single pass; matches "_<Param>" only at a boundary
+    // (end of string, or followed by '_', '.', '(').
+    static std::string applyNameSubstitution(const std::string& name,
+                                             const std::vector<GenericBinding>& bindings);
+
     struct Template {
         std::string name;                                   // final (module-qualified) name
         std::vector<std::shared_ptr<Statement>> body;

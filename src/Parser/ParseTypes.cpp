@@ -532,13 +532,36 @@ std::vector<std::string> Parser::parseType() {
             }
         }
 
+        // NEW: if prefix arrays were collected before `fn` (i.e. the source was
+        // `[8]fn(T) => T`), wrap the whole function type in parens and append
+        // the array suffix. Otherwise `resolveFunctionType` would eat the
+        // trailing `[8]` as part of the return type, producing
+        // "function returning T[8]" instead of "array of 8 functions returning T".
+        if (!prefixArraySizes.empty()) {
+            std::vector<std::string> wrapped;
+            wrapped.reserve(dataTypes.size() + 2 + prefixArraySizes.size() * 3);
+            wrapped.push_back("(");
+            for (const auto& tok : dataTypes) wrapped.push_back(tok);
+            wrapped.push_back(")");
+            for (uint64_t sz : prefixArraySizes) {
+                wrapped.push_back("[");
+                wrapped.push_back(std::to_string(sz));
+                wrapped.push_back("]");
+            }
+
+            span.end.line = previousToken.getLine();
+            span.end.col = previousToken.getColumn();
+            span.end.filePath = previousToken.getFilePath();
+            return wrapped;
+        }
+
         span.end.line = previousToken.getLine();
         span.end.col = previousToken.getColumn();
         span.end.filePath = previousToken.getFilePath();
 
         return dataTypes;
     }
-
+    
     std::vector<std::string> prefixModifiers;
     while ((currentToken.getType() == TokenTypes::Multiply ||
             currentToken.getType() == TokenTypes::Power ||
@@ -802,11 +825,18 @@ std::vector<std::string> Parser::parseType() {
     span.end.col = previousToken.getColumn();
     span.end.filePath = previousToken.getFilePath();
 
+    // Prefix array suffixes were collected before this branch but the
+    // Function path returns early. Apply them so `[8]fn(T) => T` produces
+    // [8]fn(T) => T instead of just fn(T) => T.
     for (uint64_t size : prefixArraySizes) {
         dataTypes.push_back("[");
         dataTypes.push_back(std::to_string(size));
         dataTypes.push_back("]");
     }
+
+    span.end.line = previousToken.getLine();
+    span.end.col = previousToken.getColumn();
+    span.end.filePath = previousToken.getFilePath();
 
     return dataTypes;
 }
