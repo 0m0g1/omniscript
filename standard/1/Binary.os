@@ -38,27 +38,27 @@ struct ByteReader {
     u16(out: u16*) => bool {
         let a: u8 = 0; let b: u8 = 0;
         if (!this.u8(&a) || !this.u8(&b)) return false;
-        *out = (a as u16) | ((b as u16) << 8); return true;
+        out[0] = (a as u16) | ((b as u16) << 8); return true;
     }
     u32(out: u32*) => bool {
         let a: u16 = 0; let b: u16 = 0;
         if (!this.u16(&a) || !this.u16(&b)) return false;
-        *out = (a as u32) | ((b as u32) << 16); return true;
+        out[0] = (a as u32) | ((b as u32) << 16); return true;
     }
     u64(out: u64*) => bool {
         let a: u32 = 0; let b: u32 = 0;
         if (!this.u32(&a) || !this.u32(&b)) return false;
-        *out = (a as u64) | ((b as u64) << 32); return true;
+        out[0] = (a as u64) | ((b as u64) << 32); return true;
     }
     u16BE(out: u16*) => bool {
         let a: u8 = 0; let b: u8 = 0;
         if (!this.u8(&a) || !this.u8(&b)) return false;
-        *out = ((a as u16) << 8) | (b as u16); return true;
+        out[0] = ((a as u16) << 8) | (b as u16); return true;
     }
     u32BE(out: u32*) => bool {
         let a: u16 = 0; let b: u16 = 0;
         if (!this.u16BE(&a) || !this.u16BE(&b)) return false;
-        *out = ((a as u32) << 16) | (b as u32); return true;
+        out[0] = ((a as u32) << 16) | (b as u32); return true;
     }
     f64(out: double*) => bool { let t: u64 = 0; if (!this.u64(&t)) return false; CMem.memcpy(out as void*, &t as void*, 8); return true; }
     f32(out: float*) => bool { let t: u32 = 0; if (!this.u32(&t)) return false; CMem.memcpy(out as void*, &t as void*, 4); return true; }

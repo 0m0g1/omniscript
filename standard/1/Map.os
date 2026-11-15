@@ -75,7 +75,7 @@ struct Map<K, V> {
     get(k: K, out: V*) => bool {
         let i = this.find(&k);
         if (i < 0) return false;
-        *out = this.vals[i];
+        out[0] = this.vals[i];
         return true;
     }
 
@@ -104,7 +104,7 @@ struct Map<K, V> {
     next(it: u64*, k: K**, v: V**) => bool {
         while (*it < this.cap) {
             let i = *it;
-            *it = *it + 1;
+            it[0] = *it + 1;
             if (this.state[i] == 1) { *k = &this.keys[i]; *v = &this.vals[i]; return true; }
         }
         return false;

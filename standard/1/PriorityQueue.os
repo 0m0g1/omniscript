@@ -29,7 +29,7 @@ struct PriorityQueue<T> {
 
     pop(out: T*) => bool {
         if (this.l.len == 0) return false;
-        *out = this.l.data[0];
+        out[0] = this.l.data[0];
         this.l.len = this.l.len - 1;
         if (this.l.len == 0) return true;
         this.l.data[0] = this.l.data[this.l.len];

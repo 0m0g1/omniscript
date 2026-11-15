@@ -156,6 +156,18 @@ llvm::Value* IRGenerator::handleMemberAccess(
         const std::string canon = canonicalTypeName(expr->baseType);   // import alias -> canonical type
         if (canon != expr->baseType) currentType = activeScope->getType(canon);
     }
+    // A pointer-typed local/global variable is represented by its storage (alloca / global):
+    // load the pointer it holds so the field GEP starts at the pointed-to struct, not at the variable.
+    if (auto* allocaBase = llvm::dyn_cast<llvm::AllocaInst>(baseValue)) {
+        if (allocaBase->getAllocatedType()->isPointerTy()) {
+            baseValue = Builder->CreateLoad(allocaBase->getAllocatedType(), allocaBase, "member.base");
+        }
+    } else if (auto* globalBase = llvm::dyn_cast<llvm::GlobalVariable>(baseValue)) {
+        if (globalBase->getValueType()->isPointerTy()) {
+            baseValue = Builder->CreateLoad(globalBase->getValueType(), globalBase, "member.base");
+        }
+    }
+
     llvm::Value* currentPtr = baseValue;
 
     if (!currentType) {
@@ -360,6 +372,18 @@ llvm::Value* IRGenerator::handleDereference(
     llvm::Value* baseValue,
     SymbolTableType scope
 ) {
+    // A local/global variable of pointer type is represented by its storage (alloca / global).
+    // Load the pointer it holds so we store to / load from the pointee, not the variable itself.
+    if (auto* allocaBase = llvm::dyn_cast<llvm::AllocaInst>(baseValue)) {
+        if (allocaBase->getAllocatedType()->isPointerTy()) {
+            baseValue = Builder->CreateLoad(allocaBase->getAllocatedType(), allocaBase, "deref.base");
+        }
+    } else if (auto* globalBase = llvm::dyn_cast<llvm::GlobalVariable>(baseValue)) {
+        if (globalBase->getValueType()->isPointerTy()) {
+            baseValue = Builder->CreateLoad(globalBase->getValueType(), globalBase, "deref.base");
+        }
+    }
+
     llvm::Type* ptrType = baseValue->getType();
     if (!ptrType->isPointerTy()) {
         std::string suggestion = "To resolve this:\n"

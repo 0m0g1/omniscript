@@ -155,6 +155,24 @@ struct RawPointerExpression : public Expression {
     }
 };
 
+// sizeof(T): the type is kept until codegen, where DataLayout supplies the real size.
+struct SizeOfExpression : public Expression {
+    std::shared_ptr<Type> measuredType;
+
+    explicit SizeOfExpression(std::shared_ptr<Type> t) : measuredType(t) {
+        type = Type::createPrimitiveType(Kind::Int32);   // same type the old integer literal had
+        rootType = std::make_shared<Type>(Kind::Int8);   // same as Integer<T>, so it retypes like a literal
+    }
+
+    std::string toString() const override {
+        return "SizeOf(" + (measuredType ? measuredType->toString() : std::string("?")) + ")";
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        return std::make_shared<SizeOfExpression>(measuredType ? measuredType->clone() : nullptr);
+    }
+};
+
 struct InvalidExpression : public Expression {
     InvalidExpression() {
         type = Type::createInvalid();

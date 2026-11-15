@@ -57,13 +57,13 @@ struct ListF32 {
     pop(out: float*) => bool {
         if (this.len == 0) return false;
         this.len = this.len - 1;
-        *out = this.data[this.len];
+        out[0] = this.data[this.len];
         return true;
     }
 
     get(i: u64, out: float*) => bool {
         if (i >= this.len) return false;
-        *out = this.data[i];
+        out[0] = this.data[i];
         return true;
     }
 

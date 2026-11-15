@@ -141,7 +141,7 @@ struct Child {
         if (WaitForSingleObject(this.proc, ms) != 0) return false;
         let c: uint = 0;
         GetExitCodeProcess(this.proc, &c);
-        *code = c as int;
+        code[0] = c as int;
         return true;
     }
 

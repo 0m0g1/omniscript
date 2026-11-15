@@ -11,7 +11,7 @@ function deflate(src: u8*, n: u64, level: int, outLen: u64*) => u8* {
     let buf = CMem.malloc(cap) as u8*;
     if (buf == nullptr) return nullptr;
     if (Z.compress2(buf, &cap, src, n, level) != 0) { CMem.free(buf as void*); return nullptr; }
-    *outLen = cap;
+    outLen[0] = cap;
     return buf;
 }
 
@@ -21,7 +21,7 @@ function inflate(src: u8*, n: u64, originalLen: u64, outLen: u64*) => u8* {
     let buf = CMem.malloc(cap + 1) as u8*;
     if (buf == nullptr) return nullptr;
     if (Z.uncompress(buf, &cap, src, n) != 0) { CMem.free(buf as void*); return nullptr; }
-    *outLen = cap;
+    outLen[0] = cap;
     return buf;
 }
 
@@ -59,7 +59,7 @@ function gzip(src: u8*, n: u64, level: int, outLen: u64*) => u8* {
     putLE32(&out[10 + dl], crc32(src, n));
     putLE32(&out[14 + dl], (n & 0xFFFFFFFF) as u32);
     CMem.free(z as void*);
-    *outLen = dl + 18;
+    outLen[0] = dl + 18;
     return out;
 }
 
@@ -348,7 +348,7 @@ function inflateRaw(src: u8*, n: u64, maxOut: u64, outLen: u64*) => u8* {
     }
     let r: u8* = p as u8*;
     r[s.olen] = 0;
-    *outLen = s.olen;
+    outLen[0] = s.olen;
     return r;
 }
 
@@ -384,6 +384,6 @@ function gunzip(src: u8*, n: u64, maxOut: u64, outLen: u64*) => u8* {
         CMem.free(out as void*);
         return nullptr;
     }
-    *outLen = ol;
+    outLen[0] = ol;
     return out;
 }

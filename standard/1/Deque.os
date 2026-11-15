@@ -44,7 +44,7 @@ struct Deque<T> {
     }
     popFront(out: T*) => bool {
         if (this.len == 0) return false;
-        *out = this.data[this.head];
+        out[0] = this.data[this.head];
         this.head = (this.head + 1) % this.cap;
         this.len = this.len - 1;
         return true;
@@ -52,7 +52,7 @@ struct Deque<T> {
     popBack(out: T*) => bool {
         if (this.len == 0) return false;
         this.len = this.len - 1;
-        *out = this.data[(this.head + this.len) % this.cap];
+        out[0] = this.data[(this.head + this.len) % this.cap];
         return true;
     }
     peekFront(out: T*) => bool { if (this.len == 0) return false; *out = this.data[this.head]; return true; }

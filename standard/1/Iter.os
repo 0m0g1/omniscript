@@ -88,7 +88,7 @@ struct Iter<T extends i32 | i64 | u32 | u64 | f32 | f64> {
             }
             if (!keep) continue;
 
-            *out = v;
+            out[0] = v;
             return true;
         }
         return false;
@@ -199,7 +199,7 @@ struct MapIter<T extends i32 | i64 | u32 | u64 | f32 | f64,
     next(out: U*) => bool {
         let v: T = 0 as T;
         if (!this.src.next(&v)) return false;
-        *out = this.transform(v);
+        out[0] = this.transform(v);
         return true;
     }
 
@@ -261,7 +261,7 @@ struct Enumerate<T extends i32 | i64 | u32 | u64 | f32 | f64> {
 
     next(outIdx: u64*, outVal: T*) => bool {
         if (!this.src.next(outVal)) return false;
-        *outIdx = this.idx;
+        outIdx[0] = this.idx;
         this.idx = this.idx + 1;
         return true;
     }

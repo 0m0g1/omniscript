@@ -45,7 +45,7 @@ function base64Decode(s: char*, outLen: u64*) => u8* {
     let pad: int = 0;
     if (n >= 1 && (s[n - 1] as int) == 61) pad = pad + 1;
     if (n >= 2 && (s[n - 2] as int) == 61) pad = pad + 1;
-    *outLen = (l - pad) as u64;
+    outLen[0] = (l - pad) as u64;
     return buf;
 }
 
@@ -133,7 +133,7 @@ function aesEncrypt(key: u8*, plain: u8*, n: u64, outLen: u64*) => u8* {
     if (ok) ok = O.EVP_CIPHER_CTX_ctrl(ctx, 16, 16, &buf[12 + n] as void*) == 1;
     if (ctx != nullptr) O.EVP_CIPHER_CTX_free(ctx);
     if (!ok) { CMem.free(buf as void*); return nullptr; }
-    *outLen = n + 28;
+    outLen[0] = n + 28;
     return buf;
 }
 
@@ -158,6 +158,6 @@ function aesDecrypt(key: u8*, data: u8*, n: u64, outLen: u64*) => u8* {
     if (ctx != nullptr) O.EVP_CIPHER_CTX_free(ctx);
     if (!ok) { CMem.free(out as void*); return nullptr; }
     out[c] = 0;
-    *outLen = c;
+    outLen[0] = c;
     return out;
 }

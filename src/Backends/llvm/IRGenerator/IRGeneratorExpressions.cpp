@@ -69,7 +69,7 @@ llvm::Value* IRGenerator::createUnaryExpression(llvm::Value* operand, TokenTypes
     return nullptr;
 }
 
-llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes op, llvm::Value* right) {
+llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes op, llvm::Value* right, bool isUnsigned) {
     if (!left || !right) {
         console.reportError(Console::SEMANTIC_ERROR, "Invalid binary operation.", FileSpan{});
         return nullptr;
@@ -168,14 +168,14 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         unsigned rw = right->getType()->getIntegerBitWidth();
         if (llvm::isa<llvm::ConstantInt>(right)) {
             // Literal on the right: take the left operand's type.
-            right = Builder->CreateSExtOrTrunc(right, left->getType(), "litcast");
+            right = isUnsigned ? Builder->CreateZExtOrTrunc(right, left->getType(), "litcast") : Builder->CreateSExtOrTrunc(right, left->getType(), "litcast");
         } else if (llvm::isa<llvm::ConstantInt>(left)) {
-            left = Builder->CreateSExtOrTrunc(left, right->getType(), "litcast");
+            left = isUnsigned ? Builder->CreateZExtOrTrunc(left, right->getType(), "litcast") : Builder->CreateSExtOrTrunc(left, right->getType(), "litcast");
         } else if (lw < rw) {
             // NOTE: sign-extends; the backend has no signedness info here.
-            left = Builder->CreateSExt(left, right->getType(), "widen");
+            left = isUnsigned ? Builder->CreateZExt(left, right->getType(), "widen") : Builder->CreateSExt(left, right->getType(), "widen");
         } else {
-            right = Builder->CreateSExt(right, left->getType(), "widen");
+            right = isUnsigned ? Builder->CreateZExt(right, left->getType(), "widen") : Builder->CreateSExt(right, left->getType(), "widen");
         }
     }
 
@@ -198,9 +198,9 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
                     right = Builder->CreateFPExt(right, lt, "fpwiden");
                 }
             } else if (lFP && rt->isIntegerTy() && rt->getIntegerBitWidth() > 1) {
-                right = Builder->CreateSIToFP(right, lt, "i2f");
+                right = isUnsigned ? Builder->CreateUIToFP(right, lt, "i2f") : Builder->CreateSIToFP(right, lt, "i2f");
             } else if (rFP && lt->isIntegerTy() && lt->getIntegerBitWidth() > 1) {
-                left = Builder->CreateSIToFP(left, rt, "i2f");
+                left = isUnsigned ? Builder->CreateUIToFP(left, rt, "i2f") : Builder->CreateSIToFP(left, rt, "i2f");
             }
         }
     }
@@ -225,12 +225,12 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         case TokenTypes::Divide:
             return left->getType()->isFloatingPointTy()
                 ? Builder->CreateFDiv(left, right, "fdivtmp")
-                : Builder->CreateSDiv(left, right, "divtmp");
+                : (isUnsigned ? Builder->CreateUDiv(left, right, "udivtmp") : Builder->CreateSDiv(left, right, "divtmp"));
             
         case TokenTypes::Modulo:
             return left->getType()->isFloatingPointTy()
                 ? Builder->CreateFRem(left, right, "fmodtmp")
-                : Builder->CreateSRem(left, right, "modtmp");
+                : (isUnsigned ? Builder->CreateURem(left, right, "umodtmp") : Builder->CreateSRem(left, right, "modtmp"));
             
         // Comparisons
         case TokenTypes::Equals:
@@ -246,22 +246,22 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         case TokenTypes::LessThan:
             return left->getType()->isFloatingPointTy()
                 ? Builder->CreateFCmpOLT(left, right, "flttmp")
-                : Builder->CreateICmpSLT(left, right, "lttmp");
+                : (isUnsigned ? Builder->CreateICmpULT(left, right, "ulttmp") : Builder->CreateICmpSLT(left, right, "lttmp"));
             
         case TokenTypes::LessEqual:
             return left->getType()->isFloatingPointTy()
                 ? Builder->CreateFCmpOLE(left, right, "fletmp")
-                : Builder->CreateICmpSLE(left, right, "letmp");
+                : (isUnsigned ? Builder->CreateICmpULE(left, right, "uletmp") : Builder->CreateICmpSLE(left, right, "letmp"));
             
         case TokenTypes::GreaterThan:
             return left->getType()->isFloatingPointTy()
                 ? Builder->CreateFCmpOGT(left, right, "fgttmp")
-                : Builder->CreateICmpSGT(left, right, "gttmp");
+                : (isUnsigned ? Builder->CreateICmpUGT(left, right, "ugttmp") : Builder->CreateICmpSGT(left, right, "gttmp"));
             
         case TokenTypes::GreaterEqual:
             return left->getType()->isFloatingPointTy()
                 ? Builder->CreateFCmpOGE(left, right, "fgetmp")
-                : Builder->CreateICmpSGE(left, right, "getmp");
+                : (isUnsigned ? Builder->CreateICmpUGE(left, right, "ugetmp") : Builder->CreateICmpSGE(left, right, "getmp"));
             
         // Bitwise
         case TokenTypes::BitwiseAnd:
@@ -281,7 +281,7 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
                 return nullptr; // Only valid for integers
 
             // Check if left is signed or unsigned
-            bool isSigned = left->getType()->isIntegerTy(); // custom helper? or use your own type system
+            bool isSigned = !isUnsigned; // signedness comes from the AST operand types (see caller)
 
             // Use arithmetic shift for signed integers, logical for unsigned
             return isSigned

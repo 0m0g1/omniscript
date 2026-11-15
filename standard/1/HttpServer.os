@@ -406,7 +406,7 @@ function sendError(sock: Net.Socket*, code: int) => void {
 // Reads and parses one request. On failure returns false with *status = HTTP status to answer with (0 = just hang up).
 function parseRequest(srvp: void*, sock: Net.Socket*, req: Request*, status: int*) => bool {
     let srv: HttpServer* = srvp as HttpServer*;
-    *status = 400;
+    status[0] = 400;
     let raw: Str.String;
     let buf: [4096]u8;
     let term: char* = nullptr;
@@ -415,7 +415,7 @@ function parseRequest(srvp: void*, sock: Net.Socket*, req: Request*, status: int
         term = CStr.strstr(raw.cstr(), "\r\n\r\n");
         if (term == nullptr) {
             if (raw.len > srv.maxHeader) {
-                *status = 431;
+                status[0] = 431;
                 alive = false;
             } else {
                 let n: i64 = sock.recv(&buf as u8*, 4096);
@@ -462,7 +462,7 @@ function parseRequest(srvp: void*, sock: Net.Socket*, req: Request*, status: int
                     ok = false;
                 } else if (req.headers.len >= 100) {
                     ok = false;
-                    *status = 431;
+                    status[0] = 431;
                 } else {
                     let hd: Header;
                     hd.name.appendN(line, (colon as u64) - (line as u64));
@@ -482,7 +482,7 @@ function parseRequest(srvp: void*, sock: Net.Socket*, req: Request*, status: int
     let clen: u64 = 0;
     if (ok && req.header("transfer-encoding") != nullptr) {
         ok = false;
-        *status = 501;
+        status[0] = 501;
     }
     if (ok) {
         let cl: char* = req.header("content-length");
@@ -497,7 +497,7 @@ function parseRequest(srvp: void*, sock: Net.Socket*, req: Request*, status: int
                     ok = false;
                 } else if (clen > srv.maxBody) {
                     ok = false;
-                    *status = 413;
+                    status[0] = 413;
                 }
             }
         }

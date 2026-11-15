@@ -312,7 +312,7 @@ public:
 
     bool isNullableStruct(llvm::Type* type);
     llvm::Value* createUnaryExpression(llvm::Value* operand, TokenTypes op, bool isPostfix);
-    llvm::Value* createBinaryExpression(llvm::Value* left, TokenTypes op, llvm::Value* right);
+    llvm::Value* createBinaryExpression(llvm::Value* left, TokenTypes op, llvm::Value* right, bool isUnsigned = false);
     llvm::Value* createTernaryExpression(llvm::Value* cond, llvm::Value* truthy, llvm::Value* falsey);
 
     llvm::Value* createObjectInstance(

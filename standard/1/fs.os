@@ -63,7 +63,7 @@ function fileSize(path: char*, out: u64*) => bool {
     let st: Stat;
     if (!stat(path, &st)) return false;
     if (st.isDir) return false;
-    *out = st.size;
+    out[0] = st.size;
     return true;
 }
 

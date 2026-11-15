@@ -12,6 +12,7 @@
 #include <omniscript/Types/Types.h>
 #include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Statements/LiteralStatements.h>
+#include <omniscript/Statements/SizeOfStatement.h>
 
 namespace Omniscript {
 
@@ -57,13 +58,15 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
         
         eat(TokenTypes::RightParen);
         
-        // Evaluate the size at compile time
-        int size = type->getSize();
-        
-        // Return an integer literal Statement
-        auto literal = std::make_shared<IntegerLiteral>(size);
-        literal->setPosition(startToken, currentToken);
-        return literal;
+        // Defer measuring: Type::getSize() is 0 for structs and for an unsubstituted T.
+        auto node = std::make_shared<SizeOfStatement>();
+        node->measuredType = type;
+        // The node evaluates to an integer: report the same types the old integer literal did, so
+        // expressions like `n * sizeof(T)` type-check even when T is a struct.
+        node->setType(Type::createPrimitiveType(Kind::Int32));
+        node->setRootType(std::make_shared<Type>(Kind::Int8));
+        node->setPosition(startToken, currentToken);
+        return node;
     }
 
     Token startToken = currentToken;

@@ -8,6 +8,7 @@
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 #include <omniscript/Statements/ExpressionStatements.h>
+#include <omniscript/Statements/SizeOfStatement.h>
 
 namespace Omniscript {
 
@@ -176,6 +177,10 @@ std::shared_ptr<Type> substituteTypeParam(
         copy->returnType = newRet;
         return copy;
     }
+    if (auto g = std::dynamic_pointer_cast<GenericType>(type)) {
+        if (g->name == name) return concrete;
+        return type;
+    }
     return type;
 }
 
@@ -225,6 +230,13 @@ void GenericInstantiator::substituteInStatement(const std::shared_ptr<Statement>
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(stmt)) {
         if (auto t = typed->getType())      typed->setType(applyType(t));
         if (auto rt = typed->getRootType()) typed->replaceRootType(applyType(rt));
+    }
+
+    // `sizeof(T)` keeps its type in its own field (the TypedStatement type is overwritten by the
+    // declared type of the target), so substitute that field explicitly.
+    if (auto so = std::dynamic_pointer_cast<SizeOfStatement>(stmt)) {
+        so->measuredType = applyType(so->measuredType);
+        return;
     }
 
     // 2. Children.

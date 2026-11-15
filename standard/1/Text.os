@@ -60,7 +60,7 @@ function parseF64(s: char*, out: double*) => bool {
     let end: char* = nullptr;
     let v: double = CStr.strtod(s, &end);
     if (end == s) return false;
-    *out = v;
+    out[0] = v;
     return true;
 }
 
@@ -68,7 +68,7 @@ function parseU64(s: char*, base: int, out: u64*) => bool {
     let end: char* = nullptr;
     let v: u64 = CStr.strtoull(s, &end, base);
     if (end == s) return false;
-    *out = v;
+    out[0] = v;
     return true;
 }
 

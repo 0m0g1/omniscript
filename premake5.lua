@@ -139,7 +139,8 @@ project "Osengine"
     filter "system:windows"
         defines { "PLATFORM_WINDOWS" }
         systemversion "latest"
-        buildoptions { "-mno-stack-arg-probe" }
+        -- buildoptions { "-mno-stack-arg-probe" }
+        linkoptions { "-Wl,--stack,8388608" }
 
         -- No explicit "ucrt"/"msvcrt" links: the ucrt64 toolchain already links
         -- UCRT, and naming both pulls two C runtimes into the exe.

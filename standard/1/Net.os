@@ -110,7 +110,7 @@ struct UdpSocket {
         let r: int = CN.recvfrom(this.s, p as void*, n as int, 0, &sa as void*, &l);
         if (r >= 0) {
             CN.inet_ntop(2, &sa[4] as void*, fromIp, 16);
-            *fromPort = ((sa[2] as u16) << 8) | (sa[3] as u16);
+            fromPort[0] = ((sa[2] as u16) << 8) | (sa[3] as u16);
         }
         return r as i64;
     }

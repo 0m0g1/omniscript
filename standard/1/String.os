@@ -167,7 +167,7 @@ struct String {
         let v: i64 = strtoll(this.cstr(), &end, 10);
         if (end == this.cstr()) return false;
         if ((*end as int) != 0) return false;
-        *out = v;
+        out[0] = v;
         return true;
     }
 

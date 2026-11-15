@@ -108,6 +108,14 @@ static llvm::Function* defineAtomicIntrinsic(
     return fn;
 }
 
+static bool isUnsignedOmniType(const std::shared_ptr<Type>& t) {
+    if (!t) return false;
+    const std::string s = t->toString();
+    // The engine spells types as "UInt8/16/32/64" (see the debug log); keep the lowercase aliases too.
+    if (s.rfind("UInt", 0) == 0 || s.rfind("USize", 0) == 0) return true;
+    return s == "u8" || s == "u16" || s == "u32" || s == "u64" || s == "uint" || s == "usize";
+}
+
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTableType scope) {
     DEBUG_LOG();
     if (!value) {
@@ -255,6 +263,37 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
 
     if (result) {
         return result;
+    }
+
+    if (auto so = std::dynamic_pointer_cast<SizeOfExpression>(value)) {
+        prepareType(so->measuredType);   // generic instances / later-declared structs must exist first
+        // A by-value user type must be measured as its struct, not as the opaque `ptr`
+        // resolveLLVMType can hand back for it: look the registered struct up by name first.
+        // The type may still be an UnresolvedType (a struct name the parser could not resolve).
+        llvm::Type* ty = nullptr;
+        std::string sizeofName;
+        if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(so->measuredType)) sizeofName = udt->getName();
+        else if (auto unres = std::dynamic_pointer_cast<UnresolvedType>(so->measuredType)) sizeofName = unres->getTypeString();
+        if (!sizeofName.empty()) {
+            std::vector<std::string> names = { sizeofName, canonicalTypeName(sizeofName) };
+            const size_t dot = sizeofName.rfind('.');
+            if (dot != std::string::npos) names.push_back(sizeofName.substr(dot + 1));
+            for (const auto& n : names) {
+                if (auto* t = activeScope->getType(n)) { ty = t; break; }
+                if (auto* st = llvm::StructType::getTypeByName(*Context, n)) { ty = st; break; }
+            }
+        }
+        if (!ty) ty = resolveLLVMType(so->measuredType);
+        if (!ty || !ty->isSized()) {
+            console.reportError(Console::TYPE_ERROR,
+                "sizeof: cannot determine the size of '" +
+                (so->measuredType ? so->measuredType->toString() : std::string("?")) + "'",
+                so->getSpan());
+            return nullptr;
+        }
+        llvm::Module* m = currentModule ? &*currentModule : &*Module;
+        const uint64_t sz = m->getDataLayout().getTypeAllocSize(ty).getFixedValue();
+        return llvm::ConstantInt::get(llvm::Type::getInt32Ty(*Context), sz);
     }
 
     // Handle VariableAssignment
@@ -644,6 +683,57 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
 
     if (auto binary = std::dynamic_pointer_cast<BinaryExpression>(value)) {
         DEBUG_LOG("Creating a binary expression: " + binary->left->toString() + " " + binary->op.getValue() + " " + binary->right->toString());
+        // `&&` / `||` must short-circuit: the right operand is evaluated only in its own block, so
+        // `a != nullptr && a.f()` and `i < n && p[i] == x` never run the right side when the left decides.
+        {
+            const TokenTypes logicalOp = binary->op.getType();
+            if (logicalOp == TokenTypes::LogicalAnd || logicalOp == TokenTypes::LogicalOr) {
+                auto toBool = [&](llvm::Value* v, const char* name) -> llvm::Value* {
+                    if (v->getType()->isPointerTy())
+                        return Builder->CreateICmpNE(v, llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(v->getType())), name);
+                    if (v->getType()->isIntegerTy())
+                        return Builder->CreateICmpNE(v, llvm::ConstantInt::get(v->getType(), 0), name);
+                    return nullptr;
+                };
+                llvm::Value* l = codegen(binary->left, scope);
+                if (!l) {
+                    console.reportError(Console::SEMANTIC_ERROR, "The lhs value is invalid", FileSpan{});
+                    return nullptr;
+                }
+                llvm::Value* lcond = toBool(l, "lhscond");
+                if (!lcond) {
+                    console.reportError(Console::TYPE_ERROR, "Left operand of '" + binary->op.getValue() + "' is not boolean-like (got '" + debugType(l->getType()) + "')", FileSpan{});
+                    return nullptr;
+                }
+                llvm::Function* scFn = Builder->GetInsertBlock()->getParent();
+                llvm::BasicBlock* lhsEnd = Builder->GetInsertBlock();
+                llvm::BasicBlock* rhsBlock = llvm::BasicBlock::Create(*Context, "sc.rhs", scFn);
+                llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(*Context, "sc.merge", scFn);
+                if (logicalOp == TokenTypes::LogicalAnd) Builder->CreateCondBr(lcond, rhsBlock, mergeBlock);
+                else Builder->CreateCondBr(lcond, mergeBlock, rhsBlock);
+
+                Builder->SetInsertPoint(rhsBlock);
+                llvm::Value* r = codegen(binary->right, scope);
+                if (!r) {
+                    console.reportError(Console::SEMANTIC_ERROR, "The rhs value is invalid", FileSpan{});
+                    return nullptr;
+                }
+                llvm::Value* rcond = toBool(r, "rhscond");
+                if (!rcond) {
+                    console.reportError(Console::TYPE_ERROR, "Right operand of '" + binary->op.getValue() + "' is not boolean-like (got '" + debugType(r->getType()) + "')", FileSpan{});
+                    return nullptr;
+                }
+                llvm::BasicBlock* rhsEnd = Builder->GetInsertBlock();   // evaluating the right side may have opened blocks
+                Builder->CreateBr(mergeBlock);
+
+                Builder->SetInsertPoint(mergeBlock);
+                llvm::PHINode* phi = Builder->CreatePHI(llvm::Type::getInt1Ty(*Context), 2, logicalOp == TokenTypes::LogicalAnd ? "landtmp" : "lortmp");
+                phi->addIncoming(logicalOp == TokenTypes::LogicalAnd ? llvm::ConstantInt::getFalse(*Context) : llvm::ConstantInt::getTrue(*Context), lhsEnd);
+                phi->addIncoming(rcond, rhsEnd);
+                return phi;
+            }
+        }
+
         llvm::Value* lhs = codegen(binary->left, scope);
         llvm::Value* rhs = codegen(binary->right, scope);
         if (!lhs) {
@@ -681,7 +771,8 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
             }
         }
 
-        return createBinaryExpression(lhs, binary->op.getType(), rhs);
+        bool uns = isUnsignedOmniType(binary->left->getType()) || isUnsignedOmniType(binary->right->getType());
+        return createBinaryExpression(lhs, binary->op.getType(), rhs, uns);
     }
 
     if (auto ternary = std::dynamic_pointer_cast<TernaryExpression>(value)) {
