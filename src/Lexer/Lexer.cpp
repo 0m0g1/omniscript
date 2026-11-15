@@ -167,12 +167,43 @@ Token Lexer::getNextToken() {
             const size_t wordStart = currentPosition_;
             Token token = parseIdentifierOrKeyword();
 
+            // Member access: after `.`, `?.` or `::` *any* keyword is just a member name, so
+            // `Str.StringBuilder.new()`, `x.delete()` and `T.Mutex.new` work. A doubled dot (`..`,
+            // `...`: range / spread) is not member access, so `...new Foo()` keeps `new` a keyword.
+            if (token.getType() != TokenTypes::Identifier &&
+                isKeywordWord(source_.substr(wordStart, currentPosition_ - wordStart))) {
+                size_t mb = wordStart;
+                while (mb > 0 && (source_[mb - 1] == ' ' || source_[mb - 1] == '\t')) --mb;
+                const bool afterDot = mb > 0 && source_[mb - 1] == '.' && !(mb > 1 && source_[mb - 2] == '.');
+                const bool afterScope = mb > 1 && source_[mb - 1] == ':' && source_[mb - 2] == ':';
+                if (afterDot || afterScope) {
+                    token = TokenFactory::createIdentifier(
+                        source_.substr(wordStart, currentPosition_ - wordStart),
+                        token.getLine(), token.getColumn(), token.getFilePath());
+                }
+            }
+
             // Soft (contextual) keywords: these words only mean something at the start of a
             // declaration. Anywhere else they are ordinary identifiers, so `module: u64;` as a struct
             // field, `x.module = v` and `foo(import)` all work without renaming.
             switch (token.getType()) {
                 case TokenTypes::Module:
                 case TokenTypes::Import:
+                case TokenTypes::From:
+                case TokenTypes::As:
+                case TokenTypes::Type:
+                case TokenTypes::Include:
+                case TokenTypes::Using:
+                case TokenTypes::Namespace:
+                case TokenTypes::Variant:
+                case TokenTypes::Any:
+                case TokenTypes::Final:
+                case TokenTypes::Override:
+                case TokenTypes::Virtual:
+                case TokenTypes::Volatile:
+                case TokenTypes::Intrinsic:
+                case TokenTypes::Extends:
+                case TokenTypes::LogicalXor:
                 case TokenTypes::Extern:
                 case TokenTypes::Public:
                 case TokenTypes::Private:
@@ -186,6 +217,20 @@ Token Lexer::getNextToken() {
                     if (b > 0 && source_[b - 1] == '.') asIdentifier = true;
                     if (b > 1 && source_[b - 1] == ':' && source_[b - 2] == ':') asIdentifier = true;
 
+                    // Context helpers for type-position and operator keywords.
+                    const char prevCh = b > 0 ? source_[b - 1] : '\0';
+                    // Type position: after `:` (not `::`), `<`, `>` (`->`, generics), `|`, or `as`.
+                    bool typePosition = (prevCh == ':' && !(b > 1 && source_[b - 2] == ':')) ||
+                                        prevCh == '<' || prevCh == '>' || prevCh == '|';
+                    if (!typePosition && b >= 2 && source_.compare(b - 2, 2, "as") == 0 &&
+                        (b == 2 || !LexerUtils::isIdentifierChar(source_[b - 3]))) {
+                        typePosition = true;
+                    }
+                    // First significant character after this word on the same line.
+                    size_t a = currentPosition_;
+                    while (a < source_.length() && (source_[a] == ' ' || source_[a] == '\t')) ++a;
+                    const char afterCh = a < source_.length() ? source_[a] : '\0';
+
                     // Otherwise decide by what follows: a declaration needs a specific next token.
                     if (!asIdentifier) {
                         const TokenTypes next = peekToken(1).getType();
@@ -196,6 +241,33 @@ Token Lexer::getNextToken() {
                             case TokenTypes::Import:    // import "path" | import Name | import { ... } | import *
                                 asIdentifier = !(next == TokenTypes::StringLiteral || next == TokenTypes::Identifier ||
                                                  next == TokenTypes::LeftBrace || next == TokenTypes::Multiply);
+                                break;
+                            case TokenTypes::From:      // import ... from "path"
+                                asIdentifier = next != TokenTypes::StringLiteral;
+                                break;
+                            case TokenTypes::Type:      // type Name = ...
+                            case TokenTypes::Namespace: // namespace Name { ... }
+                            case TokenTypes::Extends:   // class A extends B
+                                asIdentifier = next != TokenTypes::Identifier;
+                                break;
+                            case TokenTypes::Include:   // include "path"
+                                asIdentifier = next != TokenTypes::StringLiteral;
+                                break;
+                            case TokenTypes::Using:     // using Name | using namespace Name
+                                asIdentifier = !(next == TokenTypes::Identifier || next == TokenTypes::Namespace);
+                                break;
+                            case TokenTypes::Any:       // only a type name: `x: any`, `as any`, `Array<any>`
+                                asIdentifier = !typePosition;
+                                break;
+                            case TokenTypes::Variant:   // variant Name { ... } | type position
+                                asIdentifier = !(typePosition || next == TokenTypes::Identifier);
+                                break;
+                            case TokenTypes::LogicalXor: // `a xor b` needs a left operand and a right operand
+                                asIdentifier = prevCh == '\0' || std::string("(,=:{;[").find(prevCh) != std::string::npos ||
+                                               afterCh == '\0' || std::string(",);:=]}.").find(afterCh) != std::string::npos;
+                                break;
+                            case TokenTypes::As:        // expr as Type | import * as name
+                                asIdentifier = !(next == TokenTypes::Identifier || Token::isKeywordType(next));
                                 break;
                             case TokenTypes::Extern:    // extern "C" ... | extern fn/let/const ...
                                 asIdentifier = !(next == TokenTypes::StringLiteral || next == TokenTypes::Function ||

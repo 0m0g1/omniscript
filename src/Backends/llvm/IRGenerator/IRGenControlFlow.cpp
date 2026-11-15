@@ -266,6 +266,10 @@ llvm::Value* IRGenerator::createWhileLoop(
 
     auto localScope = scope->createChildScope("whileloop");
 
+    // Same as for/if: variables declared in the loop are dropped when the loop ends.
+    pushScope();
+    struct WhileScopeGuard { IRGenerator* gen; ~WhileScopeGuard() { gen->popScope(); } } whileScopeGuard{this};
+
     llvm::BasicBlock* condBlock = llvm::BasicBlock::Create(context, "while.cond", function);
     llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context, "while.body");
     llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "while.end");
@@ -354,6 +358,12 @@ llvm::Value* IRGenerator::createIfStatement(
     llvm::LLVMContext& context = Builder->getContext();
 
     auto localScope = scope->createChildScope("ifscope");
+
+    // Variables declared in the condition or in any branch live only until the end of the if statement.
+    // Without this, a `let x` in one branch stayed in the function scope, so a later `let x` of another
+    // type in a sibling block was treated as a reassignment of the first one.
+    pushScope();
+    struct IfScopeGuard { IRGenerator* gen; ~IfScopeGuard() { gen->popScope(); } } ifScopeGuard{this};
 
     llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(context, "ifcont");
     bool mergeBlockUsed = false;

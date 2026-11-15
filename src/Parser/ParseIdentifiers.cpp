@@ -91,6 +91,50 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
         );
     });
     
+    // `<` Type (',' Type)* `>` immediately followed by `.` or `::`  ->  member access on a generic
+    // type, e.g. `L.List<int>.new()`. Scans only type-ish tokens, so `a < b > .5` style
+    // comparisons never match.
+    auto isGenericTypeThenMember = [&]() -> bool {
+        if (currentToken.getType() != TokenTypes::LessThan) return false;
+        int depth = 1;
+        int i = 1;
+        while (depth > 0) {
+            switch (lexer.peekToken(i).getType()) {
+                case TokenTypes::Identifier:
+                case TokenTypes::Dot:
+                case TokenTypes::Comma:
+                case TokenTypes::Multiply:
+                case TokenTypes::Power:
+                case TokenTypes::QuestionMark:
+                case TokenTypes::BitwiseAnd:
+                    break;
+                case TokenTypes::LessThan:    depth++;    break;
+                case TokenTypes::GreaterThan: depth--;    break;
+                case TokenTypes::ShiftRight:  depth -= 2; break;
+                default: return false;
+            }
+            i++;
+        }
+        const TokenTypes after = lexer.peekToken(i).getType();
+        return depth == 0 && (after == TokenTypes::Dot || after == TokenTypes::ScopeResolution);
+    };
+
+    // If `name` is followed by `<T...>` and then `.member`, consume the type arguments and rewrite
+    // `name` to its specialised form (`List` + <int> -> `List_i32`), exactly as generic calls do.
+    auto specializeIfGenericType = [&](std::string& name) {
+        if (!isGenericTypeThenMember()) return;
+        std::vector<std::string> typeParams = parseTypeParametersForCall();
+        if (typeParams.empty()) {
+            console.reportError(Console::SYNTAX_ERROR, "Invalid generic type parameters",
+                "To resolve this:\n1. Verify generic type syntax\n2. Ensure valid type identifiers",
+                errorSpanAtCurrentToken());
+            return;
+        }
+        name = generateSpecializedNameForCall(name, typeParams);
+        DEBUG_LOG("Specialized generic type to: " + name);
+    };
+
+    specializeIfGenericType(rootIdentifier);   // `List<int>.new()` with no namespace prefix
     std::shared_ptr<Statement> expr = std::make_shared<GetVariable>(rootIdentifier);
     expr->setPosition(startToken, currentToken);
 
@@ -255,6 +299,7 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
                     errorSpanAtCurrentToken()
                 );
             });
+            specializeIfGenericType(nextMember);   // `L.List<int>.new()` -> member `List_i32`
             
             auto memberAccess = std::make_shared<MemberAccess>(expr, nextMember);
             memberAccess->setPosition(currentStartToken, previousToken);

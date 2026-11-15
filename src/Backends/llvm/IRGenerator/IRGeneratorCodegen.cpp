@@ -112,10 +112,12 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
     DEBUG_LOG();
     if (!value) {
         console.reportError(Console::INTERNAL_ERROR, "There is no value to be codegened.", FileSpan{});
+        return nullptr;
     }
     
     if (!scope) {
         console.reportError(Console::INTERNAL_ERROR, "There is no scope for codegen to perform its operations in.", FileSpan{});
+        return nullptr;
     }
     
     setSpan(value->getSpan());
@@ -268,6 +270,15 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         if (!src) return nullptr;
 
         llvm::Type* destType = resolveLLVMType(castExpr->type);
+        // generateCast reports "Unsupported cast" with no location. For the common bad case (a pointer
+        // cast to a floating-point type) report it here, with the span, scope and expression.
+        if (src->getType()->isPointerTy() && destType && destType->isFloatingPointTy()) {
+            console.reportError(Console::TYPE_ERROR,
+                "Unsupported cast from '" + debugType(src->getType()) + "' to '" + debugType(destType) +
+                "' in '" + scope->getName() + "': " + castExpr->toString(),
+                castExpr->getSpan());
+            return nullptr;
+        }
         return generateCast(src, destType);
     }
 
@@ -806,7 +817,14 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
 
         if (call->instanceName.empty()) {
             DEBUG_LOG("Creating a normal call for " + call->calleeName);
-            return createCall(call->calleeName, args, call->functionTypeName);
+            llvm::Value* callResult = createCall(call->calleeName, args, call->functionTypeName);
+            // createCall reports argument mismatches without a location; name the call that failed.
+            if (!callResult && call->getType() && !call->getType()->isVoidLike()) {
+                console.reportError(Console::SEMANTIC_ERROR,
+                    "Call to '" + call->calleeName + "' failed in '" + scope->getName() + "': " + call->toString(),
+                    call->getSpan());
+            }
+            return callResult;
         }
         DEBUG_LOG("Creating an object instance");
         return createObjectInstance(call->calleeName, call->instanceName, args, call->isGlobal);

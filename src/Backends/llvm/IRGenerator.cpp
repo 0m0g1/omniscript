@@ -162,7 +162,12 @@ bool IRGenerator::symbolExistsInStaticLib(const std::string& libPath, const std:
 }
 
 void IRGenerator::compileAllFunctionBodies(SymbolTableType scope) {
-    for (const auto& func : userDefinedFunctions) {
+    // generateFunctionBody can register more user functions (lazily instantiated generic
+    // methods), which reallocates this vector. A range-for would keep an iterator into freed
+    // memory, so iterate by index and hold a copy of the shared_ptr. Functions appended while
+    // this loop runs are compiled in the same pass.
+    for (size_t i = 0; i < userDefinedFunctions.size(); ++i) {
+        auto func = userDefinedFunctions[i];
         DEBUG_LOG("Generating body for function: " + func->name + " (mangled: " + func->mangledName + ")");
         auto llvmFunc = currentModule->getFunction(func->mangledName);
         if (!llvmFunc) {

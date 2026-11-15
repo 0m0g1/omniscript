@@ -17,3 +17,4 @@ extern "C", "ws2_32.dll" fn sendto(s: u64, buf: void*, len: int, flags: int, to:
 extern "C", "ws2_32.dll" fn recvfrom(s: u64, buf: void*, len: int, flags: int, src: void*, fromlen: int*) => int;
 extern "C", "ws2_32.dll" fn inet_pton(af: int, src: char*, dst: void*) => int;
 extern "C", "ws2_32.dll" fn inet_ntop(af: int, src: void*, dst: char*, size: u64) => char*;
+extern "C", "ws2_32.dll" fn setsockopt(s: u64, level: int, name: int, val: void*, len: int) => int;   // SOL_SOCKET=0xFFFF, SO_SNDTIMEO=0x1005, SO_RCVTIMEO=0x1006 (val = u32 ms)

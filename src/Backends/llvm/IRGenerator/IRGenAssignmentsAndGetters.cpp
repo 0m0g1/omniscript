@@ -167,7 +167,11 @@ llvm::Value* IRGenerator::assignVariable(
     }
 
     // --- If variable exists, reassign value ---
-    if (activeScope->exists(name)) {
+    // A local `let` is a new declaration even when the name is already visible (a sibling block's variable
+    // or one from an enclosing scope): it gets its own alloca, so `let dv: double` never reuses the slot of
+    // an earlier `let dv: JsonValue*`. Globals keep the old behaviour (a name is declared once).
+    const bool declaresNewLocal = !statement->isReassignment && !isGlobal;
+    if (activeScope->exists(name) && !declaresNewLocal) {
         llvm::Value* existingVar = activeScope->get(name);
         DEBUG_LOG("Variable '" + name + "' already exists. Reassigning value...");
 

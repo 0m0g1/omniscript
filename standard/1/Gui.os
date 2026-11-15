@@ -216,7 +216,7 @@ struct Gui {
         if (isOver && this.pressed) this.focus = id;
         let changed: bool = false;
         if (this.focus == id) {
-            let n: int = strLen(buf);
+            let n: int = strLen(buf) as int;
             let typed: char* = this.win.typedText();
             let i: int = 0;
             let more: bool = true;

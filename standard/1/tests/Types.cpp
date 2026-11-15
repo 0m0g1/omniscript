@@ -1,0 +1,505 @@
+#include <stdexcept>
+#include <string_view>
+#include <unordered_map>
+
+#include <omniscript/Console.h>
+#include <omniscript/Types/Types.h>
+#include <omniscript/Types/BaseType.h>
+#include <omniscript/Types/DerivedTypes.h>
+#include <omniscript/Types/TraitCapability.h>
+
+namespace Omniscript {
+
+// Map for base type resolution
+static const std::unordered_map<std::string_view, Kind> baseTypeMap = {
+    {"int", Kind::Int32}, {"i32", Kind::Int32}, {"int32", Kind::Int32},
+    {"int8", Kind::Int8}, {"i8", Kind::Int8},
+    {"int16", Kind::Int16}, {"i16", Kind::Int16},
+    {"int64", Kind::Int64}, {"i64", Kind::Int64},
+    {"int128", Kind::Int128}, {"i128", Kind::Int128},
+    {"int256", Kind::Int256}, {"i256", Kind::Int256},
+    {"int512", Kind::Int512}, {"i512", Kind::Int512},
+    {"int1024", Kind::Int1024}, {"i1024", Kind::Int1024},
+    {"bigint", Kind::BigInt},
+    {"usize", Kind::Size_t}, {"size_t", Kind::Size_t},
+    {"uint", Kind::UInt32}, {"u32", Kind::UInt32}, {"uint32", Kind::UInt32},
+    {"uint8", Kind::UInt8}, {"u8", Kind::UInt8},
+    {"uint16", Kind::UInt16}, {"u16", Kind::UInt16},
+    {"uint64", Kind::UInt64}, {"u64", Kind::UInt64},
+    {"uint128", Kind::UInt128}, {"u128", Kind::UInt128},
+    {"uint256", Kind::UInt256}, {"u256", Kind::UInt256},
+    {"uint512", Kind::UInt512}, {"u512", Kind::UInt512},
+    {"uint1024", Kind::UInt1024}, {"u1024", Kind::UInt1024},
+    {"bool", Kind::Bool},
+    {"char", Kind::Char},
+    {"char16", Kind::Char16},
+    {"char32", Kind::Char32},
+    {"void", Kind::Void},
+    {"half", Kind::Half}, {"f16", Kind::Half},
+    {"float", Kind::Float}, {"f32", Kind::Float},
+    {"double", Kind::Double}, {"f64", Kind::Double},
+    {"f80", Kind::X86_FP80}, {"x86_fp80", Kind::X86_FP80},
+    {"fp128", Kind::FP128}, {"f128", Kind::FP128},
+    {"ppc_fp128", Kind::PPC_FP128},
+    {"string", Kind::String},
+    {"utf8", Kind::Utf8},
+    {"utf16", Kind::Utf16},
+    {"utf32", Kind::Utf32}
+};
+
+// Helper to parse nested tokens within delimiters (e.g., <...>)
+std::vector<std::string> parseNestedTokens(const std::vector<std::string>& dataTypes, size_t& index, const std::string_view& startDelim, const std::string_view& endDelim) {
+    std::vector<std::string> tokens;
+    if (index >= dataTypes.size() || dataTypes[index] != startDelim) {
+        return tokens;
+    }
+    index++; // Skip start delimiter
+    int depth = 1;
+    while (index < dataTypes.size() && depth > 0) {
+        if (dataTypes[index] == startDelim) {
+            depth++;
+        } else if (dataTypes[index] == endDelim) {
+            depth--;
+        }
+        if (depth > 0) {
+            tokens.push_back(dataTypes[index]);
+        }
+        index++;
+    }
+    if (depth != 0) {
+        TYPE_ERROR("Unmatched delimiter: expected '" + std::string(endDelim) + "' at token " + std::to_string(index));
+    }
+    return tokens;
+}
+
+// Canonical spellings for primitive aliases, so `List<int>` and `List<i32>` instantiate the
+// same class (`List_i32`) regardless of which alias the source used.
+static const std::unordered_map<std::string_view, std::string_view> canonicalPrimitiveName = {
+    {"int", "i32"}, {"int32", "i32"}, {"int8", "i8"}, {"int16", "i16"}, {"int64", "i64"},
+    {"int128", "i128"}, {"int256", "i256"}, {"int512", "i512"}, {"int1024", "i1024"},
+    {"uint", "u32"}, {"uint32", "u32"}, {"uint8", "u8"}, {"uint16", "u16"}, {"uint64", "u64"},
+    {"uint128", "u128"}, {"uint256", "u256"}, {"uint512", "u512"}, {"uint1024", "u1024"},
+    {"half", "f16"}, {"float", "f32"}, {"double", "f64"}, {"x86_fp80", "f80"}, {"fp128", "f128"}
+};
+
+// Mangles type tokens for instantiated generic names, mirroring the `ptr`/`ref`/`_`
+// conventions of Parser::generateSpecializedNameForDecleration (List<i64*> -> List_i64_ptr).
+static std::string mangleTypeTokens(const std::vector<std::string>& tokens) {
+    std::string out;
+    for (const auto& p : tokens) {
+        if (p == ">" || p == "]") continue;
+        auto canon = canonicalPrimitiveName.find(p);
+        if (!out.empty() && out.back() != '_') out += "_";
+        if (p == "*") out += "ptr";
+        else if (p == "&") out += "ref";
+        else if (p == "?") out += "opt";
+        else if (p == "[") out += "arr";
+        else if (p == "." || p == "<" || p == ",") { /* separator already added above */ }
+        else if (canon != canonicalPrimitiveName.end()) out += canon->second;
+        else out += p;
+    }
+    return out;
+}
+
+std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
+    if (dataTypes.empty()) {
+        TYPE_ERROR("Empty type specification");
+        return Type::createInvalid();
+    }
+
+    size_t index = 0;
+
+    // NEW: parenthesized sub-type with optional suffix, e.g.
+    //   ["(", "fn", "(", "T", ")", "=>", "T", ")", "[", "8", "]"]
+    // Used by parseType to disambiguate "array of functions" from
+    // "function returning array". Resolves the inner type, then applies
+    // any trailing * / & / ? / [N] modifiers to it.
+    if (dataTypes[index] == "(") {
+        size_t depth = 1;
+        size_t start = index + 1;
+        size_t end = start;
+        while (end < dataTypes.size() && depth > 0) {
+            if (dataTypes[end] == "(") depth++;
+            else if (dataTypes[end] == ")") depth--;
+            if (depth == 0) break;
+            end++;
+        }
+        if (depth != 0) {
+            TYPE_ERROR("Unmatched '(' in type expression");
+            return Type::createInvalid();
+        }
+        std::vector<std::string> inner(dataTypes.begin() + start, dataTypes.begin() + end);
+        std::vector<std::string> rest(dataTypes.begin() + end + 1, dataTypes.end());
+
+        auto innerType = resolveType(inner);
+        if (!innerType || innerType->isInvalid()) return innerType;
+
+        size_t r = 0;
+        while (r < rest.size()) {
+            if (rest[r] == "[") {
+                r++;
+                if (r >= rest.size()) { TYPE_ERROR("Expected size after '['"); return Type::createInvalid(); }
+                uint64_t size;
+                try { size = std::stoull(rest[r]); }
+                catch (...) { TYPE_ERROR("Invalid array size '" + rest[r] + "'"); return Type::createInvalid(); }
+                r++;
+                if (r >= rest.size() || rest[r] != "]") { TYPE_ERROR("Expected ']' after array size"); return Type::createInvalid(); }
+                r++;
+                innerType = Type::createFixedArrayType(innerType, size);
+            } else if (rest[r] == "*") {
+                r++;
+                innerType = Type::createPointerType(innerType);
+            } else if (rest[r] == "&") {
+                r++;
+                innerType = Type::createReferenceType(innerType);
+            } else if (rest[r] == "?") {
+                r++;
+                innerType = Type::createNullableType(innerType);
+            } else {
+                TYPE_ERROR("Unexpected token '" + rest[r] + "' after parenthesized type");
+                return Type::createInvalid();
+            }
+        }
+        return innerType;
+    }
+
+    int totalPointerDepth = 0;
+    int totalReferenceDepth = 0;
+    int nullableDepth = 0;
+
+    // Parse modifiers
+    while (index < dataTypes.size()) {
+        if (dataTypes[index] == "&") {
+            if (totalReferenceDepth >= 10) { // Arbitrary limit to prevent stack overflow
+                TYPE_ERROR("Excessive reference depth at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            totalReferenceDepth++;
+        } else if (dataTypes[index] == "*") {
+            if (totalPointerDepth >= 10) {
+                TYPE_ERROR("Excessive pointer depth at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            totalPointerDepth++;
+        } else if (dataTypes[index] == "?") {
+            if (nullableDepth >= 5) {
+                TYPE_ERROR("Excessive nullable depth at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            nullableDepth++;
+        } else {
+            break;
+        }
+        index++;
+    }
+
+    if (index >= dataTypes.size()) {
+        TYPE_ERROR("No base type found after modifiers at token " + std::to_string(index));
+        return Type::createInvalid();
+    }
+
+    // Check for function type
+    if (dataTypes[index] == "fn") {
+        return resolveFunctionType(dataTypes, index);
+    }
+
+    std::string baseType = dataTypes[index++];
+
+    // NEW: Handle namespaced types (e.g., Str.String)
+    while (index < dataTypes.size() && dataTypes[index] == ".") {
+        index++; // skip "."
+        if (index < dataTypes.size()) {
+            baseType += "." + dataTypes[index++];
+        }
+    }
+
+    // Generic arguments: List<i64>, Map<string, List<i64*>>, unique_ptr<T>
+    std::vector<std::shared_ptr<Type>> genericArgs;
+    std::vector<std::string> genericArgTokens;
+    bool hasGenericArgs = false;
+    if (index < dataTypes.size() && dataTypes[index] == "<") {
+        hasGenericArgs = true;
+        genericArgTokens = parseNestedTokens(dataTypes, index, "<", ">");
+        std::vector<std::string> current;
+        int depth = 0;
+        auto flush = [&]() {
+            if (!current.empty()) genericArgs.push_back(resolveType(current));
+            current.clear();
+        };
+        for (const auto& tok : genericArgTokens) {
+            if (tok == "<") depth++;
+            else if (tok == ">") depth--;
+            if (tok == "," && depth == 0) flush();
+            else current.push_back(tok);
+        }
+        flush();
+    }
+
+    // Parse suffix operators in source order: *, &, ?, [N]
+    // Order matters: "char*[128]" is an array of 128 char pointers,
+    // while "char[128]*" is a pointer to an array of 128 chars.
+    struct SuffixOp { char kind; uint64_t size; };
+    std::vector<SuffixOp> suffixOps;
+    suffixOps.reserve(4);
+    int suffixPtr = 0, suffixRef = 0, suffixNull = 0;
+    while (index < dataTypes.size()) {
+        const std::string& tok = dataTypes[index];
+        if (tok == "[") {
+            index++;
+            if (index >= dataTypes.size()) {
+                TYPE_ERROR("Expected array size after '[' at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            if (dataTypes[index] == "]") {
+                TYPE_ERROR("Array size missing between '[' and ']' at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            uint64_t size;
+            try {
+                size = std::stoull(dataTypes[index]);
+                if (size == 0) {
+                    TYPE_ERROR("Array size must be positive at token " + std::to_string(index));
+                    return Type::createInvalid();
+                }
+            } catch (const std::exception& e) {
+                TYPE_ERROR("Invalid array size '" + dataTypes[index] + "' at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            index++;
+            if (index >= dataTypes.size() || dataTypes[index] != "]") {
+                TYPE_ERROR("Expected ']' after array size at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            suffixOps.push_back({'[', size});
+        } else if (tok == "&") {
+            if (++suffixRef + totalReferenceDepth > 10) {
+                TYPE_ERROR("Excessive reference depth at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            suffixOps.push_back({'&', 0});
+        } else if (tok == "*") {
+            if (++suffixPtr + totalPointerDepth > 10) {
+                TYPE_ERROR("Excessive pointer depth at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            suffixOps.push_back({'*', 0});
+        } else if (tok == "?") {
+            if (++suffixNull + nullableDepth > 5) {
+                TYPE_ERROR("Excessive nullable depth at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            suffixOps.push_back({'?', 0});
+        } else {
+            std::string seen;
+            for (size_t i = 0; i <= index; ++i) {
+                if (i > 0) seen += " ";
+                seen += dataTypes[i];
+            }
+
+            std::string remaining;
+            for (size_t i = index; i < dataTypes.size(); ++i) {
+                if (i > index) remaining += " ";
+                remaining += dataTypes[i];
+            }
+
+            TYPE_ERROR(
+                "Unexpected token '" + dataTypes[index] + "' after parsing type: '" + seen + "'. "
+                "Remaining unparsed: '" + remaining + "'."
+            );
+
+            return Type::createInvalid();
+        }
+        index++;
+    }
+
+    std::shared_ptr<Type> type;
+    std::string_view baseTypeView(baseType);
+
+    // Resolve base type
+    auto it = baseTypeMap.find(baseTypeView);
+    if (it != baseTypeMap.end()) {
+        type = Type::createPrimitiveType(it->second);
+        // Attach built-in traits for numeric types
+        if (type->isInteger() || type->isFloat()) {
+            type->addTrait(BuiltinTraits::Numeric);
+            type->addTrait(BuiltinTraits::Addable);
+            type->addTrait(BuiltinTraits::Comparable);
+            type->addFunctionTrait(BuiltinTraits::Add);
+            type->addFunctionTrait(BuiltinTraits::Subtract);
+            type->addFunctionTrait(BuiltinTraits::Multiply);
+            type->addFunctionTrait(BuiltinTraits::Divide);
+            type->addFunctionTrait(BuiltinTraits::Equal);
+            type->addFunctionTrait(BuiltinTraits::Compare);
+        }
+    } else if (baseType == "unique_ptr" || baseType == "shared_ptr" || baseType == "weak_ptr") {
+        Kind pointerKind = (baseType == "unique_ptr") ? Kind::UniquePtr :
+                          (baseType == "shared_ptr") ? Kind::SharedPtr : Kind::WeakPtr;
+        if (genericArgs.size() != 1 || !genericArgs[0] || genericArgs[0]->isInvalid()) {
+            TYPE_ERROR("Expected exactly one valid pointee type for " + baseType);
+            return Type::createInvalid();
+        }
+        type = Type::createSmartPointerType(pointerKind, genericArgs[0]);
+    } else {
+        std::string udtName = hasGenericArgs ? baseType + "_" + mangleTypeTokens(genericArgTokens) : baseType;
+        type = Type::createUserDefinedType(udtName);
+        if (hasGenericArgs) {
+            if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
+                udt->templateName = baseType;
+                udt->typeArgs = genericArgs;
+            }
+        }
+        // Attach traits for known user-defined types (e.g., Vec2, Sprite)
+        if (baseType == "Vec2" || baseType == "Vec3") {
+            type->addTrait(BuiltinTraits::Addable);
+            type->addFunctionTrait(BuiltinTraits::Add);
+        } else if (baseType == "Sprite") {
+            type->addTrait(std::make_shared<Trait>("Movable"));
+            type->addTrait(std::make_shared<Trait>("Drawable"));
+            type->addFunctionTrait(std::make_shared<FunctionTrait>("move", std::dynamic_pointer_cast<FunctionType>(Type::createFunctionType("move", {type}, Type::createPrimitiveType(Kind::Void)))));
+            type->addFunctionTrait(std::make_shared<FunctionTrait>("draw", std::dynamic_pointer_cast<FunctionType>(Type::createFunctionType("draw", {type}, Type::createPrimitiveType(Kind::Void)))));
+        } else if (baseType == "Scene") {
+            type->addTrait(BuiltinTraits::Addable);
+            type->addFunctionTrait(std::make_shared<FunctionTrait>("add", std::dynamic_pointer_cast<FunctionType>(Type::createFunctionType("add", {type, Type::createUserDefinedType("Sprite")}, Type::createPrimitiveType(Kind::Void)))));
+        }
+    }
+
+    if (!type) {
+        std::string joined;
+        joined.reserve(64);
+        for (const auto& t : dataTypes) {
+            joined += t;
+        }
+        TYPE_ERROR("Failed to resolve type: " + joined);
+        type = Type::createUnresolved(dataTypes);
+    }
+
+    // Apply suffix operators in source order. Consecutive [N][M] groups are
+    // wrapped C-style (outermost dimension first).
+    for (size_t i = 0; i < suffixOps.size();) {
+        if (suffixOps[i].kind == '[') {
+            size_t j = i;
+            while (j < suffixOps.size() && suffixOps[j].kind == '[') j++;
+            for (size_t k = j; k-- > i;) {
+                type = Type::createFixedArrayType(type, suffixOps[k].size);
+            }
+            i = j;
+        } else {
+            switch (suffixOps[i].kind) {
+                case '&': type = Type::createReferenceType(type); break;
+                case '*': type = Type::createPointerType(type); break;
+                case '?': type = Type::createNullableType(type); break;
+            }
+            i++;
+        }
+    }
+
+    // Apply reference, pointer, and nullable modifiers
+    for (int i = 0; i < totalReferenceDepth; ++i) {
+        type = Type::createReferenceType(type);
+    }
+    for (int i = 0; i < totalPointerDepth; ++i) {
+        type = Type::createPointerType(type);
+    }
+    for (int i = 0; i < nullableDepth; ++i) {
+        type = Type::createNullableType(type);
+    }
+
+    DEBUG_LOG("Resolved type: " + type->toString());
+    return type;
+}
+
+std::shared_ptr<Type> resolveFunctionType(const std::vector<std::string>& dataTypes, size_t& index) {
+    if (index >= dataTypes.size() || dataTypes[index] != "fn") {
+        TYPE_ERROR("Expected 'fn' keyword at token " + std::to_string(index));
+        return Type::createInvalid();
+    }
+    index++;
+
+    if (index >= dataTypes.size() || dataTypes[index] != "(") {
+        TYPE_ERROR("Expected '(' after 'fn' at token " + std::to_string(index));
+        return Type::createInvalid();
+    }
+    index++;
+
+    std::vector<std::shared_ptr<Type>> paramTypes;
+    std::vector<std::string> paramNames;
+    paramTypes.reserve(4); // Optimize for typical parameter counts
+
+    while (index < dataTypes.size() && dataTypes[index] != ")") {
+        std::vector<std::string> currentParam;
+        std::string paramName;
+
+        // Check for named parameter (e.g., "x: int")
+        if (index + 1 < dataTypes.size() && dataTypes[index + 1] == ":") {
+            paramName = dataTypes[index];
+            index += 2;
+        }
+
+        // Collect tokens for parameter type
+        while (index < dataTypes.size() && dataTypes[index] != "," && dataTypes[index] != ")") {
+            currentParam.push_back(dataTypes[index]);
+            index++;
+        }
+
+        if (!currentParam.empty()) {
+            auto paramType = resolveType(currentParam);
+            if (paramType->isInvalid()) {
+                TYPE_ERROR("Invalid parameter type at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            paramTypes.push_back(paramType);
+            paramNames.push_back(paramName);
+        } else {
+            TYPE_ERROR("Empty parameter type at token " + std::to_string(index));
+            return Type::createInvalid();
+        }
+
+        if (index < dataTypes.size() && dataTypes[index] == ",") {
+            index++;
+        }
+    }
+
+    if (index >= dataTypes.size() || dataTypes[index] != ")") {
+        TYPE_ERROR("Expected ')' after function parameters at token " + std::to_string(index));
+        return Type::createInvalid();
+    }
+    index++;
+
+    if (index >= dataTypes.size() || dataTypes[index] != "=>") {
+        TYPE_ERROR("Expected '=>' after function parameters at token " + std::to_string(index));
+        return Type::createInvalid();
+    }
+    index++;
+
+    // Parse return type
+    std::vector<std::string> returnTypeTokens;
+    returnTypeTokens.reserve(dataTypes.size() - index);
+    while (index < dataTypes.size()) {
+        returnTypeTokens.push_back(dataTypes[index]);
+        index++;
+    }
+
+    std::shared_ptr<Type> returnType;
+    if (returnTypeTokens.empty()) {
+        returnType = Type::createPrimitiveType(Kind::Void);
+    } else {
+        returnType = resolveType(returnTypeTokens);
+        if (returnType->isInvalid()) {
+            TYPE_ERROR("Invalid return type at token " + std::to_string(index));
+            return Type::createInvalid();
+        }
+    }
+
+    auto fnType = Type::createFunctionType("", paramTypes, returnType, false);
+    auto fn = std::dynamic_pointer_cast<FunctionType>(fnType);
+    if (fn) {
+        for (size_t i = 0; i < paramNames.size(); ++i) {
+            fn->setParamName(i, paramNames[i]);
+        }
+    }
+
+    DEBUG_LOG("Resolved function type: " + fnType->toString());
+    return fnType;
+}
+
+} // namespace Omniscript

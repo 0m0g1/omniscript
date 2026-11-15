@@ -72,18 +72,29 @@ std::vector<std::string> parseNestedTokens(const std::vector<std::string>& dataT
     return tokens;
 }
 
+// Canonical spellings for primitive aliases, so `List<int>` and `List<i32>` instantiate the
+// same class (`List_i32`) regardless of which alias the source used.
+static const std::unordered_map<std::string_view, std::string_view> canonicalPrimitiveName = {
+    {"int", "i32"}, {"int32", "i32"}, {"int8", "i8"}, {"int16", "i16"}, {"int64", "i64"},
+    {"uint", "u32"}, {"uint32", "u32"}, {"uint8", "u8"}, {"uint16", "u16"}, {"uint64", "u64"},
+    {"half", "f16"}, {"float", "f32"}, {"double", "f64"}, {"x86_fp80", "f80"}, {"fp128", "f128"}
+};
+
 // Mangles type tokens for instantiated generic names, mirroring the `ptr`/`ref`/`_`
 // conventions of Parser::generateSpecializedNameForDecleration (List<i64*> -> List_i64_ptr).
 static std::string mangleTypeTokens(const std::vector<std::string>& tokens) {
     std::string out;
     for (const auto& p : tokens) {
         if (p == ">" || p == "]") continue;
+        auto canon = canonicalPrimitiveName.find(p);
         if (!out.empty() && out.back() != '_') out += "_";
         if (p == "*") out += "ptr";
         else if (p == "&") out += "ref";
         else if (p == "?") out += "opt";
         else if (p == "[") out += "arr";
-        else if (p == "." || p == "<" || p == ",") out += "_";
+        else if (p == "." || p == "<") out += "_";   // qualified / nested args: `Str.String` -> Str__String, as the instantiator spells them
+        else if (p == ",") { /* argument separator: the single "_" added above matches mangleTypeArgs */ }
+        else if (canon != canonicalPrimitiveName.end()) out += canon->second;
         else out += p;
     }
     return out;

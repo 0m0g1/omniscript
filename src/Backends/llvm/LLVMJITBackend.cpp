@@ -10,6 +10,12 @@
 #include <llvm/TargetParser/Host.h>
 #include <llvm/Support/Program.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/InlineAsm.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/TargetParser/Triple.h>
+#include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/IR/Verifier.h>
 #include <thread>
 #include <fstream>
@@ -204,6 +210,59 @@ void LLVMJITBackend::registerRuntimeSymbols(const Config& config) {
     auto& mainDylib = jit->getMainJITDylib();
     // Example: Register runtime symbols (implement actual functions as needed)
     // mainDylib.define(absoluteSymbol("gc_allocate", ...));
+
+    // MinGW-style x86-64 Windows code (triple ...-windows-gnu) calls ___chkstk_ms for frames
+    // larger than one page. That symbol lives in libgcc, which this process does not export,
+    // so provide it ourselves as a tiny JIT'd module containing the stack-probe routine.
+    // It preserves RAX/RCX and RSP, and touches each page of the requested frame.
+    {
+        const llvm::Triple& triple = jit->getTargetTriple();
+        if (triple.isOSWindows() && triple.getArch() == llvm::Triple::x86_64 &&
+            triple.isWindowsGNUEnvironment()) {
+            auto probeCtx = std::make_unique<llvm::LLVMContext>();
+            auto probeModule = std::make_unique<llvm::Module>("omniscript_chkstk", *probeCtx);
+            probeModule->setTargetTriple(triple);
+            probeModule->setDataLayout(jit->getDataLayout());
+
+            // Naked function: no prologue/epilogue, the whole body is the asm below (ends in ret).
+            auto* fnTy = llvm::FunctionType::get(llvm::Type::getVoidTy(*probeCtx), false);
+            auto* probeFn = llvm::Function::Create(
+                fnTy, llvm::Function::ExternalLinkage, "___chkstk_ms", probeModule.get());
+            probeFn->addFnAttr(llvm::Attribute::Naked);
+            probeFn->addFnAttr(llvm::Attribute::NoUnwind);
+            auto* bb = llvm::BasicBlock::Create(*probeCtx, "entry", probeFn);
+            // Note: '$' must be written '$$' in LLVM inline asm.
+            auto* ia = llvm::InlineAsm::get(
+                fnTy,
+                "pushq %rcx\n\t"
+                "pushq %rax\n\t"
+                "cmpq $$0x1000, %rax\n\t"
+                "leaq 24(%rsp), %rcx\n\t"
+                "jb 2f\n"
+                "1:\n\t"
+                "subq $$0x1000, %rcx\n\t"
+                "testq %rcx, (%rcx)\n\t"
+                "subq $$0x1000, %rax\n\t"
+                "cmpq $$0x1000, %rax\n\t"
+                "ja 1b\n"
+                "2:\n\t"
+                "subq %rax, %rcx\n\t"
+                "testq %rcx, (%rcx)\n\t"
+                "popq %rax\n\t"
+                "popq %rcx\n\t"
+                "ret",
+                "", /*hasSideEffects=*/true);
+            llvm::CallInst::Create(fnTy, ia, "", bb);
+            new llvm::UnreachableInst(*probeCtx, bb);
+            if (auto err = jit->addIRModule(
+                    llvm::orc::ThreadSafeModule(std::move(probeModule), std::move(probeCtx)))) {
+                logError(config, "Failed to register ___chkstk_ms: " + llvm::toString(std::move(err)));
+            } else {
+                DEBUG_LOG("Registered ___chkstk_ms stack probe");
+            }
+        }
+    }
+
     DEBUG_LOG("Registered runtime symbols");
 }
 

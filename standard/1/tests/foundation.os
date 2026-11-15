@@ -51,7 +51,7 @@ function testMath() => void {
     check(Math.isInf(Math.INF), "math INF");
     check(!Math.isFinite(Math.INF), "math isFinite(INF)");
     check(Math.lerp(10.0, 20.0, 0.25) == 12.5, "math lerp");
-    check(Math.mod(0.0 - 1.0, 3.0) == 2.0, "math mod negative");
+    check(Math.modulo(0.0 - 1.0, 3.0) == 2.0, "math mod negative");
     check(Math.approxEq(Math.degrees(Math.radians(90.0)), 90.0, 0.000001), "math radians/degrees");
     check(Math.smoothstep(0.0, 1.0, 0.5) == 0.5, "math smoothstep");
 }

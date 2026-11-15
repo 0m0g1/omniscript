@@ -57,7 +57,9 @@ std::shared_ptr<Expression> AddressOf::express(SymbolTableType scope) {
             setRootType(Type::createPointerType(referent->getType()));
         }
 
-        auto addrOf = std::make_shared<AddressOfExpression>(mangledName, referent);       
+        auto addrOf = std::make_shared<AddressOfExpression>(mangledName, referent);
+        addrOf->setSpan(this->getSpan());
+        return addrOf;       
     }
 
     if (!type) {
@@ -345,6 +347,19 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
 
     std::shared_ptr<Expression> result;
 
+    // When a typed declaration fails (bad initializer, type mismatch), still declare the variable with
+    // its annotated type. Otherwise every later use reports a bogus "Symbol 'x' could not be resolved"
+    // and the one real error drowns in follow-on noise. Reassignments are left alone (already declared).
+    auto declareAfterFailure = [&]() {
+        if (isReassign || !type) return;
+        auto placeholder = std::make_shared<NullExpression>(type);
+        if (isConstant) {
+            scope->setConstant(variable, placeholder);
+        } else {
+            scope->setVariable(variable, placeholder);
+        }
+    };
+
     if (isReassign && !scope->exists(variable)) {
         std::string suggestion = "To resolve this:\n"
                                "1. Check variable spelling\n"
@@ -395,6 +410,7 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
                     suggestion,
                     value->getSpan()
                 );
+                declareAfterFailure();
                 return nullptr;
             }
 
@@ -432,6 +448,7 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
                     suggestion,
                     getSpan()
                 );
+                declareAfterFailure();
                 return nullptr;
             }
         } else {
@@ -506,7 +523,7 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
         scope->setVariable(variable, result);
     }
 
-    auto assignment = make_expression<VariableAssignment>(variable, result, isGlobal, true);
+    auto assignment = make_expression<VariableAssignment>(variable, result, isGlobal, isReassign);
     // The node above takes its type from the initializer, which drops a declared `T?`
     // (e.g. `let a: Stats? = null;` ended up as plain `Stats`). Keep the declared nullable type.
     if (type && std::dynamic_pointer_cast<NullableType>(type)) {

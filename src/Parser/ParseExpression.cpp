@@ -29,6 +29,16 @@ std::shared_ptr<Statement> Parser::parseExpression() {
 std::shared_ptr<Statement> Parser::parseTernaryExpression() {
     std::shared_ptr<Statement> condition = logicalOrExpression(); // Fixed: should start with lowest precedence
 
+    // Null-coalescing `a ?? b`: binds looser than `||` and all arithmetic/comparison operators
+    // (so `m.get(k) ?? 0 - 1` is `m.get(k) ?? (0 - 1)`), but tighter than `?:`.
+    // Left-associative loop; `a ?? b ?? c` yields the same value either way.
+    while (currentToken.getType() == TokenTypes::NullCoalescing) {
+        Token opToken = currentToken;
+        eat(TokenTypes::NullCoalescing);
+        std::shared_ptr<Statement> right = logicalOrExpression();
+        condition = std::make_shared<ASTBinaryExpression>(condition, opToken, right);
+    }
+
     if (currentToken.getType() == TokenTypes::QuestionMark) {
         eat(TokenTypes::QuestionMark);
         std::shared_ptr<Statement> truthy = parseExpression();
@@ -215,7 +225,9 @@ std::shared_ptr<Statement> Parser::parseUnaryExpression() {
             } else {
                 console.reportError(Console::SEMANTIC_ERROR,
                     "Cannot get the reference of a symbol that isn't a variable '"
-                    + operand->toString() + "'.", FileSpan{});
+                    + operand->toString() + "'.",
+                    FileSpan(previousToken.getLine(), previousToken.getColumn(),
+                             previousToken.getLine(), previousToken.getColumn(), previousToken.getFilePath()));
                 return nullptr;
             }
         }
@@ -262,7 +274,8 @@ static int64_t literalToInt(const Token& t, int base) {
             s = s.substr(2);
         return static_cast<int64_t>(std::stoull(s, nullptr, base));
     } catch (const std::exception&) {
-        console.reportError(Console::SYNTAX_ERROR, "Invalid numeric literal '" + t.getValue() + "'.", FileSpan{});
+        console.reportError(Console::SYNTAX_ERROR, "Invalid numeric literal '" + t.getValue() + "'.",
+            FileSpan(t.getLine(), t.getColumn(), t.getLine(), t.getColumn(), t.getFilePath()));
         return 0;
     }
 }
@@ -363,6 +376,21 @@ std::shared_ptr<Statement> Parser::factor() {
         left = std::make_shared<Null>();
     }
 
+    // Anonymous function expression: `function(a: T) => R { ... }` / `fn<T>(a: T) => R { ... }`.
+    // A named declaration (`function name(...)`) is a statement and never reaches here.
+    else if (currentToken.getType() == TokenTypes::Function &&
+             (lexer.peekToken(1).getType() == TokenTypes::LeftParen ||
+              lexer.peekToken(1).getType() == TokenTypes::LessThan)) {
+        eat(TokenTypes::Function);
+        int i = 0;
+        if (currentToken.getType() == TokenTypes::LessThan && tryParseTypeParametersLookahead(i)) {
+            parameterType paramTypes = parseTypeParametersForDeclaration();
+            left = parseLambdaFunction("", paramTypes);
+        } else {
+            left = parseLambdaFunction();
+        }
+    }
+
     else if (currentToken.getType() == TokenTypes::Identifier || currentToken.getType() == TokenTypes::New) {
         if (currentToken.getType() == TokenTypes::New) {
             eat(TokenTypes::New);
@@ -422,7 +450,10 @@ std::shared_ptr<Statement> Parser::factor() {
     }
 
     if (!left) {
-        console.reportError(Console::SYNTAX_ERROR, "Unexpected token '" + currentToken.getValue() + "' in expression.", FileSpan{});
+        console.reportError(Console::SYNTAX_ERROR, "Unexpected token '" + currentToken.getValue() + "' in expression.",
+            FileSpan(currentToken.getLine(), currentToken.getColumn(),
+                     currentToken.getLine(), currentToken.getColumn() + std::max<size_t>(1, currentToken.getValue().size()) - 1,
+                     currentToken.getFilePath()));
         // consume it so the parser always makes progress
         if (currentToken.getType() != TokenTypes::EOI) {
             previousToken = currentToken;
