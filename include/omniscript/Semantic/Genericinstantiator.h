@@ -13,6 +13,8 @@
 
 namespace Omniscript {
 
+class FunctionDeclaration;
+
 // Canonical mangled spelling of a type, used in instance names: i64 -> "i64", T* -> "T_ptr",
 // List<i64> -> "List_i64". Spelling aliases (i64 / int64) unify because it works on resolved types.
 std::string mangleTypeName(const std::shared_ptr<Type>& type);
@@ -75,6 +77,20 @@ public:
     // is queued: whoever builds the program output must call drainPending() and emit it.
     // Idempotent. Returns true when the instance exists (new or already present).
     static bool ensureInstance(const std::shared_ptr<UserDefinedType>& udt);
+
+    // ---- Lazy function templates (`function f<T>(...)` with no constraint list) ----
+    // Registered by FunctionDeclaration::express together with its declaring scope.
+    static void registerFunctionTemplate(const std::string& name,
+                                         const std::shared_ptr<FunctionDeclaration>& decl,
+                                         SymbolTableType scope);
+    static bool hasFunctionTemplates();
+
+    // `callee` is a call-site spelling such as "sort_i32", "L.sort_i32_ptr" or "zip_i64__f32"
+    // (template name + "_" + per-parameter spellings joined by "__", "*"->"ptr", "&"->"ref").
+    // If it names an instance of a registered function template that does not exist yet, creates it
+    // in the template's declaring scope and queues its expression (see drainPending()).
+    // Returns true when the instance exists afterwards; false when `callee` is not such a name.
+    static bool ensureFunctionInstanceByCallee(const std::string& callee);
 
     // Walks `type` (through pointers, refs, arrays...) and ensures every generic instance in it.
     static void ensureInstancesIn(const std::shared_ptr<Type>& type);

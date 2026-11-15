@@ -89,35 +89,187 @@ Engine::ArgumentParser::argHandlers = {
     }},
     {"--debug", handleDebugArgs},
     {"-d", handleDebugArgs},
-    {"--target-arch", handleTargetArgs},
-    {"--target-os", handleTargetArgs},
-    {"--target-triple", handleTargetArgs},
-    {"--optimization-level", handleOptimizationArgs},
-    {"-O", handleOptimizationArgs},
-    {"--gc", handleRuntimeArgs},
-    {"--safety", handleSecurityArgs},
-    {"--heap-size", handleRuntimeArgs},
-    {"--stack-size", handleRuntimeArgs},
-    {"--enable-stack-protection", handleSecurityArgs},
-    {"--enable-cfi", handleSecurityArgs},
-    {"--enable-asan", handleSecurityArgs},
-    {"--enable-msan", handleSecurityArgs},
-    {"--enable-tsan", handleSecurityArgs},
-    {"--enable-ubsan", handleSecurityArgs},
-    {"--enable-pic", handleSecurityArgs},
-    {"--enable-lto", handleOptimizationArgs},
-    {"--enable-pgo", handleOptimizationArgs},
-    {"--enable-vectorization", handleOptimizationArgs},
-    {"--enable-inlining", handleOptimizationArgs},
-    {"--enable-tail-calls", handleOptimizationArgs},
-    {"--fast-math", handleOptimizationArgs},
-    {"--emit-staticlib", handleLinkingArgs},
-    {"--emit-sharedlib", handleLinkingArgs},
-    {"--emit-assembly", handleLinkingArgs},
-    {"--emit-ir", handleLinkingArgs},
-    {"--emit-object", handleLinkingArgs},
-    {"--emit-bitcode", handleLinkingArgs},
-    {"--emit-wasm", handleLinkingArgs}
+    // Handlers in this table receive `args` starting at the token AFTER the option, so args[0] is the
+    // option's value. (The old handleTargetArgs/handleOptimizationArgs/... functions compared args[0]
+    // against the option name with `==` on a char*, which compares pointers and is always false, so
+    // --target-os, -O, --emit-sharedlib, --gc, --safety etc. silently did nothing.)
+    {"--target", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        const std::string_view name = args[0];
+        const auto it = Engine::ArgumentParser::osMap.find(name);
+        if (it == Engine::ArgumentParser::osMap.end()) return ParseResult::InvalidValue;
+        config.targetOS = it->second;
+        if (config.targetOS == TargetOS::Android) {
+            // Android builds are 64-bit ARM shared libraries loaded by the app, not executables.
+            if (config.targetArch == TargetArch::Auto) config.targetArch = TargetArch::ARM64;
+            config.aot.outputFormat = OutputFormat::SharedLib;
+        }
+        config.mode = CompileMode::AOT;
+        args = args.subspan(1);
+        return ParseResult::Success;
+    }},
+    {"--toolchain", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        config.toolchainPath = args[0];   // folder with the linker/compiler tools, or the Android NDK root
+        args = args.subspan(1);
+        return ParseResult::Success;
+    }},
+    {"--target-arch", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        config.targetArch = parseTargetArch(args[0]);
+        args = args.subspan(1);
+        return ParseResult::Success;
+    }},
+    {"--target-os", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        config.targetOS = parseTargetOS(args[0]);
+        args = args.subspan(1);
+        return ParseResult::Success;
+    }},
+    {"--target-triple", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        config.targetTriple = args[0];   // the exact triple the user asked for wins over the generated one
+        auto [arch, os] = parseTargetTriple(args[0]);
+        config.targetArch = arch;
+        config.targetOS = os;
+        args = args.subspan(1);
+        return ParseResult::Success;
+    }},
+    {"--optimization-level", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        try {
+            config.optimization.level = std::stoi(args[0]);
+            args = args.subspan(1);
+            return ParseResult::Success;
+        } catch (...) {
+            return ParseResult::InvalidValue;
+        }
+    }},
+    {"-O", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        try {
+            config.optimization.level = std::stoi(args[0]);
+            args = args.subspan(1);
+            return ParseResult::Success;
+        } catch (...) {
+            return ParseResult::InvalidValue;
+        }
+    }},
+    {"--gc", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        config.runtime.gcStrategy = parseGCStrategy(args[0]);
+        args = args.subspan(1);
+        return ParseResult::Success;
+    }},
+    {"--safety", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        config.runtime.safetyLevel = parseSafetyLevel(args[0]);
+        args = args.subspan(1);
+        return ParseResult::Success;
+    }},
+    {"--heap-size", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        auto sizeResult = parseSizeString(args[0]);
+        if (!sizeResult) return ParseResult::InvalidValue;
+        config.runtime.heapSize = *sizeResult;
+        args = args.subspan(1);
+        return ParseResult::Success;
+    }},
+    {"--stack-size", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        auto sizeResult = parseSizeString(args[0]);
+        if (!sizeResult) return ParseResult::InvalidValue;
+        config.runtime.stackSize = *sizeResult;
+        args = args.subspan(1);
+        return ParseResult::Success;
+    }},
+    {"--enable-stack-protection", [](Config& config, std::span<char*>&) {
+        config.security.enableStackProtection = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-cfi", [](Config& config, std::span<char*>&) {
+        config.security.enableControlFlowIntegrity = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-asan", [](Config& config, std::span<char*>&) {
+        config.security.enableAddressSanitizer = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-msan", [](Config& config, std::span<char*>&) {
+        config.security.enableMemorySanitizer = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-tsan", [](Config& config, std::span<char*>&) {
+        config.security.enableThreadSanitizer = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-ubsan", [](Config& config, std::span<char*>&) {
+        config.security.enableUndefinedBehaviorSanitizer = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-pic", [](Config& config, std::span<char*>&) {
+        config.security.enablePositionIndependentCode = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-lto", [](Config& config, std::span<char*>&) {
+        config.aot.lto.enabled = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-pgo", [](Config& config, std::span<char*>&) {
+        config.optimization.pgo.enabled = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-vectorization", [](Config& config, std::span<char*>&) {
+        config.optimization.enableVectorization = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-inlining", [](Config& config, std::span<char*>&) {
+        config.optimization.enableFunctionInlining = true;
+        return ParseResult::Success;
+    }},
+    {"--enable-tail-calls", [](Config& config, std::span<char*>&) {
+        config.optimization.enableTailCallOptimization = true;
+        return ParseResult::Success;
+    }},
+    {"--fast-math", [](Config& config, std::span<char*>&) {
+        config.optimization.fastMath = true;
+        return ParseResult::Success;
+    }},
+    {"--emit-staticlib", [](Config& config, std::span<char*>&) {
+        config.mode = CompileMode::AOT;
+        config.aot.outputFormat = OutputFormat::StaticLib;
+        return ParseResult::Success;
+    }},
+    {"--emit-sharedlib", [](Config& config, std::span<char*>&) {
+        config.mode = CompileMode::AOT;
+        config.aot.outputFormat = OutputFormat::SharedLib;
+        return ParseResult::Success;
+    }},
+    {"--emit-assembly", [](Config& config, std::span<char*>&) {
+        config.mode = CompileMode::AOT;
+        config.aot.outputFormat = OutputFormat::Assembly;
+        return ParseResult::Success;
+    }},
+    {"--emit-ir", [](Config& config, std::span<char*>&) {
+        config.mode = CompileMode::AOT;
+        config.aot.outputFormat = OutputFormat::LLVM_IR;
+        return ParseResult::Success;
+    }},
+    {"--emit-object", [](Config& config, std::span<char*>&) {
+        config.mode = CompileMode::AOT;
+        config.aot.outputFormat = OutputFormat::ObjectFile;
+        return ParseResult::Success;
+    }},
+    {"--emit-bitcode", [](Config& config, std::span<char*>&) {
+        config.mode = CompileMode::AOT;
+        config.aot.outputFormat = OutputFormat::Bitcode;
+        return ParseResult::Success;
+    }},
+    {"--emit-wasm", [](Config& config, std::span<char*>&) {
+        config.mode = CompileMode::AOT;
+        config.aot.outputFormat = OutputFormat::WebAssembly;
+        return ParseResult::Success;
+    }}
 };
 
 const std::unordered_map<std::string_view, TargetArch> Engine::ArgumentParser::archMap{
@@ -261,8 +413,8 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
     }
 
     resolveTargetConfiguration(config);
-    if (config.outputPath.empty() && config.isAOTMode()) {
-        setDefaultOutputPath(config);
+    if ((config.outputPath.empty() || config.outputPath == "a.out") && config.isAOTMode()) {
+        setDefaultOutputPath(config);   // sphere.os -> sphere.exe (Windows), sphere (Linux), ...
     }
     config.autoConfigureForTarget();
     std::string validationError;
@@ -355,6 +507,7 @@ Engine::run(const Config& config) noexcept {
                 std::to_string(console.getErrorCount()) + " error(s); output is not valid.");
         }
         currentStats_.compileTime = compileResult->totalTime;
+        DEBUG_LOG("Compilation progress: Done (100%)");
         if (config.mode == CompileMode::AOT) {
             console.log("Compilation done. Output emitted to: " + config.outputPath);
         } else if (config.isDryRun()) {
@@ -569,6 +722,8 @@ void Engine::printUsage() noexcept {
     console.log("  --make                   Compile AOT");
     console.log("  --output, -o <file>      Set output file path");
     console.log("  --optimization-level, -O <n> Optimization level: 0-3");
+    console.log("  --target <os>            Build for windows, linux, android, macos, ios or wasm");
+    console.log("  --toolchain <dir>        Toolchain folder (for --target android: the NDK root; or set ANDROID_NDK_HOME)");
     console.log("  --target-arch <arch>     Target architecture: x86_64, arm64, etc.");
     console.log("  --target-os <os>         Target OS: linux, windows, macos, etc.");
     console.log("  --target-triple <triple> Set target triple");

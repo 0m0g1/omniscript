@@ -1,6 +1,6 @@
 // standard/1/Audio.os
-// Tier 5: audio playback via miniaudio (needs a C shim/library exporting ma_*). Engine + Sound handles.
-module CA = import "standard/1/c/openal.os";
+// Tier 5: audio playback via miniaudio (built as dependencies/miniaudio/miniaudio.dll). Engine + Sound handles.
+module CA = import "standard/1/c/miniaudio.os";
 module CMem = import "standard/1/c/mem.os";
 
 // ma_engine / ma_sound are large opaque structs: allocate generously (miniaudio ma_engine ~ 4KB, ma_sound ~ 1KB).

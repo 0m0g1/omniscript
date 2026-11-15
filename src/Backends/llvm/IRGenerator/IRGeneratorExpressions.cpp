@@ -179,6 +179,32 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         }
     }
 
+    // Mixed floating-point operands (float vs double) or float vs integer.
+    // Literals adopt the other operand's type; otherwise widen to the wider FP type.
+    if (op != TokenTypes::LogicalAnd && op != TokenTypes::LogicalOr) {
+        llvm::Type* lt = left->getType();
+        llvm::Type* rt = right->getType();
+        bool lFP = lt->isFloatingPointTy(), rFP = rt->isFloatingPointTy();
+
+        if ((lFP || rFP) && lt != rt) {
+            if (lFP && rFP) {
+                if (llvm::isa<llvm::ConstantFP>(right)) {
+                    right = Builder->CreateFPCast(right, lt, "litfp");
+                } else if (llvm::isa<llvm::ConstantFP>(left)) {
+                    left = Builder->CreateFPCast(left, rt, "litfp");
+                } else if (lt->getPrimitiveSizeInBits() < rt->getPrimitiveSizeInBits()) {
+                    left = Builder->CreateFPExt(left, rt, "fpwiden");
+                } else {
+                    right = Builder->CreateFPExt(right, lt, "fpwiden");
+                }
+            } else if (lFP && rt->isIntegerTy() && rt->getIntegerBitWidth() > 1) {
+                right = Builder->CreateSIToFP(right, lt, "i2f");
+            } else if (rFP && lt->isIntegerTy() && lt->getIntegerBitWidth() > 1) {
+                left = Builder->CreateSIToFP(left, rt, "i2f");
+            }
+        }
+    }
+
     switch (op) {
         // Arithmetic
         case TokenTypes::Plus:

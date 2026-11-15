@@ -164,7 +164,60 @@ Token Lexer::getNextToken() {
         bool isRawStringPrefix = config_.allowRawStrings && isRawStringStart(currentChar);
 
         if (isIdentifierStart(currentChar) && !isRawStringPrefix) {
+            const size_t wordStart = currentPosition_;
             Token token = parseIdentifierOrKeyword();
+
+            // Soft (contextual) keywords: these words only mean something at the start of a
+            // declaration. Anywhere else they are ordinary identifiers, so `module: u64;` as a struct
+            // field, `x.module = v` and `foo(import)` all work without renaming.
+            switch (token.getType()) {
+                case TokenTypes::Module:
+                case TokenTypes::Import:
+                case TokenTypes::Extern:
+                case TokenTypes::Public:
+                case TokenTypes::Private:
+                case TokenTypes::Protected:
+                case TokenTypes::Static: {
+                    bool asIdentifier = false;
+
+                    // Member access: `a.module`, `A::module` (previous significant char on this line).
+                    size_t b = wordStart;
+                    while (b > 0 && (source_[b - 1] == ' ' || source_[b - 1] == '\t')) --b;
+                    if (b > 0 && source_[b - 1] == '.') asIdentifier = true;
+                    if (b > 1 && source_[b - 1] == ':' && source_[b - 2] == ':') asIdentifier = true;
+
+                    // Otherwise decide by what follows: a declaration needs a specific next token.
+                    if (!asIdentifier) {
+                        const TokenTypes next = peekToken(1).getType();
+                        switch (token.getType()) {
+                            case TokenTypes::Module:    // module Name ...
+                                asIdentifier = next != TokenTypes::Identifier;
+                                break;
+                            case TokenTypes::Import:    // import "path" | import Name | import { ... } | import *
+                                asIdentifier = !(next == TokenTypes::StringLiteral || next == TokenTypes::Identifier ||
+                                                 next == TokenTypes::LeftBrace || next == TokenTypes::Multiply);
+                                break;
+                            case TokenTypes::Extern:    // extern "C" ... | extern fn/let/const ...
+                                asIdentifier = !(next == TokenTypes::StringLiteral || next == TokenTypes::Function ||
+                                                 next == TokenTypes::Let || next == TokenTypes::Const ||
+                                                 next == TokenTypes::Identifier);
+                                break;
+                            default:                    // modifiers: public/private/protected/static <something>
+                                asIdentifier = !(next == TokenTypes::Identifier || Token::isKeywordType(next));
+                                break;
+                        }
+                    }
+
+                    if (asIdentifier) {
+                        token = TokenFactory::createIdentifier(
+                            source_.substr(wordStart, currentPosition_ - wordStart),
+                            token.getLine(), token.getColumn(), token.getFilePath());
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
             updateStatistics(token);
             if (debugMode_) debugPrintToken(token);
             return token;
@@ -545,8 +598,11 @@ bool Lexer::isValidStringLiteral(const std::string& literal) const {
 }
 
 bool Lexer::isReservedKeyword(const std::string& word) const {
-    std::string check = config_.caseSensitiveKeywords ? word : LexerUtils::toLowerCaseString(word);
-    return reservedWords_.find(check) != reservedWords_.end();
+    // Reserved-but-unused words (typeof, async, await, yield, ...) are lowercase, and `typeOf`,
+    // `Await` etc. are ordinary identifiers. Lowercasing here made `function typeOf<T>()` fail with
+    // "Invalid identifier". Real keywords (let, if, ...) are still matched case-insensitively by
+    // keywordMap_ before an identifier ever gets this far.
+    return reservedWords_.find(word) != reservedWords_.end();
 }
 
 void Lexer::cacheToken(const Token& token) {

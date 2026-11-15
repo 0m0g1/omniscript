@@ -6,6 +6,14 @@
 
 namespace Omniscript {
 
+// ModuleAndImportStatements.cpp: `Str.String` (an import alias of an already loaded module) -> `String`.
+std::string canonicalTypeName(const std::string& name);
+
+// Two user-type names denote the same type when they are equal or alias-equal.
+static bool sameUserTypeName(const std::string& a, const std::string& b) {
+    return a == b || canonicalTypeName(a) == canonicalTypeName(b);
+}
+
 bool Type::isChar(int bitwidth) const {
     if (bitwidth == -1) {
         return kind == Kind::Char || kind == Kind::Char16 || kind == Kind::Char32;
@@ -242,7 +250,7 @@ bool Type::isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>
     {
         auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
         auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
-        if (fromUDT && toUDT) return fromUDT->name == toUDT->name;
+        if (fromUDT && toUDT) return sameUserTypeName(fromUDT->name, toUDT->name);
         if (fromUDT || toUDT) return false;
     }
 
@@ -298,7 +306,7 @@ bool Type::isSame(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>
     if (from->isUserDefined() && to->isUserDefined()) {
         auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
         auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
-        return fromUDT && toUDT && fromUDT->name == toUDT->name;
+        return fromUDT && toUDT && sameUserTypeName(fromUDT->name, toUDT->name);
     }
     return false;
 }
@@ -347,6 +355,11 @@ bool Type::isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shar
     if (from->isInteger() && to->isInteger()) return from->getSize() <= to->getSize();
     if (from->isInteger() && to->isFloat()) return true;
     if (from->isFloat() && to->isFloat()) return from->getSize() <= to->getSize();
+    // C-style: a char is a small integer, so `path[i] != 0`, `c - 48` and `let n: int = c` are fine.
+    // Widening (or equal size) is implicit in both directions. Integer literals reach comparisons as
+    // Int8 and are retyped to the other operand's type, which needs the Int8 -> Char direction.
+    if (from->isChar() && to->isInteger()) return from->getSize() <= to->getSize();
+    if (from->isInteger() && to->isChar()) return from->getSize() <= to->getSize();
     if ((from->isChar() && to->isString()) || (from->isString() && to->isChar())) return true;
     if (from->isChar() && to->isChar()) return from->getBitWidth() <= to->getBitWidth();
     if (from->isString() && to->isString()) return from->getBitWidth() <= to->getBitWidth();
@@ -380,7 +393,7 @@ bool Type::isSameOrCastableTo(const std::shared_ptr<Type>& from, const std::shar
         auto fromUDT = std::dynamic_pointer_cast<UserDefinedType>(from);
         auto toUDT = std::dynamic_pointer_cast<UserDefinedType>(to);
         if (fromUDT && toUDT) {
-            return fromUDT->name == toUDT->name || fromUDT->derivesFrom(toUDT);
+            return sameUserTypeName(fromUDT->name, toUDT->name) || fromUDT->derivesFrom(toUDT);
         }
     }
     return false;

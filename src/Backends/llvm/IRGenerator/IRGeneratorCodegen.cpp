@@ -15,6 +15,7 @@
 #include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Expressions/AssignmentExpression.h>
 #include <omniscript/Expressions/ControlFlowExpressions.h>
+namespace Omniscript { std::string canonicalTypeName(const std::string& name); }
 
 namespace Omniscript {
 // Nullable<T> is lowered as an *unnamed* literal struct { i1 hasValue, T value } (see resolveLLVMType).
@@ -148,14 +149,29 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
                 for (const auto& v : b->values) collectStructs(v);
             }
         };
-    auto findStructDecl = [&](const std::string& n) -> std::shared_ptr<StructExpression> {
+    std::function<std::shared_ptr<StructExpression>(const std::string&, int)> findStructDeclImpl =
+        [&](const std::string& n, int depth) -> std::shared_ptr<StructExpression> {
         auto it = structDecls.find(n);
         if (it != structDecls.end()) return it->second;
         for (auto& [q, decl] : structDecls) {
             if (q.size() > n.size() && q.compare(q.size() - n.size() - 1, std::string::npos, "." + n) == 0)
                 return decl;
         }
+        if (depth > 0) return nullptr;
+        // `Str.String` (alias-qualified name of an already loaded module's type): the decl is
+        // registered under its canonical name (`String`), or only its last segment matches.
+        const std::string canon = Omniscript::canonicalTypeName(n);
+        if (canon != n) {
+            if (auto d = findStructDeclImpl(canon, depth + 1)) return d;
+        }
+        const size_t dot = n.rfind('.');
+        if (dot != std::string::npos) {
+            if (auto d = findStructDeclImpl(n.substr(dot + 1), depth + 1)) return d;
+        }
         return nullptr;
+    };
+    auto findStructDecl = [&](const std::string& n) -> std::shared_ptr<StructExpression> {
+        return findStructDeclImpl(n, 0);
     };
 
     auto pullPending = [&]() {
@@ -316,7 +332,12 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
     if (auto refValue = std::dynamic_pointer_cast<ReferenceExpression>(value)) {
         // Reference to an lvalue expression with no variable name (e.g. 'this.position'):
         // compute the address of the expression itself instead of looking up a name.
-        if (refValue->referentName.empty() && refValue->referent) {
+        // An index/member expression is always addressed through its own element/field, even when
+        // the front end also recorded the base variable's name (`&sa[4]` must not decay to `&sa`).
+        const bool referentIsElementOrField = refValue->referent &&
+            (std::dynamic_pointer_cast<IndexAccessExpression>(refValue->referent) ||
+             std::dynamic_pointer_cast<MemberAccessExpression>(refValue->referent));
+        if (refValue->referent && (refValue->referentName.empty() || referentIsElementOrField)) {
             DEBUG_LOG("Creating reference to expression " + refValue->referent->toString());
 
             std::function<llvm::Value*(const std::shared_ptr<Expression>&)> addressOf;
@@ -372,6 +393,22 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
                         console.reportError(Console::SEMANTIC_ERROR, "Cannot take the address of an incomplete index expression", FileSpan{});
                         return nullptr;
                     }
+                    // Fixed array (local, global or struct field): index into the array's storage,
+                    // [N x T]* with indices {0, i}. codegen() of the base would yield its value
+                    // (or the array itself), never an element pointer.
+                    if (auto arrType = std::dynamic_pointer_cast<FixedArrayType>(idx->expr->getType())) {
+                        llvm::Value* arrAddr = addressOf(idx->expr);
+                        llvm::Value* arrIndex = codegen(idx->indexExpr, scope);
+                        if (!arrAddr || !arrIndex) return nullptr;
+                        llvm::Type* arrTy = resolveLLVMType(arrType);
+                        llvm::Value* i64Index = Builder->CreateIntCast(
+                            arrIndex, llvm::Type::getInt64Ty(*Context), true, "ref.idx");
+                        return Builder->CreateInBoundsGEP(
+                            arrTy, arrAddr,
+                            {llvm::ConstantInt::get(llvm::Type::getInt64Ty(*Context), 0), i64Index},
+                            "ref.elem");
+                    }
+
                     llvm::Value* baseVal = codegen(idx->expr, scope);
                     llvm::Value* indexVal = codegen(idx->indexExpr, scope);
                     if (!baseVal || !indexVal) return nullptr;
@@ -387,7 +424,23 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         }
 
         DEBUG_LOG("Creating reference to variable " + refValue->referentName);
-        return refToVariableValue(refValue->referentName);
+        llvm::Value* varRef = refToVariableValue(refValue->referentName);
+
+        // A by-value parameter (`f64(v: double)`) is an SSA argument with no storage, so `&v`
+        // has nothing to point at (it produced a double that was then cast to ptr). Spill it into
+        // a stack slot in the entry block and hand out that address. Reads of `v` keep using the
+        // argument, so writes made through the returned pointer are not seen by later reads.
+        if (auto* arg = llvm::dyn_cast_or_null<llvm::Argument>(varRef)) {
+            if (!arg->getType()->isPointerTy()) {
+                llvm::Function* fn = Builder->GetInsertBlock()->getParent();
+                llvm::IRBuilder<> entry(&fn->getEntryBlock(), fn->getEntryBlock().begin());
+                llvm::AllocaInst* slot = entry.CreateAlloca(arg->getType(), nullptr, refValue->referentName + ".addr");
+                Builder->CreateStore(arg, slot);
+                DEBUG_LOG("Spilled by-value parameter '" + refValue->referentName + "' to take its address");
+                return slot;
+            }
+        }
+        return varRef;
     }
     
     if (auto addressOf = std::dynamic_pointer_cast<AddressOfExpression>(value)) {

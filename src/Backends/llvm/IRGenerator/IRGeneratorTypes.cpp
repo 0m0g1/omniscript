@@ -1,7 +1,7 @@
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Semantic/GenericInstantiator.h>
 
-namespace Omniscript { std::string instanceAliasTarget(const std::string& name); }
+namespace Omniscript { std::string instanceAliasTarget(const std::string& name); std::string canonicalTypeName(const std::string& name); }
 
 namespace Omniscript {
 llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Type> type) {
@@ -43,6 +43,15 @@ llvm::Type* IRGenerator::resolveLLVMType(std::shared_ptr<Type> type) {
             if (!target.empty()) {
                 userType = activeScope->getType(target);
                 if (userType) activeScope->addType(userTypeName, userType);   // cache the alias
+            }
+        }
+        if (!userType) {
+            // `Str.String` after `module Str = import ...` of an already loaded module: the type
+            // was emitted under its canonical name (`String`).
+            const std::string canon = canonicalTypeName(userTypeName);
+            if (canon != userTypeName) {
+                userType = activeScope->getType(canon);
+                if (userType) activeScope->addType(userTypeName, userType);
             }
         }
         if (!userType) {

@@ -276,10 +276,22 @@ std::shared_ptr<Expression> GetVariable::express(SymbolTableType scope) {
 // bodies. Type equality is by name, so `let r: String; r.append(x)` fails to bind `this`.
 // Re-point such placeholders at the name the scope now knows the type by (in place, like
 // renameTypeInPlace in ModuleAndImportStatements.cpp).
+std::string mangleTypeArgs(const std::vector<std::shared_ptr<Type>>& args);   // Genericinstantiator.cpp
+
 static void rebindUserTypeName(const std::shared_ptr<Type>& type, const SymbolTableType& scope) {
     if (!type) return;
 
     if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
+        // List<XmlNode*>: rebind the arguments and keep the "<template>_<args>" name in step.
+        const std::string oldSuffix = udt->typeArgs.empty() ? std::string() : "_" + mangleTypeArgs(udt->typeArgs);
+        for (auto& arg : udt->typeArgs) rebindUserTypeName(arg, scope);
+        if (!oldSuffix.empty()) {
+            const std::string newSuffix = "_" + mangleTypeArgs(udt->typeArgs);
+            if (newSuffix != oldSuffix && udt->name.size() > oldSuffix.size() &&
+                udt->name.compare(udt->name.size() - oldSuffix.size(), oldSuffix.size(), oldSuffix) == 0) {
+                udt->name = udt->name.substr(0, udt->name.size() - oldSuffix.size()) + newSuffix;
+            }
+        }
         auto resolved = scope->getType(udt->name);
         if (resolved && resolved != type) {
             const std::string full = resolved->getName();
@@ -386,7 +398,27 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
                 return nullptr;
             }
 
-            if (!Type::isSameOrCastableTo(result->getType(), type)) {
+            // A function-typed variable holds a function pointer, so an initializer typed
+            // `* fn(...)` with the SAME signature (`nullptr`, `&callback`) is compatible with the
+            // declared `fn(...)`. A null gets the declared type, like the no-initializer path below.
+            bool functionPointerInit = false;
+            if (type->isFunction()) {
+                auto initType = result->getType();
+                if (initType && initType->isPointer() && initType->getPointeeType() &&
+                    initType->getPointeeType()->toString() == type->toString()) {
+                    functionPointerInit = true;
+                    if (std::dynamic_pointer_cast<NullExpression>(result)) {
+                        result = std::make_shared<NullExpression>(type);
+                    }
+                }
+            }
+
+            // The initializer's type can carry the same unrenamed module placeholder (`JsonValue*`
+            // from a generic's type argument) that the declared type already had rebound to
+            // `Json.JsonValue*`; type equality is by name, so rebind it the same way.
+            rebindUserTypeName(result->getType(), scope);
+
+            if (!functionPointerInit && !Type::isSameOrCastableTo(result->getType(), type)) {
                 std::string suggestion = "To resolve this:\n"
                                        "1. Check type requirements\n"
                                        "2. Available conversions:\n"
@@ -406,6 +438,24 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
             result = std::make_shared<NullExpression>(type);
         }
     } else if (value) {
+        // A reassignment has no declared type, so an untyped literal (`fy = 0.0;`) would default to
+        // Double/Int32 and then fail the reassignment check against a Float/narrower variable. Give
+        // the literal the variable's existing type first, exactly as the declared-type path above does
+        // for `let fy: float = 0.0;`. Pointer, function and nullable variables are left alone because
+        // their untyped initializers (`nullptr`, `null`, `&fn`) are already handled elsewhere.
+        if (isReassign && scope->exists(variable)) {
+            auto prev = scope->get(variable);
+            auto prevType = prev ? prev->getType() : nullptr;
+            if (prevType && !prevType->isInvalid() && !prevType->isPointer() &&
+                !prevType->isFunction() && !prevType->isNullable()) {
+                if (auto typedValue = std::dynamic_pointer_cast<TypedStatement>(value)) {
+                    if (!typedValue->getType() || typedValue->getType()->isInvalid()) {
+                        typedValue->setType(prevType);
+                        typedValue->setRootType(prevType);
+                    }
+                }
+            }
+        }
         result = value->express(scope);
         if (!result) {
             console.reportError(
@@ -421,7 +471,19 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
 
     if (isReassign) {
         std::shared_ptr<Expression> prevValue = scope->get(variable);
-        if (prevValue && !Type::isSameOrCastableTo(result->getType(), prevValue->getType())) {
+        if (prevValue) { rebindUserTypeName(result->getType(), scope); rebindUserTypeName(prevValue->getType(), scope); }
+        // A function-typed variable is stored as a function pointer, so `fn(...)` and `* fn(...)` with the
+        // same signature are interchangeable here (e.g. `glFoo = getProc(...) as fn(u32) => void;`).
+        auto sameFunctionSignature = [](const std::shared_ptr<Type>& a, const std::shared_ptr<Type>& b) {
+            if (!a || !b) return false;
+            auto unwrap = [](const std::shared_ptr<Type>& t) {
+                return (t->isPointer() && t->getPointeeType()) ? t->getPointeeType() : t;
+            };
+            auto ua = unwrap(a), ub = unwrap(b);
+            return ua && ub && ua->isFunction() && ub->isFunction() && ua->toString() == ub->toString();
+        };
+        if (prevValue && !sameFunctionSignature(result->getType(), prevValue->getType()) &&
+            !Type::isSameOrCastableTo(result->getType(), prevValue->getType())) {
             std::string suggestion = "To resolve this:\n"
                                    "1. Check type consistency\n"
                                    "2. Verify assignment compatibility\n"
@@ -448,6 +510,16 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
     // The node above takes its type from the initializer, which drops a declared `T?`
     // (e.g. `let a: Stats? = null;` ended up as plain `Stats`). Keep the declared nullable type.
     if (type && std::dynamic_pointer_cast<NullableType>(type)) {
+        assignment->type = type;
+    }
+    // Same problem for a declared scalar whose initializer has a different (castable) type, e.g.
+    // `let PI: float = 3.14159265;` (the literal is a double). The node took the initializer's type,
+    // so the module-level global was emitted as `double` while every use site treats it as `float`,
+    // giving `fmul float ..., double %PI.val`. Keep the declared type; the IR generator converts the
+    // constant initializer to it. Only module-level variables are changed.
+    if (isGlobal && type && result && result->getType() && !type->isPointer() && !type->isFunction() &&
+        !std::dynamic_pointer_cast<NullableType>(type) &&
+        type->toString() != result->getType()->toString()) {
         assignment->type = type;
     }
     assignment->isStatic = isStatic;

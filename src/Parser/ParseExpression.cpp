@@ -242,6 +242,8 @@ std::shared_ptr<Statement> Parser::parseAs() {
 
     while (currentToken.getType() == TokenTypes::As) {
         eat(TokenTypes::As);
+        // parseType() leaves a '*' that is followed by an operand (`x as float * scale`) unconsumed,
+        // so term() sees it as a multiplication.
         std::vector<std::string> typeToCastTo = parseType();
         std::shared_ptr<Type> type = resolveType(typeToCastTo);
         expr = std::make_shared<ASTCast>(expr, type);

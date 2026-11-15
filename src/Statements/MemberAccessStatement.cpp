@@ -33,6 +33,30 @@ std::shared_ptr<Type> unwrapNullableType(std::shared_ptr<Type> t) {
     }
     return t;
 }
+
+// `Alias.NAME` where `Alias` is `module Alias = import ...;` and NAME is a module-level variable,
+// constant or function-pointer variable. Module-level variables are stored in scope under their BARE
+// name only (see CreateModule::reinterprateStatement), so the alias-qualified lookup used for
+// functions never finds them, and the alias itself has no type ("<null>"). Returns the module if
+// `alias` names one that declares `member`, else nullptr.
+std::shared_ptr<ModuleExpression> findModuleWithMember(SymbolTableType scope, const std::string& alias,
+                                                       const std::vector<std::string>& accessContext,
+                                                       const std::string& member) {
+    if (alias.empty()) return nullptr;
+    std::vector<std::string> candidates{alias};
+    std::string qualified;
+    for (const auto& context : accessContext) {
+        if (!qualified.empty()) qualified += ".";
+        qualified += context;
+        candidates.push_back(qualified + "." + alias);
+    }
+    for (const auto& name : candidates) {
+        if (auto mod = std::dynamic_pointer_cast<ModuleExpression>(scope->get(name))) {
+            if (mod->getMember(member)) return mod;
+        }
+    }
+    return nullptr;
+}
 } // namespace
 
 MemberAccess::MemberAccess(const std::string& obj, const std::string& member, std::shared_ptr<Statement> assignVal) {
@@ -171,6 +195,19 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
             }
         }
 
+        // `OGL.glGenBuffers(1, &id)`: a call through a module-level function-pointer variable. It is stored
+        // under its bare name, which is exactly how code inside the module calls it.
+        if (!method) {
+            std::string aliasName = resolvedObjectName.empty() ? objectName : resolvedObjectName;
+            if (findModuleWithMember(scope, aliasName, accessContext, memberName) && scope->get(memberName)) {
+                auto variableCall = std::make_shared<Call>(memberName, arguments);
+                variableCall->setSpan(this->getSpan());
+                auto result = variableCall->express(scope);
+                if (result && result->getType()) this->type = result->getType();
+                return result;
+            }
+        }
+
         if (!method) {
             auto userType = std::dynamic_pointer_cast<UserDefinedType>(scope->getType(baseTypeName));
             if (userType) {
@@ -294,6 +331,24 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
         } else {
             console.reportError(Console::SEMANTIC_ERROR, "Method '" + methodName + "' not found in scope", FileSpan{});
             return nullptr;
+        }
+    }
+
+    // `Alias.NAME` on a module alias: read the module-level variable/constant.
+    {
+        std::string aliasName = resolvedObjectName.empty() ? objectName : resolvedObjectName;
+        if (findModuleWithMember(scope, aliasName, accessContext, memberName) && scope->get(memberName)) {
+            if (assignmentValue) {
+                console.reportError(Console::SEMANTIC_ERROR,
+                    "Assigning to module variable '" + aliasName + "." + memberName + "' from outside the module is not supported.",
+                    FileSpan{});
+                return nullptr;
+            }
+            auto variableGet = std::make_shared<GetVariable>(memberName);
+            variableGet->setSpan(this->getSpan());
+            auto result = variableGet->express(scope);
+            if (result && result->getType()) this->type = result->getType();
+            return result;
         }
     }
 

@@ -1061,14 +1061,20 @@ void IRGenerator::generateFunctionBody(
             break;
         }
 
-        if (/* arg escapes = false*/ true) {
-            activeScope->set(argName, &arg); // Use directly
+        // Parameters are spilled into entry-block stack slots so they are assignable like any local
+        // (`w = w + x;`). An LLVM argument is an SSA value with no storage, so storing into it fails
+        // module verification ("Store operand must be a pointer"). Reads go through getVariable,
+        // which loads from the slot, exactly as it does for `let` locals; `&param` now returns the
+        // real slot. `this` stays a direct SSA argument: it is never reassigned and every method
+        // reads it, so there is no reason to add a load on that hot path.
+        if (argName == "this" || argName.empty()) {
+            activeScope->set(argName, &arg);
         } else {
             llvm::IRBuilder<> tmpBuilder(&function->getEntryBlock(), function->getEntryBlock().begin());
-            llvm::AllocaInst* alloca = tmpBuilder.CreateAlloca(arg.getType(), nullptr, argName);
+            llvm::AllocaInst* alloca = tmpBuilder.CreateAlloca(arg.getType(), nullptr, argName + ".addr");
             Builder->CreateStore(&arg, alloca);
             activeScope->set(argName, alloca);
-        }        
+        }
 
         // Function-pointer parameters: register the callee's LLVM FunctionType under
         // "*<paramName>". With opaque pointers the arg's llvm type is just `ptr`, so

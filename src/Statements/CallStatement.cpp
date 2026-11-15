@@ -1,5 +1,8 @@
+#include <omniscript/Semantic/GenericInstantiator.h>
 // CallStatement.cpp
 #include <cstdio>
+#include <algorithm>
+#include <cctype>
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/FunctionStatement.h>
@@ -27,6 +30,39 @@
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
 namespace Omniscript {
+
+std::string instanceAliasTarget(const std::string& name);
+std::string canonicalTypeName(const std::string& name);
+
+namespace {
+// Rewrites every identifier in a printed type ("* L.List_Json__JsonValue_ptr") to its canonical
+// spelling: a generic-instance alias (L.List_X -> Iter.List_X) or an imported-type alias
+// (Str.String -> String). Two spellings of one type then print identically.
+std::string canonicalTypeSpelling(const std::string& s) {
+    std::string out;
+    size_t i = 0;
+    auto isId = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '.'; };
+    while (i < s.size()) {
+        if (!isId(s[i])) { out += s[i++]; continue; }
+        size_t j = i;
+        while (j < s.size() && isId(s[j])) ++j;
+        std::string tok = s.substr(i, j - i);
+        std::string t = instanceAliasTarget(tok);
+        if (!t.empty()) tok = t;
+        tok = canonicalTypeName(tok);
+        out += tok;
+        i = j;
+    }
+    return out;
+}
+
+// Type::isSameOrCastableTo, plus: two alias spellings of the same type are the same type.
+bool isSameOrCastableToAliased(const std::shared_ptr<Type>& from, const std::shared_ptr<Type>& to) {
+    if (Type::isSameOrCastableTo(from, to)) return true;
+    if (!from || !to) return false;
+    return canonicalTypeSpelling(from->toString()) == canonicalTypeSpelling(to->toString());
+}
+} // namespace
 
 namespace {
 // When two types print identically but are not compatible, the plain message is useless.
@@ -104,7 +140,7 @@ std::shared_ptr<Expression> Call::express(SymbolTableType scope) {
         return handleMemberAccessCall(memberAccess, scope);
     }
 
-        // NEW: call through an expression that yields a function pointer.
+    // NEW: call through an expression that yields a function pointer.
     // Triggers for IndexAccess (arr[i](v)), ArrowAccess (p->fn(v)),
     // and Dereference ((*fp)(v)). MemberAccess is handled above; bare
     // GetVariable ("printf(...)", "f(...)") goes through the named-callee
@@ -191,6 +227,25 @@ std::shared_ptr<Expression> Call::express(SymbolTableType scope) {
     // Resolve target name and context
     auto named = std::dynamic_pointer_cast<NamedStatement>(expr);
     std::string targetName = named ? named->getName() : instanceName;
+
+    // `Str.String{}` after `module Str = import "String.os"` of an already loaded module: the
+    // struct is registered under its canonical name (`String`), not the alias-qualified one.
+    {
+        const std::string canon = canonicalTypeName(callee);
+        if (canon != callee) {
+            auto isTypeSymbol = [&](const std::string& n) {
+                auto e = scope->get(n);
+                return std::dynamic_pointer_cast<StructExpression>(e) || std::dynamic_pointer_cast<ClassExpression>(e);
+            };
+            DEBUG_LOG("[Call] Canonical callee '" + canon + "': struct/class symbol=" +
+                      std::string(isTypeSymbol(canon) ? "yes" : "no"));
+            if (!isTypeSymbol(callee) && isTypeSymbol(canon)) {
+                DEBUG_LOG("[Call] Constructor '" + callee + "' resolved through its canonical name '" + canon + "'.");
+                if (targetName == callee) targetName = canon;
+                callee = canon;
+            }
+        }
+    }
     std::string impliedTargetName = resolveImpliedTargetName(targetName);
     std::string contextualName = buildContextualName(targetName, impliedTargetName, scope);
     // A struct/class name used as a callee is a constructor call, so an inherited access
@@ -203,6 +258,13 @@ std::shared_ptr<Expression> Call::express(SymbolTableType scope) {
     DEBUG_LOG("The callee is '" + callee + "' target name is '" + targetName + "' and instance name is '" + instanceName + "'.");
     logArgumentDetails();
     
+    // Lazy generic functions: `sort<i32>(...)` arrives as callee `sort_i32`. If nothing by that name
+    // exists yet but it names an instance of a registered function template, create it now.
+    if (!calleeIsType && GenericInstantiator::hasFunctionTemplates() &&
+        scope->getOverloads(contextualName).empty() && scope->getOverloads(callee).empty()) {
+        GenericInstantiator::ensureFunctionInstanceByCallee(callee);
+    }
+
     // Find the callable
     // Bare `f(...)` with a stale/irrelevant inherited access context (e.g. `g = f(...)`):
     // if nothing matches the contextual name but a plain `f` exists, use `f` directly.
@@ -545,7 +607,7 @@ std::shared_ptr<Expression> Call::resolveMethodOverload(
         auto firstParam = std::dynamic_pointer_cast<FunctionInputExpression>(paramList[0]);
         if (!firstParam) continue;
         
-        if (Type::isSameOrCastableTo(baseExpr->getType(), firstParam->getType())) {
+        if (isSameOrCastableToAliased(baseExpr->getType(), firstParam->getType())) {
             // This overload is compatible with the base type
             DEBUG_LOG("[Call] Found compatible method overload: " + funcExpr->mangledName);
             return funcExpr;
@@ -726,6 +788,50 @@ std::shared_ptr<Expression> Call::findCallable(const std::string& contextualName
     
     // Fall back to direct lookup
     auto result = scope->get(callee);
+    if (result) {
+        DEBUG_LOG("[Call] Direct lookup of '" + callee + "' gave '" + result->toString() + "' of type '" +
+                  (result->getType() ? result->getType()->toString() : std::string("null")) + "'");
+    }
+    if (!result || !std::dynamic_pointer_cast<Callable>(result)) {
+        // `Str.String{}` after `module Str = import "String.os"` of an already loaded module: the
+        // constructor is registered under the type's own name (`String`), and the alias-qualified
+        // name either does not exist or resolves to something that is not callable.
+        std::vector<std::string> candidates;
+        // The struct expression is stored under the exact name its type was created with
+        // (ConstructStructPrototype: createUserDefinedType(name) + scope->set(name, structExpr)),
+        // and `Str.String` is a type alias of that same type object. Ask the type for the key.
+        if (auto aliasedType = scope->getType(callee)) {
+            if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(aliasedType)) {
+                if (udt->name != callee) candidates.push_back(udt->name);
+            }
+        }
+        const std::string canon = canonicalTypeName(callee);
+        if (canon != callee) candidates.push_back(canon);
+        const size_t dot = callee.rfind('.');
+        if (dot != std::string::npos) candidates.push_back(callee.substr(dot + 1));
+        {
+            auto t = scope->getType(callee);
+            DEBUG_LOG("[Call] Constructor fallback for '" + callee + "': getType=" +
+                      (t ? t->toString() + " (kind " + std::string(t->kindName()) + ")" : std::string("none")) +
+                      ", " + std::to_string(candidates.size()) + " candidate(s)");
+        }
+        for (const auto& cand : candidates) {
+            auto alt = scope->get(cand);
+            if (!std::dynamic_pointer_cast<Callable>(alt)) {
+                // A same-named module replaced the struct under this key; CreateModule kept it here.
+                if (auto kept = scope->get("__struct__" + cand)) alt = kept;
+            }
+            DEBUG_LOG("[Call]   candidate '" + cand + "': " + (alt ? alt->toString().substr(0, 60) : std::string("not in scope")));
+            const bool isCtor = alt && (std::dynamic_pointer_cast<StructExpression>(alt) ||
+                                        std::dynamic_pointer_cast<ClassExpression>(alt));
+            if (isCtor || (alt && std::dynamic_pointer_cast<Callable>(alt))) {
+                DEBUG_LOG("[Call] '" + callee + "' resolved through '" + cand + "'.");
+                callee = cand;
+                result = alt;
+                break;
+            }
+        }
+    }
     if (!result) {
         std::string suggestion = Console::formatString(
             "To resolve this:\n"
@@ -771,8 +877,62 @@ std::shared_ptr<Expression> Call::resolveOverload(
     SymbolTableType scope) {
     
     DEBUG_LOG("[Call] Found " + std::to_string(overloads.size()) + " overload candidates");
-    
-    for (auto& overload : overloads) {
+
+    // Prefer an overload whose parameter types equal the argument types exactly. Without this the
+    // first candidate that can match through coercion wins: a bare `alloc(J_STR)` (int argument)
+    // picked `Mem.alloc(UInt64)` ahead of the module's own `alloc(int)` just because it was
+    // registered first and int coerces to u64. Order is otherwise unchanged (stable partition).
+    std::vector<std::shared_ptr<Expression>> ordered = overloads;
+    if (overloads.size() > 1) {
+        bool anyNamed = false;
+        for (const auto& a : args) {
+            if (std::dynamic_pointer_cast<ArgumentStatement>(a)) { anyNamed = true; break; }
+        }
+        if (!anyNamed) {
+            auto evaluated = evaluateArguments(scope);
+            if (evaluated.size() == args.size()) {
+                auto isExact = [&](const std::shared_ptr<Expression>& o) {
+                    auto fe = std::dynamic_pointer_cast<FunctionExpression>(o);
+                    if (!fe) return false;
+                    std::vector<std::shared_ptr<FunctionInputExpression>> ps;
+                    for (const auto& p : fe->getParameters()) {
+                        if (auto c = std::dynamic_pointer_cast<FunctionInputExpression>(p)) ps.push_back(c);
+                    }
+                    if (ps.size() != evaluated.size()) return false;
+                    for (size_t i = 0; i < ps.size(); ++i) {
+                        if (ps[i]->isVariadic || !evaluated[i] || !evaluated[i]->getType() || !ps[i]->getType()) return false;
+                        if (canonicalTypeSpelling(evaluated[i]->getType()->toString()) !=
+                            canonicalTypeSpelling(ps[i]->getType()->toString())) return false;
+                    }
+                    return true;
+                };
+                // Next, prefer overloads whose parameter types the arguments can actually bind to. Without
+                // this the first registered candidate is tried first, and its failed bind is reported as a
+                // hard error even though a later overload (`readFile(char*, u64*)` in Vulkan.os vs
+                // `readFile(char*, Str.String*)` in IO.os) would have matched. Candidates that fail this
+                // check are not dropped, only tried last, so a call that only matches through argument
+                // coercion behaves as before.
+                auto isCompatible = [&](const std::shared_ptr<Expression>& o) {
+                    auto fe = std::dynamic_pointer_cast<FunctionExpression>(o);
+                    if (!fe) return false;
+                    std::vector<std::shared_ptr<FunctionInputExpression>> ps;
+                    for (const auto& p : fe->getParameters()) {
+                        if (auto c = std::dynamic_pointer_cast<FunctionInputExpression>(p)) ps.push_back(c);
+                    }
+                    for (size_t i = 0; i < evaluated.size() && i < ps.size(); ++i) {
+                        if (ps[i]->isVariadic) break;
+                        if (!evaluated[i] || !evaluated[i]->getType() || !ps[i]->getType()) continue;
+                        if (!isSameOrCastableToAliased(evaluated[i]->getType(), ps[i]->getType())) return false;
+                    }
+                    return true;
+                };
+                std::stable_partition(ordered.begin(), ordered.end(), isCompatible);
+                std::stable_partition(ordered.begin(), ordered.end(), isExact);
+            }
+        }
+    }
+
+    for (auto& overload : ordered) {
         auto funcExpr = std::dynamic_pointer_cast<FunctionExpression>(overload);
         if (!funcExpr) {
             DEBUG_LOG("[Call] Skipping non-function overload.");
@@ -1359,7 +1519,7 @@ bool Call::processRegularPositionalArgument(
     }
 
     // Check type compatibility
-    if (!Type::isSameOrCastableTo(value->getType(), param->getType())) {
+    if (!isSameOrCastableToAliased(value->getType(), param->getType())) {
         std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check type requirements\n"
@@ -1669,7 +1829,7 @@ bool Call::matchArgumentsToParameters(
                                matchingArg->defaultValue->getType() : 
                                matchingArg->defaultValue->getRootType());
         
-        if (!Type::isSameOrCastableTo(matchingArgType, param->getType())) {
+        if (!isSameOrCastableToAliased(matchingArgType, param->getType())) {
             std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Check type requirements\n"

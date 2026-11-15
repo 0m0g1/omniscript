@@ -231,7 +231,23 @@ std::shared_ptr<Statement> Parser::parseStruct() {
 
     eat(TokenTypes::LeftBrace);
 
-    while (currentToken.getType() != TokenTypes::RightBrace) {
+    // After a bad member, skip to the end of that member (its ';', or the struct's '}') so one
+    // mistake does not turn the rest of the body into a pile of top-level parse errors. The
+    // struct is still returned: the error is already reported and the program will not run.
+    auto skipBadMember = [&]() {
+        int depth = 0;
+        while (currentToken.getType() != TokenTypes::EOI) {
+            const TokenTypes t = currentToken.getType();
+            if (depth == 0 && t == TokenTypes::Semicolon) { eat(TokenTypes::Semicolon); return; }
+            if (depth == 0 && t == TokenTypes::RightBrace) return;
+            if (t == TokenTypes::LeftBrace) ++depth;
+            else if (t == TokenTypes::RightBrace) --depth;
+            eat(t);
+        }
+    };
+
+    while (currentToken.getType() != TokenTypes::RightBrace &&
+           currentToken.getType() != TokenTypes::EOI) {
 
         if (currentToken.getType() == TokenTypes::Identifier) {
             std::string fieldName = currentToken.getValue();
@@ -240,10 +256,26 @@ std::shared_ptr<Statement> Parser::parseStruct() {
             // `name(` is a method. Deciding this from the token right after the name (as
             // parseClass does) avoids checkIfLambdaExpression(), which misreads parameter
             // lists containing pointer types such as `char*` or `void**`.
+            // `name<T>(` is a generic method: `symbolAs<F>(name: char*) => F { ... }`. The type
+            // parameters are parsed first and handed to the lambda parser, exactly as for a generic
+            // free function (see the `<`/`(` case in Parser::factor).
+            parameterType methodTypeParams;
+            bool genericMethod = false;
+            if (currentToken.getType() == TokenTypes::LessThan) {
+                int i = 0;
+                if (tryParseTypeParametersLookahead(i) && lexer.peekToken(i).getType() == TokenTypes::LeftParen) {
+                    methodTypeParams = parseTypeParametersForDeclaration();
+                    genericMethod = true;
+                }
+            }
+
             if (currentToken.getType() == TokenTypes::LeftParen) {
-                auto func = parseLambdaFunction(structName + "." + fieldName);
+                auto func = genericMethod
+                    ? parseLambdaFunction(structName + "." + fieldName, methodTypeParams)
+                    : parseLambdaFunction(structName + "." + fieldName);
                 if (!func) {
-                    return nullptr; // the lambda parser already reported the error
+                    skipBadMember(); // the lambda parser already reported the error
+                    continue;
                 }
                 body.push_back(func);
 
@@ -275,8 +307,9 @@ std::shared_ptr<Statement> Parser::parseStruct() {
                     Console::SYNTAX_ERROR,
                     "Field '" + fieldName + "' in struct '" + structName +
                     "' needs a type (': Type') or an initial value.",
-                    FileSpan{});
-                return nullptr;
+                    errorSpanAtCurrentToken());
+                skipBadMember();
+                continue;
             } else if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
                 if (typed->getType()) {
                     field->setType(typed->getType());
@@ -289,10 +322,12 @@ std::shared_ptr<Statement> Parser::parseStruct() {
             eat(TokenTypes::Semicolon);
 
         } else {
-            console.reportError(Console::SYNTAX_ERROR,
-                "Unexpected token '" + currentToken.getValue() + "' in struct '" + structName + "' body.",
-                FileSpan{});
-            return nullptr;
+            // A reserved word used as a field name gets the "rename it" explanation.
+            const std::string msg = Token::isKeywordType(currentToken.getType())
+                ? expectedIdentifierMessage("field name")
+                : "Unexpected token '" + currentToken.getValue() + "' in struct '" + structName + "' body.";
+            console.reportError(Console::SYNTAX_ERROR, msg, errorSpanAtCurrentToken());
+            skipBadMember();
         }
 
     }

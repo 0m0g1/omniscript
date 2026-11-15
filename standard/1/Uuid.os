@@ -3,7 +3,7 @@
 module Str = import "standard/1/String.os";
 module Bin = import "standard/1/Binary.os";
 
-extern "C" fn BCryptGenRandom(alg: void*, buf: u8*, n: u32, flags: u32) => i32;
+extern "C", "bcrypt.dll" fn BCryptGenRandom(alg: void*, buf: u8*, n: u32, flags: u32) => i32;
 extern "C" fn time(t: i64*) => i64;
 
 struct Uuid { b: [16]u8; }

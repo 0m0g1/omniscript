@@ -19,6 +19,10 @@ public:
     bool isIntrinsic = false;
     bool isExtern = false;
     bool isStatic = false;
+    // Unconstrained generic function (`function f<T>(...)`): express() registers it as a template
+    // with GenericInstantiator and emits nothing; instances are created on first call.
+    // The type parameter names are in `typeParams` (.first).
+    bool isGenericTemplate = false;
     
     std::string externName;
     std::string intrinsicName;

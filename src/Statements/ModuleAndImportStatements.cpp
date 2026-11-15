@@ -21,6 +21,8 @@
 
 #include <omniscript/Expressions/AggregateExpressions.h>
 #include <omniscript/Expressions/BlockExpression.h>
+#include <omniscript/Expressions/ClassExpression.h>
+#include <omniscript/Expressions/StructExpression.h>
 #include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/extern/ExternResolver.h>
 #include <omniscript/Modules/ModuleResolver.h>
@@ -64,6 +66,8 @@ bool tryReadSource(const std::string& path, std::string& out) {
 // (e.g. `out: Buffer*` -> `out: Mem.Buffer*`) so cross-references keep
 // resolving after the struct itself is renamed.
 // ============================================================================
+std::string mangleTypeArgs(const std::vector<std::shared_ptr<Type>>& args);   // Genericinstantiator.cpp
+
 namespace {
 void renameTypeInPlace(std::shared_ptr<Type> type, const std::string& oldName, const std::string& newName,
                        const std::vector<std::string>& skip = {}) {
@@ -72,6 +76,18 @@ void renameTypeInPlace(std::shared_ptr<Type> type, const std::string& oldName, c
     if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
         // Generic type parameters (T, U...) are placeholders resolved at instantiation,
         // never module members.
+        // Generic arguments (`List<XmlNode*>`) can reference module types too.
+        // The instance name is "<template>_<mangled args>"; keep it in step with renamed args,
+        // because the instantiator derives the instance it creates from the args.
+        const std::string oldSuffix = udt->typeArgs.empty() ? std::string() : "_" + mangleTypeArgs(udt->typeArgs);
+        for (auto& arg : udt->typeArgs) renameTypeInPlace(arg, oldName, newName, skip);
+        if (!oldSuffix.empty()) {
+            const std::string newSuffix = "_" + mangleTypeArgs(udt->typeArgs);
+            if (newSuffix != oldSuffix && udt->name.size() > oldSuffix.size() &&
+                udt->name.compare(udt->name.size() - oldSuffix.size(), oldSuffix.size(), oldSuffix) == 0) {
+                udt->name = udt->name.substr(0, udt->name.size() - oldSuffix.size()) + newSuffix;
+            }
+        }
         for (const auto& s : skip) if (udt->name == s) return;
         if (udt->name == oldName) udt->name = newName;
         return;
@@ -212,6 +228,64 @@ std::shared_ptr<Expression> CreateModule::express(SymbolTableType scope) {
             if (sp->getName() == getName()) hasSameNamedType = true;
         } else if (auto cp = std::dynamic_pointer_cast<ConstructClassPrototype>(v)) {
             if (cp->getName() == getName()) hasSameNamedType = true;
+        }
+    }
+
+    // Rename references to this module's own structs/classes in EVERY function signature
+    // (free functions and methods of sibling types), not just a struct's references to itself.
+    // Otherwise `fn parseValue(p: Parser*)` keeps the bare name while a local `let p: Parser`
+    // is rebound to `Json.Parser`, and the argument no longer binds (types compare by name).
+    {
+        std::string outerCtx;
+        for (size_t i = 0; i + 1 < accessContext.size(); i++) outerCtx += accessContext[i] + ".";
+        std::vector<std::pair<std::string, std::string>> typeRenames;
+        for (const auto& stmt : flattenedStatements) {
+            auto m = std::dynamic_pointer_cast<ModuleMember>(stmt);
+            if (!m) continue;
+            auto v = m->getValue();
+            std::string old;
+            if (auto sp = std::dynamic_pointer_cast<ConstructStructPrototype>(v)) old = sp->getName();
+            else if (auto cp = std::dynamic_pointer_cast<ConstructClassPrototype>(v)) old = cp->getName();
+            if (old.empty() || old.find('.') != std::string::npos) continue;
+            const std::string neu = (old == getName()) ? outerCtx + old : outerCtx + getName() + "." + old;
+            if (neu != old) typeRenames.emplace_back(old, neu);
+        }
+        auto renameSig = [&](const std::shared_ptr<FunctionDeclaration>& fn, const std::vector<std::string>& skip) {
+            if (!fn || fn->isExtern) return;
+            for (auto& param : fn->parameters) {
+                std::shared_ptr<Type> t;
+                if (auto ps = std::dynamic_pointer_cast<ParameterStatement>(param)) t = ps->getType();
+                else if (auto fi = std::dynamic_pointer_cast<FunctionInputExpression>(param)) t = fi->getType();
+                for (const auto& [o, n] : typeRenames) renameTypeInPlace(t, o, n, skip);
+            }
+            for (const auto& [o, n] : typeRenames) renameTypeInPlace(fn->returnType, o, n, skip);
+        };
+        if (!typeRenames.empty()) {
+            for (const auto& stmt : flattenedStatements) {
+                auto m = std::dynamic_pointer_cast<ModuleMember>(stmt);
+                if (!m) continue;
+                auto v = m->getValue();
+                if (auto fn = std::dynamic_pointer_cast<FunctionDeclaration>(v)) {
+                    renameSig(fn, {});
+                } else if (auto sp = std::dynamic_pointer_cast<ConstructStructPrototype>(v)) {
+                    std::vector<std::string> skip;
+                    for (const auto& tp : sp->getTypeParams()) skip.push_back(tp.first);
+                    for (auto& bm : sp->getBody()) {
+                        if (auto fn = std::dynamic_pointer_cast<FunctionDeclaration>(bm)) renameSig(fn, skip);
+                        else if (auto field = std::dynamic_pointer_cast<ParameterStatement>(bm)) {
+                            for (const auto& [o, n] : typeRenames) renameTypeInPlace(field->getType(), o, n, skip);
+                        }
+                    }
+                } else if (auto cp = std::dynamic_pointer_cast<ConstructClassPrototype>(v)) {
+                    std::vector<std::string> skip;
+                    for (const auto& tp : cp->getTypeParams()) skip.push_back(tp.first);
+                    for (auto& cm : cp->getBody()) {
+                        if (!cm) continue;
+                        if (auto fn = std::dynamic_pointer_cast<FunctionDeclaration>(cm->getValue())) renameSig(fn, skip);
+                        else for (const auto& [o, n] : typeRenames) renameTypeInPlace(cm->getType(), o, n, skip);
+                    }
+                }
+            }
         }
     }
 
@@ -393,6 +467,18 @@ std::shared_ptr<Expression> CreateModule::express(SymbolTableType scope) {
     }
 
     auto module = std::make_shared<ModuleExpression>(name, members);
+    // `module String { struct String {...} }`: the module constant below is stored under the same
+    // key as the struct expression and would replace it, leaving `String{}` / `Str.String{}`
+    // with a non-callable Module. Keep the struct reachable under a reserved key; Call falls back
+    // to it when a type name resolves to a module.
+    {
+        auto shadowed = scope->get(name);
+        if (std::dynamic_pointer_cast<StructExpression>(shadowed) ||
+            std::dynamic_pointer_cast<ClassExpression>(shadowed)) {
+            scope->setConstant("__struct__" + name, shadowed);
+            DEBUG_LOG("[Module] '" + name + "' is also a type: kept its constructor as '__struct__" + name + "'.");
+        }
+    }
     scope->setConstant(name, module);
     scope->defineModule(modulePath, moduleScope);
 

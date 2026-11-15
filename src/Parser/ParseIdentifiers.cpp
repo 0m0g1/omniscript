@@ -15,6 +15,30 @@
 
 namespace Omniscript {
 
+namespace {
+// `List<T>{}` / `Mod.List<Mod.T>{}`: a zero-initialised value of a (generic) struct type.
+// Equivalent to what `let x: List<T>;` produces: a NullExpression of the parsed type, so it goes
+// through the same type resolution / generic instantiation as a declaration does.
+class TypeDefaultValue : public TypedStatement, public NamedStatement {
+public:
+    std::shared_ptr<Statement> evaluate(SymbolTableType) override { return nullptr; }
+    std::shared_ptr<Expression> express(SymbolTableType) override {
+        auto e = std::make_shared<NullExpression>(type);
+        e->setSpan(getSpan());
+        return e;
+    }
+    std::string toString() const override { return "TypeDefaultValue(" + (type ? type->toString() : std::string("?")) + ")"; }
+    std::string formatError(const std::string& msg) const override { return "Error in '" + toString() + "'.\n" + msg; }
+    std::shared_ptr<Statement> clone() const override {
+        auto c = std::make_shared<TypeDefaultValue>();
+        c->setType(getType());
+        c->setRootType(getRootType());
+        c->setSpan(getSpan());
+        return c;
+    }
+};
+} // namespace
+
 // One-shot flag set by parseUnaryExpression for `*ident = value;` so that the identifier is
 // parsed on its own and the assignment is applied to the dereference, not to the identifier.
 bool g_deferAssignmentToUnary = false;
@@ -72,6 +96,32 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
 
     std::vector<std::string> accessContext = { rootIdentifier };
     std::string currentMember = rootIdentifier;
+
+    // `<` Type (',' Type)* `>` immediately followed by `{`  ->  generic struct literal.
+    // Scans only type-ish tokens, so comparisons like `a < b` never match.
+    auto isGenericBraceLiteral = [&]() -> bool {
+        if (currentToken.getType() != TokenTypes::LessThan) return false;
+        int depth = 1;
+        int i = 1;
+        while (depth > 0) {
+            switch (lexer.peekToken(i).getType()) {
+                case TokenTypes::Identifier:
+                case TokenTypes::Dot:
+                case TokenTypes::Comma:
+                case TokenTypes::Multiply:
+                case TokenTypes::Power:
+                case TokenTypes::QuestionMark:
+                case TokenTypes::BitwiseAnd:
+                    break;
+                case TokenTypes::LessThan:   depth++;    break;
+                case TokenTypes::GreaterThan: depth--;   break;
+                case TokenTypes::ShiftRight: depth -= 2; break;
+                default: return false;
+            }
+            i++;
+        }
+        return depth == 0 && lexer.peekToken(i).getType() == TokenTypes::LeftBrace;
+    };
     
     while (true) {
         Token currentStartToken = currentToken;
@@ -144,7 +194,14 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
                 return expr;
             }
             
-            auto constructor = std::make_shared<ObjectConstructorStatement>(expr, currentMember, "", args);
+            // Use the full dotted name (`Str.String`): the struct and its callable are registered
+            // under the qualified name, so the bare last component (`String`) isn't callable.
+            std::string constructedType;
+            for (size_t k = 0; k < accessContext.size(); ++k) {
+                if (k > 0) constructedType += ".";
+                constructedType += accessContext[k];
+            }
+            auto constructor = std::make_shared<ObjectConstructorStatement>(expr, constructedType, "", args);
             constructor->setPosition(currentStartToken, previousToken);
             constructor->setSpan(span);
             
@@ -333,6 +390,55 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             continue;
         }
         
+        else if (isGenericBraceLiteral()) {
+            // Rebuild the full type tokens (`L . List < Str . String >`) exactly as parseType would
+            // have produced them, then resolve like a declared type.
+            std::vector<std::string> typeTokens;
+            for (size_t k = 0; k < accessContext.size(); ++k) {
+                if (k > 0) typeTokens.push_back(".");
+                typeTokens.push_back(accessContext[k]);
+            }
+            eat(TokenTypes::LessThan);
+            typeTokens.push_back("<");
+            while (true) {
+                std::vector<std::string> arg = parseType();
+                if (arg.empty()) return expr;
+                typeTokens.insert(typeTokens.end(), arg.begin(), arg.end());
+                if (currentToken.getType() == TokenTypes::Comma) {
+                    eat(TokenTypes::Comma);
+                    typeTokens.push_back(",");
+                    continue;
+                }
+                break;
+            }
+            // `List<List<i32>>`: the inner parseType already consumed the `>>` token.
+            if (previousToken.getType() != TokenTypes::ShiftRight) {
+                eat(TokenTypes::GreaterThan, "Expected '>' to close generic type arguments.");
+            }
+            typeTokens.push_back(">");
+
+            std::vector<std::shared_ptr<Statement>> fieldArgs = parseArguments(
+                TokenTypes::LeftBrace, TokenTypes::RightBrace, TokenTypes::Colon);
+            if (!fieldArgs.empty()) {
+                console.reportError(
+                    Console::SYNTAX_ERROR,
+                    "Field initialisers are not supported in generic struct literals yet",
+                    "To resolve this:\n1. Use `Type<...>{}` and assign the fields afterwards",
+                    span
+                );
+                return expr;
+            }
+
+            auto literal = std::make_shared<TypeDefaultValue>();
+            auto resolved = resolveType(typeTokens);
+            literal->setType(resolved);
+            literal->setRootType(resolved);
+            literal->setPosition(currentStartToken, previousToken);
+            literal->setSpan(span);
+            expr = literal;
+            continue;
+        }
+
         else if (isGenericCallOrConstructor()) {
             // Generic function call
             std::vector<std::string> typeParams = parseTypeParametersForCall();

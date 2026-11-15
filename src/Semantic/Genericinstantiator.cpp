@@ -11,6 +11,8 @@
 
 namespace Omniscript {
 
+std::string canonicalTypeName(const std::string& name);   // ModuleAndImportStatements.cpp
+
 // ---------------------------------------------------------------------------
 // Mangling
 // ---------------------------------------------------------------------------
@@ -25,19 +27,36 @@ static std::string sanitizeForName(const std::string& s) {
     return out;
 }
 
+std::string mangleTypeArgs(const std::vector<std::shared_ptr<Type>>& args);
+
 std::string mangleTypeName(const std::shared_ptr<Type>& type) {
     if (!type) return "void";
     if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
-        // The front end spells a qualified type argument with "__" for each '.'
-        // (Str.String -> Str__String). The instance name must use the same spelling, otherwise
-        // `L.List_Str__String` and `L.List_Str_String` are two different types to the checker.
-        std::string qualified;
-        qualified.reserve(udt->name.size() + 4);
-        for (char c : udt->name) {
-            if (c == '.') qualified += "__";
-            else qualified += c;
+        auto dotsToUnderscores = [](const std::string& in) {
+            std::string q;
+            q.reserve(in.size() + 4);
+            for (char c : in) { if (c == '.') q += "__"; else q += c; }
+            return q;
+        };
+        // A generic instance used as a type argument (`List<List<Str.String>>`). Build the name
+        // from the template and the MANGLED arguments, never from udt->name: that spelling carries
+        // whatever the front end wrote (`Str.String` early, `String` once the import alias is
+        // canonical), so the same type used to mangle two ways and produced two instances
+        // (Iter.List_L__List__Str__String and Iter.List_L__List__String).
+        if (!udt->typeArgs.empty() && !udt->templateName.empty()) {
+            return sanitizeForName(dotsToUnderscores(udt->templateName) + "__" + mangleTypeArgs(udt->typeArgs));
         }
-        return sanitizeForName(qualified);
+        if (!udt->typeArgs.empty()) {
+            const std::string suffix = "_" + mangleTypeArgs(udt->typeArgs);
+            if (udt->name.size() > suffix.size() &&
+                udt->name.compare(udt->name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+                const std::string tmplName = udt->name.substr(0, udt->name.size() - suffix.size());
+                return sanitizeForName(dotsToUnderscores(tmplName) + "__" + suffix.substr(1));
+            }
+        }
+        // A qualified type argument is spelled with "__" for each '.' (Str.String -> Str__String),
+        // after resolving an import alias to the canonical type name (Str.String -> String).
+        return sanitizeForName(dotsToUnderscores(canonicalTypeName(udt->name)));
     }
     // Match mangleTypeTokens: use the source spelling, not toString().
     if (auto prim = std::dynamic_pointer_cast<PrimitiveType>(type)) {
@@ -331,7 +350,11 @@ void GenericInstantiator::registerTemplate(const std::string& name,
 }
 
 bool GenericInstantiator::hasTemplate(const std::string& name) {
-    return templates().count(name) > 0;
+    if (templates().count(name) > 0) return true;
+    // Same fallback ensureInstance uses: a module alias (L.List) that was never registered as a
+    // template name still resolves through the short name registerTemplate always records.
+    const auto dot = name.rfind('.');
+    return dot != std::string::npos && templates().count(name.substr(dot + 1)) > 0;
 }
 
 std::vector<std::shared_ptr<Expression>> GenericInstantiator::drainPending() {
@@ -361,6 +384,14 @@ std::string instanceAliasTarget(const std::string& name) {
 
 static void aliasInstanceName(SymbolTableType scope, const std::string& instName, const std::string& alias) {
     if (alias.empty() || alias == instName) return;
+    {
+        auto prev = instanceAliases().find(alias);
+        if (prev != instanceAliases().end() && prev->second != instName) {
+            DEBUG_LOG("[ensureInstance] alias '" + alias + "' already -> '" + prev->second +
+                      "'; keeping it over '" + instName + "'");
+            return;
+        }
+    }
     instanceAliases()[alias] = instName;
     if (!scope) return;
 
@@ -529,6 +560,156 @@ void GenericInstantiator::ensureInstancesIn(const std::shared_ptr<Type>& type) {
     if (auto a = std::dynamic_pointer_cast<FixedArrayType>(type)) { ensureInstancesIn(a->elementType); return; }
     if (auto d = std::dynamic_pointer_cast<DynamicArrayType>(type)) { ensureInstancesIn(d->elementType); return; }
     if (auto s = std::dynamic_pointer_cast<SmartPointerType>(type)) { ensureInstancesIn(s->pointeeType); return; }
+}
+
+
+// ---------------------------------------------------------------------------
+// Lazy function templates
+// ---------------------------------------------------------------------------
+namespace {
+struct FunctionTemplate {
+    std::string name;                                   // as declared (may be module-qualified)
+    std::shared_ptr<FunctionDeclaration> decl;
+    std::vector<std::string> paramNames;                // "T", "U", ...
+    SymbolTableType scope;
+};
+std::map<std::string, FunctionTemplate>& functionTemplates() {   // keyed by bare name
+    static std::map<std::string, FunctionTemplate> t;
+    return t;
+}
+std::map<std::string, bool>& functionInstances() {
+    static std::map<std::string, bool> i;
+    return i;
+}
+std::string bareName(const std::string& n) {
+    const auto dot = n.rfind('.');
+    return dot == std::string::npos ? n : n.substr(dot + 1);
+}
+std::vector<std::string> splitOn(const std::string& s, const std::string& sep) {
+    std::vector<std::string> out;
+    size_t pos = 0;
+    while (true) {
+        size_t nx = s.find(sep, pos);
+        if (nx == std::string::npos) { out.push_back(s.substr(pos)); break; }
+        out.push_back(s.substr(pos, nx - pos));
+        pos = nx + sep.size();
+    }
+    return out;
+}
+// Inverse of Parser::generateSpecializedNameForDecleration for one parameter: "i32_ptr" -> {"i32","*"}.
+// Arrays and dotted names are not decodable from this spelling and are rejected.
+bool decodeSpelling(const std::string& piece, SymbolTableType scope, std::vector<std::string>& tokens) {
+    if (piece.empty()) return false;
+    for (const auto& part : splitOn(piece, "_")) {
+        if (part == "ptr") tokens.push_back("*");
+        else if (part == "ref") tokens.push_back("&");
+        else if (part.empty() || part == "arr" || std::isdigit(static_cast<unsigned char>(part[0]))) return false;
+        else tokens.push_back(part);
+    }
+    // The first non-modifier token is the base type: it must be a known type, otherwise this is
+    // not a type spelling at all (e.g. the "by_i64" of a function named `sort_by_i64`).
+    for (const auto& t : tokens) {
+        if (t == "*" || t == "&") continue;
+        auto ty = resolveType({t});
+        if (!ty || ty->isInvalid() || ty->isUnresolved()) return false;
+        if (std::dynamic_pointer_cast<UserDefinedType>(ty) && !(scope && scope->getType(t))) return false;
+        break;
+    }
+    return true;
+}
+} // namespace
+
+void GenericInstantiator::registerFunctionTemplate(const std::string& name,
+                                                   const std::shared_ptr<FunctionDeclaration>& decl,
+                                                   SymbolTableType scope) {
+    FunctionTemplate t;
+    t.name = name;
+    t.decl = decl;
+    for (const auto& tp : decl->typeParams) t.paramNames.push_back(tp.first);
+    t.scope = scope;
+    functionTemplates()[bareName(name)] = t;
+    DEBUG_LOG("[GenericInstantiator] Registered function template " + name);
+}
+
+bool GenericInstantiator::hasFunctionTemplates() { return !functionTemplates().empty(); }
+
+bool GenericInstantiator::ensureFunctionInstanceByCallee(const std::string& callee) {
+    const std::string bare = bareName(callee);
+
+    // Longest template name that prefixes the callee (`sort_by` before `sort`).
+    const FunctionTemplate* best = nullptr;
+    for (const auto& [key, tmpl] : functionTemplates()) {
+        if (bare.size() > key.size() + 1 && bare.compare(0, key.size(), key) == 0 && bare[key.size()] == '_') {
+            if (!best || key.size() > bareName(best->name).size()) best = &tmpl;
+        }
+    }
+    if (!best) return false;
+    const FunctionTemplate& tmpl = *best;
+
+    const std::string tail = bare.substr(bareName(tmpl.name).size() + 1);
+    const auto pieces = splitOn(tail, "__");
+    if (pieces.size() != tmpl.paramNames.size()) return false;
+
+    std::vector<std::shared_ptr<Type>> typeArgs;
+    for (const auto& piece : pieces) {
+        std::vector<std::string> tokens;
+        if (!decodeSpelling(piece, tmpl.scope, tokens)) return false;
+        auto ty = resolveType(tokens);
+        if (!ty || ty->isInvalid()) return false;
+        typeArgs.push_back(ty);
+    }
+
+    const std::string instName = tmpl.name + "_" + tail;
+    if (functionInstances().count(instName)) return true;
+    functionInstances()[instName] = true;          // mark first: guards recursive generics
+
+    std::vector<GenericBinding> bindings;
+    for (size_t i = 0; i < tmpl.paramNames.size(); ++i) {
+        bindings.push_back({tmpl.paramNames[i], typeArgs[i], pieces[i]});   // same spelling the callee used
+    }
+    auto substituteAll = [&](std::shared_ptr<Type> t) {
+        for (const auto& b : bindings) t = substituteTypeParam(t, b.name, b.type);
+        return t;
+    };
+
+    auto fn = std::dynamic_pointer_cast<FunctionDeclaration>(tmpl.decl->clone());
+    if (!fn) return false;
+    fn->setName(instName);
+    fn->isStatic = tmpl.decl->isStatic;
+    fn->isExtern = tmpl.decl->isExtern;
+    fn->externName = tmpl.decl->externName;
+    fn->isIntrinsic = tmpl.decl->isIntrinsic;
+    fn->intrinsicName = tmpl.decl->intrinsicName;
+    fn->isGenericTemplate = false;
+
+    for (auto& p : fn->parameters) {
+        if (auto ps = std::dynamic_pointer_cast<ParameterStatement>(p)) {
+            ps->setType(substituteAll(ps->getType()));
+        }
+    }
+    fn->returnType = substituteAll(tmpl.decl->returnType);
+    fn->setType(fn->returnType);
+
+    for (size_t i = 0; i < tmpl.paramNames.size(); ++i) {
+        fn->addGenericParam(tmpl.paramNames[i]);
+        fn->bindGeneric(tmpl.paramNames[i], typeArgs[i]);
+    }
+    for (auto& p : fn->parameters) substituteInStatement(p, bindings);
+    substituteInStatement(fn->body, bindings);
+    fn->setSpan(tmpl.decl->getSpan());
+
+    for (const auto& t : typeArgs) ensureInstancesIn(t);
+
+    auto expr = fn->express(tmpl.scope);
+    if (!expr) {
+        console.reportError(Console::SEMANTIC_ERROR,
+            "Failed to instantiate generic function '" + tmpl.name + "' as '" + instName + "'",
+            FileSpan{});
+        return false;
+    }
+    pending().push_back(expr);
+    DEBUG_LOG("[GenericInstantiator] Instantiated function " + instName);
+    return true;
 }
 
 } // namespace Omniscript

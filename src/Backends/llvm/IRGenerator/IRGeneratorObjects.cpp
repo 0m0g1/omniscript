@@ -7,6 +7,9 @@
 
 namespace Omniscript {
 
+std::string instanceAliasTarget(const std::string& name);
+std::string canonicalTypeName(const std::string& name);
+
 namespace {
 // LLVM struct types do not store field names, so names are recorded here when a struct is
 // built from named members (currently module objects). getStructMemberIndex() reads this.
@@ -36,10 +39,35 @@ llvm::Value* IRGenerator::createObjectInstance(
 )
 {
     DEBUG_LOG("Creating instance of type: " + typeName);
-    
-    if (llvm::StructType* structType = llvm::StructType::getTypeByName(*Context, typeName)) {
-        DEBUG_LOG("Found struct type: " + typeName);
-        return createStructInstance(typeName, varName, args, isGlobal);
+
+    // An alias-qualified type name (`Str.String`, `L.List_X`) is not the name the LLVM struct was
+    // created under (`String`, `Iter.List_X`). Resolve it the same way resolveLLVMType does.
+    std::string resolvedName = typeName;
+    if (!llvm::StructType::getTypeByName(*Context, resolvedName)) {
+        std::vector<std::string> candidates;
+        if (activeScope) {
+            if (auto* st = llvm::dyn_cast_or_null<llvm::StructType>(activeScope->getType(typeName))) {
+                if (st->hasName()) candidates.push_back(st->getName().str());
+            }
+        }
+        const std::string target = instanceAliasTarget(typeName);
+        if (!target.empty()) candidates.push_back(target);
+        const std::string canon = canonicalTypeName(typeName);
+        if (canon != typeName) candidates.push_back(canon);
+        const size_t dot = typeName.rfind('.');
+        if (dot != std::string::npos) candidates.push_back(typeName.substr(dot + 1));
+        for (const auto& cand : candidates) {
+            if (llvm::StructType::getTypeByName(*Context, cand)) {
+                DEBUG_LOG("[createObjectInstance] '" + typeName + "' resolved to struct '" + cand + "'");
+                resolvedName = cand;
+                break;
+            }
+        }
+    }
+
+    if (llvm::StructType* structType = llvm::StructType::getTypeByName(*Context, resolvedName)) {
+        DEBUG_LOG("Found struct type: " + resolvedName);
+        return createStructInstance(resolvedName, varName, args, isGlobal);
     }
 
     console.reportError(Console::TYPE_ERROR, "Unknown type: " + typeName, FileSpan{});
@@ -377,6 +405,14 @@ llvm::Value* IRGenerator::generateCast(llvm::Value* src, llvm::Type* destType) {
     if (srcType->isFunctionTy() && destType->isPointerTy()) {
         llvm::PointerType* srcPtrType = llvm::PointerType::getUnqual(*Context);
         return Builder->CreateBitCast(src, destType, "func_to_void_ptrcast");
+    }
+
+    // Aggregates evaluate to their address (e.g. `ptr[i]` yields a GEP, a local struct yields its alloca).
+    // Casting such a pointer to a struct/array destination means "copy the value it points to", so load it.
+    // `null` is excluded: loading through a null pointer would be a runtime fault, not a copy.
+    if (srcType->isPointerTy() && (destType->isStructTy() || destType->isArrayTy()) &&
+        !llvm::isa<llvm::ConstantPointerNull>(src)) {
+        return Builder->CreateLoad(destType, src, "agg.copy");
     }
 
     console.reportError(Console::TYPE_ERROR, "Unsupported cast from '" + debugType(srcType) + "' to '" + debugType(destType) + "'", FileSpan{});

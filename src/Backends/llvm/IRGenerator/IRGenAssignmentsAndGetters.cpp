@@ -256,6 +256,22 @@ llvm::Value* IRGenerator::assignVariable(
             } else {
                 auto val = codegen(statement->getValue(), scope);
                 if (!val) return nullptr; // error already reported
+                // A constant initializer must have exactly the global's type (`let PI: float = 3.14;`
+                // produces a double constant). Convert scalar constants here; the builder has no insert
+                // point at module level, so generateCast cannot be used.
+                if (val->getType() != type) {
+                    if (auto* cf = llvm::dyn_cast<llvm::ConstantFP>(val)) {
+                        if (type->isFloatingPointTy() && (cf->getType()->isFloatTy() || cf->getType()->isDoubleTy())) {
+                            val = llvm::ConstantFP::get(type, cf->getValueAPF().convertToDouble());
+                        }
+                    } else if (auto* ci = llvm::dyn_cast<llvm::ConstantInt>(val)) {
+                        if (type->isIntegerTy()) {
+                            val = llvm::ConstantInt::get(llvm::cast<llvm::IntegerType>(type), ci->getSExtValue(), true);
+                        } else if (type->isFloatingPointTy() && (type->isFloatTy() || type->isDoubleTy())) {
+                            val = llvm::ConstantFP::get(type, static_cast<double>(ci->getSExtValue()));
+                        }
+                    }
+                }
                 if (auto* constVal = llvm::dyn_cast<llvm::Constant>(val)) {
                     gVar->setInitializer(constVal);
                 } else {

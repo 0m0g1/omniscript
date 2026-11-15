@@ -1,7 +1,7 @@
 // src/Backends/llvm/IRGenerator/IRGeneratorAccess.cpp
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 
-namespace Omniscript { std::string instanceAliasTarget(const std::string& name); }
+namespace Omniscript { std::string instanceAliasTarget(const std::string& name); std::string canonicalTypeName(const std::string& name); }
 
 namespace Omniscript {
 llvm::Value* IRGenerator::handleAccessExpression(
@@ -151,6 +151,10 @@ llvm::Value* IRGenerator::handleMemberAccess(
         // registered under the instantiator's name (L.List_Str_String).
         const std::string target = instanceAliasTarget(expr->baseType);
         if (!target.empty()) currentType = activeScope->getType(target);
+    }
+    if (!currentType) {
+        const std::string canon = canonicalTypeName(expr->baseType);   // import alias -> canonical type
+        if (canon != expr->baseType) currentType = activeScope->getType(canon);
     }
     llvm::Value* currentPtr = baseValue;
 

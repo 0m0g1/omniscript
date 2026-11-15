@@ -699,7 +699,28 @@ std::vector<std::string> Parser::parseType() {
             currentToken.getType() == TokenTypes::Power ||
             currentToken.getType() == TokenTypes::BitwiseAnd ||
             currentToken.getType() == TokenTypes::QuestionMark) {
-        
+
+        // `x as float * scale`: a pointer suffix is never directly followed by an operand, so a '*'
+        // followed by one is a multiplication. Leave it unconsumed for the expression parser.
+        // (`**` is still read as two pointers.)
+        if (currentToken.getType() == TokenTypes::Multiply) {
+            TokenTypes next = lexer.peekToken(1).getType();
+            if (next == TokenTypes::Identifier || next == TokenTypes::IntegerLiteral ||
+                next == TokenTypes::FloatLiteral || next == TokenTypes::LeftParen ||
+                next == TokenTypes::Minus || next == TokenTypes::LogicalNot ||
+                next == TokenTypes::Tilde) {
+                break;
+            }
+            // `x as float * &z`: `*&` followed by an operand is multiply + address-of. A real `T*&`
+            // type is never directly followed by an operand, so this is unambiguous.
+            if (next == TokenTypes::BitwiseAnd) {
+                TokenTypes after = lexer.peekToken(2).getType();
+                if (after == TokenTypes::Identifier || after == TokenTypes::LeftParen) {
+                    break;
+                }
+            }
+        }
+
         // The lexer is greedy: 'char**' arrives as a single Power ('**') token.
         // In a type context it means two pointer levels.
         if (currentToken.getType() == TokenTypes::Power) {

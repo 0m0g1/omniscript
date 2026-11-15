@@ -43,7 +43,8 @@ struct Cond {
 }
 
 // Run fn(arg) on a new thread, fire and forget (handle closed on join()).
-function spawn(entry: fn(void*) => u32, arg: void*, out: Thread*) => bool { return out.spawn(entry, arg); }
+// Named spawnThread (not spawn) to avoid colliding with Thread.spawn method lookup.
+function spawnThread(entry: fn(void*) => u32, arg: void*, out: Thread*) => bool { return out.spawn(entry, arg); }
 
 function yieldNow() => void { CT.SwitchToThread(); }
 function cpuCount() => u32 { return CT.GetActiveProcessorCount(0xFFFF); }

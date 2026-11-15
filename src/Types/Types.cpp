@@ -223,62 +223,60 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
         flush();
     }
 
-    // Parse array specifications
-    std::vector<uint64_t> arrayStack;
-    arrayStack.reserve(4); // Optimize for typical array nesting
-    while (index + 2 <= dataTypes.size() && dataTypes[index] == "[") {
-        index++;
-        if (index >= dataTypes.size()) {
-            TYPE_ERROR("Expected array size after '[' at token " + std::to_string(index));
-            return Type::createInvalid();
-        }
-
-        if (dataTypes[index] == "]") {
-            TYPE_ERROR("Array size missing between '[' and ']' at token " + std::to_string(index));
-            return Type::createInvalid();
-        }
-
-        uint64_t size;
-        try {
-            size = std::stoull(dataTypes[index]);
-            if (size == 0) {
-                TYPE_ERROR("Array size must be positive at token " + std::to_string(index));
+    // Parse suffix operators in source order: *, &, ?, [N]
+    // Order matters: "char*[128]" is an array of 128 char pointers,
+    // while "char[128]*" is a pointer to an array of 128 chars.
+    struct SuffixOp { char kind; uint64_t size; };
+    std::vector<SuffixOp> suffixOps;
+    suffixOps.reserve(4);
+    int suffixPtr = 0, suffixRef = 0, suffixNull = 0;
+    while (index < dataTypes.size()) {
+        const std::string& tok = dataTypes[index];
+        if (tok == "[") {
+            index++;
+            if (index >= dataTypes.size()) {
+                TYPE_ERROR("Expected array size after '[' at token " + std::to_string(index));
                 return Type::createInvalid();
             }
-        } catch (const std::exception& e) {
-            TYPE_ERROR("Invalid array size '" + dataTypes[index] + "' at token " + std::to_string(index));
-            return Type::createInvalid();
-        }
-        index++;
-
-        if (index >= dataTypes.size() || dataTypes[index] != "]") {
-            TYPE_ERROR("Expected ']' after array size at token " + std::to_string(index));
-            return Type::createInvalid();
-        }
-        index++;
-        arrayStack.push_back(size);
-    }
-
-    // Parse trailing modifiers
-    while (index < dataTypes.size()) {
-        if (dataTypes[index] == "&") {
-            if (totalReferenceDepth >= 10) {
+            if (dataTypes[index] == "]") {
+                TYPE_ERROR("Array size missing between '[' and ']' at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            uint64_t size;
+            try {
+                size = std::stoull(dataTypes[index]);
+                if (size == 0) {
+                    TYPE_ERROR("Array size must be positive at token " + std::to_string(index));
+                    return Type::createInvalid();
+                }
+            } catch (const std::exception& e) {
+                TYPE_ERROR("Invalid array size '" + dataTypes[index] + "' at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            index++;
+            if (index >= dataTypes.size() || dataTypes[index] != "]") {
+                TYPE_ERROR("Expected ']' after array size at token " + std::to_string(index));
+                return Type::createInvalid();
+            }
+            suffixOps.push_back({'[', size});
+        } else if (tok == "&") {
+            if (++suffixRef + totalReferenceDepth > 10) {
                 TYPE_ERROR("Excessive reference depth at token " + std::to_string(index));
                 return Type::createInvalid();
             }
-            totalReferenceDepth++;
-        } else if (dataTypes[index] == "*") {
-            if (totalPointerDepth >= 10) {
+            suffixOps.push_back({'&', 0});
+        } else if (tok == "*") {
+            if (++suffixPtr + totalPointerDepth > 10) {
                 TYPE_ERROR("Excessive pointer depth at token " + std::to_string(index));
                 return Type::createInvalid();
             }
-            totalPointerDepth++;
-        } else if (dataTypes[index] == "?") {
-            if (nullableDepth >= 5) {
+            suffixOps.push_back({'*', 0});
+        } else if (tok == "?") {
+            if (++suffixNull + nullableDepth > 5) {
                 TYPE_ERROR("Excessive nullable depth at token " + std::to_string(index));
                 return Type::createInvalid();
             }
-            nullableDepth++;
+            suffixOps.push_back({'?', 0});
         } else {
             std::string seen;
             for (size_t i = 0; i <= index; ++i) {
@@ -296,7 +294,7 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
                 "Unexpected token '" + dataTypes[index] + "' after parsing type: '" + seen + "'. "
                 "Remaining unparsed: '" + remaining + "'."
             );
-            
+
             return Type::createInvalid();
         }
         index++;
@@ -363,9 +361,24 @@ std::shared_ptr<Type> resolveType(const std::vector<std::string>& dataTypes) {
         type = Type::createUnresolved(dataTypes);
     }
 
-    // Apply array modifiers
-    for (auto it = arrayStack.rbegin(); it != arrayStack.rend(); ++it) {
-        type = Type::createFixedArrayType(type, *it);
+    // Apply suffix operators in source order. Consecutive [N][M] groups are
+    // wrapped C-style (outermost dimension first).
+    for (size_t i = 0; i < suffixOps.size();) {
+        if (suffixOps[i].kind == '[') {
+            size_t j = i;
+            while (j < suffixOps.size() && suffixOps[j].kind == '[') j++;
+            for (size_t k = j; k-- > i;) {
+                type = Type::createFixedArrayType(type, suffixOps[k].size);
+            }
+            i = j;
+        } else {
+            switch (suffixOps[i].kind) {
+                case '&': type = Type::createReferenceType(type); break;
+                case '*': type = Type::createPointerType(type); break;
+                case '?': type = Type::createNullableType(type); break;
+            }
+            i++;
+        }
     }
 
     // Apply reference, pointer, and nullable modifiers

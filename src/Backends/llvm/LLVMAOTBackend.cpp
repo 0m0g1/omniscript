@@ -1,9 +1,13 @@
+#include <cctype>
 #include <omniscript/Backends/llvm/LLVMAOTBackend.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/TargetParser/Host.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Program.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Support/CodeGen.h>
+#include <llvm/Target/TargetMachine.h>
 #include <llvm/Support/raw_ostream.h>
 #include <nlohmann/json.hpp>
 #include <thread>
@@ -82,7 +86,9 @@ void LLVMAOTBackend::setupTargetMachine(const Config& config) {
 llvm::TargetOptions LLVMAOTBackend::buildTargetOptions(const Config& config) {
     llvm::TargetOptions opt;
     opt.EnableFastISel = config.optimization.level < 2;
-    opt.EnableGlobalISel = config.optimization.level >= 2;
+    // GlobalISel is not complete for x86-64 (its IRTranslator aborts with "unable to translate
+    // instruction: call"), so the default SelectionDAG/FastISel path is used for every optimization level.
+    opt.EnableGlobalISel = false;
     // opt.UnsafeFPMath: removed in newer LLVM (use function attributes / fast-math flags instead)
     // opt.NoInfsFPMath: removed in newer LLVM (use function attributes / fast-math flags instead)
     // opt.NoNaNsFPMath: removed in newer LLVM (use function attributes / fast-math flags instead)
@@ -301,7 +307,14 @@ void LLVMAOTBackend::emitToFile(const Config& config) {
 
     for (const auto& [triple, tm] : targetMachines) {
         std::string suffix = targetMachines.size() > 1 ? "_" + triple : "";
-        std::string targetOutput = outputPath.stem().string() + suffix + outputPath.extension().string();
+        // Keep the requested directory: `-o build/game.exe` must produce build/game.exe, not ./game.exe
+        // (only the stem and extension used to be kept, so the output silently landed in the working directory).
+        std::string ext = outputPath.extension().string();
+#ifdef _WIN32
+        if (config.aot.outputFormat == OutputFormat::Executable && ext.empty()) ext = ".exe";
+#endif
+        std::string targetOutput =
+            (outputPath.parent_path() / (outputPath.stem().string() + suffix + ext)).string();
 
         switch (config.aot.outputFormat) {
             case OutputFormat::Executable: {
@@ -415,6 +428,15 @@ void LLVMAOTBackend::emitObjectFile(const std::string& objFile, const std::share
         }
     }
 
+    // Generate the machine code. Without this the file is created but stays empty, the linker finds no
+    // `main` in it, and MinGW's startup code then reports "undefined reference to `WinMain'".
+    llvm::legacy::PassManager codegenPasses;
+    if (tm->addPassesToEmitFile(codegenPasses, dest, nullptr, llvm::CodeGenFileType::ObjectFile)) {
+        throw std::runtime_error("The target machine cannot emit an object file: " + objFile);
+    }
+    codegenPasses.run(*module);
+    dest.flush();
+
     DEBUG_LOG("Object file emitted to: " + objFile);
 }
 
@@ -428,6 +450,13 @@ void LLVMAOTBackend::emitAssemblyFile(const std::string& asmFile, const std::sha
     auto module = irGen->getModule();
     module->setTargetTriple(tm->getTargetTriple());
     module->setDataLayout(tm->createDataLayout());
+
+    llvm::legacy::PassManager codegenPasses;
+    if (tm->addPassesToEmitFile(codegenPasses, dest, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
+        throw std::runtime_error("The target machine cannot emit assembly: " + asmFile);
+    }
+    codegenPasses.run(*module);
+    dest.flush();
 
     DEBUG_LOG("Assembly file emitted to: " + asmFile);
 }
@@ -472,7 +501,78 @@ void LLVMAOTBackend::createStaticLibrary(const std::string& objFile, const std::
     DEBUG_LOG("Static library created: " + libFile);
 }
 
+namespace {
+
+// Finds the Android NDK's clang wrapper for the target architecture, e.g.
+//   <ndk>/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android24-clang.cmd
+// The wrapper already passes --target, --sysroot and the API level. The NDK is looked up in
+// config.toolchainPath, then $ANDROID_NDK_HOME, $ANDROID_NDK_ROOT and $ANDROID_NDK. The API level
+// comes from $ANDROID_API (default 24, Android 7.0, the first release with Vulkan).
+std::string findAndroidNdkClang(const Config& config, TargetArch arch, std::string& error) {
+    std::string triple;
+    switch (arch) {
+        case TargetArch::ARM64:  triple = "aarch64-linux-android"; break;
+        case TargetArch::ARM32:  triple = "armv7a-linux-androideabi"; break;
+        case TargetArch::X86_64: triple = "x86_64-linux-android"; break;
+        case TargetArch::X86_32: triple = "i686-linux-android"; break;
+        default:
+            error = "Android builds support arm64, arm32, x86_64 and x86_32 (use --target-arch).";
+            return "";
+    }
+
+    std::vector<std::string> roots;
+    if (!config.toolchainPath.empty()) roots.push_back(config.toolchainPath);
+    for (const char* var : {"ANDROID_NDK_HOME", "ANDROID_NDK_ROOT", "ANDROID_NDK"}) {
+        const char* value = std::getenv(var);
+        if (value && *value) roots.push_back(value);
+    }
+    const char* apiEnv = std::getenv("ANDROID_API");
+    const std::string api = (apiEnv && *apiEnv) ? apiEnv : "24";
+
+#ifdef _WIN32
+    const std::string hostTag = "windows-x86_64", suffix = ".cmd";
+#elif defined(__APPLE__)
+    const std::string hostTag = "darwin-x86_64", suffix = "";
+#else
+    const std::string hostTag = "linux-x86_64", suffix = "";
+#endif
+    const std::string wrapper = triple + api + "-clang" + suffix;
+
+    for (const auto& root : roots) {
+        const fs::path standard = fs::path(root) / "toolchains" / "llvm" / "prebuilt" / hostTag / "bin" / wrapper;
+        if (fs::exists(standard)) return standard.string();
+        const fs::path direct = fs::path(root) / wrapper;   // toolchainPath may already be the NDK's bin folder
+        if (fs::exists(direct)) return direct.string();
+    }
+    error = "Android NDK not found. Install the NDK and set ANDROID_NDK_HOME to its folder "
+            "(it contains toolchains/llvm/prebuilt/" + hostTag + "/bin/" + wrapper + "), or pass --toolchain.";
+    return "";
+}
+
+} // namespace
+
 void LLVMAOTBackend::createSharedLibrary(const std::string& objFile, const std::string& libFile, const Config& config) {
+    if (config.resolveTargetOS() == TargetOS::Android) {
+        // Android: link with the NDK's clang, never with the host linker.
+        std::string error;
+        const std::string clang = findAndroidNdkClang(config, config.resolveTargetArch(), error);
+        if (clang.empty()) throw std::runtime_error(error);
+
+        std::string cmd = "\"" + clang + "\" -shared -o \"" + libFile + "\" \"" + objFile + "\" -llog -landroid -lm -ldl";
+        for (const auto& flag : config.aot.linkerFlags) cmd += " " + flag;
+        DEBUG_LOG("Creating Android shared library with command: " + cmd);
+#ifdef _WIN32
+        const std::string shellCmd = "\"" + cmd + "\"";   // cmd.exe strips the outer quote pair
+#else
+        const std::string& shellCmd = cmd;
+#endif
+        if (std::system(shellCmd.c_str()) != 0) {
+            throw std::runtime_error("Failed to create the Android shared library: " + libFile);
+        }
+        DEBUG_LOG("Android shared library created: " + libFile);
+        return;
+    }
+
     std::vector<std::string> args = {"-shared", "-o", "\"" + libFile + "\"", "\"" + objFile + "\""};
     for (const auto& path : config.aot.libraryPaths) {
         args.push_back("-L\"" + path + "\"");
@@ -719,10 +819,109 @@ void LLVMAOTBackend::emitSymbolTable(const std::string& symFile) {
     DEBUG_LOG("Symbol table emitted to: " + symFile);
 }
 
+namespace {
+
+std::string lowerCopy(std::string v) {
+    for (auto& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    return v;
+}
+
+std::string stripQuotes(std::string v) {
+    while (!v.empty() && (v.front() == '"' || v.front() == '\'')) v.erase(v.begin());
+    while (!v.empty() && (v.back() == '"' || v.back() == '\'')) v.pop_back();
+    return v;
+}
+
+// Windows' system DLLs (kernel32, opengl32, ...) are always available; never copy those.
+bool isWindowsSystemDir(const fs::path& dir) {
+    const std::string d = lowerCopy(dir.generic_string());
+    return d.find("/windows/system32") != std::string::npos ||
+           d.find("/windows/syswow64") != std::string::npos ||
+           d.find("/windows/winsxs") != std::string::npos;
+}
+
+// A Windows executable only finds a DLL that sits next to it (or on PATH). When the program was linked
+// against an import library (libglfw3dll.a, foo.lib, -lfoo with a -L dir) the matching DLL is normally in
+// the same folder as that import library, so copy it beside the executable. Only DLLs that actually exist
+// next to a library the link line names are copied; nothing is guessed from the system folders.
+void copyRuntimeDlls(const std::string& exeFile,
+                     const std::vector<std::string>& linkArgs,
+                     const std::vector<std::string>& libraryPaths) {
+    std::error_code ec;
+    const fs::path exeDir = fs::absolute(fs::path(exeFile), ec).parent_path();
+    if (ec || exeDir.empty()) return;
+
+    std::vector<fs::path> dirs;
+    std::vector<std::string> names;      // candidate DLL base names, without ".dll"
+    std::vector<fs::path> directDlls;    // DLLs named outright on the link line
+
+    for (const auto& p : libraryPaths) dirs.push_back(fs::path(stripQuotes(p)));
+
+    for (const auto& raw : linkArgs) {
+        const std::string arg = stripQuotes(raw);
+        if (arg.size() > 2 && arg.compare(0, 2, "-L") == 0) {
+            dirs.push_back(fs::path(arg.substr(2)));
+        } else if (arg.size() > 2 && arg.compare(0, 2, "-l") == 0) {
+            names.push_back(arg.substr(2));
+        } else {
+            const fs::path file(arg);
+            const std::string ext = lowerCopy(file.extension().string());
+            if (ext == ".dll") {
+                directDlls.push_back(file);
+            } else if (ext == ".a" || ext == ".lib") {
+                // libglfw3dll.a -> glfw3 ; libfoo.dll.a -> foo ; foo.lib -> foo
+                std::string stem = file.stem().string();
+                if (lowerCopy(stem).starts_with("lib")) stem = stem.substr(3);
+                if (lowerCopy(stem).ends_with(".dll")) stem.resize(stem.size() - 4);
+                if (lowerCopy(stem).ends_with("dll") && stem.size() > 3) stem.resize(stem.size() - 3);
+                names.push_back(stem);
+                if (!file.parent_path().empty()) dirs.push_back(file.parent_path());
+            }
+        }
+    }
+
+    std::vector<fs::path> toCopy = directDlls;
+    for (const auto& dir : dirs) {
+        if (dir.empty() || isWindowsSystemDir(dir)) continue;
+        for (const auto& name : names) {
+            toCopy.push_back(dir / (name + ".dll"));
+        }
+    }
+
+    for (const auto& src : toCopy) {
+        std::error_code e;
+        if (isWindowsSystemDir(fs::absolute(src, e)) || !fs::is_regular_file(src, e)) continue;
+        const fs::path dst = exeDir / src.filename();
+        if (fs::equivalent(src, dst, e)) continue;
+        e.clear();
+        fs::copy_file(src, dst, fs::copy_options::update_existing, e);
+        if (e) {
+            DEBUG_LOG("Could not copy runtime DLL " + src.string() + ": " + e.message());
+        } else {
+            DEBUG_LOG("Copied runtime DLL next to the executable: " + src.filename().string());
+        }
+    }
+}
+
+} // namespace
+
 void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::string& exeFile, const Config& config) {
     std::vector<std::string> additionalLibs = linkerDependencies.getLinkerFlags();
+    // `-lopengl32.dll` names no library the linker can find (it looks for libopengl32.dll.a /
+    // opengl32.dll.lib), and the MSVC path would turn it into `opengl32.dll.lib`. Use the bare name.
+    for (auto& lib : additionalLibs) {
+        if (lib.size() > 6 && lib.starts_with("-l")) {
+            std::string tail = lib.substr(lib.size() - 4);
+            for (auto& ch : tail) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            if (tail == ".dll") lib.resize(lib.size() - 4);
+        }
+    }
+    // clang++ and g++ (MinGW or MSVC-targeting clang) want `-l<name>`; only MSVC's link.exe takes `<name>.lib`
+    // file names. Passing `user32.lib` to a MinGW ld fails with "cannot find user32.lib".
     std::vector<std::string> defaultLibs = 
 #ifdef _WIN32
+        {"-luser32", "-lgdi32", "-lshell32", "-lkernel32", "-lntdll"};
+    const std::vector<std::string> msvcDefaultLibs =
         {"user32.lib", "gdi32.lib", "shell32.lib", "kernel32.lib", "ntdll.lib"};
 #else
         {"-lm", "-ldl", "-lpthread"};
@@ -732,7 +931,7 @@ void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::strin
 #ifdef _WIN32
         {"clang++", buildLinkerArgs(exeFile, objFile, additionalLibs, defaultLibs, config)},
         {"g++", buildLinkerArgs(exeFile, objFile, additionalLibs, defaultLibs, config)},
-        {"link", buildMSVCLinkerArgs(exeFile, objFile, additionalLibs, defaultLibs, config)}
+        {"link", buildMSVCLinkerArgs(exeFile, objFile, additionalLibs, msvcDefaultLibs, config)}
 #else
         {"clang++", buildLinkerArgs(exeFile, objFile, additionalLibs, defaultLibs, config)},
         {"g++", buildLinkerArgs(exeFile, objFile, additionalLibs, defaultLibs, config)}
@@ -758,7 +957,16 @@ void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::strin
         cmds.push_back(cmd);
         triedLinkers.push_back(linker);
 
-        int result = std::system(cmd.c_str());
+#ifdef _WIN32
+        // std::system runs `cmd.exe /c <cmd>`. When the command starts with a quote and contains more
+        // than two quotes, cmd.exe strips the first and last one and mangles the rest, which is what
+        // produced "The filename, directory name, or volume label syntax is incorrect." Wrapping the
+        // whole command in one more pair of quotes makes cmd strip only those.
+        const std::string shellCmd = "\"" + cmd + "\"";
+#else
+        const std::string& shellCmd = cmd;
+#endif
+        int result = std::system(shellCmd.c_str());
         if (result == 0) {
             linked = true;
             break;
@@ -791,6 +999,12 @@ void LLVMAOTBackend::linkExecutable(const std::string& objFile, const std::strin
         fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
         fs::perm_options::add);
 #endif
+#ifdef _WIN32
+    {
+        std::vector<std::string> depArgs = additionalLibs;
+        copyRuntimeDlls(exeFile, depArgs, config.aot.libraryPaths);
+    }
+#endif
     DEBUG_LOG("Executable created: " + exeFile);
 }
 
@@ -808,6 +1022,10 @@ std::vector<std::string> LLVMAOTBackend::buildLinkerArgs(
         args.push_back(lib);
     }
     for (const auto& path : config.aot.libraryPaths) {
+        // C:/Windows/System32 and SysWOW64 hold DLLs, not import libraries. As -L paths they make GNU ld
+        // link `-l<name>` straight against those DLLs (SysWOW64's are 32-bit) ahead of the toolchain's own
+        // libraries, which breaks the C runtime. They are only meaningful for MSVC's link.exe.
+        if (isWindowsSystemDir(fs::path(stripQuotes(path)))) continue;
         args.push_back("-L\"" + path + "\"");
     }
     for (const auto& flag : config.aot.linkerFlags) {

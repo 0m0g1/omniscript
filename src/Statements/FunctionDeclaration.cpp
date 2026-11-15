@@ -8,6 +8,7 @@
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
 #include <omniscript/Core.h>
+#include <omniscript/Semantic/GenericInstantiator.h>
 #include <omniscript/utils.h>
 #include <omniscript/Types/Types.h>
 #include <omniscript/omniscript_pch.h>
@@ -255,6 +256,20 @@ void FunctionDeclaration::compileBody(SymbolTableType scope) {
 
 std::shared_ptr<Expression> FunctionDeclaration::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+
+    if (isGenericTemplate) {
+        // Keep an untouched copy (clone() drops typeParams) and the declaring scope; nothing is
+        // registered or compiled until a call site asks for a concrete instance.
+        if (!isRegistered) {
+            auto copy = std::dynamic_pointer_cast<FunctionDeclaration>(clone());
+            copy->typeParams = typeParams;
+            copy->isStatic = isStatic;
+            GenericInstantiator::registerFunctionTemplate(name, copy, scope);
+            isRegistered = true;
+        }
+        return BlockStatement::create()->express(scope);   // empty block: same result as a function with no specializations
+    }
+
     registerInScope(scope);
     
     if (!isExtern && !isIntrinsic) {

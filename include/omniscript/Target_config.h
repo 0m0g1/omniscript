@@ -398,6 +398,15 @@ namespace TargetInfo {
         TargetTriple triple;
         triple.arch = getLLVMArchName(arch);
         
+        // Android's triples are fixed by the NDK: <arch>-linux-android (armv7a uses -androideabi). Building
+        // them from the generic vendor/os/environment fields gave "aarch64-linux-android-android", which
+        // LLVM rejects. The API level is applied by the NDK clang wrapper at link time.
+        if (os == TargetOS::Android) {
+            if (arch == TargetArch::ARM32) return "armv7a-linux-androideabi";
+            if (arch == TargetArch::X86_32) return "i686-linux-android";
+            return triple.arch + "-linux-android";
+        }
+        
         // Use smart vendor detection if empty
         if (vendor.empty()) {
             triple.vendor = detectHostVendor(os);

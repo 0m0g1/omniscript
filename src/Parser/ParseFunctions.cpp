@@ -579,20 +579,8 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
         if (currentToken.getType() == TokenTypes::LessThan) {
             types = parseTypeParametersForDeclaration();
 
-            // Generics are monomorphized at parse time, so every type parameter declared on a
-            // function needs an 'extends' constraint, otherwise T is never bound to a type.
-            for (const auto& tp : types) {
-                if (tp.second.empty()) {
-                    console.reportError(
-                        Console::SYNTAX_ERROR,
-                        "Type parameter '" + tp.first + "' of function '" + name + "' has no constraint",
-                        "To resolve this:\n"
-                        "1. Constrain the type parameter, e.g. '<" + tp.first + " extends i32 | i64>'\n"
-                        "2. Call it with one of those types, e.g. '" + name + "<i32>(...)'",
-                        span
-                    );
-                }
-            }
+            // Unconstrained <T> is fine — instantiation is deferred to call sites.
+            // Keep the error only if the user wrote `extends` and left it empty.
         }
     } else {
         types = paramTypes;
@@ -655,6 +643,22 @@ std::shared_ptr<Statement> Parser::parseFunctionDeclaration(
 
     if (!types.empty()) {
         std::vector<std::shared_ptr<Statement>> monomorphizedFunctions;
+
+        // Unconstrained <T>: there is no finite list of types to specialize for, so nothing is
+        // emitted eagerly. Return a template declaration; FunctionDeclaration::express registers it
+        // with GenericInstantiator (with its declaring scope) and Call::express instantiates it on
+        // first use. NOTE: constraints written on the other parameters of the same declaration are
+        // not enforced for such a function.
+        const bool anyUnconstrained = std::any_of(types.begin(), types.end(),
+            [](const auto& tp) { return tp.second.empty(); });
+        if (anyUnconstrained) {
+            auto tmplDecl = std::make_shared<FunctionDeclaration>(name, parameters, body, returnType);
+            tmplDecl->isGenericTemplate = true;
+            for (const auto& tp : types) tmplDecl->typeParams.emplace_back(tp.first, std::string());
+            tmplDecl->setPosition(startToken, currentToken);
+            tmplDecl->setSpan(span);
+            return tmplDecl;
+        }
 
         // Special case: Single type parameter with simple alternatives
         if (types.size() == 1 && !types[0].second.empty()) {
