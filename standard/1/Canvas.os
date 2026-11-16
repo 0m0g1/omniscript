@@ -30,6 +30,7 @@ module LU = import "standard/1/ListU32.os";
 module VK = import "standard/1/Vulkan.os";
 module VKC = import "standard/1/c/vulkan.os";
 module CMem = import "standard/1/c/mem.os";
+module Console = import "standard/1/Console.os";
 
 let API_AUTO: int = 0 - 1;
 let API_GL: int = 0;
@@ -355,24 +356,48 @@ struct Pen2D {
 
     // px: RGBA8, w*h*4 bytes, row 0 = top. Returns 0 on failure. Free with freeImage().
     createImage(px: u8*, w: int, hh: int) => u32 {
+        Console.log("[createImage] enter, backend/w/h:");
+        Console.log(this.backend);
+        Console.log(w);
+        Console.log(hh);
+        if (px == nullptr) { Console.log("[createImage] px is NULL"); return 0; }
+        if (w <= 0 || hh <= 0) { Console.log("[createImage] bad size"); return 0; }
+        let result: u32 = 0;
         if (this.backend == API_GL) {
+            Console.log("[createImage] GL: makeCurrent");
             G.glfwMakeContextCurrent(this.h);
+            Console.log("[createImage] GL: before fromRGBA");
             let t: OGL.Texture;
             t.fromRGBA(px, w, hh, false);
-            return t.id;
-        }
-        let slot: int = this.findSlot();
-        if (slot < 0) return 0;
-        if (this.backend == API_SOFTWARE) {
-            let copy = CMem.malloc((w * hh * 4) as u64) as u8*;
-            copyBytes(copy, px, (w * hh * 4) as u64);
-            this.imgPx[slot] = copy;
+            Console.log("[createImage] GL: after fromRGBA, id:");
+            Console.log(t.id);
+            result = t.id;
         } else {
-            if (!this.vk.createTexture(&this.vkTex[slot], px, w, hh)) return 0;
+            let slot: int = this.findSlot();
+            Console.log("[createImage] slot:");
+            Console.log(slot);
+            if (slot >= 0) {
+                if (this.backend == API_SOFTWARE) {
+                    let copy = CMem.malloc((w * hh * 4) as u64) as u8*;
+                    if (copy != nullptr) {
+                        copyBytes(copy, px, (w * hh * 4) as u64);
+                        this.imgPx[slot] = copy;
+                        this.imgW[slot] = w; this.imgH[slot] = hh;
+                        this.imgUsed[slot] = 1 as u8;
+                        result = (slot + 1) as u32;
+                    } else { Console.log("[createImage] SW: malloc failed"); }
+                } else {
+                    if (this.vk.createTexture(&this.vkTex[slot], px, w, hh)) {
+                        this.imgW[slot] = w; this.imgH[slot] = hh;
+                        this.imgUsed[slot] = 1 as u8;
+                        result = (slot + 1) as u32;
+                    } else { Console.log("[createImage] VK: createTexture failed"); }
+                }
+            }
         }
-        this.imgW[slot] = w; this.imgH[slot] = hh;
-        this.imgUsed[slot] = 1 as u8;
-        return (slot + 1) as u32;
+        Console.log("[createImage] exit, result:");
+        Console.log(result);
+        return result;
     }
 
     freeImage(id: u32) => void {

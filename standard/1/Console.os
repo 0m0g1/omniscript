@@ -77,6 +77,16 @@ function log(v: i64) => void { println(v); }
 function log(v: f64) => void { println(v); }
 function log(v: bool) => void { println(v); }
 function log(v: Str.String*) => void { println(v); }
+/// Prints a C string followed by a newline.
+function log(s: char*) => void { println(s); }
+
+/// 32-bit and unsigned integers, so `Console.log(someInt)` and `Console.log(someU32)` need no cast.
+function log(v: i32) => void { println(v as i64); }
+function log(v: u32) => void { println(v as i64); }
+function log(v: u64) => void { println(v as i64); }
+
+/// 32-bit float.
+function log(v: f32) => void { println(v as f64); }
 
 /// Writes `s` to stdout as an informational line, starting with an `[info]` tag.
 /// The tag is colored cyan unless `setColor(false)` was called.

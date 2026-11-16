@@ -1,4 +1,4 @@
-// canvas_test.os
+// docs/examples/canvas_test.os
 // Canvas feature test. Opens a GL window; spawn more at runtime.
 //
 //   Left / Right   previous / next page
@@ -19,8 +19,12 @@
 module C = import "standard/1/Canvas.os";
 module OGL = import "standard/1/OpenGL.os";
 module CMem = import "standard/1/c/mem.os";
+module Console = import "standard/1/Console.os";
 
 let PAGES: int = 8;
+
+// println + flush so the last marker survives a crash
+function mark(s: char*) => void { Console.println(s); Console.flush(); }
 
 struct TestWin {
     win: C.Win* = nullptr;
@@ -103,15 +107,23 @@ function setupSlot(t: TestWin*) => void {
     let win: C.Win* = t.win;
     let pen: C.Pen2D* = win.context2d();
 
-    t.num = CMem.malloc(16) as char*;
-    t.buf = CMem.malloc(128) as char*;
+    t.num = CMem.malloc(16 as u64) as char*;
+    t.buf = CMem.malloc(128 as u64) as char*;
     t.buf[0] = 0 as char; t.blen = 0;
-    t.m1 = CMem.malloc(64) as float*;
-    t.m2 = CMem.malloc(64) as float*;
-    t.m3 = CMem.malloc(64) as float*;
+    t.m1 = CMem.malloc(64 as u64) as float*;
+    t.m2 = CMem.malloc(64 as u64) as float*;
+    t.m3 = CMem.malloc(64 as u64) as float*;
 
     // 64x64 test image: red/green gradient with blue checker
-    let px = CMem.malloc(64 * 64 * 4) as u8*;
+    let px = CMem.malloc((64 * 64 * 4 + 256) as u64) as u8*;   // +256 pad: DIAGNOSTIC, tests for an out-of-bounds write
+
+    Console.log("px / num / m1 / m2 / m3:");
+    Console.log(px as u64);
+    Console.log(t.num as u64);
+    Console.log(t.m1 as u64);
+    Console.log(t.m2 as u64);
+    Console.log(t.m3 as u64);
+
     let y: int = 0;
     while (y < 64) {
         let x: int = 0;
@@ -126,21 +138,28 @@ function setupSlot(t: TestWin*) => void {
         }
         y = y + 1;
     }
+    mark("[setup] px filled");
     t.img = pen.createImage(px, 64, 64);
+    mark("[setup] createImage done");
     CMem.free(px as void*);
+    mark("[setup] px freed");
 
     // plasma shader (GL: GLSL body; Vulkan: SPIR-V file; software: returns 0)
-    // t.shader = pen.createShaderBoth(
-    //     "void main() { vec2 p = vUV * 6.0; float v = sin(p.x + uTime) + sin(p.y * 1.3 + uTime * 1.2) + sin((p.x + p.y) * 0.7 + uTime); o = vec4(0.5 + 0.5 * sin(v), 0.5 + 0.5 * sin(v + 2.1), 0.5 + 0.5 * sin(v + 4.2), 1.0) * vCol; }",
-    //     "shaders/plasma.frag.spv");
+    t.shader = pen.createShaderBoth(
+        "void main() { vec2 p = vUV * 6.0; float v = sin(p.x + uTime) + sin(p.y * 1.3 + uTime * 1.2) + sin((p.x + p.y) * 0.7 + uTime); o = vec4(0.5 + 0.5 * sin(v), 0.5 + 0.5 * sin(v + 2.1), 0.5 + 0.5 * sin(v + 4.2), 1.0) * vCol; }",
+        "shaders/plasma.frag.spv");
+    mark("[setup] shader done");
 
     // 3D (GL windows only)
     let sc: C.Pen3D* = win.context3d();
+    mark("[setup] context3d done");
     if (sc.ready) {
         sc.createCube(&t.cube);
         t.cubeOk = true;
+        mark("[setup] cube done");
     }
     t.ready = true;
+    mark("[setup] ready");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -470,6 +489,10 @@ function newSlot() => TestWin* {
 }
 
 function main() => int {
+    mark("[main] start");
+    Console.println(sizeof(TestWin) as i64);
+    Console.println(sizeof(OGL.Mesh) as i64);
+    Console.flush();
     let app: C.Canvas;
     if (!app.init()) return 1;
 

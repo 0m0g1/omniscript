@@ -406,7 +406,17 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
             const bool isShift = op.getType() == TokenTypes::ShiftLeft || op.getType() == TokenTypes::ShiftRight;
             const bool leftIsLit = std::dynamic_pointer_cast<Literal>(left) != nullptr;
             const bool rightIsLit = std::dynamic_pointer_cast<Literal>(right) != nullptr;
-            if (isShift || (rightIsLit && !leftIsLit)) {
+            if (leftIsLit && rightIsLit) {
+                // Two untyped literals: give BOTH the same concrete type. rootType can be a narrow
+                // smallest-fit type (e.g. Int8), which made `64 * 64` wrap to 0 in 8 bits.
+                auto litType = (std::dynamic_pointer_cast<IntegerLiteral>(left) &&
+                                std::dynamic_pointer_cast<IntegerLiteral>(right))
+                    ? Type::createPrimitiveType(Kind::Int32)
+                    : leftType;
+                type = litType;
+                if (leftTyped) leftTyped->setType(litType);
+                if (rightTyped) rightTyped->setType(litType);
+            } else if (isShift || (rightIsLit && !leftIsLit)) {
                 type = leftType;
                 if (rightIsLit) {
                     if (rightTyped) rightTyped->setType(leftType);
