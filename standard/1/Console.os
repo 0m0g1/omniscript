@@ -54,8 +54,29 @@ function print(s: char*) => void { fputs(s, out()); }
 /// ```
 function println(s: char*) => void { fputs(s, out()); fputs("\n", out()); }
 
-/// Same as `println`. Provided for people used to `console.log`.
-function log(s: char*) => void { println(s); }
+/// Prints an integer followed by a newline.
+function println(v: i64) => void {
+    let s: Str.String;
+    s.appendInt(v);
+    printlnString(&s);
+    s.free();
+}
+
+/// Prints a floating-point number followed by a newline.
+function println(v: f64) => void { printf("%g\n", v); }
+
+/// Prints `true` or `false` followed by a newline.
+function println(v: bool) => void {
+    if (v) println("true"); else println("false");
+}
+
+/// Prints a `String` followed by a newline.
+function println(v: Str.String*) => void { printlnString(v); }
+
+function log(v: i64) => void { println(v); }
+function log(v: f64) => void { println(v); }
+function log(v: bool) => void { println(v); }
+function log(v: Str.String*) => void { println(v); }
 
 /// Writes `s` to stdout as an informational line, starting with an `[info]` tag.
 /// The tag is colored cyan unless `setColor(false)` was called.

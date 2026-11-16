@@ -276,26 +276,55 @@ llvm::Value* IRGenerator::assignVariable(
                         }
                     }
                 }
-                if (auto* constVal = llvm::dyn_cast<llvm::Constant>(val)) {
+                auto* constVal = llvm::dyn_cast<llvm::Constant>(val);
+                // An aggregate built from constants (`let window = { width: 800, height: 600 }`) evaluates
+                // to the address of a temporary global that already holds the constant. Take its
+                // initializer directly so the value does not depend on __top_level__ running first.
+                if (!(constVal && constVal->getType() == type) && val->getType()->isPointerTy()) {
+                    if (auto* srcGlobal = llvm::dyn_cast<llvm::GlobalVariable>(val)) {
+                        if (srcGlobal->hasInitializer() && srcGlobal->getValueType() == type) {
+                            constVal = srcGlobal->getInitializer();
+                        }
+                    }
+                }
+                if (constVal && constVal->getType() == type) {
                     gVar->setInitializer(constVal);
                 } else {
                     llvm::Function* initFunc = getOrCreateGlobalInitFunction();
                     llvm::BasicBlock* curBlock = Builder->GetInsertBlock();
+                    bool inInit = curBlock && curBlock->getParent() == initFunc;
+                    DEBUG_LOG("[global-init] '" + name + "': val=" + debugType(val->getType()) +
+                              ", isInstruction=" + std::string(llvm::isa<llvm::Instruction>(val) ? "yes" : "no") +
+                              ", valFn=" + std::string(llvm::isa<llvm::Instruction>(val)
+                                  ? llvm::cast<llvm::Instruction>(val)->getFunction()->getName().str() : "-") +
+                              ", insertFn=" + std::string(curBlock ? curBlock->getParent()->getName().str() : "<none>") +
+                              ", inInit=" + std::string(inInit ? "yes" : "no"));
 
-                    if (curBlock && curBlock->getParent() == initFunc) {
-                        // The value was just computed in the init function itself (top-level code).
-                        // Store at the current insertion point so the definition dominates the use;
-                        // hoisting to the entry block would use the value before it exists.
-                        Builder->CreateStore(val, gVar);
-                    } else {
-                        llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
-
+                    llvm::IRBuilder<>::InsertPoint savedIP;
+                    if (!inInit) {
+                        savedIP = Builder->saveIP();
                         llvm::BasicBlock& entryBlock = initFunc->getEntryBlock();
                         Builder->SetInsertPoint(&entryBlock, entryBlock.begin());
-                        Builder->CreateStore(val, gVar);
-
-                        Builder->restoreIP(savedIP);
                     }
+
+                    // Aggregates evaluate to their address: copy the value into the global.
+                    if (val->getType() != type && val->getType()->isPointerTy() && !type->isPointerTy()) {
+                        val = Builder->CreateLoad(type, val);
+                    }
+
+                    if (val->getType() != type) {
+                        console.reportError(
+                            Console::TYPE_ERROR,
+                            Console::formatString("Initializer for global '%s' has type '%s' but the variable has type '%s'",
+                                                  name.c_str(), debugType(val->getType()).c_str(), debugType(type).c_str()),
+                            "Check the initializer's type against the declared type",
+                            statement->getSpan());
+                        if (!inInit) Builder->restoreIP(savedIP);
+                        return nullptr;
+                    }
+
+                    Builder->CreateStore(val, gVar);
+                    if (!inInit) Builder->restoreIP(savedIP);
                 }
             }
         }

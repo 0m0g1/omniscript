@@ -1297,7 +1297,9 @@ bool Call::processPositionalArguments(
     }
 
     // Check for extra arguments (only if no variadic parameter consumed them)
-    if (positionalArgIndex < args.size() && 
+    // Named arguments are matched by name in the first pass and never advance positionalArgIndex,
+    // so count them as consumed (otherwise an all-named call reports every argument as extra).
+    if (positionalArgIndex + namedArgsCount < args.size() && 
         !(parameters.size() > 0 && parameters.back()->isVariadic)) {
         std::string expectedParams;
         for (const auto& param : parameters) {

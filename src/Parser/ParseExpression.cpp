@@ -5,6 +5,7 @@
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/LiteralStatements.h>
 #include <omniscript/Statements/ExpressionStatements.h>
+#include <omniscript/Statements/ObjectLiteralStatement.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
 #include <omniscript/Core.h>
@@ -397,6 +398,13 @@ std::shared_ptr<Statement> Parser::factor() {
         }
         left = parseIdentifier();
         DEBUG_LOG("Parsed the identifier and got " + left->toString() + "'.");
+    }
+
+    // `{ field: value, ... }`: a struct literal whose type comes from the expected type
+    // (`let c: T = { ... }`, a field initialiser, a parameter). See ObjectLiteralStatement.
+    else if (currentToken.getType() == TokenTypes::LeftBrace) {
+        auto fields = parseArguments(TokenTypes::LeftBrace, TokenTypes::RightBrace, TokenTypes::Colon);
+        left = std::make_shared<ObjectLiteralStatement>(fields);
     }
 
     else if (currentToken.getType() == TokenTypes::LeftBracket) {

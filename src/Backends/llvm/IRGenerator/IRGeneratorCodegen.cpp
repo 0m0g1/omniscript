@@ -200,7 +200,10 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         return nullptr;
     };
     auto findStructDecl = [&](const std::string& n) -> std::shared_ptr<StructExpression> {
-        return findStructDeclImpl(n, 0);
+        if (auto d = findStructDeclImpl(n, 0)) return d;
+        // Not in any block codegen has seen: a struct synthesised while expressing an expression
+        // (the inferred type of `let w = { a: 1 }`) is only stored in the scope under its name.
+        return std::dynamic_pointer_cast<StructExpression>(scope->get(n));
     };
 
     auto pullPending = [&]() {
@@ -318,6 +321,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
     // Handle VariableAssignment
     if (auto varAssign = std::dynamic_pointer_cast<VariableAssignment>(value)) {
         DEBUG_LOG("Assigning variable " + varAssign->variableName + " of type " + varAssign->getType()->toString());
+        prepareType(varAssign->getType());   // emit a not-yet-declared struct type before it is used
         return assignVariable(varAssign, scope);
     }
 

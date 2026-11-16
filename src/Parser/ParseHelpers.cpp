@@ -246,9 +246,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
     while (currentToken.getType() != end && currentToken.getType() != TokenTypes::EOI) {
         Token startToken = currentToken;
         std::shared_ptr<Statement> arg;
+        std::string namedArgName;
 
         if (currentToken.getType() == TokenTypes::Identifier && lexer.peekToken(1).getType() == assignOp) {
             std::string paramName = currentToken.getValue();
+            namedArgName = paramName;
             eat(TokenTypes::Identifier);
             eat(assignOp, [&]() {
                 std::string suggestion = Console::formatString(
@@ -302,6 +304,11 @@ std::vector<std::shared_ptr<Statement>> Parser::parseArguments(TokenTypes start,
             }
         }
 
+        if (!namedArgName.empty()) {
+            // Keep the name: `f(b = 1)` and `T { field: v }` match by parameter / field name.
+            arg->setPosition(startToken, previousToken);
+            arg = std::make_shared<ArgumentStatement>(namedArgName, arg);
+        }
         arg->setPosition(startToken, previousToken);
         args.push_back(arg);
 

@@ -119,7 +119,12 @@ std::shared_ptr<Statement> Parser::parseIdentifier() {
             i++;
         }
         const TokenTypes after = lexer.peekToken(i).getType();
-        return depth == 0 && (after == TokenTypes::Dot || after == TokenTypes::ScopeResolution);
+        // `List<int>{ x: 1 }` (non-empty braces) is a generic struct literal with field initialisers:
+        // specialise the name here so the ordinary `Type { ... }` constructor path below handles it.
+        // `List<int>{}` keeps its dedicated zero-initialising path (TypeDefaultValue).
+        const bool fieldLiteral = after == TokenTypes::LeftBrace &&
+                                  lexer.peekToken(i + 1).getType() != TokenTypes::RightBrace;
+        return depth == 0 && (after == TokenTypes::Dot || after == TokenTypes::ScopeResolution || fieldLiteral);
     };
 
     // If `name` is followed by `<T...>` and then `.member`, consume the type arguments and rewrite
