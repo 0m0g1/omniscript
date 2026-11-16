@@ -39,9 +39,10 @@ int Application::run() noexcept {
     if (!config_) {
         OMNISCRIPT_UNLIKELY
         // Use proper console error reporting instead of console.error
-        REPORT_ERROR(Console::ErrorType::PARSE_ERROR, "Configuration parsing failed: " + config_.error());
+        console.reportError(Console::ErrorType::PARSE_ERROR, config_.error());   // message already says which option and why
         error::globalErrorCollector.addError(error::Severity::Fatal, config_.error(), "Configuration");
-        logErrors(*config_);
+        // No logErrors(*config_) here: config_ holds the error, not a Config, so dereferencing it is undefined
+        // (it tripped the std::expected assertion on bad arguments).
         DEBUG_PHASE_END();
         return 1;
     }

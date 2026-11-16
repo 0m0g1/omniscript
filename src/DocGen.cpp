@@ -90,11 +90,43 @@ std::string firstLine(const std::string& s) {
     return trim(nl == std::string::npos ? s : s.substr(0, nl));
 }
 
-// Renders one file. `shift` pushes every heading down that many levels (used when the file
-// is embedded in a bigger document). `summary` receives the first line of the `//!` doc.
-// `entries` receives the number of documented declarations.
-bool renderFile(const std::string& path, const std::string& title, size_t shift,
-                std::string& out, std::string& summary, size_t& entries, std::string& error) {
+// One documented declaration, as found in a source file.
+struct DocItem {
+    std::string owner;       // struct/class/enum it is a member of, or ""
+    std::string signature;   // the declaration as written, up to the first '{' or ';'
+    std::string text;        // the `///` block
+    size_t line = 0;         // 1-based line of the declaration
+    bool documented = true;  // false for declarations found without a `///` block (only with includeUndocumented)
+};
+
+struct FileDocs {
+    std::string moduleDoc;   // the `//!` lines
+    std::vector<DocItem> items;
+};
+
+// Does this source line start a declaration? `inType` is true inside a struct/class/enum body, where
+// `name: type` fields and `name(...)` methods are declarations too.
+bool looksLikeDeclaration(const std::string& line, bool inType) {
+    const std::string t = trim(line);
+    if (t.empty() || t.rfind("//", 0) == 0) return false;
+    size_t n = 0;
+    while (n < t.size() && (std::isalnum(static_cast<unsigned char>(t[n])) || t[n] == '_')) ++n;
+    if (n == 0) return false;
+    const std::string word = t.substr(0, n);
+    static const char* const keywords[] = {"function", "fn", "struct", "class", "enum", "const", "let",
+                                           "public", "private", "protected", "static"};
+    for (const char* kw : keywords) if (word == kw) return true;
+    if (!inType) return false;
+    size_t k = n;
+    while (k < t.size() && (t[k] == ' ' || t[k] == '\t')) ++k;
+    return k < t.size() && (t[k] == ':' || t[k] == '(');
+}
+
+// Lexes a whole file and collects its doc comments. The lexer's doc table is filled by lexing, and the
+// braces tell us which struct/class/enum body every line is in (so methods are listed under their owner).
+// With includeUndocumented, declarations that have no `///` block are collected too (documented = false):
+// the first token of every statement at file, module or type-body level is a candidate, and its line decides.
+bool extractDocs(const std::string& path, FileDocs& docs, std::string& error, bool includeUndocumented = false) {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
         error = "Cannot open '" + path + "'";
@@ -104,13 +136,13 @@ bool renderFile(const std::string& path, const std::string& title, size_t shift,
     buffer << in.rdbuf();
     const std::string source = buffer.str();
 
-    // Lex the whole file. This fills the lexer's doc table, and the braces tell us which
-    // struct/class/enum body every line is in (so methods can be listed under their owner).
     Lexer lexer(source, path);
     std::map<size_t, std::string> ownerAtLine;
     std::vector<std::string> bodies;      // one entry per open '{': the owner's name, or "" for other blocks
+    std::vector<bool> containers;         // parallel: true for struct/class/enum/module bodies
+    std::set<size_t> startLines;          // lines where a statement starts at declaration level
     std::string pendingName;
-    bool expectName = false;
+    bool expectName = false, pendingContainer = false, atStart = true;
     for (;;) {
         Token t = lexer.getNextToken();
         const TokenTypes type = t.getType();
@@ -118,6 +150,12 @@ bool renderFile(const std::string& path, const std::string& title, size_t shift,
         if (type == TokenTypes::Newline) continue;
 
         ownerAtLine.emplace(t.getLine(), bodies.empty() ? std::string() : bodies.back());
+
+        if (atStart && (containers.empty() || containers.back()) && type != TokenTypes::RightBrace &&
+            type != TokenTypes::Semicolon && type != TokenTypes::LeftBrace) {
+            startLines.insert(t.getLine());
+        }
+        atStart = false;
 
         if (type == TokenTypes::Struct || type == TokenTypes::Class || type == TokenTypes::Enum) {
             expectName = true;
@@ -133,19 +171,26 @@ bool renderFile(const std::string& path, const std::string& title, size_t shift,
             pendingName.clear();
             expectName = false;
         }
+
+        if (type == TokenTypes::LeftBrace) {
+            containers.push_back(pendingContainer);
+            pendingContainer = false;
+            atStart = true;
+        } else if (type == TokenTypes::RightBrace) {
+            if (!containers.empty()) containers.pop_back();
+            atStart = true;
+        } else if (type == TokenTypes::Semicolon) {
+            pendingContainer = false;
+            atStart = true;
+        } else if (type == TokenTypes::Struct || type == TokenTypes::Class || type == TokenTypes::Enum ||
+                   type == TokenTypes::Module) {
+            pendingContainer = true;
+        }
     }
 
-    auto heading = [&](size_t level) { return std::string(level + shift, '#') + " "; };
-
     const std::vector<std::string> lines = splitLines(source);
-    std::ostringstream o;
-    o << heading(1) << title << "\n\n";
-
-    const std::string moduleDoc = lexer.moduleDoc();
-    summary = firstLine(moduleDoc);
-    if (!moduleDoc.empty()) o << moduleDoc << "\n\n";
-
-    entries = 0;
+    docs.moduleDoc = lexer.moduleDoc();
+    docs.items.clear();
     for (const auto& block : lexer.docBlocks()) {
         const size_t declIndex = block.lastLine;          // 0-based index of the line after the block
         if (declIndex >= lines.size()) continue;
@@ -156,14 +201,60 @@ bool renderFile(const std::string& path, const std::string& title, size_t shift,
         if (sig.empty()) continue;
 
         const auto ownerIt = ownerAtLine.find(block.lastLine + 1);
-        const std::string owner = ownerIt == ownerAtLine.end() ? std::string() : ownerIt->second;
+        DocItem d;
+        d.owner = ownerIt == ownerAtLine.end() ? std::string() : ownerIt->second;
+        d.signature = sig;
+        d.text = block.text;
+        d.line = block.lastLine + 1;
+        docs.items.push_back(std::move(d));
+    }
 
-        o << heading(owner.empty() ? 2 : 3) << "`" << sig << "`\n\n";
-        if (!owner.empty()) o << "*Member of `" << owner << "`.*\n\n";
-        o << block.text << "\n\n";
+    if (includeUndocumented) {
+        std::set<size_t> documentedLines;
+        for (const auto& d : docs.items) documentedLines.insert(d.line);
+        for (const size_t ln : startLines) {
+            if (ln == 0 || ln > lines.size() || documentedLines.count(ln)) continue;
+            const auto ownerIt = ownerAtLine.find(ln);
+            const std::string owner = ownerIt == ownerAtLine.end() ? std::string() : ownerIt->second;
+            if (!looksLikeDeclaration(lines[ln - 1], !owner.empty())) continue;
+            const std::string sig = signatureAt(lines, ln - 1);
+            if (sig.empty() || sig.rfind("extern ", 0) == 0) continue;
+            DocItem d;
+            d.owner = owner;
+            d.signature = sig;
+            d.line = ln;
+            d.documented = false;
+            docs.items.push_back(std::move(d));
+        }
+        std::stable_sort(docs.items.begin(), docs.items.end(),
+                         [](const DocItem& a, const DocItem& b) { return a.line < b.line; });
+    }
+    return true;
+}
+
+// Renders one file. `shift` pushes every heading down that many levels (used when the file
+// is embedded in a bigger document). `summary` receives the first line of the `//!` doc.
+// `entries` receives the number of documented declarations.
+bool renderFile(const std::string& path, const std::string& title, size_t shift,
+                std::string& out, std::string& summary, size_t& entries, std::string& error) {
+    FileDocs docs;
+    if (!extractDocs(path, docs, error)) return false;
+
+    auto heading = [&](size_t level) { return std::string(level + shift, '#') + " "; };
+
+    std::ostringstream o;
+    o << heading(1) << title << "\n\n";
+    summary = firstLine(docs.moduleDoc);
+    if (!docs.moduleDoc.empty()) o << docs.moduleDoc << "\n\n";
+
+    entries = 0;
+    for (const auto& d : docs.items) {
+        o << heading(d.owner.empty() ? 2 : 3) << "`" << d.signature << "`\n\n";
+        if (!d.owner.empty()) o << "*Member of `" << d.owner << "`.*\n\n";
+        o << d.text << "\n\n";
         ++entries;
     }
-    if (entries == 0 && moduleDoc.empty()) o << "_No documentation yet._\n\n";
+    if (entries == 0 && docs.moduleDoc.empty()) o << "_No documentation yet._\n\n";
 
     out = o.str();
     return true;
@@ -949,6 +1040,371 @@ bool generateLibraryDocs(const std::string& rootFile, const std::string& outPath
         }
         f << intro << "## Index\n\n" << index.str() << "\n" << all.str();
     }
+    return true;
+}
+
+// ---- Searching and listing ------------------------------------------------------------------
+namespace {
+
+std::string kindOf(const DocItem& d) {
+    const std::string& s = d.signature;
+    auto starts = [&](const char* k) { return s.rfind(k, 0) == 0; };
+    if (starts("struct ")) return "struct";
+    if (starts("class ")) return "class";
+    if (starts("enum ")) return "enum";
+    if (starts("function ") || starts("fn ")) return d.owner.empty() ? "function" : "method";
+    if (starts("const ")) return "constant";
+    if (starts("let ")) return "variable";
+    const bool callable = s.find('(') != std::string::npos;
+    if (!d.owner.empty()) return callable ? "method" : "field";
+    return callable ? "function" : "item";
+}
+
+bool kindMatches(const std::string& filter, const std::string& kind) {
+    if (filter.empty()) return true;
+    const std::string f = toLower(filter);
+    if (f == kind) return true;
+    if (f == "type") return kind == "struct" || kind == "class" || kind == "enum";
+    if (f == "member") return kind == "method" || kind == "field";
+    if (f == "func" || f == "fn") return kind == "function";
+    if (f == "const") return kind == "constant";
+    if (f == "var" || f == "let") return kind == "variable";
+    return false;
+}
+
+// "String" + "function trim() => String" -> "String.trim() => String"; free items stay as written.
+std::string displaySignature(const DocItem& d) {
+    if (d.owner.empty()) return d.signature;
+    std::string s = d.signature;
+    for (const char* kw : {"function ", "fn "}) {
+        const std::string k(kw);
+        if (s.rfind(k, 0) == 0) { s = s.substr(k.size()); break; }
+    }
+    return d.owner + "." + s;
+}
+
+// First non-empty line of a doc, without markdown backticks, cut to ~110 characters.
+std::string shortSummary(const std::string& text) {
+    for (const std::string& ln : splitLines(text)) {
+        std::string t = trim(ln);
+        if (t.empty()) continue;
+        t.erase(std::remove(t.begin(), t.end(), '`'), t.end());
+        if (t.size() > 110) {
+            size_t cut = 107;
+            while (cut > 0 && (static_cast<unsigned char>(t[cut]) & 0xC0) == 0x80) --cut;
+            t = t.substr(0, cut) + "...";
+        }
+        return t;
+    }
+    return "";
+}
+
+// The root file plus everything it pulls in (each file once), in the same order the docs use.
+bool gatherModules(const std::string& rootFile, std::string& libName, std::vector<ModuleFile>& modules,
+                   std::string& error) {
+    std::error_code ec;
+    const fs::path root(rootFile);
+    ScanResult rootScan;
+    if (!scanImports(rootFile, rootScan, error)) return false;
+    libName = rootScan.topModule.empty() ? stemOf(rootFile) : rootScan.topModule;
+
+    std::set<std::string> visited;
+    visited.insert(toLower(fs::weakly_canonical(root, ec).string()));
+    modules.clear();
+    modules.push_back(ModuleFile{libName, libName + ".md", root});
+    return collectModules(root, "", visited, modules, error);
+}
+
+// Decides whether undocumented declarations are included: when asked for (`all`), or when nothing in
+// the scope has a `///` comment at all (then the declarations are the only thing there is to show).
+bool needUndocumented(const std::vector<ModuleFile>& modules, bool all, bool& include, std::string& error) {
+    include = all;
+    if (all) return true;
+    for (const auto& m : modules) {
+        FileDocs docs;
+        if (!extractDocs(m.source.string(), docs, error, false)) return false;
+        if (!docs.items.empty()) return true;           // something is documented: keep to documented items
+    }
+    include = true;
+    return true;
+}
+
+const char* const kFallbackNote = "No /// doc comments found, so declarations are shown instead.";
+
+} // namespace
+
+bool findLibraryDocs(const std::string& rootFile, const std::string& query, const std::string& kindFilter, bool all,
+                     std::vector<DocHit>& hits, size_t& moduleCount, size_t& itemCount, std::string& note,
+                     std::string& error) {
+    std::string libName;
+    std::vector<ModuleFile> modules;
+    if (!gatherModules(rootFile, libName, modules, error)) return false;
+
+    bool include = false;
+    if (!needUndocumented(modules, all, include, error)) return false;
+    note = (include && !all) ? kFallbackNote : "";
+
+    // "String.trim", "std/IO" and "read file" all become separate lowercase terms.
+    std::string q = toLower(query);
+    for (char& c : q) if (c == '.' || c == '/' || c == ':' || c == ',') c = ' ';
+    std::vector<std::string> terms;
+    {
+        std::istringstream ts(q);
+        std::string w;
+        while (ts >> w) terms.push_back(w);
+    }
+    if (terms.empty() && kindFilter.empty()) {
+        error = "Nothing to search for";
+        return false;
+    }
+
+    // Every term must match somewhere; the better the place, the higher the score.
+    auto scoreOf = [&](const std::string& name, const std::string& owner, const std::string& module,
+                       const std::string& sig, const std::string& text) -> int {
+        const std::string n = toLower(name), o = toLower(owner), m = toLower(module), s = toLower(sig), t = toLower(text);
+        int total = 0;
+        for (const auto& term : terms) {
+            int best = 0;
+            if (n == term) best = 40;
+            else if (n.rfind(term, 0) == 0) best = 30;
+            else if (n.find(term) != std::string::npos) best = 20;
+            else if (o.find(term) != std::string::npos) best = 12;
+            else if (m.find(term) != std::string::npos) best = 10;
+            else if (s.find(term) != std::string::npos) best = 6;
+            else if (t.find(term) != std::string::npos) best = 2;
+            if (best == 0) return -1;
+            total += best;
+        }
+        return total;
+    };
+
+    hits.clear();
+    itemCount = 0;
+    moduleCount = modules.size();
+    for (const auto& m : modules) {
+        FileDocs docs;
+        if (!extractDocs(m.source.string(), docs, error, include)) return false;
+        itemCount += docs.items.size();
+
+        if (kindMatches(kindFilter, "module")) {
+            const int sc = scoreOf(m.name, "", m.name, m.name, docs.moduleDoc);
+            if (sc >= 0) {
+                DocHit h;
+                h.score = sc;
+                h.kind = "module";
+                h.name = m.name;
+                h.module = m.name;
+                h.signature = m.name;
+                h.summary = shortSummary(docs.moduleDoc);
+                h.file = m.source.generic_string();
+                h.line = 1;
+                hits.push_back(std::move(h));
+            }
+        }
+        for (const auto& d : docs.items) {
+            if (!kindMatches(kindFilter, kindOf(d))) continue;
+            const std::string name = labelOf(d.signature);
+            const int sc = scoreOf(name, d.owner, m.name, d.signature, d.text);
+            if (sc < 0) continue;
+            DocHit h;
+            h.score = sc;
+            h.kind = kindOf(d);
+            h.name = name;
+            h.module = m.name;
+            h.signature = displaySignature(d);
+            h.summary = shortSummary(d.text);
+            h.documented = d.documented;
+            h.file = m.source.generic_string();
+            h.line = d.line;
+            hits.push_back(std::move(h));
+        }
+    }
+
+    std::sort(hits.begin(), hits.end(), [](const DocHit& a, const DocHit& b) {
+        if (a.score != b.score) return a.score > b.score;
+        const std::string la = toLower(a.name), lb = toLower(b.name);
+        if (la != lb) return la < lb;
+        return a.module < b.module;
+    });
+    return true;
+}
+
+namespace {
+
+struct Style {
+    bool on;
+    std::string wrap(const char* code, const std::string& s) const { return on ? std::string("\x1b[") + code + "m" + s + "\x1b[0m" : s; }
+    std::string bold(const std::string& s) const { return wrap("1", s); }
+    std::string dim(const std::string& s) const { return wrap("2", s); }
+};
+
+// Colors per kind so people can tell functions, types and data apart at a glance.
+const char* kindColor(const std::string& k) {
+    if (k == "function" || k == "method") return "1;32";            // green
+    if (k == "struct" || k == "class" || k == "enum") return "1;33"; // yellow
+    if (k == "module") return "1;34";                               // blue
+    return "1;35";                                                  // magenta: field, constant, variable, item
+}
+
+// The badge already says "function"/"struct"/..., so the keyword is dropped from the signature.
+std::string withoutKeyword(std::string s) {
+    for (const char* kw : {"function ", "fn ", "struct ", "class ", "enum ", "const ", "let "}) {
+        const std::string k(kw);
+        if (s.rfind(k, 0) == 0) return s.substr(k.size());
+    }
+    return s;
+}
+
+const char* const kNoDoc = "(no doc comment)";
+
+} // namespace
+
+std::string formatDocHits(const std::vector<DocHit>& hits, const std::string& query, const std::string& kindFilter,
+                          size_t limit, size_t moduleCount, size_t itemCount, const std::string& note, bool color) {
+    const Style st{color};
+    std::ostringstream o;
+    if (hits.empty()) {
+        o << st.wrap("1;33", "No documented item matches") << " " << st.bold("'" + query + "'");
+        if (!kindFilter.empty()) o << st.dim(" (kind: " + kindFilter + ")");
+        o << "\n" << st.dim("Searched " + std::to_string(moduleCount) + " modules and " + std::to_string(itemCount) +
+                            " items. Declarations without /// doc comments are skipped unless you add --all.") << "\n";
+        return o.str();
+    }
+
+    const size_t shown = std::min(hits.size(), limit == 0 ? size_t(20) : limit);
+    o << st.wrap("1;36", "doc-search") << " " << st.bold("'" + query + "'");
+    if (!kindFilter.empty()) o << st.dim(" (kind: " + kindFilter + ")");
+    o << st.dim("  -  " + std::to_string(hits.size()) + (hits.size() == 1 ? " match" : " matches") + " in " +
+                std::to_string(moduleCount) + " modules") << "\n";
+    if (!note.empty()) o << st.dim(note) << "\n";
+    o << "\n";
+
+    for (size_t i = 0; i < shown; ++i) {
+        const auto& h = hits[i];
+        std::string badge = h.kind;
+        badge.resize(std::max<size_t>(badge.size(), 8), ' ');
+        o << " " << st.wrap(kindColor(h.kind), badge) << " "
+          << st.bold(h.kind == "module" ? h.name : withoutKeyword(h.signature)) << "\n";
+        if (!h.summary.empty()) o << "          " << h.summary << "\n";
+        else if (!h.documented) o << "          " << st.dim(kNoDoc) << "\n";
+        o << "          " << st.dim(h.module + "  -  " + h.file + ":" + std::to_string(h.line)) << "\n\n";
+    }
+    if (shown < hits.size()) {
+        o << st.dim("Showing " + std::to_string(shown) + " of " + std::to_string(hits.size()) +
+                    ". Use --limit N for more.") << "\n";
+    }
+    return o.str();
+}
+
+bool searchLibraryDocs(const std::string& rootFile, const std::string& query, const std::string& kindFilter,
+                       size_t limit, std::string& output, std::string& error, bool color, bool all) {
+    std::vector<DocHit> hits;
+    size_t moduleCount = 0, itemCount = 0;
+    std::string note;
+    if (!findLibraryDocs(rootFile, query, kindFilter, all, hits, moduleCount, itemCount, note, error)) return false;
+    output = formatDocHits(hits, query, kindFilter, limit, moduleCount, itemCount, note, color);
+    return true;
+}
+
+bool showFileDocs(const std::string& path, const std::string& title, const std::string& kindFilter, bool all,
+                  bool color, std::string& output, std::string& error) {
+    std::vector<ModuleFile> single{ModuleFile{title, "", fs::path(path)}};
+    bool include = false;
+    if (!needUndocumented(single, all, include, error)) return false;
+
+    FileDocs docs;
+    if (!extractDocs(path, docs, error, include)) return false;
+    const Style st{color};
+
+    std::vector<const DocItem*> shown;
+    for (const auto& d : docs.items) {
+        if (kindMatches(kindFilter, kindOf(d))) shown.push_back(&d);
+    }
+
+    std::ostringstream o;
+    o << st.wrap("1;36", "doc-show") << " " << st.bold(title);
+    if (!kindFilter.empty()) o << st.dim(" (kind: " + kindFilter + ")");
+    o << st.dim("  -  " + std::to_string(shown.size()) + (shown.size() == 1 ? " item" : " items")) << "\n";
+    const std::string summary = firstLine(docs.moduleDoc);
+    if (!summary.empty()) o << st.dim(summary) << "\n";
+    if (include && !all) o << st.dim(kFallbackNote) << "\n";
+    o << "\n";
+
+    if (shown.empty()) {
+        o << st.wrap("1;33", "Nothing to show") << ": "
+          << st.dim(std::string(kindFilter.empty() ? "no declarations were found." : "no item of kind '" + kindFilter + "'.") +
+                    (include ? "" : " Declarations without /// doc comments are skipped unless you add --all."))
+          << "\n";
+        output = o.str();
+        return true;
+    }
+
+    for (const DocItem* d : shown) {
+        const std::string kind = kindOf(*d);
+        const std::string indent = d->owner.empty() ? " " : "   ";
+        std::string badge = kind;
+        badge.resize(std::max<size_t>(badge.size(), 8), ' ');
+        o << indent << st.wrap(kindColor(kind), badge) << " " << st.bold(withoutKeyword(d->signature))
+          << st.dim("   :" + std::to_string(d->line)) << "\n";
+        const std::string sum = shortSummary(d->text);
+        if (!sum.empty()) o << indent << "         " << sum << "\n";
+        else if (!d->documented) o << indent << "         " << st.dim(kNoDoc) << "\n";
+        o << "\n";
+    }
+    output = o.str();
+    return true;
+}
+
+bool listLibraryDocs(const std::string& rootFile, const std::string& kindFilter,
+                     std::string& output, std::string& error, bool all) {
+    std::string libName;
+    std::vector<ModuleFile> modules;
+    if (!gatherModules(rootFile, libName, modules, error)) return false;
+
+    bool include = false;
+    if (!needUndocumented(modules, all, include, error)) return false;
+
+    // Same alphabetical, case-insensitive order as --doc-all.
+    std::sort(modules.begin(), modules.end(), [](const ModuleFile& a, const ModuleFile& b) {
+        const std::string la = toLower(a.name), lb = toLower(b.name);
+        return la != lb ? la < lb : a.name < b.name;
+    });
+
+    std::ostringstream body;
+    size_t moduleCount = 0, itemCount = 0;
+    for (const auto& m : modules) {
+        FileDocs docs;
+        if (!extractDocs(m.source.string(), docs, error, include)) return false;
+
+        std::ostringstream items;
+        size_t n = 0;
+        for (const auto& d : docs.items) {
+            if (!kindMatches(kindFilter, kindOf(d))) continue;
+            items << "- `" << displaySignature(d) << "`";
+            const std::string sum = shortSummary(d.text);
+            if (!sum.empty()) items << " — " << sum;
+            else if (!d.documented) items << " — _(no doc comment)_";
+            items << "\n";
+            ++n;
+        }
+        if (n == 0 && (docs.moduleDoc.empty() || !kindFilter.empty())) continue;   // nothing to show for this module
+
+        body << "## " << m.name << "\n\n";
+        const std::string sum = firstLine(docs.moduleDoc);
+        if (!sum.empty()) body << sum << "\n\n";
+        body << items.str() << "\n";
+        ++moduleCount;
+        itemCount += n;
+    }
+
+    std::ostringstream o;
+    o << "# " << libName << " — " << (include ? "declarations" : "documented items") << "\n\n"
+      << itemCount << " items in " << moduleCount << " modules";
+    if (!kindFilter.empty()) o << " (kind: " << kindFilter << ")";
+    o << ".\n\n";
+    if (include && !all) o << "_" << kFallbackNote << "_\n\n";
+    o << body.str();
+    output = o.str();
     return true;
 }
 

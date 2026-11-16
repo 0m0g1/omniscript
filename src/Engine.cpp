@@ -9,10 +9,103 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <vector>
 
 namespace Omniscript {
 
 namespace fs = std::filesystem;
+
+namespace {
+
+// Checks the file a --doc* option was pointed at and explains what is wrong in plain words.
+// Returns "" when the file can be read. `given` is what the user typed, `resolved` what it maps to.
+std::string pathProblem(const std::string& option, const std::string& given, const std::string& resolved) {
+    std::error_code ec;
+    const fs::path p(resolved);
+    std::string shown = "'" + resolved + "'";
+    if (given != resolved) shown += " (from '" + given + "')";
+
+    if (!fs::exists(p, ec)) {
+        std::string msg = option + ": cannot open " + shown + " - file not found.";
+        if (!resolved.empty() && (resolved[0] == '/' || resolved[0] == '\\')) {
+            if (fs::exists(fs::path("." + resolved), ec)) {
+                msg += "\n  Did you mean '." + resolved + "'? A leading '/' means the root of the drive, not this folder.";
+            } else {
+                msg += "\n  A leading '/' means the root of the drive. Use a relative path such as ./folder/file.os instead.";
+            }
+        } else {
+            msg += "\n  Paths are relative to the folder you run from (" + fs::current_path(ec).string() + ").";
+        }
+        return msg;
+    }
+    if (fs::is_directory(p, ec)) {
+        return option + ": " + shown + " is a folder, but a source file (like std.os) is needed.";
+    }
+    std::ifstream probe(resolved, std::ios::binary);
+    if (!probe) return option + ": cannot read " + shown + " - permission denied or the file is locked.";
+    return "";
+}
+
+// Number of single-character edits between two strings (for "did you mean" suggestions).
+size_t editDistance(const std::string& a, const std::string& b) {
+    std::vector<size_t> prev(b.size() + 1), cur(b.size() + 1);
+    for (size_t j = 0; j <= b.size(); ++j) prev[j] = j;
+    for (size_t i = 1; i <= a.size(); ++i) {
+        cur[0] = i;
+        for (size_t j = 1; j <= b.size(); ++j) {
+            const size_t sub = prev[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1);
+            cur[j] = std::min({prev[j] + 1, cur[j - 1] + 1, sub});
+        }
+        std::swap(prev, cur);
+    }
+    return prev[b.size()];
+}
+
+// The known option closest to what was typed, or "" if nothing is close.
+std::string closestOption(const std::string& arg, const std::vector<std::string>& options) {
+    std::string best;
+    size_t bestDistance = arg.size();
+    const size_t limit = std::max<size_t>(1, std::min<size_t>(3, arg.size() / 3));
+    for (const auto& o : options) {
+        if (arg.size() >= 4 && o.rfind(arg, 0) == 0) return o;              // "--doc-s" -> "--doc-search"
+        const size_t d = editDistance(arg, o);
+        if (d < bestDistance) { bestDistance = d; best = o; }
+    }
+    return bestDistance <= limit ? best : std::string();
+}
+
+// What an option expects as its value, for error messages.
+std::string optionHint(const std::string& o) {
+    if (o == "--target" || o == "--target-os") return "one of: linux, windows, macos, freebsd, android, ios, wasm";
+    if (o == "--target-arch") return "one of: x86_64, arm64, x86_32, arm32, riscv64, wasm32, wasm64";
+    if (o == "-O" || o == "--optimization-level") return "a number from 0 to 3, e.g. -O 2";
+    if (o == "--heap-size" || o == "--stack-size") return "a size such as 64MB, 512K or 2GB";
+    if (o == "--parallel-jobs") return "a whole number, e.g. --parallel-jobs 4";
+    if (o == "--max-errors") return "a whole number, e.g. --max-errors 20";
+    if (o == "--gc") return "one of: none, refcounting, marksweep, generational, incremental";
+    if (o == "--safety") return "one of: unsafe, minimal, standard, paranoid";
+    if (o == "--main-source" || o == "--source") return "a source file path";
+    if (o == "--enable-modules" || o == "--cache-dir") return "a folder path";
+    if (o == "--error-log") return "a file path for the log";
+    if (o == "--toolchain") return "a folder path (for android: the NDK root)";
+    if (o == "--target-triple") return "a target triple such as x86_64-pc-windows-msvc";
+    if (o == "--profiler") return "a profiler type such as perf (optionally followed by an output path)";
+    return "";
+}
+
+bool hasFlag(int argc, char* argv[], const char* flag) {
+    for (int j = 1; j < argc; ++j) if (std::string_view(argv[j]) == flag) return true;
+    return false;
+}
+
+std::string describeOptionError(const std::string& option, const std::string& value, bool hasValue, bool missing) {
+    const std::string hint = optionHint(option);
+    std::string msg = (missing || !hasValue) ? option + " needs a value" : "Invalid value '" + value + "' for " + option;
+    if (!hint.empty()) msg += ": expected " + hint;
+    return msg + ".";
+}
+
+} // namespace
 
 thread_local Engine::ExecutionStats Engine::currentStats_;
 
@@ -329,7 +422,7 @@ std::expected<Config, std::string>
 Engine::parseArguments(int argc, char* argv[]) noexcept {
     OMNISCRIPT_PROFILE_FUNCTION();
     if (argc > MAX_ARGS) OMNISCRIPT_UNLIKELY {
-        return std::unexpected("Too many arguments (limit: " + std::to_string(MAX_ARGS) + ")");
+        return std::unexpected("Too many arguments (" + std::to_string(argc - 1) + " given, the limit is " + std::to_string(MAX_ARGS) + ").");
     }
 
     Config config;
@@ -346,7 +439,9 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
             auto result = handlerIt->second(config, args);
             if (result != ParseResult::Success) {
                 currentStats_.result = result;
-                return std::unexpected(formatError(result, arg));
+                const bool hasValue = i + 1 < argc;
+                return std::unexpected(describeOptionError(std::string(arg), hasValue ? argv[i + 1] : "", hasValue,
+                                                           result == ParseResult::MissingValue));
             }
             i += args.size() - (argc - i - 1);
         } else if (arg == "--verbose") {
@@ -369,11 +464,18 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
         } else if (arg == "--show-host-info") {
             // Assuming TargetInfo::printHostInfo exists
             std::exit(0);
+        } else if (arg == "--all" || arg == "--html" || arg == "--split") {
+            // flags read by the --doc* options (they scan the whole command line); ignored otherwise
+        } else if (arg == "--kind" || arg == "--limit") {
+            ++i;   // value is read by the --doc* options
         } else if (arg == "--doc") {
             // --doc <module or file> [-o <file.md>]: print the file's /// docs as Markdown, then exit.
             // <module> may be written like an import: "std/Console" -> standard/1/Console.os
-            if (i + 1 >= argc) return std::unexpected("Missing module or file after '--doc'");
+            if (i + 1 >= argc) return std::unexpected("--doc needs a module or file, e.g. --doc std/Console or --doc ./standard/1/Console.os");
             const std::string target = argv[++i];
+            if (const auto problem = pathProblem("--doc", target, resolveDocTarget(target)); !problem.empty()) {
+                return std::unexpected(problem);
+            }
             std::string docOut;
             for (int j = 1; j + 1 < argc; ++j) {
                 const std::string_view a(argv[j]);
@@ -387,7 +489,7 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
             const bool docOk = html ? generateDocsHtml(resolveDocTarget(target), markdown, docError)
                                     : generateDocsMarkdown(resolveDocTarget(target), markdown, docError);
             if (!docOk) {
-                return std::unexpected(docError);
+                return std::unexpected("--doc: " + docError);
             }
             if (docOut.empty()) {
                 std::cout << markdown;
@@ -404,8 +506,12 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
             //   --doc-all standard/1/std.os --split         -> docs/std/index.md + one .md per module
             //   --doc-all standard/1/std.os --split -o out  -> out/index.md + ...
             //   add --html for web pages with a sidebar and search (docs/std.html, or docs/std/index.html with --split)
-            if (i + 1 >= argc) return std::unexpected("Missing root file after '--doc-all'");
-            const std::string rootFile = resolveDocTarget(argv[++i]);
+            if (i + 1 >= argc) return std::unexpected("--doc-all needs a root file, e.g. --doc-all ./standard/1/std.os");
+            const std::string rootArg = argv[++i];
+            const std::string rootFile = resolveDocTarget(rootArg);
+            if (const auto problem = pathProblem("--doc-all", rootArg, rootFile); !problem.empty()) {
+                return std::unexpected(problem);
+            }
             bool split = false;
             bool html = false;
             std::string docOut;
@@ -421,15 +527,103 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
             }
             std::string docError;
             if (!generateLibraryDocs(rootFile, docOut, split, html, docError)) {
-                return std::unexpected(docError);
+                return std::unexpected("--doc-all: " + docError);
             }
             std::cout << "Wrote " << docOut << "\n";
             std::exit(0);
+        } else if (arg == "--doc-search") {
+            // --doc-search <root file> <query> [--kind <kind>] [--limit <n>]: find documented items, then exit.
+            //   --doc-search standard/1/std.os "read file"
+            //   --doc-search standard/1/std.os String.trim --kind method --limit 5
+            // <kind>: module, function, method, struct, class, enum, field, constant, variable,
+            //         type (struct/class/enum), member (method/field)
+            if (i + 2 >= argc) return std::unexpected("--doc-search needs a root file and a query, e.g. --doc-search ./standard/1/std.os trim  (optional: --kind <kind> --limit <n>)");
+            const std::string rootArg = argv[++i];
+            const std::string rootFile = resolveDocTarget(rootArg);
+            if (const auto problem = pathProblem("--doc-search", rootArg, rootFile); !problem.empty()) {
+                return std::unexpected(problem);
+            }
+            const std::string query = argv[++i];
+            std::string kind;
+            size_t limit = 0;
+            for (int j = 1; j + 1 < argc; ++j) {
+                const std::string_view a(argv[j]);
+                if (a == "--kind") kind = argv[j + 1];
+                else if (a == "--limit") {
+                    try { limit = std::stoul(argv[j + 1]); }
+                    catch (...) { return std::unexpected("Invalid value for argument: --limit"); }
+                }
+            }
+            std::string result, docError;
+            if (!searchLibraryDocs(rootFile, query, kind, limit, result, docError, console.isColorEnabled(), hasFlag(argc, argv, "--all"))) {
+                return std::unexpected("--doc-search: " + docError);
+            }
+            std::cout << result;
+            std::exit(0);
+        } else if (arg == "--doc-list") {
+            // --doc-list <root file> [--kind <kind>] [-o <file.md>]: one Markdown file listing everything
+            // that is documented (module by module, one line per item), then exit. Good for showing
+            // people what a library offers.
+            //   --doc-list standard/1/std.os                      -> docs/std-index.md
+            //   --doc-list standard/1/std.os --kind function    -> only functions
+            //   --doc-list standard/1/std.os -o -                 -> print to the console instead
+            if (i + 1 >= argc) return std::unexpected("--doc-list needs a root file, e.g. --doc-list ./standard/1/std.os");
+            const std::string rootArg = argv[++i];
+            const std::string rootFile = resolveDocTarget(rootArg);
+            if (const auto problem = pathProblem("--doc-list", rootArg, rootFile); !problem.empty()) {
+                return std::unexpected(problem);
+            }
+            std::string kind, docOut;
+            for (int j = 1; j + 1 < argc; ++j) {
+                const std::string_view a(argv[j]);
+                if (a == "--kind") kind = argv[j + 1];
+                else if (a == "-o" || a == "--output") docOut = argv[j + 1];
+            }
+            if (docOut.empty()) {
+                docOut = "docs/" + std::filesystem::path(rootFile).stem().string() + "-index.md";
+            }
+            std::string result, docError;
+            if (!listLibraryDocs(rootFile, kind, result, docError, hasFlag(argc, argv, "--all"))) {
+                return std::unexpected("--doc-list: " + docError);
+            }
+            if (docOut == "-") {
+                std::cout << result;
+            } else {
+                const std::filesystem::path outFile(docOut);
+                std::error_code ec;
+                if (outFile.has_parent_path()) std::filesystem::create_directories(outFile.parent_path(), ec);
+                std::ofstream out(outFile, std::ios::binary);   // UTF-8, no BOM
+                if (!out) return std::unexpected("Cannot write '" + docOut + "'");
+                out << result;
+                std::cout << "Wrote " << docOut << "\n";
+            }
+            std::exit(0);
+        } else if (arg == "--doc-show") {
+            // --doc-show <module or file> [--kind <kind>]: list everything documented in ONE file on the
+            // console (kind, signature, summary, line), then exit. <module> may be written like an import.
+            //   --doc-show std/Console
+            //   --doc-show ./standard/1/String.os --kind method
+            if (i + 1 >= argc) return std::unexpected("--doc-show needs a module or file, e.g. --doc-show std/Console or --doc-show ./standard/1/Console.os");
+            const std::string target = argv[++i];
+            const std::string file = resolveDocTarget(target);
+            if (const auto problem = pathProblem("--doc-show", target, file); !problem.empty()) {
+                return std::unexpected(problem);
+            }
+            std::string kind;
+            for (int j = 1; j + 1 < argc; ++j) {
+                if (std::string_view(argv[j]) == "--kind") kind = argv[j + 1];
+            }
+            std::string result, docError;
+            if (!showFileDocs(file, target, kind, hasFlag(argc, argv, "--all"), console.isColorEnabled(), result, docError)) {
+                return std::unexpected("--doc-show: " + docError);
+            }
+            std::cout << result;
+            std::exit(0);
         } else if (arg == "--entry") {
-            if (i + 1 >= argc) return std::unexpected("Missing function name after '--entry'");
+            if (i + 1 >= argc) return std::unexpected("--entry needs a function name, e.g. --entry main.");
             config.entry = argv[++i];
         } else if (arg == "--output" || arg == "-o") {
-            if (i + 1 >= argc) return std::unexpected("Missing path after '--output'");
+            if (i + 1 >= argc) return std::unexpected("--output needs a file path, e.g. -o out.exe.");
             config.outputPath = argv[++i];
         } else if (arg == "--keep-obj") {
             config.keepIntermediateFiles = true;
@@ -443,7 +637,7 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
             config.runtime.enableParallelGC = true;
         } else if (arg == "--enable-concurrent-gc") {
             config.runtime.enableConcurrentGC = true;
-        } else if (!arg.starts_with("-")) {
+        } else if (arg == "-" || !arg.starts_with("-")) {
             if (!fileSpecified) OMNISCRIPT_LIKELY {
                 config.filePath = std::string(arg);
                 config.sourcePaths.push_back(std::string(arg));
@@ -453,12 +647,30 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
                 console.reportWarning("Multiple file paths provided. All will be processed.", FileSpan{});
             }
         } else {
-            return std::unexpected("Unknown argument: " + std::string(arg));
+            static const char* const otherOptions[] = {
+                "--verbose", "--execute", "--make", "--dry", "--version", "--help", "--list-targets", "--show-host-info",
+                "--doc", "--doc-all", "--doc-search", "--doc-list", "--doc-show", "--all", "--entry", "--output", "--keep-obj", "--log-asm",
+                "--log-final-code", "--show-metadata", "--enable-parallel-gc", "--enable-concurrent-gc"};
+            std::vector<std::string> known;
+            for (const auto& entry : ArgumentParser::argHandlers) known.emplace_back(entry.first);
+            for (const char* o : otherOptions) known.emplace_back(o);
+            std::string msg = "Unknown option '" + std::string(arg) + "'.";
+            const std::string suggestion = closestOption(std::string(arg), known);
+            if (!suggestion.empty()) msg += " Did you mean '" + suggestion + "'?";
+            msg += " Run with --help to see all options.";
+            return std::unexpected(msg);
         }
     }
 
     if (!fileSpecified && config.sourcePaths.empty()) OMNISCRIPT_UNLIKELY {
-        return std::unexpected("File path is required. Use '-' to read from stdin.");
+        return std::unexpected("No source file given. Usage: omniscript [options] <file>  (use '-' to read from stdin, --help for all options).");
+    }
+
+    for (const auto& source : config.sourcePaths) {   // fail early, with a clear reason, if a source cannot be read
+        if (source == "-") continue;
+        if (const auto problem = pathProblem("Source file", source, source); !problem.empty()) {
+            return std::unexpected(problem);
+        }
     }
 
     if (config.mode == CompileMode::None) {
@@ -476,7 +688,7 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
     config.autoConfigureForTarget();
     std::string validationError;
     if (!config.validate(validationError)) OMNISCRIPT_UNLIKELY {
-        return std::unexpected("Configuration validation failed: " + validationError);
+        return std::unexpected("Invalid combination of options: " + validationError);
     }
     printConfigDebugInfo(config);
     trackResourceUsage(currentStats_);
@@ -770,6 +982,9 @@ void Engine::printUsage() noexcept {
     console.log("  --entry <function>       Set entry function");
     console.log("  --doc <module|file>      Print the file's /// docs as Markdown (add -o <file> to save, --html for a web page)");
     console.log("  --doc-all <root.os>      Document a whole library from its root file (add --split, --html, -o <out>)");
+    console.log("  --doc-search <root.os> <query>  Find functions, types, members (add --kind <kind>, --limit <n>, --all)");
+    console.log("  --doc-show <module|file> List everything documented in one file (add --kind <kind>, --all)");
+    console.log("  --doc-list <root.os>     List everything documented in one Markdown file (add --kind <kind>, --all, -o <file>)");
     console.log("  --emit-staticlib         Emit a static library");
     console.log("  --emit-sharedlib         Emit a shared library");
     console.log("  --emit-assembly          Emit assembly source");
