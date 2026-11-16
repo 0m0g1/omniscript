@@ -9,6 +9,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <map>
 #include <optional>
 #include <memory>
 #include <functional>
@@ -115,6 +116,21 @@ public:
     };
     
     LexerStats getStatistics() const { return stats_; }
+
+    // ---- Doc comments ---------------------------------------------------------------
+    // `/// text` lines and `//! text` lines are kept (everything else is still discarded).
+    // Plain `//` comments and `////` banner lines are NOT docs.
+    struct DocBlock {
+        size_t firstLine = 0;   // line of the first `///` in the block
+        size_t lastLine = 0;    // line of the last `///`; the documented declaration is on lastLine + 1
+        std::string text;       // the lines joined with '\n', with `///` and one leading space removed
+    };
+    // All `///` blocks seen so far (only complete once the file has been lexed to the end).
+    std::vector<DocBlock> docBlocks() const;
+    // Text of the `///` block that ends on the line directly above declLine, or "" if there is none.
+    std::string docFor(size_t declLine) const;
+    // All `//!` lines joined with '\n' (documentation of the file/module itself).
+    std::string moduleDoc() const;
 
 private:
     // Core lexing methods
@@ -226,6 +242,11 @@ private:
     
     // Statistics and profiling
     LexerStats stats_;
+
+    // Doc comments, keyed by line number. peekToken() re-lexes the same text, so these are
+    // assigned (never appended to): lexing a comment twice must give the same table.
+    std::map<size_t, std::string> docLines_;
+    std::map<size_t, std::string> moduleDocLines_;
     
     // Keyword lookup table (static for performance)
     static const std::unordered_map<std::string, TokenTypes> keywordMap_;

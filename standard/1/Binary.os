@@ -69,9 +69,18 @@ struct ByteReader {
     }
 }
 
+function hexDigit(n: u32) => char {
+    if (n < 10) return (48 + n) as char;      // '0'..'9'
+    return (87 + n) as char;                  // 'a'..'f'
+}
+
 function toHex(p: u8*, n: u64, out: char*) => void {   // out needs 2n+1 bytes
-    let digits: char* = "0123456789abcdef";
     let i: u64 = 0;
-    while (i < n) { out[i * 2] = digits[(p[i] >> 4) as u64]; out[i * 2 + 1] = digits[(p[i] & 15) as u64]; i = i + 1; }
+    while (i < n) {
+        let b: u32 = p[i] as u32;
+        out[i * 2] = hexDigit(b >> 4);
+        out[i * 2 + 1] = hexDigit(b & 15);
+        i = i + 1;
+    }
     out[n * 2] = 0 as char;
 }

@@ -43,8 +43,8 @@ llvm::Function* CStdLibResolver::resolve(IRGenerator& generator, const std::stri
     // Define libraries to check in order of priority
     static const std::vector<std::pair<std::string, std::string>> librariesToCheck = {
 #ifdef _WIN32
-        {"msvcrt.dll", ""},           // Main C runtime (no link flag needed)
-        {"ucrtbase.dll", ""},         // Universal C Runtime
+        {"ucrtbase.dll", ""},         // Universal C Runtime (first: matches the JIT binding order)
+        {"msvcrt.dll", ""},           // Legacy C runtime (fallback)
         {"kernel32.dll", "kernel32"}, // Windows API
         {"user32.dll", "user32"},     // Windows User API
 #else
@@ -150,8 +150,8 @@ bool CStdLibResolver::isCStdLibFunction(const std::string& name) {
     // Windows
 #ifdef _WIN32
     std::vector<std::string> windowsLibs = {
-        "msvcrt.dll",      // Main C runtime
         "ucrtbase.dll",    // Universal C Runtime (Windows 10+)
+        "msvcrt.dll",      // Legacy C runtime
         "api-ms-win-crt-stdio-l1-1-0.dll",
         "api-ms-win-crt-string-l1-1-0.dll",
         "api-ms-win-crt-math-l1-1-0.dll",

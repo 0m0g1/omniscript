@@ -2,6 +2,7 @@
 // Tier 4: CSV parse/write (RFC 4180: quotes, "" escapes, CRLF). Rows are List<List<String>>-like: Csv.Table.
 module Str = import "standard/1/String.os";
 module L = import "standard/1/List.os";
+module CMem = import "standard/1/c/mem.os";
 
 struct Table {
     rows: L.List<L.List<Str.String>>;
@@ -30,23 +31,33 @@ function parse(text: char*, delim: char, out: Table*) => bool {
     let inQ: bool = false;
     let i: u64 = 0;
     let hasData: bool = false;
-    while (true) {
+    let go: bool = true;
+    while (go) {
         let c: int = text[i] as int;
-        if (c == 0) break;
-        hasData = true;
-        if (inQ) {
-            if (c == 34) {
-                if ((text[i + 1] as int) == 34) { cell.appendChar(34 as char); i = i + 1; } else inQ = false;
+        if (c == 0) {
+            go = false;
+        } else {
+            hasData = true;
+            if (inQ) {
+                if (c == 34) {
+                    if ((text[i + 1] as int) == 34) { cell.appendChar(34 as char); i = i + 1; }
+                    else inQ = false;
+                } else cell.appendChar(c as char);
+            } else if (c == 34) {
+                inQ = true;
+            } else if (c == (delim as int)) {
+                row.push(cell);
+                CMem.memset(&cell as void*, 0, sizeof(Str.String));
+            } else if (c == 10 || c == 13) {
+                if (c == 13 && (text[i + 1] as int) == 10) i = i + 1;
+                row.push(cell);
+                out.rows.push(row);
+                CMem.memset(&cell as void*, 0, sizeof(Str.String));
+                CMem.memset(&row as void*, 0, sizeof(L.List<Str.String>));
+                hasData = false;
             } else cell.appendChar(c as char);
-        } else if (c == 34) inQ = true;
-        else if (c == (delim as int)) { row.push(cell); cell = Str.String{}; }
-        else if (c == 10 || c == 13) {
-            if (c == 13 && (text[i + 1] as int) == 10) i = i + 1;
-            row.push(cell); cell = Str.String{};
-            out.rows.push(row); row = L.List<Str.String>{};
-            hasData = false;
-        } else cell.appendChar(c as char);
-        i = i + 1;
+            i = i + 1;
+        }
     }
     if (hasData) { row.push(cell); out.rows.push(row); } else { cell.free(); row.free(); }
     return true;

@@ -172,7 +172,7 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         } else if (llvm::isa<llvm::ConstantInt>(left)) {
             left = isUnsigned ? Builder->CreateZExtOrTrunc(left, right->getType(), "litcast") : Builder->CreateSExtOrTrunc(left, right->getType(), "litcast");
         } else if (lw < rw) {
-            // NOTE: sign-extends; the backend has no signedness info here.
+            // zext when the AST says the operands are unsigned (isUnsigned), sext otherwise.
             left = isUnsigned ? Builder->CreateZExt(left, right->getType(), "widen") : Builder->CreateSExt(left, right->getType(), "widen");
         } else {
             right = isUnsigned ? Builder->CreateZExt(right, left->getType(), "widen") : Builder->CreateSExt(right, left->getType(), "widen");

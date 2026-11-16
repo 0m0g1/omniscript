@@ -1,5 +1,6 @@
 // standard/1/Uuid.os
 // Tier 4: UUID v4 (random) and v7-style time-ordered. (PLATFORM: Win32 BCryptGenRandom)
+// No `return`/`break`/`continue` inside loop bodies (compiler quirk): loops use flags.
 module Str = import "standard/1/String.os";
 module Bin = import "standard/1/Binary.os";
 
@@ -48,14 +49,23 @@ function hexVal(c: int) => int {
 }
 
 function parse(s: char*, out: Uuid*) => bool {
-    let n: u64 = 0; let i: u64 = 0;
-    while ((s[i] as int) != 0) {
-        if ((s[i] as int) == 45) { i = i + 1; continue; }
-        let hi: int = hexVal(s[i] as int);
-        let lo: int = hexVal(s[i + 1] as int);
-        if (hi < 0 || lo < 0 || n >= 16) return false;
-        out.b[n] = (hi * 16 + lo) as u8;
-        n = n + 1; i = i + 2;
+    let n: u64 = 0;
+    let i: u64 = 0;
+    let ok: bool = true;
+    while (ok && (s[i] as int) != 0) {
+        if ((s[i] as int) == 45) {
+            i = i + 1;
+        } else {
+            let hi: int = hexVal(s[i] as int);
+            let lo: int = hexVal(s[i + 1] as int);   // safe: s[i] != 0, and a NUL here gives lo < 0
+            if (hi < 0 || lo < 0 || n >= 16) {
+                ok = false;
+            } else {
+                out.b[n] = (hi * 16 + lo) as u8;
+                n = n + 1;
+                i = i + 2;
+            }
+        }
     }
-    return n == 16;
+    return ok && n == 16;
 }

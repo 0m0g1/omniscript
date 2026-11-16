@@ -59,13 +59,15 @@ struct Job { f: fn(void*) => void = nullptr; arg: void* = nullptr; }
 function workerMain(p: void*) => u32 {
     let pool: ThreadPool* = p as ThreadPool*;
     let j: Job;
-    while (pool.jobs.recv(&j)) j.f(j.arg);
+    let one: i64 = 1;
+    while (pool.jobs.recv(&j)) { j.f(j.arg); pool.pending.add(0 - one); }
     return 0;
 }
 
 struct ThreadPool {
     jobs: Channel<Job>;
     workers: L.List<Th.Thread>;
+    pending: Th.Atomic;      // jobs submitted but not finished (see wait())
     start(n: u64) => bool {
         this.jobs.init(0);
         let i: u64 = 0;
@@ -77,7 +79,16 @@ struct ThreadPool {
         }
         return true;
     }
-    submit(f: fn(void*) => void, arg: void*) => bool { let j: Job; j.f = f; j.arg = arg; return this.jobs.send(j); }
+    submit(f: fn(void*) => void, arg: void*) => bool {
+        let j: Job; j.f = f; j.arg = arg;
+        let one: i64 = 1;
+        this.pending.add(one);
+        if (this.jobs.send(j)) return true;
+        this.pending.add(0 - one);
+        return false;
+    }
+    // Blocks until every submitted job has finished running (workers stay alive).
+    wait() => void { while (this.pending.load() > 0) Th.yieldNow(); }
     // Finish queued jobs, stop workers, release memory.
     shutdown() => void {
         this.jobs.close();

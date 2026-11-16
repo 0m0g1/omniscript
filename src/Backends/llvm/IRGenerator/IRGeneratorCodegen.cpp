@@ -1,4 +1,5 @@
 // src/Backends/llvm/IRGenerator/IRGeneratorCodegen.cpp
+#include <cctype>
 #include <functional>
 #include <map>
 #include <set>
@@ -110,10 +111,28 @@ static llvm::Function* defineAtomicIntrinsic(
 
 static bool isUnsignedOmniType(const std::shared_ptr<Type>& t) {
     if (!t) return false;
-    const std::string s = t->toString();
-    // The engine spells types as "UInt8/16/32/64" (see the debug log); keep the lowercase aliases too.
-    if (s.rfind("UInt", 0) == 0 || s.rfind("USize", 0) == 0) return true;
-    return s == "u8" || s == "u16" || s == "u32" || s == "u64" || s == "uint" || s == "usize";
+    // Decide from the type's Kind first (names in Types.cpp's baseTypeMap): independent of how toString() spells it.
+    switch (t->getKind()) {
+        case Kind::UInt8: case Kind::UInt16: case Kind::UInt32: case Kind::UInt64:
+        case Kind::UInt128: case Kind::UInt256: case Kind::UInt512: case Kind::UInt1024:
+        case Kind::Size_t:
+            return true;
+        default:
+            break;
+    }
+    std::string s = t->toString();
+    // Case-insensitive: the engine may spell the same type "UInt32", "uint32", "u32" or "unsigned int".
+    for (auto& ch : s) ch = (char)std::tolower((unsigned char)ch);
+    // Strip qualifiers that can prefix the spelling.
+    for (const char* q : {"const ", "volatile "}) {
+        const std::string qs(q);
+        while (s.rfind(qs, 0) == 0) s = s.substr(qs.size());
+    }
+    const bool uns =
+        s.rfind("uint", 0) == 0 || s.rfind("usize", 0) == 0 || s.rfind("unsigned", 0) == 0 ||
+        s == "u8" || s == "u16" || s == "u32" || s == "u64" || s == "u128";
+    DEBUG_LOG("[isUnsignedOmniType] '" + t->toString() + "' -> " + std::string(uns ? "unsigned" : "signed"));
+    return uns;
 }
 
 llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTableType scope) {
@@ -317,6 +336,14 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
                 "' in '" + scope->getName() + "': " + castExpr->toString(),
                 castExpr->getSpan());
             return nullptr;
+        }
+        // LLVM integers are signless: choose zext vs sext from the Omniscript source type,
+        // otherwise a u32 widened to i64/u64 is sign-extended.
+        if (src->getType()->isIntegerTy() && destType && destType->isIntegerTy()) {
+            if (src->getType()->getIntegerBitWidth() == 1)
+                return Builder->CreateZExtOrTrunc(src, destType, "bool.cast");
+            const bool srcUns = isUnsignedOmniType(castExpr->targetExpr->getType());
+            return Builder->CreateIntCast(src, destType, /*isSigned=*/!srcUns, "int.cast");
         }
         return generateCast(src, destType);
     }

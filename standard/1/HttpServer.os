@@ -582,6 +582,7 @@ function handleConn(srvp: void*, sock: Net.Socket*) => void {
     let status: int = 400;
     if (parseRequest(srvp, sock, &req, &status)) {
         let isHead: bool = req.method.equalsC("HEAD");
+        res.status = 200;
         dispatch(srvp, &req, &res);
         writeResponse(sock, &res, isHead);
     } else if (status != 0) {
@@ -654,6 +655,11 @@ struct HttpServer {
     // Starts listening on 0.0.0.0:port without accepting yet.
     bind(port: u16) => bool {
         this.stopFlag.store(0);
+        this.active.store(0);
+        if (this.maxHeader == 0) this.maxHeader = 65536;
+        if (this.maxBody == 0) this.maxBody = 8388608;
+        if (this.maxConnections == 0) this.maxConnections = 512;
+        if (this.timeoutMs == 0) this.timeoutMs = 15000;
         return Net.listenTcp(port, 128, &this.listener);
     }
 

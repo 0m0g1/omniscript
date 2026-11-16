@@ -1,6 +1,6 @@
 // standard/1/tests/Harness.os
 // Tiny self-contained test harness. Depends only on libc printf/fflush (no std modules),
-// so it still works if the standard library is broken. `say` is the only place that prints.
+// so it still works if the standard library is broken. Failures print the name and, for eqInt/eqStr, got vs want.
 extern "C" fn printf(fmt: char*, ...) => int;
 extern "C" fn fflush(f: void*) => int;
 
@@ -18,12 +18,25 @@ function suite(name: char*) => void {
     say(name);
 }
 
-function check(cond: bool, name: char*) => void {
-    if (cond) { passCount = passCount + 1; }
-    else { failCount = failCount + 1; say("  FAIL: "); say(name); }
+function fail(name: char*) => void {
+    failCount = failCount + 1;
+    printf("  FAIL: %s\n", name);
+    fflush(nullptr);
 }
 
-function eqInt(got: int, want: int, name: char*) => void { check(got == want, name); }
+function check(cond: bool, name: char*) => void {
+    if (cond) { passCount = passCount + 1; }
+    else { fail(name); }
+}
+
+function eqInt(got: int, want: int, name: char*) => void {
+    if (got == want) { passCount = passCount + 1; }
+    else {
+        failCount = failCount + 1;
+        printf("  FAIL: %s (got %d, want %d)\n", name, got, want);
+        fflush(nullptr);
+    }
+}
 function eqF(got: double, want: double, eps: double, name: char*) => void {
     let d: double = got - want;
     if (d < 0.0) d = 0.0 - d;
@@ -39,7 +52,12 @@ function eqStr(got: char*, want: char*, name: char*) => void {
         else if (got[i] == 0) { going = false; }
         i = i + 1;
     }
-    check(same, name);
+    if (same) { passCount = passCount + 1; }
+    else {
+        failCount = failCount + 1;
+        printf("  FAIL: %s\n    got:  [%s]\n    want: [%s]\n", name, got, want);
+        fflush(nullptr);
+    }
 }
 function notNull(p: void*, name: char*) => void { check(p != nullptr, name); }
 

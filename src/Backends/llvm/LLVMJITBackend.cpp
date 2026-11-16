@@ -145,6 +145,22 @@ void LLVMJITBackend::setupExternalResolvers(const Config& config) {
     auto targetOS = config.resolveTargetOS();
     DEBUG_LOG("Setting up JIT external resolvers for: " + config.getOSName());
 
+#ifdef _WIN32
+    // The host-process generator (below) takes the FIRST module in the process that exports a name,
+    // and msvcrt.dll is enumerated before ucrtbase.dll. Without this, fopen/fwrite/malloc/free bind
+    // to msvcrt while newer names (_ftelli64, ...) bind to ucrtbase, so a FILE* from one CRT gets
+    // passed to the other and crashes. Generators run in the order added, so this one must come first.
+    {
+        auto ucrt = llvm::orc::DynamicLibrarySearchGenerator::Load(
+            "ucrtbase.dll", jit->getDataLayout().getGlobalPrefix());
+        if (ucrt) {
+            jit->getMainJITDylib().addGenerator(std::move(*ucrt));
+        } else {
+            logError(config, "Failed to load ucrtbase.dll symbol generator: " + llvm::toString(ucrt.takeError()));
+        }
+    }
+#endif
+
     auto hostResolver = createHostProcessResolver(config);
     if (hostResolver) {
         jit->getMainJITDylib().addGenerator(std::move(hostResolver));

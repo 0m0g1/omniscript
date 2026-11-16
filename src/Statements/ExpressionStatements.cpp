@@ -399,7 +399,24 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
                 return nullptr;
             }
         } else if (op.isArithmeticOperator() || op.isBitwiseOperator()) {
-            if (Type::isSameOrCastableTo(leftType, rightType)) {
+            // An untyped literal operand (Int32 by default) must adopt the other operand's type, not the
+            // other way round: otherwise `u32 >> 28` / `u32 + 1` picks Int32 (u32 -> i32 is same-size
+            // "castable"), the u32 side is cast to i32, and everything downstream is signed.
+            // A shift's result type is always its left operand's type, whatever the shift count is.
+            const bool isShift = op.getType() == TokenTypes::ShiftLeft || op.getType() == TokenTypes::ShiftRight;
+            const bool leftIsLit = std::dynamic_pointer_cast<Literal>(left) != nullptr;
+            const bool rightIsLit = std::dynamic_pointer_cast<Literal>(right) != nullptr;
+            if (isShift || (rightIsLit && !leftIsLit)) {
+                type = leftType;
+                if (rightIsLit) {
+                    if (rightTyped) rightTyped->setType(leftType);
+                } else if (!Type::isSame(rightType, leftType)) {
+                    right = std::make_shared<ASTCast>(right, leftType);
+                }
+            } else if (leftIsLit && !rightIsLit) {
+                type = rightType;
+                if (leftTyped) leftTyped->setType(rightType);
+            } else if (Type::isSameOrCastableTo(leftType, rightType)) {
                 type = rightType;
                 if (!Type::isSame(leftType, rightType)) {
                     left = std::make_shared<ASTCast>(left, rightType);

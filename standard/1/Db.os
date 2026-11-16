@@ -35,4 +35,35 @@ struct Db {
     begin() => bool { return this.exec("BEGIN"); }
     commit() => bool { return this.exec("COMMIT"); }
     rollback() => bool { return this.exec("ROLLBACK"); }
+
+    // Runs body(arg) inside BEGIN/COMMIT; ROLLBACK (and false) if body returns false or COMMIT fails.
+    transaction(body: fn(void*) => bool, arg: void*) => bool {
+        if (!this.begin()) return false;
+        if (body(arg) && this.commit()) return true;
+        this.rollback();
+        return false;
+    }
+
+    // First column of the first row as an integer. false if the statement fails or returns no row.
+    queryInt(sql: char*, out: i64*) => bool {
+        let st: Stmt;
+        if (!this.prepare(sql, &st)) return false;
+        let ok: bool = st.step();
+        if (ok) out[0] = st.colInt(0);
+        st.finalize();
+        return ok;
+    }
+
+    // First column of the first row as text, appended to out.
+    queryText(sql: char*, out: Str.String*) => bool {
+        let st: Stmt;
+        if (!this.prepare(sql, &st)) return false;
+        let ok: bool = st.step();
+        if (ok) {
+            let t: char* = st.colText(0);
+            if (t != nullptr) ok = out.append(t); else ok = false;
+        }
+        st.finalize();
+        return ok;
+    }
 }

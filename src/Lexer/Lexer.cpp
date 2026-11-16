@@ -393,12 +393,70 @@ Token Lexer::handleComments() {
 Token Lexer::handleSingleLineComment() {
     size_t startLine = line_;
     size_t startColumn = column_;
+
+    // A doc comment must be the first thing on its line: `let a = 1; /// note` is a plain comment.
+    bool firstOnLine = true;
+    for (size_t p = currentPosition_; p > 0; --p) {
+        const char c = source_[p - 1];
+        if (c == '\n' || c == '\r') break;
+        if (c != ' ' && c != '\t') { firstOnLine = false; break; }
+    }
+
     advance(2); // Skip //
     stats_.commentCount++;
+
+    // `///` starts a doc line and `//!` a module-doc line. `////` (a banner) is an ordinary comment.
+    const bool isDoc = firstOnLine && getCurrentChar() == '/' && peek() != '/';
+    const bool isModuleDoc = firstOnLine && getCurrentChar() == '!';
+    if (isDoc || isModuleDoc) {
+        advance();                                              // the third character
+        if (getCurrentChar() == ' ') advance();                 // one optional space after the marker
+        std::string text;
+        while (!isAtEnd() && !isNewline(getCurrentChar())) {
+            text += getCurrentChar();
+            advance();
+        }
+        (isDoc ? docLines_ : moduleDocLines_)[startLine] = text;
+        return getNextToken();
+    }
+
     while (!isAtEnd() && !isNewline(getCurrentChar())) {
         advance();
     }
     return getNextToken();
+}
+
+std::vector<Lexer::DocBlock> Lexer::docBlocks() const {
+    std::vector<DocBlock> blocks;
+    for (const auto& [line, text] : docLines_) {
+        if (!blocks.empty() && blocks.back().lastLine + 1 == line) {
+            blocks.back().lastLine = line;
+            blocks.back().text += "\n" + text;
+        } else {
+            DocBlock b;
+            b.firstLine = line;
+            b.lastLine = line;
+            b.text = text;
+            blocks.push_back(b);
+        }
+    }
+    return blocks;
+}
+
+std::string Lexer::docFor(size_t declLine) const {
+    for (const auto& b : docBlocks()) {
+        if (b.lastLine + 1 == declLine) return b.text;
+    }
+    return "";
+}
+
+std::string Lexer::moduleDoc() const {
+    std::string out;
+    for (const auto& [line, text] : moduleDocLines_) {
+        if (!out.empty()) out += "\n";
+        out += text;
+    }
+    return out;
 }
 
 Token Lexer::handleMultiLineComment() {
@@ -733,6 +791,8 @@ void Lexer::reset() {
     cachePosition_ = 0;
     stats_ = LexerStats();
     stats_.totalCharacters = source_.length();
+    docLines_.clear();
+    moduleDocLines_.clear();
 }
 
 void Lexer::seekTo(size_t position) {

@@ -1,6 +1,7 @@
 #include <omniscript/Engine.h>
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>
+#include <omniscript/DocGen.h>
 #include <omniscript/extern/ExternResolver.h>
 #include <omniscript/Statements/ExternHeaderBlock.h>
 #include <filesystem>
@@ -368,6 +369,62 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
         } else if (arg == "--show-host-info") {
             // Assuming TargetInfo::printHostInfo exists
             std::exit(0);
+        } else if (arg == "--doc") {
+            // --doc <module or file> [-o <file.md>]: print the file's /// docs as Markdown, then exit.
+            // <module> may be written like an import: "std/Console" -> standard/1/Console.os
+            if (i + 1 >= argc) return std::unexpected("Missing module or file after '--doc'");
+            const std::string target = argv[++i];
+            std::string docOut;
+            for (int j = 1; j + 1 < argc; ++j) {
+                const std::string_view a(argv[j]);
+                if (a == "-o" || a == "--output") docOut = argv[j + 1];
+            }
+            bool html = false;
+            for (int j = 1; j < argc; ++j) {
+                if (std::string_view(argv[j]) == "--html") html = true;
+            }
+            std::string markdown, docError;
+            const bool docOk = html ? generateDocsHtml(resolveDocTarget(target), markdown, docError)
+                                    : generateDocsMarkdown(resolveDocTarget(target), markdown, docError);
+            if (!docOk) {
+                return std::unexpected(docError);
+            }
+            if (docOut.empty()) {
+                std::cout << markdown;
+            } else {
+                std::ofstream out(docOut, std::ios::binary);   // UTF-8, no BOM
+                if (!out) return std::unexpected("Cannot write '" + docOut + "'");
+                out << markdown;
+            }
+            std::exit(0);
+        } else if (arg == "--doc-all") {
+            // --doc-all <root file> [--split] [--html] [-o <file | dir>]: document a whole library, then exit.
+            // Every file the root imports/includes is documented once, sorted alphabetically.
+            //   --doc-all standard/1/std.os                 -> docs/std.md
+            //   --doc-all standard/1/std.os --split         -> docs/std/index.md + one .md per module
+            //   --doc-all standard/1/std.os --split -o out  -> out/index.md + ...
+            //   add --html for web pages with a sidebar and search (docs/std.html, or docs/std/index.html with --split)
+            if (i + 1 >= argc) return std::unexpected("Missing root file after '--doc-all'");
+            const std::string rootFile = resolveDocTarget(argv[++i]);
+            bool split = false;
+            bool html = false;
+            std::string docOut;
+            for (int j = 1; j < argc; ++j) {
+                const std::string_view a(argv[j]);
+                if (a == "--split") split = true;
+                else if (a == "--html") html = true;
+                else if ((a == "-o" || a == "--output") && j + 1 < argc) docOut = argv[j + 1];
+            }
+            if (docOut.empty()) {
+                const std::string stem = std::filesystem::path(rootFile).stem().string();
+                docOut = split ? "docs/" + stem : "docs/" + stem + (html ? ".html" : ".md");
+            }
+            std::string docError;
+            if (!generateLibraryDocs(rootFile, docOut, split, html, docError)) {
+                return std::unexpected(docError);
+            }
+            std::cout << "Wrote " << docOut << "\n";
+            std::exit(0);
         } else if (arg == "--entry") {
             if (i + 1 >= argc) return std::unexpected("Missing function name after '--entry'");
             config.entry = argv[++i];
@@ -711,6 +768,8 @@ void Engine::printUsage() noexcept {
     console.log("  --debug, -d              Enable debug mode");
     console.log("  --dry                    Compile to object file only");
     console.log("  --entry <function>       Set entry function");
+    console.log("  --doc <module|file>      Print the file's /// docs as Markdown (add -o <file> to save, --html for a web page)");
+    console.log("  --doc-all <root.os>      Document a whole library from its root file (add --split, --html, -o <out>)");
     console.log("  --emit-staticlib         Emit a static library");
     console.log("  --emit-sharedlib         Emit a shared library");
     console.log("  --emit-assembly          Emit assembly source");

@@ -375,21 +375,39 @@ std::shared_ptr<Expression> IntegerLiteral::express(SymbolTableType scope) {
     }
 
     // Check for specific bit-widths using the isInteger function with optional bitwidth argument
+    // Unsigned targets must produce Integer<uintN_t>: that is what carries the UInt type into the
+    // variable's recorded type (Integer<intN_t> always reports IntN, which made every `let x: u32 = 5`
+    // a signed variable and sent shifts, compares and widening down the signed path).
+    const bool wantUnsigned = [&]() {
+        switch (type->getKind()) {
+            case Kind::UInt8: case Kind::UInt16: case Kind::UInt32: case Kind::UInt64:
+            case Kind::Size_t:
+                return true;
+            default:
+                return false;
+        }
+    }();
+
     if (type->isInteger(8)) {
         DEBUG_LOG("Creating an 8-bit integer");
-        result = std::make_shared<Integer<int8_t>>(static_cast<int8_t>(value));
+        if (wantUnsigned) result = std::make_shared<Integer<uint8_t>>(static_cast<uint8_t>(value));
+        else result = std::make_shared<Integer<int8_t>>(static_cast<int8_t>(value));
     }
     else if (type->isInteger(16)) {
         DEBUG_LOG("Creating a 16-bit integer");
-        result = std::make_shared<Integer<int16_t>>(static_cast<int16_t>(value));
+        if (wantUnsigned) result = std::make_shared<Integer<uint16_t>>(static_cast<uint16_t>(value));
+        else result = std::make_shared<Integer<int16_t>>(static_cast<int16_t>(value));
     }
     else if (type->isInteger(32)) {
         DEBUG_LOG("Creating a 32-bit integer");
-        result = std::make_shared<Integer<int32_t>>(static_cast<int32_t>(value));
+        if (wantUnsigned) result = std::make_shared<Integer<uint32_t>>(static_cast<uint32_t>(value));
+        else result = std::make_shared<Integer<int32_t>>(static_cast<int32_t>(value));
     }
-    else if (type->isInteger(64)) {
+    else if (type->isInteger(64) || type->getKind() == Kind::Size_t) {
+        // Size_t reports isInteger() but not isInteger(64); it is pointer-sized (64-bit targets).
         DEBUG_LOG("Creating a 64-bit integer");
-        result = std::make_shared<Integer<int64_t>>(static_cast<int64_t>(value));
+        if (wantUnsigned) result = std::make_shared<Integer<uint64_t>>(static_cast<uint64_t>(value));
+        else result = std::make_shared<Integer<int64_t>>(static_cast<int64_t>(value));
     }
     else if (type->isInteger(128)) {
         DEBUG_LOG("Creating a 128-bit integer");
