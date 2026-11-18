@@ -87,7 +87,30 @@ local function sync_llvm()
     end
 end
 
+-- Copies shaderc_shared.dll (GLSL -> SPIR-V compiler used by Vulkan.os) from the installed
+-- Vulkan SDK into dependencies/vk, but only if it is missing. The SDK installer sets the
+-- VULKAN_SDK env var (e.g. C:\VulkanSDK\1.4.xxx.x); override the lookup with it if needed.
+local function sync_vulkan()
+    if os.host() ~= "windows" then return end
+
+    local dest = path.translate(_SCRIPT_DIR .. "/dependencies/vk", "\\")
+    local dll  = dest .. "\\shaderc_shared.dll"
+    if os.isfile(dll) then return end
+
+    local sdk = os.getenv("VULKAN_SDK")
+    if not sdk or not os.isfile(sdk .. "\\Bin\\shaderc_shared.dll") then
+        print("WARNING: shaderc_shared.dll not found. Install the Vulkan SDK (vulkan.lunarg.com) " ..
+              "or copy shaderc_shared.dll into dependencies/vk. Vulkan shader compiling will not work without it.")
+        return
+    end
+
+    print("Copying shaderc_shared.dll from " .. sdk .. " ...")
+    os.mkdir(dest)
+    os.copyfile(sdk .. "\\Bin\\shaderc_shared.dll", dll)
+end
+
 sync_llvm()
+sync_vulkan()
 
 workspace "OmniScript++"
     configurations { "Debug", "Release" }
@@ -147,7 +170,9 @@ project "Osengine"
 
         postbuildcommands {
             "powershell -Command \"if (-not (Test-Path -Path 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}')) { New-Item -ItemType Directory -Force -Path 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}' }\"",
-            "powershell -Command \"Copy-Item 'dependencies/llvm/bin/*.dll' -Destination 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}' -Force\""
+            "powershell -Command \"Copy-Item 'dependencies/llvm/bin/*.dll' -Destination 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}' -Force\"",
+            -- shaderc_shared.dll must sit next to the exe (shaderc.os loads it by bare name)
+            "powershell -Command \"if (Test-Path 'dependencies/vk/shaderc_shared.dll') { Copy-Item 'dependencies/vk/shaderc_shared.dll' -Destination 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}' -Force } else { Write-Warning 'shaderc_shared.dll missing in dependencies/vk' }\""
         }
 
     filter {}

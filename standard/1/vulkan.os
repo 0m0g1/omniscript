@@ -13,6 +13,8 @@ module S = import "standard/1/c/stdio.os";
 module W = import "standard/1/Window.os";
 module L = import "standard/1/List.os";
 module CMem = import "standard/1/c/mem.os";
+module SC = import "standard/1/c/shaderc.os";
+module Console = import "standard/1/Console.os";
 
 let VK_SUCCESS: int = 0;
 let VK_SUBOPTIMAL_KHR: int = 1000001003;
@@ -699,14 +701,70 @@ struct Vulkan {
         return m;
     }
 
-    // Loads compiled SPIR-V (glslangValidator -V x.vert -o x.vert.spv). Returns 0 on failure.
-    loadShader(path: char*) => u64 {
+    // Compiles GLSL text in memory (kind: 0 = vertex, 1 = fragment). Returns a shader module or 0.
+    compileGLSL(text: char*, len: u64, kind: int, name: char*) => u64 {
+        let m: u64 = 0;
+        let comp: void* = SC.shaderc_compiler_initialize();
+        if (comp != nullptr) {
+            let res: void* = SC.shaderc_compile_into_spv(comp, text, len, kind, name, "main", nullptr);
+            if (res != nullptr) {
+                if (SC.shaderc_result_get_compilation_status(res) == 0) {
+                    m = this.shaderFromWords(SC.shaderc_result_get_bytes(res) as u32*, SC.shaderc_result_get_length(res));
+                } else {
+                    Console.log("[shader] compile failed:");
+                    Console.log(SC.shaderc_result_get_error_message(res));
+                }
+                SC.shaderc_result_release(res);
+            }
+            SC.shaderc_compiler_release(comp);
+        }
+        return m;
+    }
+
+    // Same as compileGLSL but measures the text itself. kind: 0 = vertex, 1 = fragment.
+    compileGLSLStr(text: char*, kind: int, name: char*) => u64 {
+        let n: int = 0; while (text[n] as int != 0) { n = n + 1; }
+        return this.compileGLSL(text, n as u64, kind, name);
+    }
+
+    // Compiles a GLSL source file; stage comes from the extension (.vert / .frag). Returns 0 on failure.
+    loadShaderSource(path: char*) => u64 {
+        let n: int = 0; while (path[n] as int != 0) { n = n + 1; }
+        if (n < 5) return 0;
+        let kind: int = -1;
+        let c3: int = path[n - 1] as int;
+        if (c3 == 116 && (path[n - 2] as int) == 114 && (path[n - 3] as int) == 101 && (path[n - 4] as int) == 118) kind = 0;   // "vert"
+        if (c3 == 103 && (path[n - 2] as int) == 97 && (path[n - 3] as int) == 114 && (path[n - 4] as int) == 102) kind = 1;    // "frag"
+        if (kind < 0) return 0;
         let size: u64 = 0;
         let data: u8* = readFile(path, &size);
         if (data == nullptr) return 0;
-        let m: u64 = this.shaderFromWords(data as u32*, size);
+        let m: u64 = this.compileGLSL(data as char*, size, kind, path);
         CMem.free(data as void*);
         return m;
+    }
+
+    // Loads a shader module. Path ending in .spv: loads the binary; if that file is missing, compiles the
+    // GLSL source next to it (same path without ".spv"). Path ending in .vert/.frag: compiles it directly.
+    // Returns 0 on failure.
+    loadShader(path: char*) => u64 {
+        let n: int = 0; while (path[n] as int != 0) { n = n + 1; }
+        let isSpv: bool = false;
+        if (n > 4 && (path[n - 4] as int) == 46 && (path[n - 3] as int) == 115 && (path[n - 2] as int) == 112 && (path[n - 1] as int) == 118) isSpv = true;
+        if (!isSpv) return this.loadShaderSource(path);
+        let size: u64 = 0;
+        let data: u8* = readFile(path, &size);
+        if (data != nullptr) {
+            let m: u64 = this.shaderFromWords(data as u32*, size);
+            CMem.free(data as void*);
+            return m;
+        }
+        let srcPath = CMem.malloc((n - 3) as u64) as char*;
+        let i: int = 0; while (i < n - 4) { srcPath[i] = path[i]; i = i + 1; }
+        srcPath[n - 4] = 0 as char;
+        let r: u64 = this.loadShaderSource(srcPath);
+        CMem.free(srcPath as void*);
+        return r;
     }
 
     destroyShader(m: u64) => void { if (m != 0) V.vkDestroyShaderModule(this.device, m, nullptr); }

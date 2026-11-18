@@ -184,6 +184,22 @@ function clampi(v: int, lo: int, hi: int) => int {
     return r;
 }
 
+function imin(a: int, b: int) => int { if (a < b) return a; return b; }
+function imax(a: int, b: int) => int { if (a > b) return a; return b; }
+
+// Round to the nearest whole pixel. Text and widget geometry go through this: the font atlas is sampled with
+// NEAREST, so a glyph at a half-pixel position doubles some columns and drops others (that is the "smear").
+function snap(v: float) => float {
+    let r: float = 0.0;
+    if (v >= 0.0) { let n: int = (v + 0.5) as int; r = n as float; }
+    else { let m: int = ((0.0 - v) + 0.5) as int; r = 0.0 - (m as float); }
+    return r;
+}
+
+function isWordCh(c: int) => bool {
+    return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95;
+}
+
 function catStr(a: char*, b: char*) => char* {
     let la: int = 0; while (a[la] as int != 0) { la = la + 1; }
     let lb: int = 0; while (b[lb] as int != 0) { lb = lb + 1; }
@@ -202,6 +218,87 @@ struct DrawCmd {
     clipOn: int; cx: int; cy: int; cw: int; ch: int;
     first: u32; count: u32;
     rw: float; rh: float;
+}
+
+// ---- retained widgets (owned by Pen2D; see createButton & co) ----
+let WK_BUTTON: int = 0;
+let WK_CHECKBOX: int = 1;
+let WK_SLIDER: int = 2;
+let WK_LABEL: int = 3;
+let WK_TEXTBOX: int = 4;
+let MAX_WIDGETS: int = 256;
+let TEXTBOX_CAP: int = 128;
+
+let UI_IDLE: u32 = 0x3A3A46FF;
+let UI_HOT: u32 = 0x4A4A5CFF;
+let UI_ACTIVE: u32 = 0x5B7CFAFF;
+let UI_PANEL: u32 = 0x2A2A33FF;
+let UI_BORDER: u32 = 0x55556AFF;
+let UI_TEXT: u32 = 0xE8E8F0FF;
+let UI_DIM: u32 = 0x6A6A7AFF;
+let UI_SEL: u32 = 0x3A5BC8FF;       // text selection background
+let UI_FOCUS: u32 = 0x8FA8FFFF;     // keyboard focus ring
+
+function slen(s: char*) => int {
+    let n: int = 0;
+    while (s[n] as int != 0) { n = n + 1; }
+    return n;
+}
+
+// Filled by Win every frame, so Pen2D never needs to know about Win (and still works headless).
+struct PenInput {
+    mx: float = 0.0; my: float = 0.0;
+    down: bool = false; pressed: bool = false; released: bool = false;
+    typed: char* = nullptr;             // NUL-terminated chars typed this frame
+    backspace: bool = false;            // backspace/del/arrows/home/end are key-repeat events
+    enter: bool = false;
+    kDel: bool = false;
+    left: bool = false; right: bool = false; up: bool = false; kDown: bool = false;   // (mouse button is `down`)
+    kHome: bool = false; kEnd: bool = false;
+    tab: bool = false; space: bool = false; esc: bool = false;
+    shift: bool = false; ctrl: bool = false;
+    selAll: bool = false; copy: bool = false; cut: bool = false; paste: bool = false;
+    dbl: bool = false;                  // the mouse press this frame was a double click
+    time: double = 0.0;                 // seconds (caret blink)
+}
+
+// One struct for every widget kind (no polymorphism needed). Read the state fields, call setText to change text.
+struct Widget {
+    kind: int = 0;
+    x: float = 0.0; y: float = 0.0; w: float = 0.0; h: float = 0.0;
+    text: char* = nullptr;              // label/button/checkbox caption; textbox: its own editable buffer
+    visible: bool = true;
+    enabled: bool = true;
+    // state, refreshed every frame
+    hovered: bool = false;
+    down: bool = false;                 // held
+    pressed: bool = false;              // click completed this frame (button, checkbox)
+    released: bool = false;
+    changed: bool = false;              // checkbox toggled / slider moved / textbox edited this frame
+    submitted: bool = false;            // textbox: Enter pressed this frame
+    focused: bool = false;              // textbox
+    checked: bool = false;              // checkbox
+    value: float = 0.0; min: float = 0.0; max: float = 1.0;    // slider
+    len: int = 0;                       // textbox length
+    owned: bool = false;                // text is a malloc'd buffer this widget frees
+    cur: int = 0; anc: int = 0;         // textbox caret and selection anchor (selection = [min, max) of the two)
+    scrollX: float = 0.0;               // textbox horizontal scroll in px
+    blinkT: double = 0.0;               // last caret activity (keeps the caret solid while typing)
+    hint: char* = nullptr;              // textbox placeholder shown while empty
+
+    // Textbox: copies s into its own buffer. Other kinds: stores the pointer (s must outlive the widget).
+    setText(s: char*) => void {
+        if (this.owned) {
+            let i: int = 0;
+            while (s[i] as int != 0 && i < TEXTBOX_CAP - 1) { this.text[i] = s[i]; i = i + 1; }
+            this.text[i] = 0 as char;
+            this.len = i; this.cur = i; this.anc = i; this.scrollX = 0.0;
+        } else { this.text = s; }
+    }
+    getText() => char* { return this.text; }
+    selectAll() => void { this.anc = 0; this.cur = this.len; }
+    show() => void { this.visible = true; }
+    hide() => void { this.visible = false; }
 }
 
 struct Pen2D {
@@ -231,6 +328,16 @@ struct Pen2D {
     vkVb: VK.Buffer* = nullptr; vkIb: VK.Buffer* = nullptr;
     vkPc: float* = nullptr;
     shaderDir: char* = nullptr;
+    // widgets: created with createButton/createSlider/..., updated in Win.beginFrame, drawn in Win.endFrame
+    inp: PenInput;
+    widgets: Widget** = nullptr;
+    wcount: int = 0;
+    activeW: Widget* = nullptr;         // widget the mouse went down on
+    focusW: Widget* = nullptr;          // focused widget (any focusable kind)
+    kbFocus: bool = false;              // focus arrived by keyboard (Tab): draw the focus ring
+    clip: char* = nullptr; clipLen: int = 0;     // in-app clipboard for textbox copy/cut/paste
+    noDrag: bool = false;               // a double-click word selection is active: ignore drag until release
+    wantsMouse: bool = false;           // true while the mouse is over any widget: game code can ignore the click
 
     // Needs the window's GL context current and OpenGL.load() done.
     init(handle: void*) => bool {
@@ -356,26 +463,16 @@ struct Pen2D {
 
     // px: RGBA8, w*h*4 bytes, row 0 = top. Returns 0 on failure. Free with freeImage().
     createImage(px: u8*, w: int, hh: int) => u32 {
-        Console.log("[createImage] enter, backend/w/h:");
-        Console.log(this.backend);
-        Console.log(w);
-        Console.log(hh);
         if (px == nullptr) { Console.log("[createImage] px is NULL"); return 0; }
         if (w <= 0 || hh <= 0) { Console.log("[createImage] bad size"); return 0; }
         let result: u32 = 0;
         if (this.backend == API_GL) {
-            Console.log("[createImage] GL: makeCurrent");
             G.glfwMakeContextCurrent(this.h);
-            Console.log("[createImage] GL: before fromRGBA");
             let t: OGL.Texture;
             t.fromRGBA(px, w, hh, false);
-            Console.log("[createImage] GL: after fromRGBA, id:");
-            Console.log(t.id);
             result = t.id;
         } else {
             let slot: int = this.findSlot();
-            Console.log("[createImage] slot:");
-            Console.log(slot);
             if (slot >= 0) {
                 if (this.backend == API_SOFTWARE) {
                     let copy = CMem.malloc((w * hh * 4) as u64) as u8*;
@@ -395,8 +492,6 @@ struct Pen2D {
                 }
             }
         }
-        Console.log("[createImage] exit, result:");
-        Console.log(result);
         return result;
     }
 
@@ -412,6 +507,7 @@ struct Pen2D {
 
     free() => void {
         if (!this.ready) return;
+        this.freeWidgets();
         if (this.backend == API_GL) {
             G.glfwMakeContextCurrent(this.h);
             this.prog.free();
@@ -687,11 +783,16 @@ struct Pen2D {
                     if (ch < 32 || ch > 126) ch = 63;
                     if (ch != 32) {
                         let gi: int = ch - 32;
-                        let u0: float = ((gi % 16) * F.GLYPH_W) as float / aw;
-                        let v0: float = ((gi / 16) * F.GLYPH_H) as float / ah;
-                        let u1: float = u0 + (F.GLYPH_W as float) / aw;
-                        let v1: float = v0 + (F.GLYPH_H as float) / ah;
-                        this.quad(px, py, gw, gh, u0, v0, u1, v1, c, this.atlas, 0);
+                        // inset the UVs by a hair so NEAREST never picks a texel from the neighbouring glyph
+                        let eu: float = 0.02 / aw; let ev: float = 0.02 / ah;
+                        let u0: float = ((gi % 16) * F.GLYPH_W) as float / aw + eu;
+                        let v0: float = ((gi / 16) * F.GLYPH_H) as float / ah + ev;
+                        let u1: float = u0 - eu + (F.GLYPH_W as float) / aw - eu;
+                        let v1: float = v0 - ev + (F.GLYPH_H as float) / ah - ev;
+                        // snap each glyph to whole pixels (width = difference of snapped edges, so no gaps)
+                        let sx0: float = snap(px); let sy0: float = snap(py);
+                        let sx1: float = snap(px + gw); let sy1: float = snap(py + gh);
+                        this.quad(sx0, sy0, sx1 - sx0, sy1 - sy0, u0, v0, u1, v1, c, this.atlas, 0);
                     }
                     px = px + gw;
                 }
@@ -714,6 +815,447 @@ struct Pen2D {
         return (best * F.GLYPH_W) as float * scale;
     }
     textHeight(scale: float) => float { return (F.GLYPH_H as float) * scale; }
+
+    // ---- widgets ----
+    addWidget(kind: int, x: float, y: float, w: float, hh: float) => Widget* {
+        if (this.widgets == nullptr) {
+            this.widgets = CMem.malloc((MAX_WIDGETS * 8) as u64) as Widget**;
+            this.wcount = 0;
+        }
+        if (this.wcount >= MAX_WIDGETS) return nullptr;
+        let wd: Widget* = CMem.malloc(sizeof(Widget)) as Widget*;
+        CMem.memset(wd as void*, 0, sizeof(Widget));
+        wd.kind = kind; wd.x = x; wd.y = y; wd.w = w; wd.h = hh;
+        wd.visible = true; wd.enabled = true; wd.max = 1.0;
+        this.widgets[this.wcount] = wd;
+        this.wcount = this.wcount + 1;
+        return wd;
+    }
+
+    createButton(text: char*, x: float, y: float, w: float, hh: float) => Widget* {
+        let b: Widget* = this.addWidget(WK_BUTTON, x, y, w, hh);
+        if (b != nullptr) b.text = text;
+        return b;
+    }
+
+    createCheckbox(text: char*, x: float, y: float) => Widget* {
+        let c: Widget* = this.addWidget(WK_CHECKBOX, x, y, 22.0, 22.0);
+        if (c != nullptr) { c.text = text; c.w = 22.0 + 8.0 + this.textWidth(text, 1.0); }
+        return c;
+    }
+
+    createSlider(x: float, y: float, w: float, lo: float, hi: float) => Widget* {
+        let s: Widget* = this.addWidget(WK_SLIDER, x, y, w, 20.0);
+        if (s != nullptr) { s.min = lo; s.max = hi; s.value = lo; }
+        return s;
+    }
+
+    createLabel(text: char*, x: float, y: float) => Widget* {
+        let l: Widget* = this.addWidget(WK_LABEL, x, y, this.textWidth(text, 1.0), this.textHeight(1.0));
+        if (l != nullptr) l.text = text;
+        return l;
+    }
+
+    createTextBox(x: float, y: float, w: float) => Widget* {
+        let t: Widget* = this.addWidget(WK_TEXTBOX, x, y, w, 28.0);
+        if (t != nullptr) {
+            t.text = CMem.malloc(TEXTBOX_CAP as u64) as char*;
+            CMem.memset(t.text as void*, 0, TEXTBOX_CAP as u64);
+            t.owned = true;
+        }
+        return t;
+    }
+
+    destroyWidget(wd: Widget*) => void {
+        let i: int = 0;
+        let at: int = 0 - 1;
+        while (i < this.wcount) { if (this.widgets[i] == wd) { at = i; } i = i + 1; }
+        if (at >= 0) {
+            if (this.activeW == wd) this.activeW = nullptr;
+            if (this.focusW == wd) this.focusW = nullptr;
+            if (wd.owned && wd.text != nullptr) CMem.free(wd.text as void*);
+            CMem.free(wd as void*);
+            i = at;
+            while (i < this.wcount - 1) { this.widgets[i] = this.widgets[i + 1]; i = i + 1; }
+            this.wcount = this.wcount - 1;
+        }
+    }
+
+    freeWidgets() => void {
+        let i: int = 0;
+        while (i < this.wcount) {
+            let wd: Widget* = this.widgets[i];
+            if (wd.owned && wd.text != nullptr) CMem.free(wd.text as void*);
+            CMem.free(wd as void*);
+            i = i + 1;
+        }
+        this.wcount = 0;
+        if (this.widgets != nullptr) { CMem.free(this.widgets as void*); this.widgets = nullptr; }
+        if (this.clip != nullptr) { CMem.free(this.clip as void*); this.clip = nullptr; this.clipLen = 0; }
+    }
+
+    widgetHit(wd: Widget*) => bool {
+        return this.inp.mx >= wd.x && this.inp.mx < wd.x + wd.w && this.inp.my >= wd.y && this.inp.my < wd.y + wd.h;
+    }
+
+    // ---- focus ----
+    focusable(wd: Widget*) => bool { return wd.visible && wd.enabled && wd.kind != WK_LABEL; }
+
+    setFocus(wd: Widget*) => void {
+        this.focusW = wd;
+        if (wd != nullptr && wd.kind == WK_TEXTBOX) {
+            wd.anc = 0; wd.cur = wd.len;            // tabbing into a textbox selects its text
+            wd.blinkT = this.inp.time;
+        }
+    }
+
+    // dir = +1 (Tab) or -1 (Shift+Tab). Cycles through focusable widgets in creation order, wrapping.
+    focusNext(dir: int) => void {
+        let at: int = 0 - 1;
+        let i: int = 0;
+        while (i < this.wcount) { if (this.widgets[i] == this.focusW) at = i; i = i + 1; }
+        let found: Widget* = nullptr;
+        let step: int = 0;
+        let idx: int = at;
+        while (step < this.wcount && found == nullptr) {
+            idx = idx + dir;
+            if (idx >= this.wcount) idx = 0;
+            if (idx < 0) idx = this.wcount - 1;
+            if (this.focusable(this.widgets[idx])) found = this.widgets[idx];
+            step = step + 1;
+        }
+        if (found != nullptr) { this.setFocus(found); this.kbFocus = true; }
+    }
+
+    // ---- textbox editing ----
+    tbRemove(wd: Widget*, a: int, b: int) => void {
+        let n: int = b - a;
+        if (n <= 0) return;
+        let i: int = a;
+        while (i <= wd.len - n) { wd.text[i] = wd.text[i + n]; i = i + 1; }    // includes the NUL
+        wd.len = wd.len - n;
+    }
+
+    // Deletes the selection if there is one. Returns true if something was deleted.
+    tbDeleteSel(wd: Widget*) => bool {
+        if (wd.cur == wd.anc) return false;
+        let a: int = imin(wd.cur, wd.anc); let b: int = imax(wd.cur, wd.anc);
+        this.tbRemove(wd, a, b);
+        wd.cur = a; wd.anc = a;
+        return true;
+    }
+
+    tbInsertChar(wd: Widget*, c: char) => void {
+        if (wd.len >= TEXTBOX_CAP - 1) return;
+        let i: int = wd.len;
+        while (i >= wd.cur) { wd.text[i + 1] = wd.text[i]; i = i - 1; }
+        wd.text[wd.cur] = c;
+        wd.len = wd.len + 1;
+        wd.cur = wd.cur + 1; wd.anc = wd.cur;
+    }
+
+    tbWordL(wd: Widget*, from: int) => int {
+        let j: int = from;
+        while (j > 0 && !isWordCh(wd.text[j - 1] as int)) { j = j - 1; }
+        while (j > 0 && isWordCh(wd.text[j - 1] as int)) { j = j - 1; }
+        return j;
+    }
+
+    tbWordR(wd: Widget*, from: int) => int {
+        let j: int = from;
+        while (j < wd.len && isWordCh(wd.text[j] as int)) { j = j + 1; }
+        while (j < wd.len && !isWordCh(wd.text[j] as int)) { j = j + 1; }
+        return j;
+    }
+
+    tbSelectWordAt(wd: Widget*, idx: int) => void {
+        let a: int = idx; let b: int = idx;
+        while (a > 0 && isWordCh(wd.text[a - 1] as int)) { a = a - 1; }
+        while (b < wd.len && isWordCh(wd.text[b] as int)) { b = b + 1; }
+        if (a == b) { a = 0; b = wd.len; }          // clicked whitespace: select everything
+        wd.anc = a; wd.cur = b;
+    }
+
+    // Character index under the mouse.
+    tbIndexAt(wd: Widget*) => int {
+        let gw: float = F.GLYPH_W as float;
+        let rel: float = this.inp.mx - (wd.x + 6.0) + wd.scrollX;
+        let idx: int = 0;
+        if (rel > 0.0) idx = ((rel + gw * 0.5) / gw) as int;
+        return clampi(idx, 0, wd.len);
+    }
+
+    // Keep the caret inside the visible part of the box.
+    tbScroll(wd: Widget*) => void {
+        let gw: float = F.GLYPH_W as float;
+        let view: float = wd.w - 12.0;
+        let total: float = (wd.len as float) * gw;
+        let cp: float = (wd.cur as float) * gw;
+        if (total + 2.0 <= view) { wd.scrollX = 0.0; }
+        else {
+            if (cp - wd.scrollX > view - 2.0) wd.scrollX = cp - view + 2.0;
+            if (cp < wd.scrollX) wd.scrollX = cp;
+            let mx: float = total - view + 2.0;
+            if (wd.scrollX > mx) wd.scrollX = mx;
+            if (wd.scrollX < 0.0) wd.scrollX = 0.0;
+        }
+        wd.scrollX = snap(wd.scrollX);
+    }
+
+    clipSet(wd: Widget*) => void {
+        if (this.clip == nullptr) {
+            this.clip = CMem.malloc(TEXTBOX_CAP as u64) as char*;
+            CMem.memset(this.clip as void*, 0, TEXTBOX_CAP as u64);
+        }
+        let a: int = imin(wd.cur, wd.anc); let b: int = imax(wd.cur, wd.anc);
+        let i: int = a;
+        while (i < b) { this.clip[i - a] = wd.text[i]; i = i + 1; }
+        this.clip[b - a] = 0 as char;
+        this.clipLen = b - a;
+    }
+
+    tbPress(wd: Widget*) => void {
+        let idx: int = this.tbIndexAt(wd);
+        this.noDrag = false;
+        if (this.inp.dbl) { this.tbSelectWordAt(wd, idx); this.noDrag = true; }
+        else {
+            wd.cur = idx;
+            if (!this.inp.shift) wd.anc = idx;      // shift+click extends the selection
+        }
+        wd.blinkT = this.inp.time;
+    }
+
+    tbUpdate(wd: Widget*, stillDown: bool) => void {
+        let edited: bool = false;
+        let moved: bool = false;
+        let sh: bool = this.inp.shift;
+        let ct: bool = this.inp.ctrl;
+
+        // drag to select
+        if (this.activeW == wd && stillDown && !this.inp.pressed && !this.noDrag) {
+            let di: int = this.tbIndexAt(wd);
+            if (di != wd.cur) { wd.cur = di; moved = true; }
+        }
+        if (this.inp.selAll) { wd.anc = 0; wd.cur = wd.len; moved = true; }
+
+        // clipboard
+        if ((this.inp.copy || this.inp.cut) && wd.cur != wd.anc) {
+            this.clipSet(wd);
+            if (this.inp.cut) { this.tbDeleteSel(wd); edited = true; }
+        }
+        if (this.inp.paste && this.clip != nullptr && this.clipLen > 0) {
+            this.tbDeleteSel(wd);
+            let pi: int = 0;
+            while (pi < this.clipLen) {
+                let pc: int = this.clip[pi] as int;
+                if (pc >= 32 && pc <= 126) this.tbInsertChar(wd, this.clip[pi]);
+                pi = pi + 1;
+            }
+            edited = true;
+        }
+
+        // typing replaces the selection
+        if (this.inp.typed != nullptr && this.inp.typed[0] as int != 0) {
+            this.tbDeleteSel(wd);
+            let k: int = 0;
+            while (this.inp.typed[k] as int != 0) { this.tbInsertChar(wd, this.inp.typed[k]); k = k + 1; }
+            edited = true;
+        }
+
+        // deletion (ctrl = whole word)
+        if (this.inp.backspace) {
+            if (this.tbDeleteSel(wd)) { edited = true; }
+            else if (wd.cur > 0) {
+                let a: int = wd.cur - 1;
+                if (ct) a = this.tbWordL(wd, wd.cur);
+                this.tbRemove(wd, a, wd.cur);
+                wd.cur = a; wd.anc = a; edited = true;
+            }
+        }
+        if (this.inp.kDel) {
+            if (this.tbDeleteSel(wd)) { edited = true; }
+            else if (wd.cur < wd.len) {
+                let b: int = wd.cur + 1;
+                if (ct) b = this.tbWordR(wd, wd.cur);
+                this.tbRemove(wd, wd.cur, b);
+                edited = true;
+            }
+        }
+
+        // caret movement (shift extends the selection, ctrl jumps by word)
+        if (this.inp.left) {
+            if (!sh && wd.cur != wd.anc) { wd.cur = imin(wd.cur, wd.anc); wd.anc = wd.cur; }
+            else {
+                let n: int = wd.cur - 1;
+                if (ct) n = this.tbWordL(wd, wd.cur);
+                if (n < 0) n = 0;
+                wd.cur = n;
+                if (!sh) wd.anc = n;
+            }
+            moved = true;
+        }
+        if (this.inp.right) {
+            if (!sh && wd.cur != wd.anc) { wd.cur = imax(wd.cur, wd.anc); wd.anc = wd.cur; }
+            else {
+                let n2: int = wd.cur + 1;
+                if (ct) n2 = this.tbWordR(wd, wd.cur);
+                if (n2 > wd.len) n2 = wd.len;
+                wd.cur = n2;
+                if (!sh) wd.anc = n2;
+            }
+            moved = true;
+        }
+        if (this.inp.kHome) { wd.cur = 0; if (!sh) wd.anc = 0; moved = true; }
+        if (this.inp.kEnd) { wd.cur = wd.len; if (!sh) wd.anc = wd.len; moved = true; }
+
+        if (edited) wd.changed = true;
+        if (edited || moved) wd.blinkT = this.inp.time;
+        if (this.inp.enter) wd.submitted = true;
+        this.tbScroll(wd);
+    }
+
+    // Called by Win.beginFrame() after the input snapshot is filled. Runs hit-testing and updates widget state.
+    updateWidgets() => void {
+        this.wantsMouse = false;
+        // topmost widget under the mouse wins (last created = drawn on top)
+        let hit: Widget* = nullptr;
+        let i: int = this.wcount - 1;
+        while (i >= 0) {
+            let c: Widget* = this.widgets[i];
+            if (hit == nullptr && this.focusable(c) && this.widgetHit(c)) hit = c;
+            i = i - 1;
+        }
+        if (hit != nullptr) this.wantsMouse = true;
+        if (this.focusW != nullptr && !this.focusable(this.focusW)) this.focusW = nullptr;   // hidden/disabled loses focus
+
+        if (this.inp.pressed) {
+            this.activeW = hit;
+            this.focusW = hit;                      // clicking empty space clears focus
+            this.kbFocus = false;
+            if (hit != nullptr && hit.kind == WK_TEXTBOX) this.tbPress(hit);
+        }
+        if (this.inp.tab && this.wcount > 0) {
+            if (this.inp.shift) this.focusNext(0 - 1); else this.focusNext(1);
+        }
+        if (this.inp.esc) this.focusW = nullptr;
+        let stillDown: bool = this.inp.down;
+
+        i = 0;
+        while (i < this.wcount) {
+            let wd: Widget* = this.widgets[i];
+            wd.pressed = false; wd.released = false; wd.changed = false; wd.submitted = false;
+            wd.hovered = (wd == hit) && (this.activeW == nullptr || this.activeW == wd);
+            wd.down = (this.activeW == wd) && stillDown;
+            wd.focused = (this.focusW == wd);
+            if (wd.visible && wd.enabled) {
+                if (wd.kind == WK_BUTTON || wd.kind == WK_CHECKBOX) {
+                    if (this.activeW == wd && this.inp.released) {
+                        wd.released = true;
+                        if (hit == wd) {
+                            wd.pressed = true;
+                            if (wd.kind == WK_CHECKBOX) { wd.checked = !wd.checked; wd.changed = true; }
+                        }
+                    }
+                    // Space or Enter activates the focused button / checkbox
+                    if (wd.focused && (this.inp.space || this.inp.enter)) {
+                        wd.pressed = true;
+                        if (wd.kind == WK_CHECKBOX) { wd.checked = !wd.checked; wd.changed = true; }
+                    }
+                } else if (wd.kind == WK_SLIDER) {
+                    if (this.activeW == wd && stillDown) {
+                        let t: float = (this.inp.mx - wd.x) / wd.w;
+                        if (t < 0.0) t = 0.0;
+                        if (t > 1.0) t = 1.0;
+                        let nv: float = wd.min + t * (wd.max - wd.min);
+                        if (nv != wd.value) { wd.value = nv; wd.changed = true; }
+                    }
+                    if (wd.focused) {
+                        let stp: float = (wd.max - wd.min) * 0.05;
+                        let nv2: float = wd.value;
+                        if (this.inp.left || this.inp.kDown) nv2 = nv2 - stp;
+                        if (this.inp.right || this.inp.up) nv2 = nv2 + stp;
+                        if (this.inp.kHome) nv2 = wd.min;
+                        if (this.inp.kEnd) nv2 = wd.max;
+                        if (nv2 < wd.min) nv2 = wd.min;
+                        if (nv2 > wd.max) nv2 = wd.max;
+                        if (nv2 != wd.value) { wd.value = nv2; wd.changed = true; }
+                    }
+                } else if (wd.kind == WK_TEXTBOX) {
+                    if (wd.focused) this.tbUpdate(wd, stillDown);
+                }
+            }
+            i = i + 1;
+        }
+        if (this.inp.released) { this.activeW = nullptr; this.noDrag = false; }
+    }
+
+    // Called by Win.endFrame() just before flush(): widgets land on top of everything the user drew.
+    // All geometry is snapped to whole pixels so borders and text stay crisp.
+    drawWidgets() => void {
+        let i: int = 0;
+        while (i < this.wcount) {
+            let wd: Widget* = this.widgets[i];
+            if (wd.visible) {
+                let x: float = snap(wd.x); let y: float = snap(wd.y);
+                let w: float = snap(wd.w); let h: float = snap(wd.h);
+                let th: float = this.textHeight(1.0);
+                let col: u32 = UI_IDLE;
+                if (!wd.enabled) col = UI_PANEL;
+                else if (wd.down) col = UI_ACTIVE;
+                else if (wd.hovered) col = UI_HOT;
+                let tc: u32 = UI_TEXT;
+                if (!wd.enabled) tc = UI_DIM;
+
+                if (wd.kind == WK_BUTTON) {
+                    this.fillRect(x, y, w, h, col);
+                    this.rect(x, y, w, h, 1.0, UI_BORDER);
+                    let tw: float = this.textWidth(wd.text, 1.0);
+                    this.text(x + (w - tw) * 0.5, y + (h - th) * 0.5, wd.text, tc);
+                } else if (wd.kind == WK_CHECKBOX) {
+                    this.fillRect(x, y, 22.0, 22.0, col);
+                    this.rect(x, y, 22.0, 22.0, 1.0, UI_BORDER);
+                    if (wd.checked) this.fillRect(x + 5.0, y + 5.0, 12.0, 12.0, UI_ACTIVE);
+                    this.text(x + 30.0, y + (22.0 - th) * 0.5, wd.text, tc);
+                } else if (wd.kind == WK_SLIDER) {
+                    let ty: float = y + snap(h * 0.5) - 2.0;
+                    this.fillRect(x, ty, w, 4.0, UI_PANEL);
+                    this.rect(x, ty, w, 4.0, 1.0, UI_BORDER);
+                    let t: float = 0.0;
+                    if (wd.max > wd.min) t = (wd.value - wd.min) / (wd.max - wd.min);
+                    let hx: float = x + snap(t * w) - 5.0;
+                    this.fillRect(hx, y, 10.0, h, col);
+                    this.rect(hx, y, 10.0, h, 1.0, UI_BORDER);
+                } else if (wd.kind == WK_LABEL) {
+                    this.text(x, y, wd.text, tc);
+                } else if (wd.kind == WK_TEXTBOX) {
+                    this.fillRect(x, y, w, h, UI_PANEL);
+                    let bc: u32 = UI_BORDER;
+                    if (wd.focused) bc = UI_ACTIVE;
+                    this.rect(x, y, w, h, 1.0, bc);
+                    let gw: float = F.GLYPH_W as float;
+                    let ty: float = y + snap((h - th) * 0.5);
+                    let tx: float = x + 6.0 - wd.scrollX;
+                    this.pushClip((x + 3.0) as int, (y + 2.0) as int, (w - 6.0) as int, (h - 4.0) as int);
+                    if (wd.focused && wd.cur != wd.anc) {
+                        let sa: int = imin(wd.cur, wd.anc); let sb: int = imax(wd.cur, wd.anc);
+                        this.fillRect(tx + (sa as float) * gw, ty, (sb - sa) as float * gw, th, UI_SEL);
+                    }
+                    if (wd.len == 0 && wd.hint != nullptr) this.text(tx, ty, wd.hint, UI_DIM);
+                    else this.text(tx, ty, wd.text, tc);
+                    if (wd.focused) {
+                        let ph: float = (this.inp.time - wd.blinkT) as float * 2.0;
+                        let on: bool = ((ph as int) % 2) == 0;
+                        if (on) this.fillRect(snap(tx + (wd.cur as float) * gw), ty, 1.0, th, UI_TEXT);
+                    }
+                    this.popClip();
+                }
+
+                // keyboard focus ring (Tab navigation)
+                if (wd.focused && this.kbFocus && wd.enabled) this.rect(x - 2.0, y - 2.0, w + 4.0, h + 4.0, 1.0, UI_FOCUS);
+            }
+            i = i + 1;
+        }
+    }
 
     // ---- backends: draw everything recorded this frame ----
     flush() => void {
@@ -882,16 +1424,30 @@ struct Pen2D {
                     let cg: float = w0 * vd[a + 5] + w1 * vd[b + 5] + w2 * vd[c + 5];
                     let cb: float = w0 * vd[a + 6] + w1 * vd[b + 6] + w2 * vd[c + 6];
                     let ca: float = w0 * vd[a + 7] + w1 * vd[b + 7] + w2 * vd[c + 7];
-                    let sa: float = (tp[ti + 3] as float) / 255.0 * ca;
+                    // u8 -> int -> float everywhere: u8 -> float directly is suspect on this compiler
+                    let t0: int = tp[ti] as int; let t1: int = tp[ti + 1] as int;
+                    let t2: int = tp[ti + 2] as int; let t3: int = tp[ti + 3] as int;
+                    let sa: float = (t3 as float) / 255.0 * ca;
                     let di: int = (y * this.swW + x) * 4;
                     let isa: float = 1.0 - sa;
-                    let sr: float = (tp[ti] as float) * cr;
-                    let sg: float = (tp[ti + 1] as float) * cg;
-                    let sb: float = (tp[ti + 2] as float) * cb;
-                    this.swBuf[di] = (sr * sa + (this.swBuf[di] as float) * isa + 0.5) as u8;
-                    this.swBuf[di + 1] = (sg * sa + (this.swBuf[di + 1] as float) * isa + 0.5) as u8;
-                    this.swBuf[di + 2] = (sb * sa + (this.swBuf[di + 2] as float) * isa + 0.5) as u8;
-                    this.swBuf[di + 3] = ((sa + (this.swBuf[di + 3] as float) / 255.0 * isa) * 255.0 + 0.5) as u8;
+                    let sr: float = (t0 as float) * cr;
+                    let sg: float = (t1 as float) * cg;
+                    let sb: float = (t2 as float) * cb;
+                    let d0: int = this.swBuf[di] as int; let d1: int = this.swBuf[di + 1] as int;
+                    let d2: int = this.swBuf[di + 2] as int; let d3: int = this.swBuf[di + 3] as int;
+                    // route through int and clamp: float -> u8 directly is suspect on this compiler
+                    let rv: int = (sr * sa + (d0 as float) * isa + 0.5) as int;
+                    let gv: int = (sg * sa + (d1 as float) * isa + 0.5) as int;
+                    let bv: int = (sb * sa + (d2 as float) * isa + 0.5) as int;
+                    let av: int = ((sa + (d3 as float) / 255.0 * isa) * 255.0 + 0.5) as int;
+                    if (rv > 255) rv = 255; if (rv < 0) rv = 0;
+                    if (gv > 255) gv = 255; if (gv < 0) gv = 0;
+                    if (bv > 255) bv = 255; if (bv < 0) bv = 0;
+                    if (av > 255) av = 255; if (av < 0) av = 0;
+                    this.swBuf[di] = rv as u8;
+                    this.swBuf[di + 1] = gv as u8;
+                    this.swBuf[di + 2] = bv as u8;
+                    this.swBuf[di + 3] = av as u8;
                 }
                 x = x + 1;
             }
@@ -1079,6 +1635,15 @@ struct Pen3D {
 let KEY_FIRST: int = 32;
 let KEY_LAST: int = 348;
 let KEY_COUNT: int = 349;
+// GLFW key codes used by the widget input
+let GK_ESC: int = 256;      let GK_TAB: int = 258;     let GK_DELETE: int = 261;
+let GK_RIGHT: int = 262;    let GK_LEFT: int = 263;    let GK_DOWN: int = 264;   let GK_UP: int = 265;
+let GK_HOME: int = 268;     let GK_END: int = 269;     let GK_KPENTER: int = 335;
+let GK_LALT: int = 342;     let GK_RALT: int = 346;
+let GK_A: int = 65;         let GK_C: int = 67;        let GK_V: int = 86;       let GK_X: int = 88;
+let REPEAT_DELAY: double = 0.4;
+let REPEAT_RATE: double = 0.035;
+let DBLCLICK_TIME: double = 0.35;
 
 // ASCII for a GLFW printable key code (0 if none), honouring shift on a US layout.
 function keyToChar(k: int, shift: bool) => int {
@@ -1125,7 +1690,11 @@ struct Win {
     // keyboard
     keyNow: u8* = nullptr; keyPrev: u8* = nullptr;
     typed: char* = nullptr; ntyped: int = 0;     // characters typed this frame (NUL-terminated)
-    bsHeld: double = 0.0; bsNext: double = 0.0; bsEvent: bool = false;
+    keyEv: u8* = nullptr;               // per key: 1 on the frame it is pressed and on each auto-repeat while held
+    keyNext: double* = nullptr;         // per key: time of the next auto-repeat
+    lastClickT: double = 0.0 - 1.0; dblClick: bool = false;
+    lastClickX: float = 0.0; lastClickY: float = 0.0;
+    keepFrame: bool = false;            // false (default): the window is cleared to pen.clear's colour at the start of every frame
 
     // core: Canvas-owned Vulkan device holder (zeroed; first Vulkan window fills it). share: window to share GL
     // objects with (or nullptr). dir: SPIR-V folder for the Vulkan backend.
@@ -1139,6 +1708,11 @@ struct Win {
         this.keyPrev = CMem.malloc(KEY_COUNT as u64) as u8*;
         CMem.memset(this.keyNow as void*, 0, KEY_COUNT as u64);
         CMem.memset(this.keyPrev as void*, 0, KEY_COUNT as u64);
+        this.keyEv = CMem.malloc(KEY_COUNT as u64) as u8*;
+        this.keyNext = CMem.malloc((KEY_COUNT * 8) as u64) as double*;
+        CMem.memset(this.keyEv as void*, 0, KEY_COUNT as u64);
+        CMem.memset(this.keyNext as void*, 0, (KEY_COUNT * 8) as u64);
+        this.lastClickT = 0.0 - 1.0; this.dblClick = false;
         this.typed = CMem.malloc(32) as char*;
         this.typed[0] = 0 as char;
         this.isOpen = true;
@@ -1191,40 +1765,45 @@ struct Win {
     keyPressed(k: int) => bool { return this.keyNow[k] != 0 && this.keyPrev[k] == 0; }
     shiftDown() => bool { return this.keyNow[W.KEY_LEFT_SHIFT] != 0 || this.keyNow[344] != 0; }
     ctrlDown() => bool { return this.keyNow[W.KEY_LEFT_CONTROL] != 0 || this.keyNow[345] != 0; }
+    // True on the frame a key goes down and on every auto-repeat while it is held.
+    keyRepeat(k: int) => bool { return this.keyEv[k] != 0; }
     // Backspace with key repeat (fires on press, then repeats while held).
-    backspace() => bool { return this.bsEvent; }
+    backspace() => bool { return this.keyEv[W.KEY_BACKSPACE] != 0; }
+    altDown() => bool { return this.keyNow[GK_LALT] != 0 || this.keyNow[GK_RALT] != 0; }
+    // True on the frame the left button went down for the second time within DBLCLICK_TIME.
+    doubleClicked() => bool { return this.dblClick; }
     // Characters typed this frame, NUL-terminated (ASCII only; poll-based, no callback).
     typedText() => char* { return this.typed; }
     width() => int { return this.fbW; }
     height() => int { return this.fbH; }
 
     pollInput() => void {
-        let k: int = KEY_FIRST;
+        let now: double = W.time();
         this.ntyped = 0;
-        let shift: bool = false;
+        let k: int = KEY_FIRST;
         while (k <= KEY_LAST) {
             this.keyPrev[k] = this.keyNow[k];
+            this.keyEv[k] = 0 as u8;
             let d: bool = this.win.keyDown(k);
-            if (d) this.keyNow[k] = 1 as u8; else this.keyNow[k] = 0 as u8;
+            if (d) {
+                this.keyNow[k] = 1 as u8;
+                if (this.keyPrev[k] == 0) { this.keyEv[k] = 1 as u8; this.keyNext[k] = now + REPEAT_DELAY; }
+                else if (now >= this.keyNext[k]) { this.keyEv[k] = 1 as u8; this.keyNext[k] = now + REPEAT_RATE; }
+            } else { this.keyNow[k] = 0 as u8; }
             k = k + 1;
         }
-        shift = this.shiftDown();
+        // printable keys (with auto-repeat); Ctrl/Alt chords are shortcuts, not text
+        let shift: bool = this.shiftDown();
+        let chord: bool = this.ctrlDown() || this.altDown();
         k = 32;
         while (k <= 96) {
-            if (this.keyNow[k] != 0 && this.keyPrev[k] == 0 && this.ntyped < 30) {
+            if (!chord && this.keyEv[k] != 0 && this.ntyped < 30) {
                 let c: int = keyToChar(k, shift);
                 if (c != 0) { this.typed[this.ntyped] = c as char; this.ntyped = this.ntyped + 1; }
             }
             k = k + 1;
         }
         this.typed[this.ntyped] = 0 as char;
-
-        let now: double = W.time();
-        this.bsEvent = false;
-        if (this.keyNow[W.KEY_BACKSPACE] != 0) {
-            if (this.keyPrev[W.KEY_BACKSPACE] == 0) { this.bsEvent = true; this.bsNext = now + 0.4; }
-            else if (now >= this.bsNext) { this.bsEvent = true; this.bsNext = now + 0.04; }
-        }
 
         this.lprev = this.ldown; this.rprev = this.rdown;
         this.ldown = this.win.mouseDown(W.MOUSE_LEFT);
@@ -1238,6 +1817,19 @@ struct Win {
         if (wh > 0) sy = (this.fbH as float) / (wh as float);
         this.mx = (cx as float) * sx;
         this.my = (cy as float) * sy;
+
+        // double click: two presses within DBLCLICK_TIME and a few pixels of each other
+        this.dblClick = false;
+        if (this.mousePressed()) {
+            let ddx: float = this.mx - this.lastClickX; if (ddx < 0.0) ddx = 0.0 - ddx;
+            let ddy: float = this.my - this.lastClickY; if (ddy < 0.0) ddy = 0.0 - ddy;
+            if (now - this.lastClickT < DBLCLICK_TIME && ddx < 6.0 && ddy < 6.0) {
+                this.dblClick = true;
+                this.lastClickT = 0.0 - 1.0;          // a third click starts a new sequence
+            } else {
+                this.lastClickT = now; this.lastClickX = this.mx; this.lastClickY = this.my;
+            }
+        }
     }
 
     beginFrame() => void {
@@ -1247,11 +1839,42 @@ struct Win {
         this.fbW = w; this.fbH = hh;
         this.active = w > 0 && hh > 0;
         this.pollInput();
+        this.pen.inp.mx = this.mx; this.pen.inp.my = this.my;
+        this.pen.inp.down = this.ldown;
+        this.pen.inp.pressed = this.mousePressed();
+        this.pen.inp.released = this.mouseReleased();
+        this.pen.inp.typed = this.typed;
+        let ctrl: bool = this.ctrlDown();
+        this.pen.inp.shift = this.shiftDown();
+        this.pen.inp.ctrl = ctrl;
+        this.pen.inp.backspace = this.keyRepeat(W.KEY_BACKSPACE);
+        this.pen.inp.kDel = this.keyRepeat(GK_DELETE);
+        this.pen.inp.left = this.keyRepeat(GK_LEFT);
+        this.pen.inp.right = this.keyRepeat(GK_RIGHT);
+        this.pen.inp.up = this.keyRepeat(GK_UP);
+        this.pen.inp.kDown = this.keyRepeat(GK_DOWN);
+        this.pen.inp.kHome = this.keyRepeat(GK_HOME);
+        this.pen.inp.kEnd = this.keyRepeat(GK_END);
+        this.pen.inp.tab = this.keyRepeat(GK_TAB);
+        this.pen.inp.esc = this.keyPressed(GK_ESC);
+        this.pen.inp.enter = this.keyPressed(W.KEY_ENTER) || this.keyPressed(GK_KPENTER);
+        this.pen.inp.space = this.keyPressed(32);
+        this.pen.inp.selAll = ctrl && this.keyPressed(GK_A);
+        this.pen.inp.copy = ctrl && this.keyPressed(GK_C);
+        this.pen.inp.cut = ctrl && this.keyRepeat(GK_X);
+        this.pen.inp.paste = ctrl && this.keyRepeat(GK_V);
+        this.pen.inp.dbl = this.dblClick;
+        this.pen.inp.time = W.time();
+        this.pen.updateWidgets();
         this.pen.begin(w, hh);
+        // keepFrame == false: start every frame from the clear colour. Without this the GL back buffers keep
+        // whatever was drawn two frames ago and everything redrawn at a new spot looks like it is vibrating.
+        if (!this.keepFrame && this.active) this.pen.clear(this.pen.clearR, this.pen.clearG, this.pen.clearB, this.pen.clearA);
         this.scene.size(w, hh);
     }
 
     endFrame() => void {
+        this.pen.drawWidgets();                 // widgets land on top of everything drawn this frame
         if (this.api == API_VULKAN) { this.pen.flush(); return; }       // flush records, submits and presents
         this.win.makeCurrent();
         this.pen.flush();
@@ -1290,6 +1913,8 @@ struct Win {
         this.win.close();
         if (this.keyNow != nullptr) { CMem.free(this.keyNow as void*); this.keyNow = nullptr; }
         if (this.keyPrev != nullptr) { CMem.free(this.keyPrev as void*); this.keyPrev = nullptr; }
+        if (this.keyEv != nullptr) { CMem.free(this.keyEv as void*); this.keyEv = nullptr; }
+        if (this.keyNext != nullptr) { CMem.free(this.keyNext as void*); this.keyNext = nullptr; }
         if (this.typed != nullptr) { CMem.free(this.typed as void*); this.typed = nullptr; }
         this.isOpen = false;
     }
@@ -1306,6 +1931,7 @@ struct Canvas {
     firstGL: Win* = nullptr;            // GL windows share textures/buffers with this one
     shaderDir: char* = "shaders/";      // where canvas2d.{vert,frag}.spv live (Vulkan windows)
     validation: bool = false;           // set before the first Vulkan window to enable the validation layer
+    iconPath: char* = nullptr;          // optional: png used as the window/taskbar icon of every window opened afterwards
 
     init() => bool {
         if (!W.init()) return false;
@@ -1326,6 +1952,7 @@ struct Canvas {
         let win: Win* = this.makeWin(title, w, hh, want);
         if (win == nullptr && api == API_AUTO) win = this.makeWin(title, w, hh, API_VULKAN);   // no GL: try Vulkan
         if (win == nullptr) return nullptr;
+        if (this.iconPath != nullptr) { if (!win.win.setIconFile(this.iconPath)) Console.log("[icon] could not load icon file (path is relative to the folder you run from)"); }
         this.wins[this.count] = win;
         this.count = this.count + 1;
         if (this.firstGL == nullptr && win.api != API_VULKAN) this.firstGL = win;

@@ -8,20 +8,20 @@ let window = {
 
 function main() => int {
     let app: C.Canvas;
+    
     if (!app.init()) return 1;
+    
+    app.iconPath = "docs/examples/icon.png";
 
-    let win = app.createWindow("Omniscript Window", 800, 600);
+    let win = app.createWindow("omniscript window", window.width, window.height);
 
-    if (win == nullptr) {app.quit(); return 2; }
+    if (win == nullptr) {app.quit(); return 2;}
 
-    let pen: C.Pen2D* = win.context2d();
+    let pen = win.context2d();
 
     while (app.frame()) {
-        if (win.keyPressed(256)) win.close();
-
-        pen.text(window.width/2, window.height/2, "Hello, Canvas!", 0xFFFFFFFF);
-        Console.log(window.width/2)
-        Console.log(window.height/2)
+        if (win.keyPressed(256)) app.quit();
+        pen.textScaled(window.width / 2 - 50, window.height / 2 - 50, "0m0g1", 0xFFFFFF, 3);
         app.present();
     }
 

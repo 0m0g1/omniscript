@@ -2,9 +2,9 @@
 // Canvas feature test. Opens a GL window; spawn more at runtime.
 //
 //   Left / Right   previous / next page
-//   F2             open a SOFTWARE window   (CPU rasteriser, shown via GL blit)
-//   F3             open a VULKAN window     (needs shaders/canvas2d.{vert,frag}.spv)
-//   F4             open another GL window   (tests shared GL context / textures)
+//   Ctrl+1 or F2   open a SOFTWARE window   (CPU rasteriser, shown via GL blit)
+//   Ctrl+2 or F3   open a VULKAN window     (needs shaders/canvas2d.{vert,frag}.spv)
+//   Ctrl+3 or F4   open another GL window   (tests shared GL context / textures)
 //   Esc            close the focused window (program ends when all are closed)
 //
 // Pages (every window has its own current page):
@@ -19,12 +19,8 @@
 module C = import "standard/1/Canvas.os";
 module OGL = import "standard/1/OpenGL.os";
 module CMem = import "standard/1/c/mem.os";
-module Console = import "standard/1/Console.os";
 
 let PAGES: int = 8;
-
-// println + flush so the last marker survives a crash
-function mark(s: char*) => void { Console.println(s); Console.flush(); }
 
 struct TestWin {
     win: C.Win* = nullptr;
@@ -115,14 +111,7 @@ function setupSlot(t: TestWin*) => void {
     t.m3 = CMem.malloc(64 as u64) as float*;
 
     // 64x64 test image: red/green gradient with blue checker
-    let px = CMem.malloc((64 * 64 * 4 + 256) as u64) as u8*;   // +256 pad: DIAGNOSTIC, tests for an out-of-bounds write
-
-    Console.log("px / num / m1 / m2 / m3:");
-    Console.log(px as u64);
-    Console.log(t.num as u64);
-    Console.log(t.m1 as u64);
-    Console.log(t.m2 as u64);
-    Console.log(t.m3 as u64);
+    let px = CMem.malloc((64 * 64 * 4) as u64) as u8*;
 
     let y: int = 0;
     while (y < 64) {
@@ -138,28 +127,21 @@ function setupSlot(t: TestWin*) => void {
         }
         y = y + 1;
     }
-    mark("[setup] px filled");
     t.img = pen.createImage(px, 64, 64);
-    mark("[setup] createImage done");
     CMem.free(px as void*);
-    mark("[setup] px freed");
 
     // plasma shader (GL: GLSL body; Vulkan: SPIR-V file; software: returns 0)
     t.shader = pen.createShaderBoth(
         "void main() { vec2 p = vUV * 6.0; float v = sin(p.x + uTime) + sin(p.y * 1.3 + uTime * 1.2) + sin((p.x + p.y) * 0.7 + uTime); o = vec4(0.5 + 0.5 * sin(v), 0.5 + 0.5 * sin(v + 2.1), 0.5 + 0.5 * sin(v + 4.2), 1.0) * vCol; }",
-        "shaders/plasma.frag.spv");
-    mark("[setup] shader done");
+        "standard/1/Shaders/plasma.frag.spv");
 
     // 3D (GL windows only)
     let sc: C.Pen3D* = win.context3d();
-    mark("[setup] context3d done");
     if (sc.ready) {
         sc.createCube(&t.cube);
         t.cubeOk = true;
-        mark("[setup] cube done");
     }
     t.ready = true;
-    mark("[setup] ready");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -444,13 +426,14 @@ function runSlot(t: TestWin*, now: float, status: char*) => int {
 
     // footer
     pen.fillRect(0.0, h - 40.0, w, 40.0, 0x1E2230FF);
-    pen.text(10.0, h - 36.0, "Left/Right: page | F2 software | F3 vulkan | F4 GL | Esc: close", 0xAAAAAAFF);
+    pen.text(10.0, h - 36.0, "Left/Right: page | Ctrl+1 software | Ctrl+2 vulkan | Ctrl+3 GL | Esc: close", 0xAAAAAAFF);
     pen.text(10.0, h - 18.0, status, 0xFFEE55FF);
 
     let req: int = 0;
-    if (win.keyPressed(291)) req = 291;
-    if (win.keyPressed(292)) req = 292;
-    if (win.keyPressed(293)) req = 293;
+    let ctrl: bool = win.ctrlDown();
+    if (win.keyPressed(291) || (ctrl && win.keyPressed(49))) req = 291;
+    if (win.keyPressed(292) || (ctrl && win.keyPressed(50))) req = 292;
+    if (win.keyPressed(293) || (ctrl && win.keyPressed(51))) req = 293;
     return req;
 }
 
@@ -473,12 +456,16 @@ function spawnInto(app: C.Canvas*, t: TestWin*, api: int, title: char*) => bool 
     return true;
 }
 
-function spawnAny(app: C.Canvas*, a: TestWin*, b: TestWin*, c: TestWin*, d: TestWin*, api: int, title: char*) => bool {
-    if (slotFree(a)) return spawnInto(app, a, api, title);
-    if (slotFree(b)) return spawnInto(app, b, api, title);
-    if (slotFree(c)) return spawnInto(app, c, api, title);
-    if (slotFree(d)) return spawnInto(app, d, api, title);
-    return false;
+// Returns 0 = opened, 1 = no free slot, 2 = createWindowEx failed (backend init / window limit).
+function spawnAny(app: C.Canvas*, a: TestWin*, b: TestWin*, c: TestWin*, d: TestWin*, api: int, title: char*) => int {
+    let t: TestWin* = nullptr;
+    if (slotFree(a)) t = a;
+    else if (slotFree(b)) t = b;
+    else if (slotFree(c)) t = c;
+    else if (slotFree(d)) t = d;
+    if (t == nullptr) return 1;
+    if (spawnInto(app, t, api, title)) return 0;
+    return 2;
 }
 
 // Slots live on the heap, allocated exactly like Canvas allocates a Win (malloc(sizeof) + memset).
@@ -489,12 +476,9 @@ function newSlot() => TestWin* {
 }
 
 function main() => int {
-    mark("[main] start");
-    Console.println(sizeof(TestWin) as i64);
-    Console.println(sizeof(OGL.Mesh) as i64);
-    Console.flush();
     let app: C.Canvas;
     if (!app.init()) return 1;
+    app.shaderDir = "standard/1/Shaders/";   // canvas2d.{vert,frag}.spv for Vulkan windows (trailing slash required)
 
     let t0: TestWin* = newSlot();
     let t1: TestWin* = newSlot();
@@ -519,16 +503,22 @@ function main() => int {
         if (r3 != 0) req = r3;
 
         if (req == 291) {
-            if (spawnAny(&app, t0, t1, t2, t3, C.API_SOFTWARE, "Canvas test - Software")) status = "Opened software window.";
-            else status = "Software window failed (window limit or no free slot).";
+            let r: int = spawnAny(&app, t0, t1, t2, t3, C.API_SOFTWARE, "Canvas test - Software");
+            if (r == 0) status = "Opened software window.";
+            else if (r == 1) status = "Software window: no free slot (4 windows already open).";
+            else status = "Software window: createWindowEx failed (window init, or 8-window total limit).";
         }
         if (req == 292) {
-            if (spawnAny(&app, t0, t1, t2, t3, C.API_VULKAN, "Canvas test - Vulkan")) status = "Opened Vulkan window.";
-            else status = "Vulkan window failed (driver, shaders/*.spv, or window limit).";
+            let r: int = spawnAny(&app, t0, t1, t2, t3, C.API_VULKAN, "Canvas test - Vulkan");
+            if (r == 0) status = "Opened Vulkan window.";
+            else if (r == 1) status = "Vulkan window: no free slot (4 windows already open).";
+            else status = "Vulkan window: init failed (driver, or shaders/*.spv not found).";
         }
         if (req == 293) {
-            if (spawnAny(&app, t0, t1, t2, t3, C.API_GL, "Canvas test - OpenGL 2")) status = "Opened second GL window.";
-            else status = "GL window failed (window limit or no free slot).";
+            let r: int = spawnAny(&app, t0, t1, t2, t3, C.API_GL, "Canvas test - OpenGL 2");
+            if (r == 0) status = "Opened second GL window.";
+            else if (r == 1) status = "GL window: no free slot (4 windows already open).";
+            else status = "GL window: createWindowEx failed (window init, or 8-window total limit).";
         }
     }
 

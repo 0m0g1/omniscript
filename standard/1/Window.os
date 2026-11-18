@@ -2,9 +2,13 @@
 // Tier 5: window + GL context via GLFW. Call Window.init() once, then open() (or openGL/openVulkan),
 // loop with shouldClose/poll/swap. Input: keyDown/mouseDown/cursor. All earlier calls are unchanged.
 module G = import "standard/1/c/glfw.os";
+module IMG = import "standard/1/Image.os";
+module IC = import "standard/1/c/image.os";
+module Console = import "standard/1/Console.os";
 
 let GLFW_CLIENT_API: int = 0x22001;
 let GLFW_NO_API: int = 0;
+let GLFW_OPENGL_API: int = 0x30001;
 let GLFW_CONTEXT_VERSION_MAJOR: int = 0x22002;
 let GLFW_CONTEXT_VERSION_MINOR: int = 0x22003;
 let GLFW_OPENGL_PROFILE: int = 0x22008;
@@ -47,6 +51,8 @@ function setResizable(on: bool) => void {
     if (on) G.glfwWindowHint(GLFW_RESIZABLE, 1); else G.glfwWindowHint(GLFW_RESIZABLE, 0);
 }
 
+struct GLFWimage { width: int; height: int; pixels: u8*; }
+
 struct Window {
     h: void* = nullptr;
     shareWith: void* = nullptr;      // GLFWwindow* whose GL objects (textures, buffers) this window shares; set by openGLShared
@@ -55,6 +61,9 @@ struct Window {
     // opengl: true = GL 3.3 core context; false = no API (use for Vulkan)
     open(w: int, h: int, title: char*, opengl: bool) => bool {
         if (opengl) {
+            // GLFW hints are sticky: a previous openVulkan() left CLIENT_API = NO_API, which would make
+            // this window context-less. Always restore it.
+            G.glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
             G.glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
             G.glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
             G.glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -82,6 +91,27 @@ struct Window {
     swap() => void { G.glfwSwapBuffers(this.h); }
     vsync(on: bool) => void { if (on) G.glfwSwapInterval(1); else G.glfwSwapInterval(0); }
     setTitle(t: char*) => void { G.glfwSetWindowTitle(this.h, t); }
+    // Window/taskbar icon from RGBA8 pixels (GLFW copies them, so the buffer can be freed right after).
+    setIcon(px: u8*, w: int, hh: int) => void {
+        if (this.h == nullptr || px == nullptr || w <= 0 || hh <= 0) return;
+        let gi: GLFWimage;
+        gi.width = w; gi.height = hh; gi.pixels = px;
+        G.glfwSetWindowIcon(this.h, 1, &gi as void*);
+    }
+    // Loads a png/jpg/bmp/tga and uses it as the icon. Returns false if the file could not be decoded.
+    setIconFile(path: char*) => bool {
+        let img: IMG.Image;
+        img.pixels = nullptr; img.width = 0; img.height = 0;
+        if (!img.load(path)) {
+            Console.log("[icon] load failed for:");
+            Console.log(path);
+            Console.log(IC.stbi_failure_reason());
+            return false;
+        }
+        this.setIcon(img.pixels, img.width, img.height);
+        img.free();
+        return true;
+    }
     setSize(w: int, h: int) => void { G.glfwSetWindowSize(this.h, w, h); }
     size(w: int*, h: int*) => void { G.glfwGetWindowSize(this.h, w, h); }
     framebufferSize(w: int*, h: int*) => void { G.glfwGetFramebufferSize(this.h, w, h); }

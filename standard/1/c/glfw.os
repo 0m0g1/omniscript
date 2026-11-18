@@ -14,6 +14,7 @@ extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
     fn glfwGetTime() => double;
     fn glfwSetWindowTitle(w: void*, t: char*) => void;
     fn glfwSetWindowSize(w: void*, a: int, b: int) => void;
+    fn glfwSetWindowIcon(w: void*, count: int, images: void*) => void;   // images: GLFWimage* {int width; int height; u8* pixels (RGBA8)}
     fn glfwGetWindowSize(w: void*, a: int*, b: int*) => void;
     fn glfwGetFramebufferSize(w: void*, a: int*, b: int*) => void;
     fn glfwGetKey(w: void*, key: int) => int;
