@@ -119,6 +119,90 @@ std::shared_ptr<Statement> Parser::parseClass() {
     while (currentToken.getType() != TokenTypes::RightBrace) {
         MemberModifiers modifiers = parseMemberModifiers();
 
+        // ---- TEXTUAL INCLUDE (class body) ----
+        if (currentToken.getType() == TokenTypes::Include) {
+            FileSpan incSpan;
+            incSpan.start.line = currentToken.getLine();
+            incSpan.start.col  = currentToken.getColumn();
+            incSpan.start.filePath = currentToken.getFilePath();
+
+            eat(TokenTypes::Include);
+            if (currentToken.getType() != TokenTypes::StringLiteral) {
+                console.reportError(Console::SYNTAX_ERROR,
+                    "Expected string literal after 'include'.",
+                    errorSpanAtCurrentToken());
+                return nullptr;
+            }
+            const std::string incPath = currentToken.getValue();
+            eat(TokenTypes::StringLiteral);
+            if (currentToken.getType() == TokenTypes::Semicolon) eat(TokenTypes::Semicolon);
+
+            incSpan.end.line = previousToken.getLine();
+            incSpan.end.col  = previousToken.getColumn();
+            incSpan.end.filePath = previousToken.getFilePath().empty()
+                ? incSpan.start.filePath : previousToken.getFilePath();
+
+            auto incStmt = std::make_shared<IncludeStatement>(incPath);
+            incStmt->setSpan(incSpan);
+
+            const std::string src = incStmt->getSourceText();
+            if (src.empty()) continue;
+
+            // Wrap in a synthetic class so the included contents are parsed as CLASS
+            // MEMBERS (methods -> '<synName>.<method>'), not as a standalone program.
+            // `__inc__` prefix makes the name astronomically unlikely to collide with
+            // any user-written class. The `{`/`}` are placed flush against the source
+            // so line numbers stay identical; only line 1's columns get a small shift.
+            const std::string synName = "__inc__" + className;
+            const std::string wrapped = "class " + synName + " {" + src + "}";
+            Lexer incLexer(wrapped, incPath);
+            Parser incParser(incLexer);
+            auto parsed = incParser.parse();
+
+            bool spliced = false;
+            for (auto& s : parsed) {
+                if (auto cp = std::dynamic_pointer_cast<ConstructClassPrototype>(s)) {
+                    for (auto& cm : cp->getBody()) {
+                        if (!cm) continue;
+                        const std::string mName = cm->getName();
+
+                        // parseClass auto-inserts a default ctor (ClassMember name =
+                        // class name) and dtor (ClassMember name = "~<classname>")
+                        // when none was found in its body. Skip those: the OUTER class
+                        // will insert its own defaults if the include contributed none.
+                        if (mName == synName || mName == "~" + synName) continue;
+
+                        // A user-written ctor/dtor appears with the literal member
+                        // names "constructor" / "destructor". Mark them so the outer
+                        // class does not also auto-insert defaults on top of them.
+                        if (mName == "constructor") hasConstructor = true;
+                        if (mName == "destructor") hasDestructor = true;
+
+                        // Rename the FunctionDeclaration from '<synName>.method' to
+                        // '<className>.method'. The ClassMember's own name (e.g.
+                        // "init") is already bare and matches what parseClass produces
+                        // for inline methods, so it stays untouched.
+                        if (auto fn = std::dynamic_pointer_cast<FunctionDeclaration>(cm->getValue())) {
+                            const std::string fnName = fn->getName();
+                            if (fnName.rfind(synName + ".", 0) == 0) {
+                                fn->setName(className + fnName.substr(synName.size()));
+                            }
+                            fn->pushContext(className);
+                        }
+                        members.push_back(cm);
+                    }
+                    spliced = true;
+                    break;
+                }
+            }
+            if (!spliced) {
+                console.reportError(Console::SYNTAX_ERROR,
+                    "Included file '" + incPath + "' could not be parsed as class members.",
+                    incSpan);
+            }
+            continue;
+        }
+                
         std::string memberName;
         bool isDestructor = false;
         if (currentToken.getType() == TokenTypes::Tilde) {
@@ -248,6 +332,62 @@ std::shared_ptr<Statement> Parser::parseStruct() {
 
     while (currentToken.getType() != TokenTypes::RightBrace &&
            currentToken.getType() != TokenTypes::EOI) {
+
+        // ---- TEXTUAL INCLUDE (struct body) ----
+        if (currentToken.getType() == TokenTypes::Include) {
+            FileSpan incSpan;
+            incSpan.start.line = currentToken.getLine();
+            incSpan.start.col  = currentToken.getColumn();
+            incSpan.start.filePath = currentToken.getFilePath();
+
+            eat(TokenTypes::Include);
+            if (currentToken.getType() != TokenTypes::StringLiteral) {
+                console.reportError(Console::SYNTAX_ERROR,
+                    "Expected string literal after 'include'.",
+                    errorSpanAtCurrentToken());
+                skipBadMember();
+                continue;
+            }
+            const std::string incPath = currentToken.getValue();
+            eat(TokenTypes::StringLiteral);
+            if (currentToken.getType() == TokenTypes::Semicolon) eat(TokenTypes::Semicolon);
+
+            incSpan.end.line = previousToken.getLine();
+            incSpan.end.col  = previousToken.getColumn();
+            incSpan.end.filePath = previousToken.getFilePath();
+
+            auto incStmt = std::make_shared<IncludeStatement>(incPath);
+            incStmt->setSpan(incSpan);
+
+            const std::string src = incStmt->getSourceText();
+            if (src.empty()) continue;
+
+            // Parse the file's contents in STRUCT context by wrapping in a synthetic
+            // struct of the SAME name. Methods come out named '<structName>.<method>'
+            // (exactly what parseLambdaFunction(structName + "." + name) would have
+            // produced inline). Spans point at incPath because the Lexer is told so.
+            const std::string wrapped = "struct " + structName + " {\n" + src + "\n}\n";
+            Lexer incLexer(wrapped, incPath);
+            Parser incParser(incLexer);
+            auto parsed = incParser.parse();
+
+            bool spliced = false;
+            for (auto& s : parsed) {
+                if (auto cs = std::dynamic_pointer_cast<ConstructStructPrototype>(s)) {
+                    for (auto& m : cs->getBody()) {
+                        body.push_back(m);   // already named '<structName>.<method>'
+                    }
+                    spliced = true;
+                    break;
+                }
+            }
+            if (!spliced) {
+                console.reportError(Console::SYNTAX_ERROR,
+                    "Included file '" + incPath + "' could not be parsed as struct members.",
+                    incSpan);
+            }
+            continue;
+        }
 
         if (currentToken.getType() == TokenTypes::Identifier) {
             std::string fieldName = currentToken.getValue();

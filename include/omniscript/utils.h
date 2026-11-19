@@ -1,10 +1,27 @@
 #pragma once
 //Includes
+#include <filesystem>          // add — needed for std::filesystem::path
 // #include <string>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Tokens.h>
 
 namespace Omniscript {
+
+// --- Toolchain root resolution --------------------------------------------
+// findToolchainRoot is defined in omniscriptutils.cpp. It returns the directory
+// that contains "standard/" — from OMNISCRIPT_ROOT, else by walking up from the
+// executable path, else cwd. toolchainRoot()/setToolchainRoot() are the shared
+// read/write accessors so every TU (module resolver, include resolution, ...)
+// agrees on one root.
+std::filesystem::path findToolchainRoot(const char* argv0);
+const std::filesystem::path& toolchainRoot();
+void setToolchainRoot(std::filesystem::path root);
+
+// Highest numeric subdirectory under <root>/standard/, or "" if none.
+// Shared by StdSource::resolve and resolveSourcePath so `std/` and
+// `standard/` both default to the same edition.
+std::string latestEdition(const std::filesystem::path& root);
+// -------------------------------------------------------------------------
 
 // Utility function declerations
 std::string toUpperCaseString(const std::string &source);

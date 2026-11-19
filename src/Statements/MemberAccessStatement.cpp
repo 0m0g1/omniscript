@@ -334,16 +334,46 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
         }
     }
 
-    // `Alias.NAME` on a module alias: read the module-level variable/constant.
+    // `Alias.NAME` on a module alias: read or reassign the module-level variable.
     {
         std::string aliasName = resolvedObjectName.empty() ? objectName : resolvedObjectName;
         if (findModuleWithMember(scope, aliasName, accessContext, memberName) && scope->get(memberName)) {
             if (assignmentValue) {
-                console.reportError(Console::SEMANTIC_ERROR,
-                    "Assigning to module variable '" + aliasName + "." + memberName + "' from outside the module is not supported.",
-                    FileSpan{});
-                return nullptr;
+                // A module's own code can assign to its own module-level variables.
+                // `extendContextOf` rewrites a bare `rules = r` inside the module's
+                // functions to `CSS.rules = r`, which lands here — that's intra-module
+                // access, not "from outside". Detect it via the access context and
+                // route to a normal reassignment of the bare variable (which is how
+                // the module-level variable was actually registered, see
+                // CreateModule::reinterprateStatement).
+                bool insideModule = false;
+                for (const auto& ctx : accessContext) {
+                    if (ctx == aliasName) { insideModule = true; break; }
+                }
+                if (!insideModule) {
+                    console.reportError(Console::SEMANTIC_ERROR,
+                        "Assigning to module variable '" + aliasName + "." + memberName +
+                        "' from outside the module is not supported.",
+                        getSpan());
+                    return nullptr;
+                }
+
+                // Use the type the module variable was registered with; the
+                // constructor stores it via setType(), and AssignVariable::express
+                // needs it to check compatibility with the RHS.
+                std::shared_ptr<Type> existingType;
+                if (auto existing = scope->get(memberName)) {
+                    existingType = existing->getType();
+                }
+
+                // isReassign=true: this is an assignment to an existing variable,
+                // not a fresh `let`/`const` declaration.
+                auto assign = std::make_shared<AssignVariable>(
+                    memberName, existingType, assignmentValue, /*isReassign=*/true);
+                assign->setSpan(this->getSpan());
+                return assign->express(scope);
             }
+
             auto variableGet = std::make_shared<GetVariable>(memberName);
             variableGet->setSpan(this->getSpan());
             auto result = variableGet->express(scope);

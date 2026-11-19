@@ -37,10 +37,22 @@ std::string resolveSourcePath(const std::string& path, const std::string& import
     candidates.emplace_back(path);
     fs::path importerDir = importerFile.empty() ? fs::path() : fs::path(importerFile).parent_path();
     if (!importerDir.empty()) candidates.emplace_back(importerDir / path);
+    const fs::path tcRoot = toolchainRoot().empty()
+    ? fs::current_path()
+    : toolchainRoot();
+
+    std::string edition = Omniscript::latestEdition(tcRoot);
+    if (edition.empty()) edition = "1";   // same fallback StdSource uses
+
     if (path.rfind("std/", 0) == 0 || path.rfind("std\\", 0) == 0) {
         fs::path rest = path.substr(4);
-        candidates.emplace_back(fs::path("standard") / "1" / rest);
-        if (!importerDir.empty()) candidates.emplace_back(importerDir / "standard" / "1" / rest);
+        candidates.emplace_back(tcRoot / "standard" / edition / rest);
+    } else if (path.rfind("standard/", 0) == 0 || path.rfind("standard\\", 0) == 0) {
+        fs::path rest = path.substr(9);
+        // "standard/1/c/x.os" already names its edition: resolve it as-is under the root.
+        candidates.emplace_back(tcRoot / "standard" / rest);
+        // "standard/c/x.os" is shorthand for the latest edition.
+        candidates.emplace_back(tcRoot / "standard" / edition / rest);
     }
     for (const auto& c : candidates) {
         if (fs::is_regular_file(c, ec)) return c.string();
@@ -108,6 +120,48 @@ void renameTypeInPlace(std::shared_ptr<Type> type, const std::string& oldName, c
     }
 }
 } // namespace
+
+std::string IncludeStatement::getSourceText() const {
+    if (path.empty()) {
+        console.reportError(
+            Console::RUNTIME_ERROR,
+            "Include path is empty",
+            "To resolve this:\n1. Ensure the include directive specifies a valid file path",
+            getSpan());
+        return {};
+    }
+
+    const std::string importerPath = getSpan().start.filePath;
+    const std::string resolvedPath = resolveSourcePath(path, importerPath);
+    std::string sourceCode;
+    if (!tryReadSource(resolvedPath, sourceCode) || sourceCode.empty()) {
+        const bool isStdPath =
+            path.rfind("std/", 0) == 0 || path.rfind("std\\", 0) == 0 ||
+            path.rfind("standard/", 0) == 0 || path.rfind("standard\\", 0) == 0;
+
+        std::string hint =
+            "To resolve this:\n"
+            "1. Verify the file exists at: " + resolvedPath + "\n"
+            "2. Check file permissions\n";
+        if (isStdPath) {
+            hint += "3. 'std/' and 'standard/' resolve against the toolchain root ("
+                  + Omniscript::toolchainRoot().string()
+                  + "), not the importer; set OMNISCRIPT_ROOT to override\n";
+        } else {
+            hint += "3. Relative includes resolve against the importing file's directory ("
+                  + std::filesystem::path(importerPath).parent_path().string() + ")\n";
+        }
+
+        console.reportError(
+            Console::RUNTIME_ERROR,
+            Console::formatString("Failed to read file: '%s' (resolved to '%s')",
+                                  path.c_str(), resolvedPath.c_str()),
+            hint,
+            getSpan());
+        return {};
+    }
+    return sourceCode;
+}
 
 std::shared_ptr<Expression> IncludeStatement::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
@@ -192,16 +246,37 @@ std::shared_ptr<Expression> CreateModule::express(SymbolTableType scope) {
     auto moduleScope = scope;
 
     // Flatten includes so their declarations become direct members of this module.
+    // `include` is a textual splice: the included file's bare declarations (fn/struct/class/const/
+    // extern) are wrapped as ModuleMembers exactly as if they had been written in this module's
+    // body, and nested includes are expanded transitively. A bare NamedStatement used to be pushed
+    // through unwrapped and then silently skipped by the `if (!member) continue;` checks below.
     std::vector<std::shared_ptr<Statement>> flattenedStatements;
-    for (const auto& stmt : statements) {
-        if (auto include = std::dynamic_pointer_cast<IncludeStatement>(stmt)) {
-            for (const auto& innerExpr : include->getStatements()) {
-                flattenedStatements.push_back(innerExpr);
+    std::function<void(const std::vector<std::shared_ptr<Statement>>&, int)> flatten =
+        [&](const std::vector<std::shared_ptr<Statement>>& stmts, int depth) {
+            for (const auto& stmt : stmts) {
+                if (!stmt) continue;
+                if (auto include = std::dynamic_pointer_cast<IncludeStatement>(stmt)) {
+                    if (depth >= 64) {
+                        console.reportError(
+                            Console::RUNTIME_ERROR,
+                            "Include nesting too deep (cyclic include?)",
+                            "To resolve this:\n1. Check for files that include each other\n"
+                            "2. Reduce include nesting",
+                            include->getSpan());
+                        continue;
+                    }
+                    flatten(include->getStatements(), depth + 1);
+                } else if (std::dynamic_pointer_cast<ModuleMember>(stmt)) {
+                    flattenedStatements.push_back(stmt);   // already a member
+                } else if (auto named = std::dynamic_pointer_cast<NamedStatement>(stmt)) {
+                    flattenedStatements.push_back(
+                        std::make_shared<ModuleMember>(named->getName(), stmt, MemberModifiers{}));
+                } else {
+                    flattenedStatements.push_back(stmt);
+                }
             }
-        } else {
-            flattenedStatements.push_back(stmt);
-        }
-    }
+        };
+    flatten(statements, 0);
 
     // ------------------------------------------------------------------------
     // PASS 1: register every function declaration in moduleScope so that

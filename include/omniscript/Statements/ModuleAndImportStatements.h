@@ -17,6 +17,8 @@ public:
     IncludeStatement(const std::string& includePath)
         : path(includePath) {}
 
+    std::string getSourceText() const;
+
     std::string getPath() const {
         return path;
     }

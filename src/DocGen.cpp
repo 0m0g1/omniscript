@@ -2,6 +2,7 @@
 #include <omniscript/DocGen.h>
 #include <omniscript/Lexer.h>
 #include <omniscript/Tokens.h>
+#include <omniscript/utils.h>
 
 #include <algorithm>
 #include <cctype>
@@ -198,8 +199,11 @@ bool extractDocs(const std::string& path, FileDocs& docs, std::string& error, bo
         if (first.empty() || first.rfind("//", 0) == 0) continue;   // not attached to a declaration
 
         const std::string sig = signatureAt(lines, declIndex);
+        
         if (sig.empty()) continue;
 
+        if (sig.rfind("include ", 0) == 0 || sig.rfind("import ", 0) == 0) continue;
+        
         const auto ownerIt = ownerAtLine.find(block.lastLine + 1);
         DocItem d;
         d.owner = ownerIt == ownerAtLine.end() ? std::string() : ownerIt->second;
@@ -920,14 +924,51 @@ bool writeLibraryHtml(const std::vector<ModuleFile>& modules, const std::string&
 } // namespace
 
 std::string resolveDocTarget(const std::string& name) {
+    const fs::path root = toolchainRoot().empty() ? fs::current_path() : toolchainRoot();
+
     std::string path = name;
+    bool isStd = false;
+
     if (path.rfind("std/", 0) == 0 || path.rfind("std\\", 0) == 0) {
-        path = "standard/1/" + path.substr(4);
+        path = path.substr(4);
+        isStd = true;
+    } else if (path.rfind("standard/", 0) == 0 || path.rfind("standard\\", 0) == 0) {
+        path = path.substr(9);
+        isStd = true;
+    } else if (path.rfind("std.", 0) == 0) {          // --doc std.Console
+        path = path.substr(4);
+        for (char& c : path) if (c == '.') c = '/';
+        isStd = true;
     }
+
+    // Append .os if the user didn't give an extension.
     const size_t slash = path.find_last_of("/\\");
-    const size_t dot = path.find_last_of('.');
-    if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) path += ".os";
-    return path;
+    const size_t dot   = path.find_last_of('.');
+    if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) {
+        path += ".os";
+    }
+
+    if (!isStd) return path;   // bare file path: unchanged, cwd-relative
+
+    // Optional leading edition: "1/Canvas.os" -> edition="1", rest="Canvas.os"
+    std::string edition;
+    std::string rest = path;
+    const size_t firstSlash = rest.find_first_of("/\\");
+    if (firstSlash != std::string::npos) {
+        const std::string first = rest.substr(0, firstSlash);
+        const bool isVersion = !first.empty() &&
+            std::all_of(first.begin(), first.end(),
+                        [](char c){ return std::isdigit(static_cast<unsigned char>(c)); });
+        if (isVersion) {
+            edition = first;
+            rest = rest.substr(firstSlash + 1);
+        }
+    }
+    if (edition.empty()) {
+        edition = latestEdition(root);
+        if (edition.empty()) edition = "1";   // same fallback as StdSource
+    }
+    return (root / "standard" / edition / rest).string();
 }
 
 bool generateDocsMarkdown(const std::string& path, std::string& markdown, std::string& error) {

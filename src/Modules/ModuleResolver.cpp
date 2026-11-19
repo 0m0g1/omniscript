@@ -75,17 +75,40 @@ public:
     std::string describe() const override { return "explicit path"; }
     std::optional<ResolvedModule> resolve(const ModuleRequest& req, std::vector<std::string>& tried) override {
         if (!req.isPath) return std::nullopt;
+
         std::vector<fs::path> candidates;
         const fs::path given(req.name);
         const fs::path dir = importerDirOf(req);
+
+        // 1. cwd-relative (absolute paths pass through here unchanged).
         candidates.push_back(given);
-        if (!dir.empty() && given.is_relative()) candidates.push_back(dir / given);
+
+        // 2. importer-relative, then every ancestor of the importer's dir.
+        //    Handles the "<project-root>/browser/main.os imports
+        //    'browser/browser.os'" idiom: the target sits at
+        //    <project-root>/browser/browser.os, which is one level ABOVE
+        //    the importer's directory. First hit wins, so the closest path
+        //    shadows anything farther up.
+        if (!dir.empty() && given.is_relative()) {
+            fs::path up = dir;
+            for (;;) {
+                candidates.push_back(up / given);
+                const fs::path parent = up.parent_path();
+                if (parent.empty() || parent == up) break;   // reached root
+                up = parent;
+            }
+        }
+
+        // 3. Try "<candidate>.os" for extension-less imports.
         if (given.extension().empty()) {
             const size_t n = candidates.size();
-            for (size_t i = 0; i < n; ++i) candidates.push_back(candidates[i].string() + ".os");
+            for (size_t i = 0; i < n; ++i)
+                candidates.push_back(candidates[i].string() + ".os");
         }
+
         auto found = firstExisting(candidates, tried);
         if (!found) return std::nullopt;
+
         std::error_code ec;
         ModuleId id{"path", "", fs::weakly_canonical(*found, ec).generic_string()};
         return load(*found, id, tried);
@@ -95,13 +118,40 @@ public:
 // std.* (logical) and std/* (legacy path form) -> <root>/standard/<edition>/...
 class StdSource : public ModuleSource {
 public:
-    StdSource(std::string root, std::string edition) : root_(std::move(root)), edition_(std::move(edition)) {}
+    StdSource(std::string root, std::string edition)
+        : root_(std::move(root)), edition_(std::move(edition)) {}
+
     std::string describe() const override { return "std (edition " + edition_ + ")"; }
-    std::optional<ResolvedModule> resolve(const ModuleRequest& req, std::vector<std::string>& tried) override {
+
+    std::optional<ResolvedModule> resolve(const ModuleRequest& req,
+                                          std::vector<std::string>& tried) override {
         std::string rest;
+        std::string edition = edition_;
+        bool explicitEdition = false;
+
+        auto parseAfter = [&](const std::string& after) {
+            rest = after;
+            explicitEdition = false;
+            const size_t slash = after.find_first_of("/\\");
+            if (slash == std::string::npos) return;
+            const std::string first = after.substr(0, slash);
+            if (first.empty()) return;
+            const bool isVersion = std::all_of(first.begin(), first.end(),
+                [](char c){ return std::isdigit(static_cast<unsigned char>(c)); });
+            if (isVersion) {
+                edition = first;
+                explicitEdition = true;
+                rest = after.substr(slash + 1);
+            }
+        };
+
         if (req.isPath) {
-            if (!startsWith(req.name, "std/") && !startsWith(req.name, "std\\")) return std::nullopt;
-            rest = req.name.substr(4);
+            if (startsWith(req.name, "std/") || startsWith(req.name, "std\\"))
+                parseAfter(req.name.substr(4));
+            else if (startsWith(req.name, "standard/") || startsWith(req.name, "standard\\"))
+                parseAfter(req.name.substr(9));
+            else
+                return std::nullopt;
         } else if (req.name == "std") {
             rest = "std";
         } else if (startsWith(req.name, "std.")) {
@@ -109,24 +159,25 @@ public:
         } else {
             return std::nullopt;
         }
+
         rest = stripOsExtension(rest);
 
-        std::vector<fs::path> roots{fs::path(root_)};
-        const fs::path dir = importerDirOf(req);
-        if (!dir.empty()) roots.push_back(dir);
-
-        std::vector<std::string> spellings{rest};
-        if (toLower(rest) != rest) spellings.push_back(toLower(rest)); // files are lowercase; tolerate Math.os for now
+        if (!explicitEdition) {
+            const std::string latest = latestEdition(fs::path(root_));
+            edition = latest.empty() ? edition_ : latest;
+        }
 
         std::vector<fs::path> candidates;
-        for (const auto& r : roots)
-            for (const auto& sp : spellings)
-                addModuleCandidates(candidates, r / "standard" / edition_, sp);
+        std::vector<std::string> spellings{rest};
+        if (toLower(rest) != rest) spellings.push_back(toLower(rest));
+        for (const auto& sp : spellings)
+            addModuleCandidates(candidates, fs::path(root_) / "standard" / edition, sp);
 
         auto found = firstExisting(candidates, tried);
         if (!found) return std::nullopt;
-        return load(*found, ModuleId{"std", edition_, rest}, tried);
+        return load(*found, ModuleId{"std", edition, rest}, tried);
     }
+
 private:
     std::string root_, edition_;
 };
@@ -191,8 +242,9 @@ ModuleResolver::ModuleResolver(std::string toolchainRoot,
                                std::optional<PackageManifest> manifest,
                                std::optional<Lockfile> lock) {
     const std::string edition = manifest ? manifest->edition : "1";
+    // std first: std/ and standard/ can't be shadowed by a ./std in cwd.
+    sources_.push_back(std::make_unique<StdSource>(std::move(toolchainRoot), edition));
     sources_.push_back(std::make_unique<PathSource>());
-    sources_.push_back(std::make_unique<StdSource>(std::move(toolchainRoot), edition)); // before packages: std can't be shadowed
     if (manifest) {
         sources_.push_back(std::make_unique<PackageSource>(*manifest));
         sources_.push_back(std::make_unique<DependencySource>(*manifest, std::move(lock)));
@@ -208,9 +260,12 @@ void ModuleResolver::configureGlobal(std::string toolchainRoot,
 ModuleResolver& ModuleResolver::global() {
     if (!globalSlot()) {
         std::string error;
-        std::error_code ec;
-        auto manifest = findManifest(fs::current_path(ec).string(), error);
-        configureGlobal(".", std::move(manifest), std::nullopt);
+        // Anchored at the toolchain root, not cwd.
+        const fs::path root = toolchainRoot().empty()
+            ? fs::current_path()
+            : toolchainRoot();
+        auto manifest = findManifest(root.string(), error);
+        configureGlobal(root.string(), std::move(manifest), std::nullopt);
     }
     return *globalSlot();
 }

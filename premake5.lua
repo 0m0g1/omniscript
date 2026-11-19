@@ -144,6 +144,9 @@ project "Osengine"
     targetdir ("bin/" .. outputdir)
     objdir ("bin-int/" .. outputdir)
 
+    local std_src = path.translate(_SCRIPT_DIR .. "/standard", "\\")
+    local dep_src = path.translate(_SCRIPT_DIR .. "/dependencies", "\\")
+
     files { "src/**.cpp" }
 
     includedirs {
@@ -172,7 +175,18 @@ project "Osengine"
             "powershell -Command \"if (-not (Test-Path -Path 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}')) { New-Item -ItemType Directory -Force -Path 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}' }\"",
             "powershell -Command \"Copy-Item 'dependencies/llvm/bin/*.dll' -Destination 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}' -Force\"",
             -- shaderc_shared.dll must sit next to the exe (shaderc.os loads it by bare name)
-            "powershell -Command \"if (Test-Path 'dependencies/vk/shaderc_shared.dll') { Copy-Item 'dependencies/vk/shaderc_shared.dll' -Destination 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}' -Force } else { Write-Warning 'shaderc_shared.dll missing in dependencies/vk' }\""
+            "powershell -Command \"if (Test-Path 'dependencies/vk/shaderc_shared.dll') { Copy-Item 'dependencies/vk/shaderc_shared.dll' -Destination 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}' -Force } else { Write-Warning 'shaderc_shared.dll missing in dependencies/vk' }\"",
+            -- standard/ travels with the exe so findToolchainRoot() finds it at
+            -- exe.parent_path()/standard wherever bin/ is moved. /MIR also deletes files
+            -- removed from the source. robocopy exits 0-7 on success, 8+ on failure,
+            -- so mask the low codes or every successful copy would fail the build.
+            -- No "$" in the command: make would expand $LASTEXITCODE as its own variable.
+            "powershell -NoProfile -Command \"robocopy '" .. std_src .. "' 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}/standard' /MIR /NFL /NDL /NJH /NJS /NP; if ((Get-Variable LASTEXITCODE -ValueOnly) -ge 8) { exit 1 } else { exit 0 }\"",
+            -- Runtime DLLs of dependencies/ (glfw, stb, libcurl, ...) keep their relative layout
+            -- under bin/<cfg>/dependencies so extern paths like "dependencies/glfw/.../glfw3.dll"
+            -- still resolve (relative to the toolchain root). Only *.dll are copied; headers,
+            -- import libs and the (already flattened) llvm folder are skipped.
+            "powershell -NoProfile -Command \"robocopy '" .. dep_src .. "' 'bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}/dependencies' *.dll /S /XD llvm include /NFL /NDL /NJH /NJS /NP; if ((Get-Variable LASTEXITCODE -ValueOnly) -ge 8) { exit 1 } else { exit 0 }\""
         }
 
     filter {}

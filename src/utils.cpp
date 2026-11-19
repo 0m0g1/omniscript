@@ -1,8 +1,59 @@
 #include <omniscript/utils.h>
 #include <omniscript/Console.h>
 #include <omniscript/omniscript_pch.h>
+#include <cstdlib>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 namespace Omniscript {
+
+namespace {
+std::filesystem::path g_toolchainRoot;
+}
+
+const std::filesystem::path& toolchainRoot() { return g_toolchainRoot; }
+void setToolchainRoot(std::filesystem::path root) { g_toolchainRoot = std::move(root); }
+
+std::string latestEdition(const std::filesystem::path& root) {
+    std::error_code ec;
+    const std::filesystem::path stdDir = root / "standard";
+    if (!std::filesystem::is_directory(stdDir, ec)) return "";
+
+    std::string best;
+    int bestNum = -1;
+    for (const auto& entry : std::filesystem::directory_iterator(stdDir, ec)) {
+        if (!entry.is_directory(ec)) continue;
+        const std::string name = entry.path().filename().string();
+        if (name.empty() ||
+            !std::all_of(name.begin(), name.end(),
+                         [](char c){ return std::isdigit(static_cast<unsigned char>(c)); }))
+            continue;
+        const int n = std::stoi(name);
+        if (n > bestNum) { bestNum = n; best = name; }
+    }
+    return best;
+}
+
+fs::path findToolchainRoot(const char* argv0) {
+    std::error_code ec;
+
+    // 1. Explicit override (useful for CI, dev builds, unusual layouts).
+    if (const char* env = std::getenv("OMNISCRIPT_ROOT")) {
+        fs::path p(env);
+        if (fs::is_directory(p / "standard", ec)) return fs::canonical(p, ec);
+    }
+
+    // 2. Walk up from the executable until we see standard/.
+    fs::path exe = fs::canonical(argv0, ec);
+    if (ec) exe = fs::absolute(argv0, ec);
+    for (fs::path p = exe.parent_path(); !p.empty(); p = p.parent_path()) {
+        if (fs::is_directory(p / "standard", ec)) return p;
+        if (p == p.parent_path()) break;   // reached filesystem root
+    }
+
+    // 3. Last resort: cwd (preserves current behavior when nothing else works).
+    return fs::current_path(ec);
+}
 
 //Converts a string to lower case
 std::string toLowerCaseString(const std::string &source) {

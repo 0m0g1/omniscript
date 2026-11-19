@@ -1,5 +1,6 @@
 // src/Backends/LLVM/IRGenFunctions.cpp
 #include <omniscript/Types/Types.h>
+#include <omniscript/utils.h>
 
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
@@ -21,6 +22,7 @@
 #include <system_error>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #ifdef _WIN32
     #include <sys/stat.h>
@@ -364,6 +366,14 @@ std::string findLibraryInDependencies(const std::string& libPath, bool preferMin
     std::error_code ec;
     if (fs::exists(libPath, ec)) return {};
 
+    // A relative path such as "dependencies/glfw/.../glfw3.dll" is also tried against the
+    // toolchain root (the folder holding standard/), so a shipped bin/ works from any cwd.
+    const fs::path tcRoot = Omniscript::toolchainRoot();
+    if (!tcRoot.empty() && fs::path(libPath).is_relative()) {
+        const fs::path underRoot = tcRoot / libPath;
+        if (fs::is_regular_file(underRoot, ec)) return fs::absolute(underRoot, ec).string();
+    }
+
     static std::unordered_map<std::string, std::string> cache;   // avoids re-walking per function
     const std::string key = std::string(preferMingw ? "m|" : "n|") + libPath;
     if (auto it = cache.find(key); it != cache.end()) return it->second;
@@ -375,9 +385,14 @@ std::string findLibraryInDependencies(const std::string& libPath, bool preferMin
     };
 
     std::string result;
-    const fs::path root = fs::current_path(ec) / "dependencies";
     const std::string wanted = lower(fs::path(libPath).filename().string());
 
+    // Search <cwd>/dependencies first, then <toolchain root>/dependencies.
+    std::vector<fs::path> roots{ fs::current_path(ec) / "dependencies" };
+    if (!tcRoot.empty() && tcRoot / "dependencies" != roots[0]) roots.push_back(tcRoot / "dependencies");
+
+    for (const fs::path& root : roots) {
+    if (!result.empty()) break;
     if (!wanted.empty() && fs::is_directory(root, ec)) {
         int bestScore = -1;
         fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec), end;
@@ -394,6 +409,7 @@ std::string findLibraryInDependencies(const std::string& libPath, bool preferMin
                 bestScore = score;
             }
         }
+    }
     }
 
     cache[key] = result;
