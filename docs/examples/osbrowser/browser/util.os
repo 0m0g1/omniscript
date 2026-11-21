@@ -66,14 +66,15 @@ function startsAt(s: char*, at: int, p: char*) => bool {
     return ok;
 }
 
-// index of needle in s at or after `from`, or -1
+// index of needle in s at or after `from`, or -1  (scans to the NUL; no strlen per call)
 function indexOf(s: char*, from: int, needle: char*) => int {
-    let n: int = slen(s);
     let i: int = from;
     let found: int = 0 - 1;
-    while (i < n && found < 0) {
-        if (startsAt(s, i, needle)) found = i;
-        i = i + 1;
+    let more: bool = true;
+    while (more) {
+        if ((s[i] as int) == 0) { more = false; }
+        else if (startsAt(s, i, needle)) { found = i; more = false; }
+        else { i = i + 1; }
     }
     return found;
 }

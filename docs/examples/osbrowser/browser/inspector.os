@@ -46,7 +46,8 @@ struct Inspector {
     open(app: C.Canvas*) => void {
         if (!this.isOpen()) {
             this.win = app.createWindow("Inspector", 560, 680);
-            if (this.win != nullptr) {
+            if (this.win == nullptr) Dbg.error("inspector: createWindow failed");
+            else {
                 this.pen = this.win.context2d();
                 this.rows = U.alloc(8 * 128) as D.Node**;
                 this.num = U.newStr(24);

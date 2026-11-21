@@ -1,7 +1,8 @@
 // browser/css/css.os  -- TIER 2: stylesheet parser, selector matching, cascade (source order after specificity sort).
-// Supports: tag, .class, #id, compound (p.note), descendant combinator, comma lists.
+// Supports: tag, .class, #id, compound (p.note), descendant combinator, comma lists. @-rules are skipped.
+// Selectors are split once at parse time and matched without allocating. Sheets are capped at RULE_LIMIT rules.
 // NEXT: child/sibling combinators, attribute selectors, pseudo-classes, !important, rgb(), shorthand sides,
-//       inheritance table, @media, per-property specificity, var().
+//       inheritance table, @media, per-property specificity, var(), rule index by id/class/tag.
 module U = import "browser/util.os";
 module D = import "browser/dom/dom.os";
 
@@ -10,9 +11,15 @@ struct Rule {
     body: char* = nullptr;
     spec: int = 0;
     next: Rule* = nullptr;
+    np: int = 0;
+    parts: char** = nullptr;
 }
 
 let rules: Rule* = nullptr;
+let ruleCount: int = 0;
+let RULE_LIMIT: int = 3000;      // tune: real sites have far more rules than this engine needs
+
+function reset() => void { rules = nullptr; ruleCount = 0; }
 
 function specOf(sel: char*) => int {
     let s: int = 0;
@@ -28,101 +35,6 @@ function specOf(sel: char*) => int {
         i = i + 1;
     }
     return s;
-}
-
-function addRule(sel: char*, body: char*) => void {
-    let r: Rule* = U.alloc(sizeof(Rule)) as Rule*;
-    r.sel = U.trim(sel);
-    r.body = body;
-    r.spec = specOf(r.sel);
-    // stable insert ordered by specificity
-    if (rules == nullptr || rules.spec > r.spec) { r.next = rules; rules = r; }
-    else {
-        let p: Rule* = rules;
-        while (p.next != nullptr && p.next.spec <= r.spec) { p = p.next; }
-        r.next = p.next;
-        p.next = r;
-    }
-}
-
-function stripComments(s: char*) => char* {
-    let out: char* = U.dup(s);
-    let n: int = U.slen(s);
-    let i: int = 0;
-    while (i < n) {
-        if ((s[i] as int) == 47 && (s[i + 1] as int) == 42) {
-            let e: int = U.indexOf(s, i + 2, "*/");
-            if (e < 0) e = n - 2;
-            let k: int = i;
-            while (k < e + 2) { out[k] = 32 as char; k = k + 1; }
-            i = e + 2;
-        } else { i = i + 1; }
-    }
-    return out;
-}
-
-function parseSheet(src0: char*) => void {
-    let src: char* = stripComments(src0);
-    let n: int = U.slen(src);
-    let i: int = 0;
-    while (i < n) {
-        let ob: int = U.indexOf(src, i, "{");
-        if (ob < 0) { i = n; }
-        else {
-            let cb: int = U.indexOf(src, ob, "}");
-            if (cb < 0) cb = n;
-            let selList: char* = U.sub(src, i, ob);
-            let body: char* = U.sub(src, ob + 1, cb);
-            // NEXT: skip @media/@font-face blocks properly
-            let a: int = 0;
-            let m: int = U.slen(selList);
-            let k: int = 0;
-            while (k <= m) {
-                if (k == m || (selList[k] as int) == 44) {
-                    addRule(U.sub(selList, a, k), body);
-                    a = k + 1;
-                }
-                k = k + 1;
-            }
-            i = cb + 1;
-        }
-    }
-}
-
-// ---------- selector matching ----------
-function hasClass(cls: char*, name: char*) => bool {
-    let n: int = U.slen(cls);
-    let i: int = 0;
-    let found: bool = false;
-    while (i < n) {
-        while (i < n && U.isSpace(cls[i] as int)) { i = i + 1; }
-        let a: int = i;
-        while (i < n && !U.isSpace(cls[i] as int)) { i = i + 1; }
-        if (i > a && U.streq(U.sub(cls, a, i), name)) found = true;
-    }
-    return found;
-}
-
-function matchCompound(nd: D.Node*, part: char*) => bool {
-    let n: int = U.slen(part);
-    let i: int = 0;
-    let ok: bool = true;
-    if (U.isAlpha(part[0] as int)) {
-        while (i < n && (U.isAlnum(part[i] as int) || (part[i] as int) == 45)) { i = i + 1; }
-        if (!U.streq(U.lower(U.sub(part, 0, i)), nd.tag)) ok = false;
-    } else if ((part[0] as int) == 42) { i = 1; }
-    while (i < n) {
-        let kind: int = part[i] as int;                         // '.' or '#'
-        let a: int = i + 1;
-        let j: int = a;
-        while (j < n && (U.isAlnum(part[j] as int) || (part[j] as int) == 45)) { j = j + 1; }
-        let name: char* = U.sub(part, a, j);
-        if (kind == 46) { if (!hasClass(nd.cls, name)) ok = false; }
-        else if (kind == 35) { if (!U.streq(nd.id, name)) ok = false; }
-        else { ok = false; j = n; }                              // unsupported syntax => no match
-        i = j;
-    }
-    return ok;
 }
 
 function partCount(sel: char*) => int {
@@ -151,14 +63,152 @@ function partAt(sel: char*, k: int) => char* {
     return out;
 }
 
-function matchSelector(nd: D.Node*, sel: char*) => bool {
-    let np: int = partCount(sel);
-    if (np == 0) return false;
-    let ok: bool = matchCompound(nd, partAt(sel, np - 1));
-    let k: int = np - 2;
+function addRule(sel: char*, body: char*) => void {
+    if (ruleCount < RULE_LIMIT) {
+        let r: Rule* = U.alloc(sizeof(Rule)) as Rule*;
+        r.sel = U.trim(sel);
+        r.body = body;
+        r.spec = specOf(r.sel);
+        r.np = partCount(r.sel);
+        r.parts = U.alloc(8 * (r.np + 1)) as char**;
+        let k: int = 0;
+        while (k < r.np) { r.parts[k] = partAt(r.sel, k); k = k + 1; }
+        // stable insert ordered by specificity
+        if (rules == nullptr || rules.spec > r.spec) { r.next = rules; rules = r; }
+        else {
+            let p: Rule* = rules;
+            while (p.next != nullptr && p.next.spec <= r.spec) { p = p.next; }
+            r.next = p.next;
+            p.next = r;
+        }
+        ruleCount = ruleCount + 1;
+    }
+}
+
+function stripComments(s: char*) => char* {
+    let out: char* = U.dup(s);
+    let n: int = U.slen(s);
+    let i: int = 0;
+    while (i < n) {
+        if ((s[i] as int) == 47 && (s[i + 1] as int) == 42) {
+            let e: int = U.indexOf(s, i + 2, "*/");
+            if (e < 0) e = n - 2;
+            let k: int = i;
+            while (k < e + 2) { out[k] = 32 as char; k = k + 1; }
+            i = e + 2;
+        } else { i = i + 1; }
+    }
+    return out;
+}
+
+function parseSheet(src0: char*) => void {
+    let src: char* = stripComments(src0);
+    let n: int = U.slen(src);
+    let i: int = 0;
+    while (i < n) {
+        let ob: int = U.indexOf(src, i, "{");
+        if (ob < 0) { i = n; }
+        else {
+            let selList: char* = U.sub(src, i, ob);
+            let skipBody: bool = false;
+            if ((U.trim(selList)[0] as int) == 64) {                // '@'
+                let semi: int = U.lastIndexOfCh(selList, 59);
+                if (semi >= 0) selList = U.sub(selList, semi + 1, U.slen(selList));   // "@import ...; .a {"
+                else skipBody = true;                                // @media / @font-face / @keyframes: NEXT
+            }
+            let depth: int = 1;
+            let j: int = ob + 1;
+            while (j < n && depth > 0) {
+                let ch: int = src[j] as int;
+                if (ch == 123) depth = depth + 1;
+                else if (ch == 125) depth = depth - 1;
+                j = j + 1;
+            }
+            if (!skipBody) {
+                let cb: int = j - 1;
+                if (depth > 0) cb = n;
+                let body: char* = U.sub(src, ob + 1, cb);
+                let a: int = 0;
+                let m: int = U.slen(selList);
+                let k: int = 0;
+                while (k <= m) {
+                    if (k == m || (selList[k] as int) == 44) {
+                        addRule(U.sub(selList, a, k), body);
+                        a = k + 1;
+                    }
+                    k = k + 1;
+                }
+            }
+            i = j;
+        }
+    }
+}
+
+// ---------- selector matching (allocation-free) ----------
+function eqTag(part: char*, len: int, tag: char*) => bool {
+    let ok: bool = true;
+    let i: int = 0;
+    while (i < len && ok) { if (U.lowerCh(part[i] as int) != (tag[i] as int)) ok = false; i = i + 1; }
+    if (ok && (tag[len] as int) != 0) ok = false;
+    return ok;
+}
+
+function eqName(part: char*, a: int, b: int, name: char*) => bool {
+    let n: int = b - a;
+    let ok: bool = true;
+    let i: int = 0;
+    while (i < n && ok) { if ((part[a + i] as int) != (name[i] as int)) ok = false; i = i + 1; }
+    if (ok && (name[n] as int) != 0) ok = false;
+    return ok;
+}
+
+// is part[a..b) one of the space-separated words in cls?
+function hasClassR(cls: char*, part: char*, a: int, b: int) => bool {
+    let n: int = U.slen(cls);
+    let i: int = 0;
+    let found: bool = false;
+    while (i < n) {
+        while (i < n && U.isSpace(cls[i] as int)) { i = i + 1; }
+        let wa: int = i;
+        while (i < n && !U.isSpace(cls[i] as int)) { i = i + 1; }
+        if (i > wa && (i - wa) == (b - a)) {
+            let same: bool = true;
+            let k: int = 0;
+            while (k < i - wa && same) { if ((cls[wa + k] as int) != (part[a + k] as int)) same = false; k = k + 1; }
+            if (same) found = true;
+        }
+    }
+    return found;
+}
+
+function matchCompound(nd: D.Node*, part: char*) => bool {
+    let n: int = U.slen(part);
+    let i: int = 0;
+    let ok: bool = true;
+    if (U.isAlpha(part[0] as int)) {
+        while (i < n && (U.isAlnum(part[i] as int) || (part[i] as int) == 45)) { i = i + 1; }
+        if (!eqTag(part, i, nd.tag)) ok = false;
+    } else if ((part[0] as int) == 42) { i = 1; }
+    while (i < n && ok) {
+        let kind: int = part[i] as int;                         // '.' or '#'
+        let a: int = i + 1;
+        let j: int = a;
+        while (j < n && (U.isAlnum(part[j] as int) || (part[j] as int) == 45)) { j = j + 1; }
+        if (j == a) ok = false;
+        else if (kind == 46) { if (!hasClassR(nd.cls, part, a, j)) ok = false; }
+        else if (kind == 35) { if (!eqName(part, a, j, nd.id)) ok = false; }
+        else ok = false;                                        // unsupported syntax => no match
+        i = j;
+    }
+    return ok;
+}
+
+function matchRule(nd: D.Node*, r: Rule*) => bool {
+    let ok: bool = r.np > 0 && matchCompound(nd, r.parts[r.np - 1]);
+    let k: int = r.np - 2;
     let anc: D.Node* = nd.parent;
     while (ok && k >= 0) {
-        let want: char* = partAt(sel, k);
+        let want: char* = r.parts[k];
         while (anc != nullptr && !matchCompound(anc, want)) { anc = anc.parent; }
         if (anc == nullptr) ok = false; else { anc = anc.parent; k = k - 1; }
     }
@@ -290,7 +340,7 @@ function styleTree(nd: D.Node*, parent: D.Node*) => void {
         uaStyle(nd);
         let r: Rule* = rules;
         while (r != nullptr) {
-            if (matchSelector(nd, r.sel)) applyDecls(&nd.style, r.body);
+            if (matchRule(nd, r)) applyDecls(&nd.style, r.body);
             r = r.next;
         }
         applyDecls(&nd.style, nd.attrStyle);

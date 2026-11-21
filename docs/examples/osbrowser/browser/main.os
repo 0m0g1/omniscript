@@ -19,7 +19,7 @@ function main() => int {
     let chrome: CH.Chrome;
     chrome.init(pen);
     let ins: INS.Inspector;
-    b.navigate(START);                                          // on failure the page stays blank; see console
+    b.navigate(START);                                          // queued; loads stage by stage in b.step()
 
     let top: float = CH.height();
     while (app.frame()) {
@@ -29,7 +29,7 @@ function main() => int {
         let viewH: float = h - top;
 
         if (win.keyPressed(256)) win.close();                   // Esc
-        if (win.keyPressed(301)) { if (ins.isOpen()) ins.close(); else ins.open(&app); }   // F12
+        if (win.keyPressed(301) || chrome.inspect.pressed) { if (ins.isOpen()) ins.close(); else ins.open(&app); }   // F12 or the Inspect button
 
         chrome.update(win, pen, &b, w);
 
@@ -53,8 +53,10 @@ function main() => int {
         R.render(pen, b.list, b.scrollY, top, w, viewH);
         ins.highlight(pen, top, b.scrollY);
         chrome.paintBackground(pen, w);
+        chrome.paintStatus(pen, &b, w, h, ms);
         ins.update(&b);
         app.present();
+        b.step(app.time() * 1000.0);                            // after present: the status of the coming stage is already visible
     }
     app.quit();
     return 0;

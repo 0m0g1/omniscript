@@ -208,6 +208,7 @@ Token Lexer::getNextToken() {
                 case TokenTypes::Public:
                 case TokenTypes::Private:
                 case TokenTypes::Protected:
+                case TokenTypes::Function:
                 case TokenTypes::Static: {
                     bool asIdentifier = false;
 
@@ -273,6 +274,15 @@ Token Lexer::getNextToken() {
                                 asIdentifier = !(next == TokenTypes::StringLiteral || next == TokenTypes::Function ||
                                                  next == TokenTypes::Let || next == TokenTypes::Const ||
                                                  next == TokenTypes::Identifier);
+                                break;
+                            case TokenTypes::Function:
+                                // `fn Name(...)` = declaration; `fn(...) => ...` = function type.
+                                // Everything else (`.fn`, `fn:`, `fn,`, `fn =`, `fn)`) = identifier.
+                                // `function` is never demoted — only the two-letter form is soft.
+                                if (token.getValue() == "fn") {
+                                    asIdentifier = !(next == TokenTypes::Identifier ||
+                                                    next == TokenTypes::LeftParen);
+                                }
                                 break;
                             default:                    // modifiers: public/private/protected/static <something>
                                 asIdentifier = !(next == TokenTypes::Identifier || Token::isKeywordType(next));
