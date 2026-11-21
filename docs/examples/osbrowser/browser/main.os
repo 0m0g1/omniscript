@@ -1,63 +1,80 @@
-// browser/main.os  -- shell: window + input loop.   Run:  Osengine.exe browser/main.os
-// Keys: Enter in address bar = go, Ctrl+L focus bar, F5 reload, F12 inspector, Up/Down scroll, Esc quit.
+// browser/main.os  -- shell: window + Ui + frame loop.   Run:  Osengine.exe browser/main.os
+// Keys: Enter in the address bar = go, F5 reload, F12 or the Inspect button = inspector, Up/Down/PgUp/PgDn scroll, Esc quit.
 module C = import "standard/1/Canvas.os";
+module UI = import "standard/1/Ui.os";
 module B = import "browser/browser.os";
-module R = import "browser/paint/backend.os";
 module CH = import "browser/chrome.os";
 module INS = import "browser/inspector.os";
 
 let START: char* = "browser/test/index.html";
+let WHEEL_STEP: float = 60.0;                                   // pixels per wheel notch
 
 function main() => int {
     let app: C.Canvas;
     if (!app.init()) return 2;
     let win = app.createWindow("OmniBrowser", 1000, 700);
     if (win == nullptr) { app.quit(); return 3; }
-    let pen = win.context2d();
 
-    let b: B.Browser;
+    let ui: UI.Ui;
+    ui.init(win);
     let chrome: CH.Chrome;
-    chrome.init(pen);
+    let root: UI.Node* = ui.root();
+    chrome.init(root);
+    let b: B.Browser;
+    b.page = chrome.page;
     let ins: INS.Inspector;
     b.navigate(START);                                          // queued; loads stage by stage in b.step()
 
-    let top: float = CH.height();
     while (app.frame()) {
         let ms: double = app.time() * 1000.0;
-        let w: float = win.width() as float;
-        let h: float = win.height() as float;
-        let viewH: float = h - top;
-
         if (win.keyPressed(256)) win.close();                   // Esc
-        if (win.keyPressed(301) || chrome.inspect.pressed) { if (ins.isOpen()) ins.close(); else ins.open(&app); }   // F12 or the Inspect button
 
-        chrome.update(win, pen, &b, w);
+        chrome.fit(win);                                        // page height = window - toolbar - status line (before the frame, so a resize lays out at once)
+        ui.frame();                                             // events -> cascade -> layout -> paint -> backend
 
-        if (!chrome.addr.focused) {
-            if (win.keyDown(264)) b.scrollY = b.scrollY + 8.0;  // Down
-            if (win.keyDown(265)) b.scrollY = b.scrollY - 8.0;  // Up
+        let wy: float = win.wheelY();                           // notches this frame, + = rolled up
+        let wx: float = win.wheelX();                           // sideways wheel / touchpad swipe, + = content moves left
+        if (win.shiftDown() && wy != 0.0 && wx == 0.0) { wx = 0.0 - wy; wy = 0.0; }   // Shift+wheel scrolls sideways
+        if (wx != 0.0) {
+            let movedX: bool = ui.wheelX(wx * WHEEL_STEP);
+            if (!movedX) chrome.page.scrollByX(wx * WHEEL_STEP);
         }
-        let maxS: float = b.pageH - viewH;
-        if (maxS < 0.0) maxS = 0.0;
-        if (b.scrollY > maxS) b.scrollY = maxS;
-        if (b.scrollY < 0.0) b.scrollY = 0.0;
-
-        if (win.mousePressed() && !pen.wantsMouse && win.my >= top) {
-            let hit = b.pick(win.mx, win.my - top);
-            if (hit != nullptr && ins.isOpen()) ins.selected = hit;
-            b.click(win.mx, win.my - top, ms);
+        if (wy != 0.0) {
+            let moved: bool = ui.wheel(0.0 - wy * WHEEL_STEP);
+            if (!moved) chrome.page.scrollBy(0.0 - wy * WHEEL_STEP);   // nothing under the mouse scrolls: scroll the page itself
         }
+
+        let ev: UI.Event;
+        let clicked: bool = false;
+        while (ui.poll(&ev)) {
+            if (ev.kind == UI.EV_CLICK) {
+                clicked = true;
+                if (ins.isOpen()) ins.select(ev.node);
+            }
+        }
+        chrome.update(win, &b);
+        if (clicked) b.handleClicks(ms);
+
+        if (!chrome.addr.focus) {
+            if (win.keyDown(264)) chrome.page.scrollBy(8.0);    // Down
+            if (win.keyDown(265)) chrome.page.scrollBy(0.0 - 8.0);   // Up
+            if (win.keyRepeat(267)) chrome.page.scrollBy(300.0);     // PgDn
+            if (win.keyRepeat(266)) chrome.page.scrollBy(0.0 - 300.0);   // PgUp
+        }
+        if (win.keyPressed(301) || chrome.inspect.pressed) { if (ins.isOpen()) ins.close(); else ins.open(&app); }
 
         b.tick(ms);
-        b.refresh(w);
-        R.render(pen, b.list, b.scrollY, top, w, viewH);
-        ins.highlight(pen, top, b.scrollY);
-        chrome.paintBackground(pen, w);
-        chrome.paintStatus(pen, &b, w, h, ms);
         ins.update(&b);
         app.present();
         b.step(app.time() * 1000.0);                            // after present: the status of the coming stage is already visible
+
+        // CSS queued by the loader is applied here, where the UI.Ui lives
+        if (b.cssReset) { ui.clearCss(); b.cssReset = false; }
+        let q: int = 0;
+        while (q < b.qN) { ui.addCss(b.cssQ[q]); q = q + 1; }
+        b.qN = 0;
     }
+    ui.destroy();
     app.quit();
     return 0;
 }

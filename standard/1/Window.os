@@ -41,6 +41,14 @@ let MOUSE_LEFT: int = 0;
 let MOUSE_RIGHT: int = 1;
 let MOUSE_MIDDLE: int = 2;
 
+// mouse cursor shapes for setCursor()
+let CURSOR_ARROW: int = 0;
+let CURSOR_IBEAM: int = 1;
+let CURSOR_HAND: int = 2;
+let CURSOR_HRESIZE: int = 3;
+let CURSOR_VRESIZE: int = 4;
+let CURSOR_CROSSHAIR: int = 5;
+
 function init() => bool { return G.glfwInit() != 0; }
 function terminate() => void { G.glfwTerminate(); }
 function pollEvents() => void { G.glfwPollEvents(); }
@@ -51,11 +59,17 @@ function setResizable(on: bool) => void {
     if (on) G.glfwWindowHint(GLFW_RESIZABLE, 1); else G.glfwWindowHint(GLFW_RESIZABLE, 0);
 }
 
+let g_wheelWin: void* = nullptr;     // the window that receives scroll-wheel callbacks (the last one hooked)
+
 struct GLFWimage { width: int; height: int; pixels: u8*; }
 
 struct Window {
     h: void* = nullptr;
     shareWith: void* = nullptr;      // GLFWwindow* whose GL objects (textures, buffers) this window shares; set by openGLShared
+    curIbeam: void* = nullptr; curHand: void* = nullptr; curHResize: void* = nullptr;   // standard cursors, created on first use
+    curVResize: void* = nullptr; curCross: void* = nullptr;
+    wheelAccX: double = 0.0;         // horizontal wheel / touchpad notches (+ = content moves left)
+    wheelAcc: double = 0.0;          // scroll-wheel notches since the last takeWheel() (+ = wheel rolled away from you = scroll up)
 
 
     // opengl: true = GL 3.3 core context; false = no API (use for Vulkan)
@@ -83,7 +97,17 @@ struct Window {
     // No-API window for Vulkan: Vulkan.init(&win, name) or Vulkan.initEx(&win, name, true).
     openVulkan(w: int, h: int, title: char*) => bool { return this.open(w, h, title, false); }
 
-    close() => void { if (this.h != nullptr) { G.glfwDestroyWindow(this.h); this.h = nullptr; } }
+    close() => void {
+        if (this.h != nullptr) {
+            G.glfwSetCursor(this.h, nullptr);
+            G.glfwDestroyWindow(this.h); this.h = nullptr;
+        }
+        if (this.curIbeam != nullptr) { G.glfwDestroyCursor(this.curIbeam); this.curIbeam = nullptr; }
+        if (this.curHand != nullptr) { G.glfwDestroyCursor(this.curHand); this.curHand = nullptr; }
+        if (this.curHResize != nullptr) { G.glfwDestroyCursor(this.curHResize); this.curHResize = nullptr; }
+        if (this.curVResize != nullptr) { G.glfwDestroyCursor(this.curVResize); this.curVResize = nullptr; }
+        if (this.curCross != nullptr) { G.glfwDestroyCursor(this.curCross); this.curCross = nullptr; }
+    }
     isOpen() => bool { return this.h != nullptr; }
     shouldClose() => bool { return G.glfwWindowShouldClose(this.h) != 0; }
     requestClose() => void { G.glfwSetWindowShouldClose(this.h, 1); }
@@ -137,4 +161,40 @@ struct Window {
 
     // GL function loader for OpenGL.load()-style code
     procAddress(name: char*) => void* { return G.glfwGetProcAddress(name); }
+
+    // ---- mouse cursor ---- (CURSOR_* above; CURSOR_ARROW restores the default)
+    setCursor(kind: int) => void {
+        if (this.h == nullptr) return;
+        let c: void* = nullptr;
+        if (kind == CURSOR_IBEAM) { if (this.curIbeam == nullptr) this.curIbeam = G.glfwCreateStandardCursor(0x36002); c = this.curIbeam; }
+        else if (kind == CURSOR_HAND) { if (this.curHand == nullptr) this.curHand = G.glfwCreateStandardCursor(0x36004); c = this.curHand; }
+        else if (kind == CURSOR_HRESIZE) { if (this.curHResize == nullptr) this.curHResize = G.glfwCreateStandardCursor(0x36005); c = this.curHResize; }
+        else if (kind == CURSOR_VRESIZE) { if (this.curVResize == nullptr) this.curVResize = G.glfwCreateStandardCursor(0x36006); c = this.curVResize; }
+        else if (kind == CURSOR_CROSSHAIR) { if (this.curCross == nullptr) this.curCross = G.glfwCreateStandardCursor(0x36003); c = this.curCross; }
+        G.glfwSetCursor(this.h, c);
+    }
+
+    // ---- scroll wheel ----
+    // GLFW has no polling call for the wheel, only glfwSetScrollCallback, so the wheel needs one callback that
+    // calls addWheel(). takeWheel() hands the sum back and resets it (Win.pollInput calls it once per frame).
+    addWheel(dy: double) => void { this.wheelAcc = this.wheelAcc + dy; }
+    addWheelX(dx: double) => void { this.wheelAccX = this.wheelAccX + dx; }
+    takeWheelX() => double { let v: double = this.wheelAccX; this.wheelAccX = 0.0; return v; }
+    takeWheel() => double { let v: double = this.wheelAcc; this.wheelAcc = 0.0; return v; }
+
+    // Registers the GLFW scroll callback for this window. Call after open().
+    hookWheel() => void {
+        if (this.h == nullptr) return;
+        g_wheelWin = this as void*;
+        G.glfwSetScrollCallback(this.h, onScrollCb as void*);
+    }
+}
+
+// GLFW scroll callback (same pattern as Http.onWrite: a plain function passed as `fn as void*`).
+// dy > 0 = wheel rolled up / away from you; touchpads send fractions.
+function onScrollCb(w: void*, dx: double, dy: double) => void {
+    if (g_wheelWin == nullptr) return;
+    let win: Window* = g_wheelWin as Window*;
+    win.addWheel(dy);
+    win.addWheelX(dx);
 }

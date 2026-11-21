@@ -7,8 +7,10 @@
 // NEXT: real AST, closures/scopes, objects/arrays, for loops, ++/--, arrow functions, prototypes, exceptions,
 //       split HOST section into js/bindings.os once Value is in its own module.
 module U = import "browser/util.os";
-module D = import "browser/dom/dom.os";
+module UI = import "standard/1/Ui.os";
+module A = import "browser/uiapi.os";
 module Console = import "standard/1/Console.os";
+module Dbg = import "browser/dbg.os";
 
 // ---------- values ----------
 // k: 0 undefined, 1 number, 2 string, 3 bool, 4 user function, 5 element, 6 style object, 7 document,
@@ -56,10 +58,10 @@ let pos: int = 0;
 let skip: int = 0;
 let halted: bool = false;
 let dirty: bool = false;
-let docRoot: D.Node* = nullptr;
+let docRoot: UI.Node* = nullptr;
 
 function err(msg: char*) => void {
-    if (!halted) { Console.error(U.cat("js: ", msg)); }
+    if (!halted) { Dbg.error(U.cat("js: ", msg)); }
     halted = true;
     pos = ntok - 1;
 }
@@ -147,6 +149,9 @@ function initEngine() => void {
     argStack = U.alloc(sizeof(Value) * 256) as Value*;
     tFn = U.alloc(4 * 16) as int*;
     tDue = U.alloc(8 * 16) as double*;
+    hNodes = U.alloc(8 * 64) as UI.Node**;
+    hFns = U.alloc(4 * 64) as int*;
+    hCount = 0;
     vTop = 0; fBase = 0; gCount = 0; fnCount = 0; argTop = 0; tCount = 0;
 }
 
@@ -501,8 +506,13 @@ function callValue(callee: Value*, base: int, cnt: int, out: Value*) => void {
     else err("not a function");
 }
 
-// ---------- HOST BINDINGS (document / element / style / console) ----------
+// ---------- HOST BINDINGS (document / element / style / console), on top of Ui nodes ----------
 let nowMs: double = 0.0;
+let hNodes: UI.Node** = nullptr;      // click listeners: node + user-function index
+let hFns: int* = nullptr;
+let hCount: int = 0;
+
+function reset() => void { hCount = 0; tCount = 0; }
 
 function methodVal(out: Value*, recv: Value*, name: char*) => void {
     out.k = 11; out.s = name; out.p = recv.p; out.n = recv.k as double;
@@ -512,12 +522,12 @@ function hostGet(obj: Value*, name: char*, out: Value*) => void {
     setUndef(out);
     if (obj.k == 7 || obj.k == 8) { methodVal(out, obj, name); }
     else if (obj.k == 5) {
-        let nd: D.Node* = obj.p as D.Node*;
-        if (U.streq(name, "textContent") || U.streq(name, "innerText")) {
-            if (nd.first != nullptr && nd.first.kind == 2) setStr(out, nd.first.text); else setStr(out, "");
-        }
-        else if (U.streq(name, "id")) setStr(out, nd.id);
-        else if (U.streq(name, "className")) setStr(out, nd.cls);
+        let nd: UI.Node* = obj.p as UI.Node*;
+        if (U.streq(name, "textContent") || U.streq(name, "innerText")) setStr(out, A.textOf(nd));
+        else if (U.streq(name, "id")) setStr(out, A.attr(nd, "id"));
+        else if (U.streq(name, "className")) setStr(out, A.attr(nd, "class"));
+        else if (U.streq(name, "value")) { let v: char* = nd.getValue(); if (v == nullptr) v = ""; setStr(out, v); }
+        else if (U.streq(name, "checked")) setBool(out, nd.checked);
         else if (U.streq(name, "style")) { out.k = 6; out.p = obj.p; }
         else methodVal(out, obj, name);                                     // addEventListener, ...
     }
@@ -526,20 +536,17 @@ function hostGet(obj: Value*, name: char*, out: Value*) => void {
 
 function hostSet(obj: Value*, name: char*, v: Value*) => void {
     if (obj.k == 5) {
-        let nd: D.Node* = obj.p as D.Node*;
-        if (U.streq(name, "textContent") || U.streq(name, "innerText") || U.streq(name, "innerHTML")) {
-            D.clearChildren(nd);
-            D.append(nd, D.newText(toStr(v)));                              // NEXT: innerHTML should parse HTML
-            dirty = true;
-        }
-        else if (U.streq(name, "className")) { nd.cls = toStr(v); dirty = true; }
-        else if (U.streq(name, "id")) { nd.id = toStr(v); }
+        let nd: UI.Node* = obj.p as UI.Node*;
+        if (U.streq(name, "textContent") || U.streq(name, "innerText") || U.streq(name, "innerHTML")) nd.setText(toStr(v));   // NEXT: innerHTML should parse HTML
+        else if (U.streq(name, "className")) nd.setAttr("class", toStr(v));
+        else if (U.streq(name, "id")) nd.setAttr("id", toStr(v));
+        else if (U.streq(name, "value")) nd.setValue(toStr(v));
+        else if (U.streq(name, "checked")) nd.setChecked(truthy(v));
     }
     else if (obj.k == 6) {
-        let nd: D.Node* = obj.p as D.Node*;
-        // css.camelToKebab is in css.os; inlined here to keep js independent of the css layer
+        let nd: UI.Node* = obj.p as UI.Node*;
         let n: int = U.slen(name);
-        let kebab: char* = U.newStr(n * 2);
+        let kebab: char* = U.newStr(n * 2);                                 // backgroundColor -> background-color
         let i: int = 0;
         let p: int = 0;
         while (i < n) {
@@ -550,8 +557,7 @@ function hostSet(obj: Value*, name: char*, v: Value*) => void {
         }
         let val: char* = toStr(v);
         if (v.k == 1) val = U.cat(val, "px");                               // el.style.width = 100  (lenient)
-        nd.inlineStyle = U.cat(nd.inlineStyle, U.cat(kebab, U.cat(":", U.cat(val, ";"))));
-        dirty = true;
+        nd.style(U.cat(kebab, U.cat(":", U.cat(val, ";"))));                // Ui appends inline declarations
     }
 }
 
@@ -566,20 +572,24 @@ function hostCall(m: Value*, base: int, cnt: int, out: Value*) => void {
             line = U.cat(line, toStr(&argStack[base + i]));
             i = i + 1;
         }
-        Console.log(line);
+        Dbg.log(line);
     }
     else if (recvKind == 7 && U.streq(m.s, "getElementById") && cnt >= 1) {
-        let nd: D.Node* = D.getById(docRoot, toStr(&argStack[base]));
+        let nd: UI.Node* = nullptr;
+        if (docRoot != nullptr) nd = docRoot.findId(toStr(&argStack[base]));
         if (nd == nullptr) out.k = 9; else { out.k = 5; out.p = nd as void*; }
     }
     else if (recvKind == 5 && U.streq(m.s, "addEventListener") && cnt >= 2) {
-        let nd: D.Node* = m.p as D.Node*;
-        if (U.streq(toStr(&argStack[base]), "click") && argStack[base + 1].k == 4) nd.onClick = argStack[base + 1].n as int;
+        if (U.streq(toStr(&argStack[base]), "click") && argStack[base + 1].k == 4 && hCount < 64) {
+            hNodes[hCount] = m.p as UI.Node*;
+            hFns[hCount] = argStack[base + 1].n as int;
+            hCount = hCount + 1;
+        }
     }
 }
 
 // ---------- public API ----------
-function run(root: D.Node*, src: char*) => void {
+function run(root: UI.Node*, src: char*) => void {
     docRoot = root;
     initEngine();
     halted = false;
@@ -587,21 +597,22 @@ function run(root: D.Node*, src: char*) => void {
     lex(src);
     pos = 0;
     while (toks[pos].t != 0 && !halted) { execStmt(); }
-    dirty = true;
 }
 
-function fireClick(nd: D.Node*, ms: double) => void {
+// Ui sets `clicked` on the clicked node and every ancestor for one frame, so listeners bubble for free.
+// Call right after ui.frame() when a click event was seen.
+function pumpClicks(ms: double) => void {
     nowMs = ms;
-    let t: D.Node* = nd;
-    let handler: int = 0 - 1;
-    while (t != nullptr && handler < 0) { handler = t.onClick; t = t.parent; }
-    if (handler >= 0 && !halted) {
-        let r: Value;
-        let saved: int = pos;
-        skip = 0;
-        callUser(handler, 0, 0, &r);
-        pos = saved;
-        dirty = true;
+    let i: int = 0;
+    while (i < hCount) {
+        if (hNodes[i].clicked && !halted) {
+            let r: Value;
+            let saved: int = pos;
+            skip = 0;
+            callUser(hFns[i], 0, 0, &r);
+            pos = saved;
+        }
+        i = i + 1;
     }
 }
 
@@ -614,10 +625,7 @@ function tick(ms: double) => void {
             tFn[i] = 0 - 1;
             let r: Value;
             callUser(fi, 0, 0, &r);
-            dirty = true;
         }
         i = i + 1;
     }
 }
-
-function takeDirty() => bool { let d: bool = dirty; dirty = false; return d; }

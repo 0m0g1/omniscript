@@ -1,20 +1,14 @@
-<!doctype html>
-<html>
-<head>
-  <title>Test page</title>
-  <link rel="stylesheet" href="style.css">
-  <style>.note { color: #aa3300; }</style>
-</head>
-<body>
-  <h1 id="title">Hello OmniBrowser</h1>
-  <p>This is a <b>very</b> small page rendered by a browser written in <span class="note">your own language</span>. It wraps long lines of text across the window width.</p>
-  <div id="box" class="card">Click this box (JS changes it).</div>
-  <ul>
-    <li>Local files via Fs</li>
-    <li>HTTP via Http (try an https:// START)</li>
-    <li class="note">CSS cascade by specificity</li>
-  </ul>
-  <p id="status">Clicks: 0</p>
-  <script src="script.js"></script>
-</body>
-</html>
+<html><body>
+<h1>Scroll test</h1>
+<p>Hover the box and use the wheel, then drag its bar.</p>
+<div style="overflow:auto; height:150px; width:300px; border:1px solid #888">
+  <p>line 1</p><p>line 2</p><p>line 3</p><p>line 4</p><p>line 5</p>
+  <p>line 6</p><p>line 7</p><p>line 8</p><p>line 9</p><p>line 10</p>
+</div>
+<p>When the box is at its end, the wheel should scroll the page.</p>
+<a href="scroll.html">hand cursor</a>
+<input> <button>hand cursor</button>
+<p>page filler</p><p>page filler</p><p>page filler</p><p>page filler</p>
+<p>page filler</p><p>page filler</p><p>page filler</p><p>page filler</p>
+<p>page filler</p><p>page filler</p><p>page filler</p><p>page filler</p>
+</body></html>

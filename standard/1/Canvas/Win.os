@@ -1,3 +1,4 @@
+// standard/1/Canvas/Win.os
 // ---------------------------------------------------------------------------------------------
 // Win: native window + backend + pens + input
 // ---------------------------------------------------------------------------------------------
@@ -51,6 +52,9 @@ struct Win {
     keyNext: double* = nullptr;         // per key: time of the next auto-repeat
     lastClickT: double = 0.0 - 1.0; dblClick: bool = false;
     lastClickX: float = 0.0; lastClickY: float = 0.0;
+    curKind: int = 0;                   // cursor shape currently set (W.CURSOR_*)
+    wheelH: float = 0.0;                // horizontal wheel notches this frame (+ = content moves left)
+    wheel: float = 0.0;                 // scroll-wheel notches this frame (+ = rolled up / away from you); 0 when idle
     keepFrame: bool = false;            // false (default): the window is cleared to pen.clear's colour at the start of every frame
 
     // core: Canvas-owned Vulkan device holder (zeroed; first Vulkan window fills it). share: window to share GL
@@ -70,6 +74,7 @@ struct Win {
         CMem.memset(this.keyEv as void*, 0, KEY_COUNT as u64);
         CMem.memset(this.keyNext as void*, 0, (KEY_COUNT * 8) as u64);
         this.lastClickT = 0.0 - 1.0; this.dblClick = false;
+        this.win.hookWheel();
         this.typed = CMem.malloc(32) as char*;
         this.typed[0] = 0 as char;
         this.isOpen = true;
@@ -131,12 +136,23 @@ struct Win {
     doubleClicked() => bool { return this.dblClick; }
     // Characters typed this frame, NUL-terminated (ASCII only; poll-based, no callback).
     typedText() => char* { return this.typed; }
+    // Mouse cursor shape (W.CURSOR_ARROW / IBEAM / HAND / ...). Cheap to call every frame: only a change reaches GLFW.
+    setCursor(kind: int) => void {
+        if (kind == this.curKind) return;
+        this.curKind = kind;
+        this.win.setCursor(kind);
+    }
+    // Wheel notches this frame: positive = scroll up, negative = down. Touchpads give fractions.
+    wheelY() => float { return this.wheel; }
+    wheelX() => float { return this.wheelH; }
     width() => int { return this.fbW; }
     height() => int { return this.fbH; }
 
     pollInput() => void {
         let now: double = W.time();
         this.ntyped = 0;
+        this.wheel = this.win.takeWheel() as float;
+        this.wheelH = this.win.takeWheelX() as float;
         let k: int = KEY_FIRST;
         while (k <= KEY_LAST) {
             this.keyPrev[k] = this.keyNow[k];

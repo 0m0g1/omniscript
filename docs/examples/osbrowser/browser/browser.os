@@ -1,17 +1,14 @@
-// browser/browser.os  -- module root: wires the layers, navigation history, and STAGED loading.
-//   loader -> html -> dom -> css -> layout -> paint -> backend      (js hooks in via DOM)
-// Loading runs one stage per frame (see step()), so the window can draw status + progress between stages and
-// each stage's time is logged to the Dbg console.
-// NEXT: real async fetch (Thread/Channel) so even a single download doesn't block the window; image loading;
-//       incremental layout; subresource cache.
+// browser/browser.os  -- module root: HTML/JS/network on top of the standard Ui module.
+//   loader -> html parser -> Ui tree -> (Ui: cascade, layout, paint, backend)      js binds to Ui nodes
+// Loading runs one stage per frame (see step()) so the window can show status + progress between stages and
+// each stage's time is logged to the Dbg console. Ui does style+layout inside ui.frame().
+// NEXT: real async fetch (Thread/Channel); image loading; scoping page CSS away from the browser chrome.
+module UI = import "standard/1/Ui.os";
 module U = import "browser/util.os";
+module A = import "browser/uiapi.os";
 module Dbg = import "browser/dbg.os";
 module Net = import "browser/net/loader.os";
-module D = import "browser/dom/dom.os";
 module H = import "browser/html/html.os";
-module CSS = import "browser/css/css.os";
-module L = import "browser/layout/layout.os";
-module P = import "browser/paint/paint.os";
 module JS = import "browser/js/js.os";
 
 let JS_REMOTE: bool = false;     // run scripts on http(s) pages? real-world JS is far beyond this engine; off by default
@@ -24,22 +21,27 @@ let S_CSS_INLINE: int = 3;
 let S_CSS_LINK: int = 4;
 let S_JS_LINK: int = 5;
 let S_JS_RUN: int = 6;
-let S_STYLE: int = 7;
-let S_LAYOUT: int = 8;
+let S_ATTACH: int = 7;
+let S_DONE: int = 8;
+
+// first <a href> in the subtree that was clicked this frame (Ui flags `clicked` on ancestors too)
+function clickedLink(n: UI.Node*) => UI.Node* {
+    let found: UI.Node* = nullptr;
+    if (n.clicked && U.streq(A.tagOf(n), "a") && n.hasAttr("href")) found = n;
+    let c: UI.Node* = n.firstEl();
+    while (c != nullptr && found == nullptr) { found = clickedLink(c); c = c.nextEl(); }
+    return found;
+}
 
 struct Browser {
+    page: UI.Node* = nullptr;    // container in the Ui tree that holds the document (scrolls)
     url: char* = nullptr;
     doc: H.Doc;
-    list: P.Cmd* = nullptr;
-    pageH: float = 0.0;
-    viewW: float = 0.0;
-    scrollY: float = 0.0;
-    needLayout: bool = true;
+    gen: int = 0;                // increments on every new document (inspector drops stale selections)
     hist: [32]char*;
     histN: int = 0;
     histPos: int = 0 - 1;
 
-    // loading state machine
     loading: bool = false;
     status: char* = "";
     state: int = 0;
@@ -51,6 +53,12 @@ struct Browser {
     navPos: int = 0;
     htmlSrc: char* = nullptr;
     jsAcc: char* = nullptr;
+
+    // CSS handed to main.os, which owns the UI.Ui and applies it (ui.clearCss / ui.addCss) once per frame
+    cssReset: bool = false;
+    cssQ: [8]char*;
+    qN: int = 0;
+    queueCss(text: char*) => void { if (this.qN < 8) { this.cssQ[this.qN] = text; this.qN = this.qN + 1; } }
 
     startLoad(url: char*, kind: int, pos: int) => void {
         this.pendingUrl = url;
@@ -69,6 +77,8 @@ struct Browser {
     back() => void { if (this.canBack() && !this.loading) this.startLoad(this.hist[this.histPos - 1], 1, this.histPos - 1); }
     forward() => void { if (this.canForward() && !this.loading) this.startLoad(this.hist[this.histPos + 1], 1, this.histPos + 1); }
     reload() => void { if (this.url != nullptr && !this.loading) this.startLoad(this.url, 2, 0); }
+
+    progress() => float { return (this.state as float) / 9.0; }
 
     pushHistory(u: char*) => void {
         this.histN = this.histPos + 1;                           // drop forward history
@@ -110,22 +120,25 @@ struct Browser {
             this.url = this.pendingUrl;
             if (this.navKind == 0) this.pushHistory(this.url);
             else if (this.navKind == 1) this.histPos = this.navPos;
-            this.scrollY = 0.0;
+            if (this.doc.root != nullptr) { this.doc.root.remove(); this.doc.root.destroy(); this.doc.root = nullptr; }
+            JS.reset();
+            this.cssReset = true;
+            this.qN = 0;
             this.doc.cssN = 0;
             this.doc.jsN = 0;
-            CSS.reset();
-            H.parseHtml(this.htmlSrc, &this.doc);
+            this.gen = this.gen + 1;
+            H.parseHtml(this.htmlSrc, &this.doc);                // builds Ui nodes, not attached yet (no style cost)
             this.finishStage("parse html", S_CSS_INLINE, "Parsing CSS");
         }
         else if (st == S_CSS_INLINE) {
-            CSS.parseSheet(this.doc.css);
+            this.queueCss(this.doc.css);
             this.stageI = 0;
             if (this.doc.cssN > 0) this.finishStage("inline css", S_CSS_LINK, "Fetching stylesheet 1");
-            else { this.stageI = 0; this.jsAcc = U.dup(""); this.finishStage("inline css", S_JS_LINK, "Loading scripts"); }
+            else { this.jsAcc = U.dup(""); this.finishStage("inline css", S_JS_LINK, "Loading scripts"); }
         }
         else if (st == S_CSS_LINK) {
             let sheet: char* = Net.load(Net.resolve(this.url, this.doc.cssLinks[this.stageI]));
-            if (sheet != nullptr) CSS.parseSheet(sheet);
+            if (sheet != nullptr) this.queueCss(sheet);
             this.stageI = this.stageI + 1;
             if (this.stageI < this.doc.cssN) this.finishStage("stylesheet", S_CSS_LINK, U.cat("Fetching stylesheet ", U.fromInt(this.stageI + 1)));
             else { this.stageI = 0; this.jsAcc = U.dup(""); this.finishStage("stylesheet", S_JS_LINK, "Loading scripts"); }
@@ -134,7 +147,7 @@ struct Browser {
             let remote: bool = Net.isHttp(this.url);
             if (remote && !JS_REMOTE) {
                 if (this.doc.jsN > 0 || U.slen(this.doc.js) > 0) Dbg.log("scripts skipped on remote page (JS_REMOTE = false)");
-                this.finishStage("scripts", S_STYLE, "Styling");
+                this.finishStage("scripts", S_ATTACH, "Styling & layout");
             }
             else if (this.stageI < this.doc.jsN) {
                 let code: char* = Net.load(Net.resolve(this.url, this.doc.jsLinks[this.stageI]));
@@ -148,24 +161,23 @@ struct Browser {
             let js: char* = U.cat(this.doc.js, this.jsAcc);
             if (U.slen(js) > JS_MAX) Dbg.log("scripts skipped: larger than JS_MAX");
             else if (U.slen(js) > 0) JS.run(this.doc.root, js);
-            this.finishStage("run js", S_STYLE, "Styling");
+            this.finishStage("run js", S_ATTACH, "Styling & layout");
         }
-        else if (st == S_STYLE) {
-            CSS.styleTree(this.doc.root, nullptr);
-            this.finishStage("style", S_LAYOUT, "Layout");
+        else if (st == S_ATTACH) {
+            // the heavy cascade + layout happens inside the next ui.frame(); the status above is already on screen
+            this.page.append(this.doc.root);
+            this.page.scrollTo(0.0, 0.0);
+            this.finishStage("attach", S_DONE, "Styling & layout");
         }
-        else if (st == S_LAYOUT) {
-            this.pageH = L.layoutDocument(this.doc.root, this.viewW);
-            this.list = P.buildDisplayList(this.doc.root, this.viewW, this.pageH);
-            this.needLayout = false;
+        else if (st == S_DONE) {
             this.loading = false;
             this.status = "";
-            this.stageName = "layout";
+            this.stageName = "style + layout";
             this.state = S_IDLE;
         }
     }
 
-    // call once per frame AFTER presenting, so the status of the coming stage is already on screen
+    // call once per frame AFTER presenting, so the status of the coming stage is already visible
     step(now: double) => void {
         if (this.stageName != nullptr) {
             Dbg.log(U.cat(this.stageName, U.cat(": ", U.cat(U.fromInt((now - this.stageT) as int), " ms"))));
@@ -177,40 +189,23 @@ struct Browser {
         }
     }
 
+    // after ui.frame(), when a click event was seen: link navigation + JS click listeners
+    handleClicks(ms: double) => void {
+        if (this.doc.root != nullptr && !this.loading) {
+            let link: UI.Node* = clickedLink(this.doc.root);
+            if (link != nullptr) this.navigate(Net.resolve(this.url, link.getAttr("href")));
+            else JS.pumpClicks(ms);
+        }
+    }
+
     title() => char* {
         let out: char* = "";
         if (this.url != nullptr) out = this.url;
         if (this.doc.root != nullptr) {
-            let t: D.Node* = D.findTag(this.doc.root, "title");
-            if (t != nullptr && t.first != nullptr && t.first.kind == 2) out = t.first.text;
+            let t: UI.Node* = this.doc.root.findTag("title");
+            if (t != nullptr && U.slen(A.textOf(t)) > 0) out = A.textOf(t);
         }
         return out;
-    }
-
-    // re-layout after resize / JS changes (not during a load: the load runs its own style+layout stages)
-    refresh(viewW: float) => void {
-        if (viewW != this.viewW) { this.viewW = viewW; this.needLayout = true; }
-        if (this.doc.root != nullptr && !this.loading) {
-            if (JS.takeDirty()) this.needLayout = true;
-            if (this.needLayout) {
-                CSS.styleTree(this.doc.root, nullptr);
-                this.pageH = L.layoutDocument(this.doc.root, viewW);
-                this.list = P.buildDisplayList(this.doc.root, viewW, this.pageH);
-                this.needLayout = false;
-            }
-        }
-    }
-
-    // x,y are relative to the top-left of the page viewport (below the chrome)
-    pick(x: float, y: float) => D.Node* {
-        let hit: D.Node* = nullptr;
-        if (this.doc.root != nullptr && !this.loading) hit = P.hitTest(this.doc.root, x, y + this.scrollY);
-        return hit;
-    }
-
-    click(x: float, y: float, ms: double) => void {
-        let hit: D.Node* = this.pick(x, y);
-        if (hit != nullptr) JS.fireClick(hit, ms);
     }
 
     tick(ms: double) => void { if (!this.loading) JS.tick(ms); }

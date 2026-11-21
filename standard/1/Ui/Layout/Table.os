@@ -5,78 +5,73 @@
     // <caption> is laid out as a block above the rows. No border-spacing / border-collapse.
     // NEXT: colspan/rowspan, <col> widths, vertical-align, min-content column minimums, border-collapse.
 
-    tableCountRows(n: Node*) => int {
-        let cnt: int = 0;
+    // Rows are chained through Node.rowNext (no Node** arrays, so no pointer-to-pointer casts are needed).
+    // Returns the first row, or nullptr. Also zeroes the boxes of row groups (they are re-filled by tableContent).
+    tableCollect(n: Node*) => Node* {
+        let head: Node* = nullptr; let tail: Node* = nullptr;
         let c: Node* = n.first;
         while (c != nullptr) {
             if (this.inFlow(c)) {
-                if (c.st.display == DP_TABLE_ROW) cnt = cnt + 1;
+                if (c.st.display == DP_TABLE_ROW) {
+                    c.rowNext = nullptr;
+                    if (tail != nullptr) tail.rowNext = c; else head = c;
+                    tail = c;
+                }
                 else if (c.st.display == DP_TABLE_GROUP) {
                     c.box.w = 0.0; c.box.h = 0.0;
                     let r: Node* = c.first;
-                    while (r != nullptr) { if (this.inFlow(r) && r.st.display == DP_TABLE_ROW) cnt = cnt + 1; r = r.next; }
-                }
-            }
-            c = c.next;
-        }
-        return cnt;
-    }
-
-    tableCollect(n: Node*, rows: Node**) => void {
-        let i: int = 0; let c: Node* = n.first;
-        while (c != nullptr) {
-            if (this.inFlow(c)) {
-                if (c.st.display == DP_TABLE_ROW) { rows[i] = c; i = i + 1; }
-                else if (c.st.display == DP_TABLE_GROUP) {
-                    let r: Node* = c.first;
                     while (r != nullptr) {
-                        if (this.inFlow(r) && r.st.display == DP_TABLE_ROW) { rows[i] = r; i = i + 1; }
+                        if (this.inFlow(r) && r.st.display == DP_TABLE_ROW) {
+                            r.rowNext = nullptr;
+                            if (tail != nullptr) tail.rowNext = r; else head = r;
+                            tail = r;
+                        }
                         r = r.next;
                     }
                 }
             }
             c = c.next;
         }
+        return head;
     }
 
     isCell(c: Node*) => bool { return this.inFlow(c) && c.st.display == DP_TABLE_CELL; }
 
-    tableCols(rows: Node**, nrows: int) => int {
-        let ncols: int = 0; let i: int = 0;
-        while (i < nrows) {
-            let cnt: int = 0; let c: Node* = rows[i].first;
+    tableCols(head: Node*) => int {
+        let ncols: int = 0;
+        let r: Node* = head;
+        while (r != nullptr) {
+            let cnt: int = 0; let c: Node* = r.first;
             while (c != nullptr) { if (this.isCell(c)) cnt = cnt + 1; c = c.next; }
             if (cnt > ncols) ncols = cnt;
-            i = i + 1;
+            r = r.rowNext;
         }
         return ncols;
     }
 
-    tableColPref(rows: Node**, nrows: int, colW: float*, ncols: int) => void {
+    tableColPref(head: Node*, colW: float*, ncols: int) => void {
         let j: int = 0;
         while (j < ncols) { colW[j] = 0.0; j = j + 1; }
-        let i: int = 0;
-        while (i < nrows) {
-            let col: int = 0; let c: Node* = rows[i].first;
+        let r: Node* = head;
+        while (r != nullptr) {
+            let col: int = 0; let c: Node* = r.first;
             while (c != nullptr) {
                 if (this.isCell(c)) { colW[col] = maxF(colW[col], this.outerPref(c)); col = col + 1; }
                 c = c.next;
             }
-            i = i + 1;
+            r = r.rowNext;
         }
     }
 
     tablePref(n: Node*) => float {
-        let nrows: int = this.tableCountRows(n);
-        if (nrows == 0) return 0.0;
-        let rows: Node** = CMem.malloc((nrows as u64) * 8) as Node**;
-        this.tableCollect(n, rows);
-        let ncols: int = this.tableCols(rows, nrows);
+        let head: Node* = this.tableCollect(n);
+        if (head == nullptr) return 0.0;
+        let ncols: int = this.tableCols(head);
         let colW: float* = CMem.malloc((ncols as u64) * 8 + 8) as float*;
-        this.tableColPref(rows, nrows, colW, ncols);
+        this.tableColPref(head, colW, ncols);
         let sum: float = 0.0; let j: int = 0;
         while (j < ncols) { sum = sum + colW[j]; j = j + 1; }
-        CMem.free(colW as void*); CMem.free(rows as void*);
+        CMem.free(colW as void*);
         return sum;
     }
 
@@ -93,13 +88,11 @@
             }
             cap = cap.next;
         }
-        let nrows: int = this.tableCountRows(n);
-        if (nrows == 0) return y - b.cy;
-        let rows: Node** = CMem.malloc((nrows as u64) * 8) as Node**;
-        this.tableCollect(n, rows);
-        let ncols: int = this.tableCols(rows, nrows);
+        let head: Node* = this.tableCollect(n);
+        if (head == nullptr) return y - b.cy;
+        let ncols: int = this.tableCols(head);
         let colW: float* = CMem.malloc((ncols as u64) * 8 + 8) as float*;
-        this.tableColPref(rows, nrows, colW, ncols);
+        this.tableColPref(head, colW, ncols);
 
         let sum: float = 0.0; let j: int = 0;
         while (j < ncols) { sum = sum + colW[j]; j = j + 1; }
@@ -109,9 +102,8 @@
         j = 0; sum = 0.0;
         while (j < ncols) { colW[j] = colW[j] * f; sum = sum + colW[j]; j = j + 1; }
 
-        let i: int = 0;
-        while (i < nrows) {
-            let r: Node* = rows[i];
+        let r: Node* = head;
+        while (r != nullptr) {
             let x: float = b.cx; let rowH: float = 0.0; let col: int = 0;
             let c: Node* = r.first;
             while (c != nullptr) {
@@ -141,8 +133,8 @@
                 g.box.cx = g.box.x; g.box.cy = g.box.y; g.box.cw = g.box.w; g.box.ch = g.box.h;
             }
             y = y + rowH;
-            i = i + 1;
+            r = r.rowNext;
         }
-        CMem.free(colW as void*); CMem.free(rows as void*);
+        CMem.free(colW as void*);
         return y - b.cy;
     }

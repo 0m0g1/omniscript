@@ -1,27 +1,16 @@
-// browser/inspector.os  -- F12 devtools window: DOM tree (click a row, or click the page, to select),
-// computed box info for the selected node, and a Console tab (console.log + engine errors).
-// Zero per-frame allocation: text is drawn in pieces, numbers go through one scratch buffer.
-// NEXT: style editing, network tab, element hover pick, tree collapse, mouse wheel scroll, search.
+// browser/inspector.os  -- devtools window: DOM tree (elements), attributes of the selected node, Console tab.
+// Select by clicking a row, or by clicking anything in the page/toolbar while the inspector is open.
+// Reads the Ui tree through firstEl()/nextEl()/getAttr() + uiapi.os only. Zero per-frame allocation.
+// NEXT: computed box/style panel (needs Node geometry fields), text nodes, highlight overlay, tree collapse,
+//       style editing, network tab, mouse wheel scroll, search.
 module C = import "standard/1/Canvas.os";
+module UI = import "standard/1/Ui.os";
 module U = import "browser/util.os";
-module D = import "browser/dom/dom.os";
+module A = import "browser/uiapi.os";
 module B = import "browser/browser.os";
 module Dbg = import "browser/dbg.os";
 
 let LH: int = 16;                // row height   (ADAPT to pen.textHeight)
-
-function itoaBuf(n: int, out: char*) => void {
-    let v: int = n;
-    let p: int = 0;
-    if (v < 0) { out[p] = 45 as char; p = p + 1; v = 0 - v; }
-    let digits: int = 0;
-    let tmp: int = v;
-    if (tmp == 0) digits = 1;
-    while (tmp > 0) { digits = digits + 1; tmp = tmp / 10; }
-    let k: int = digits - 1;
-    while (k >= 0) { out[p + k] = (48 + v % 10) as char; v = v / 10; k = k - 1; }
-    out[p + digits] = 0 as char;
-}
 
 struct Inspector {
     win: C.Win* = nullptr;
@@ -29,12 +18,12 @@ struct Inspector {
     tab: int = 0;                // 0 DOM, 1 Console
     scroll: int = 0;
     line: int = 0;
-    selected: D.Node* = nullptr;
-    rows: D.Node** = nullptr;
+    selected: UI.Node* = nullptr;
+    rows: UI.Node** = nullptr;
     nrows: int = 0;
     cw: float = 8.0;
     winW: float = 560.0;
-    num: char* = nullptr;
+    gen: int = 0;
 
     isOpen() => bool {
         let open: bool = this.win != nullptr;
@@ -49,23 +38,15 @@ struct Inspector {
             if (this.win == nullptr) Dbg.error("inspector: createWindow failed");
             else {
                 this.pen = this.win.context2d();
-                this.rows = U.alloc(8 * 128) as D.Node**;
-                this.num = U.newStr(24);
+                this.rows = U.alloc(8 * 128) as UI.Node**;
             }
         }
     }
 
     close() => void { if (this.isOpen()) this.win.close(); }
+    select(n: UI.Node*) => void { this.selected = n; }
 
-    // outline of the selected element drawn on the page window
-    highlight(pen: C.Pen2D*, top: float, scrollY: float) => void {
-        if (this.isOpen() && this.selected != nullptr && this.selected.kind == 1 && this.selected.hasBounds) {
-            let n: D.Node* = this.selected;
-            pen.rect(n.x, n.y - scrollY + top, n.w, n.h, 1.0, 0xFF4060FF);
-        }
-    }
-
-    row(n: D.Node*, depth: int, top: int, bottom: int) => void {
+    row(n: UI.Node*, depth: int, top: int, bottom: int) => void {
         let idx: int = this.line;
         this.line = this.line + 1;
         let k: int = idx - this.scroll;
@@ -76,51 +57,56 @@ struct Inspector {
             let x: float = 8.0 + (depth * 12) as float;
             let yf: float = y as float;
             let pen: C.Pen2D* = this.pen;
+            let tag: char* = A.tagOf(n);
+            let id: char* = A.attr(n, "id");
+            let cls: char* = A.attr(n, "class");
             if (n == this.selected) pen.fillRect(0.0, yf, this.winW, LH as float, 0x3A5BC8FF);
-            if (n.kind == 2) { pen.text(x, yf, n.text, 0x8A8A9AFF); }
-            else {
-                pen.text(x, yf, "<", 0x6A6A7AFF);
-                pen.text(x + this.cw, yf, n.tag, 0x7FB0FFFF);
-                let ax: float = x + this.cw * ((U.slen(n.tag) + 2) as float);
-                if (U.slen(n.id) > 0) {
-                    pen.text(ax, yf, "#", 0x6A6A7AFF);
-                    pen.text(ax + this.cw, yf, n.id, 0xE0B060FF);
-                    ax = ax + this.cw * ((U.slen(n.id) + 2) as float);
-                }
-                if (U.slen(n.cls) > 0) {
-                    pen.text(ax, yf, ".", 0x6A6A7AFF);
-                    pen.text(ax + this.cw, yf, n.cls, 0x80D090FF);
-                }
+            pen.text(x, yf, "<", 0x6A6A7AFF);
+            pen.text(x + this.cw, yf, tag, 0x7FB0FFFF);
+            let ax: float = x + this.cw * ((U.slen(tag) + 2) as float);
+            if (U.slen(id) > 0) {
+                pen.text(ax, yf, "#", 0x6A6A7AFF);
+                pen.text(ax + this.cw, yf, id, 0xE0B060FF);
+                ax = ax + this.cw * ((U.slen(id) + 2) as float);
+            }
+            if (U.slen(cls) > 0) {
+                pen.text(ax, yf, ".", 0x6A6A7AFF);
+                pen.text(ax + this.cw, yf, cls, 0x80D090FF);
             }
         }
-        let c: D.Node* = n.first;
-        while (c != nullptr) { this.row(c, depth + 1, top, bottom); c = c.next; }
+        let c: UI.Node* = n.firstEl();
+        while (c != nullptr) { this.row(c, depth + 1, top, bottom); c = c.nextEl(); }
     }
 
-    kv(label: char*, v: float, cx: float, y: float) => void {
-        itoaBuf(v as int, this.num);
-        this.pen.text(cx, y, label, 0x8A8A9AFF);
-        this.pen.text(cx + 90.0, y, this.num, 0xFFFFFFFF);
+    // draws "name  value" at line `slot` of the details panel when the attribute is present
+    attrLine(n: UI.Node*, name: char*, top: float, slot: int) => int {
+        let v: char* = A.attr(n, name);
+        let used: int = slot;
+        if (U.slen(v) > 0) {
+            let y: float = top + 22.0 + (slot * LH) as float;
+            this.pen.text(10.0, y, name, 0x8A8A9AFF);
+            this.pen.text(90.0, y, v, 0xFFFFFFFF);
+            used = slot + 1;
+        }
+        return used;
     }
 
     details(top: float, h: float) => void {
         let pen: C.Pen2D* = this.pen;
         pen.fillRect(0.0, top, this.winW, h, 0x23232BFF);
-        let n: D.Node* = this.selected;
-        if (n == nullptr || n.kind != 1) { pen.text(10.0, top + 6.0, "click a node (or the page) to inspect", 0x8A8A9AFF); }
+        let n: UI.Node* = this.selected;
+        if (n == nullptr) { pen.text(10.0, top + 6.0, "click a row (or an element on the page) to inspect", 0x8A8A9AFF); }
         else {
             pen.text(10.0, top + 4.0, "<", 0x6A6A7AFF);
-            pen.text(10.0 + this.cw, top + 4.0, n.tag, 0x7FB0FFFF);
-            let y: float = top + 24.0;
-            let l: float = LH as float;
-            this.kv("x", n.x, 10.0, y);            this.kv("font-size", n.style.fontSize, 270.0, y);
-            this.kv("y", n.y, 10.0, y + l);        this.kv("margin", n.style.margin, 270.0, y + l);
-            this.kv("width", n.w, 10.0, y + 2.0 * l);   this.kv("padding", n.style.padding, 270.0, y + 2.0 * l);
-            this.kv("height", n.h, 10.0, y + 3.0 * l);  this.kv("border", n.style.border, 270.0, y + 3.0 * l);
-            this.kv("display", n.style.display as float, 10.0, y + 4.0 * l);
-            pen.text(270.0, y + 4.0 * l, "color", 0x8A8A9AFF);
-            pen.fillRect(360.0, y + 4.0 * l, 14.0, 12.0, n.style.color);
-            if (n.style.bgOn) pen.fillRect(380.0, y + 4.0 * l, 14.0, 12.0, n.style.bg);
+            pen.text(10.0 + this.cw, top + 4.0, A.tagOf(n), 0x7FB0FFFF);
+            let s: int = 0;
+            s = this.attrLine(n, "id", top, s);
+            s = this.attrLine(n, "class", top, s);
+            s = this.attrLine(n, "style", top, s);
+            s = this.attrLine(n, "href", top, s);
+            s = this.attrLine(n, "src", top, s);
+            s = this.attrLine(n, "type", top, s);
+            s = this.attrLine(n, "value", top, s);
         }
     }
 
@@ -143,6 +129,7 @@ struct Inspector {
         if (this.isOpen()) {
             let win: C.Win* = this.win;
             let pen: C.Pen2D* = this.pen;
+            if (this.gen != b.gen) { this.gen = b.gen; this.selected = nullptr; this.nrows = 0; this.scroll = 0; }   // new document: old nodes are gone
             this.winW = win.width() as float;
             let h: float = win.height() as float;
             this.cw = pen.textWidth("M", 1.0);

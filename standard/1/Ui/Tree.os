@@ -21,8 +21,10 @@ struct Node {
     st: Style; box: Box;
     frags: Frag* = nullptr;
     forceW: float = 0.0; forceH: float = 0.0;                    // forced border-box size from flex/table/abs (UNSET = none)
+    rowNext: Node* = nullptr;                                    // table row chain (Table.os scratch)
     fbase: float = 0.0; fmain: float = 0.0; fcross: float = 0.0; flexMeasured: bool = false;   // flex scratch
     scrollX: float = 0.0; scrollY: float = 0.0;
+    contentW: float = 0.0;                                       // widest descendant edge, measured by Painter for overflow:auto/scroll nodes
 
     // state (written by Events)
     hover: bool = false; focus: bool = false; active: bool = false;
@@ -319,11 +321,17 @@ struct Node {
         if (m < 0.0) m = 0.0;
         return m;
     }
+    scrollMaxX() => float {
+        let m: float = this.contentW - this.box.cw;
+        if (m < 0.0) m = 0.0;
+        return m;
+    }
     scrollTo(x: float, y: float) => void {
-        this.scrollX = x; this.scrollY = clampF(y, 0.0, this.scrollMax());
+        this.scrollX = clampF(x, 0.0, this.scrollMaxX()); this.scrollY = clampF(y, 0.0, this.scrollMax());
         this.markPaint();
     }
     scrollBy(dy: float) => void { this.scrollTo(this.scrollX, this.scrollY + dy); }
+    scrollByX(dx: float) => void { this.scrollTo(this.scrollX + dx, this.scrollY); }
 
     // ---- handlers: fn is a function pointer; see Events.os (invoke) ----
     on(kind: int, fn: void*, user: void*) => void {

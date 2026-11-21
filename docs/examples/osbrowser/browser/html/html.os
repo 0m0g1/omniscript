@@ -2,10 +2,10 @@
 // Collects <style>/<script> text and <link>/<script src> references into Doc; the shell fetches links.
 // NEXT: split tokenizer/tree-builder, entities (&amp; ...), implied <html>/<body>, optional end tags, error recovery.
 module U = import "browser/util.os";
-module D = import "browser/dom/dom.os";
+module UI = import "standard/1/Ui.os";
 
 struct Doc {
-    root: D.Node* = nullptr;
+    root: UI.Node* = nullptr;
     css: char* = nullptr;
     js: char* = nullptr;
     cssLinks: [4]char*;
@@ -29,8 +29,10 @@ function parseHtml(src: char*, doc: Doc*) => void {
     let n: int = U.slen(src);
     doc.css = U.dup("");
     doc.js = U.dup("");
-    doc.root = D.newElement("html");
-    let stack: D.Node** = U.alloc(8 * 128) as D.Node**;
+    doc.root = UI.createByTag("html");
+    let stack: UI.Node** = U.alloc(8 * 128) as UI.Node**;
+    let names: char** = U.alloc(8 * 128) as char**;
+    names[0] = "html";
     let sp: int = 0;
     stack[0] = doc.root;
     let i: int = 0;
@@ -48,7 +50,7 @@ function parseHtml(src: char*, doc: Doc*) => void {
                 while (U.isAlnum(src[j] as int)) { j = j + 1; }
                 let name: char* = U.lower(U.sub(src, i + 2, j));
                 let k: int = sp;
-                while (k > 0 && !U.streq(stack[k].tag, name)) { k = k - 1; }
+                while (k > 0 && !U.streq(names[k], name)) { k = k - 1; }
                 if (k > 0) sp = k - 1;
                 let e: int = U.indexOf(src, j, ">");
                 if (e < 0) i = n; else i = e + 1;
@@ -56,7 +58,7 @@ function parseHtml(src: char*, doc: Doc*) => void {
                 let j: int = i + 1;
                 while (U.isAlnum(src[j] as int)) { j = j + 1; }
                 let name: char* = U.lower(U.sub(src, i + 1, j));
-                let el: D.Node* = D.newElement(name);
+                let el: UI.Node* = UI.createByTag(name);
                 let href: char* = "";
                 let srcAttr: char* = "";
                 let rel: char* = "";
@@ -87,10 +89,8 @@ function parseHtml(src: char*, doc: Doc*) => void {
                                 av = U.sub(src, b, j);
                             }
                         }
-                        if (U.streq(an, "id")) el.id = av;
-                        else if (U.streq(an, "class")) el.cls = av;
-                        else if (U.streq(an, "style")) el.attrStyle = av;
-                        else if (U.streq(an, "href")) href = av;
+                        el.setAttr(an, av);                              // Ui caches id/class/style/type/value/... itself
+                        if (U.streq(an, "href")) href = av;
                         else if (U.streq(an, "src")) srcAttr = av;
                         else if (U.streq(an, "rel")) rel = av;
                     }
@@ -107,19 +107,19 @@ function parseHtml(src: char*, doc: Doc*) => void {
                     let g: int = U.indexOf(src, e, ">");
                     if (g < 0) i = n; else i = g + 1;
                 } else {
-                    D.append(stack[sp], el);
+                    stack[sp].append(el);
                     if (U.streq(name, "link") && U.streq(rel, "stylesheet") && doc.cssN < 4) {
                         doc.cssLinks[doc.cssN] = href;
                         doc.cssN = doc.cssN + 1;
                     }
-                    if (!isVoid(name) && !selfClose && sp < 126) { sp = sp + 1; stack[sp] = el; }
+                    if (!isVoid(name) && !selfClose && sp < 126) { sp = sp + 1; stack[sp] = el; names[sp] = name; }
                 }
             }
         } else {                                                 // text run
             let e: int = U.indexOf(src, i, "<");
             if (e < 0) e = n;
             let t: char* = U.sub(src, i, e);
-            if (!allSpace(t)) D.append(stack[sp], D.newText(t));
+            if (!allSpace(t)) stack[sp].append(UI.createText(t));
             i = e;
         }
     }

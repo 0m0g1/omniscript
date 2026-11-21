@@ -11,11 +11,15 @@
 // Known gaps (NEXT): margin collapsing between parent and first/last child, floats, % heights, colspan/rowspan,
 // word breaking of over-long words, justify, inline-element padding/borders, grid.
 
+// one atomic inline box on the current line (kept typed, so no void* -> Node* cast is needed)
+struct AtomRef { node: Node* = nullptr; next: AtomRef* = nullptr; }
+
 struct LineCtx {
     x0: float = 0.0; cw: float = 0.0; x: float = 0.0; y: float = 0.0;
     lineH: float = 0.0; strut: float = 0.0; trail: float = 0.0;
     count: int = 0; lineNo: int = 0; lastSp: bool = true; wrap: bool = true; ta: int = 0;
     head: Frag* = nullptr; tail: Frag* = nullptr; first: Frag* = nullptr;
+    afirst: AtomRef* = nullptr; atail: AtomRef* = nullptr;
 }
 
 struct Layout {
@@ -118,18 +122,20 @@ struct Layout {
         let m: Metrics* = this.m;
         let adv: float = this.adv(n.st.fontPx); let lh: float = this.lh(&n.st); let u: float = m.unit;
         let w: float = 0.0; let h: float = 0.0; let ctl: int = n.ctl;
+        let padX: float = m.cellW * 3.0; let padY: float = m.cellH * 0.75; let padT: float = m.cellW * 1.5;
+        if (m.unit < 0.5) { padX = 2.0 * m.cellW; padY = 0.0; padT = 0.0; }     // terminal: whole cells
         if (n.kind == NK_CONTROL) {
             if (ctl == CK_BUTTON || ctl == CK_SELECT) {
                 if (ctl == CK_SELECT) selectSync(n);
-                w = (strLen(ctlCaption(n)) as float) * adv + m.cellW * 3.0;
+                w = (strLen(ctlCaption(n)) as float) * adv + padX;
                 if (ctl == CK_SELECT) w = w + adv * 2.0;
-                h = lh + m.cellH * 0.75;
+                h = lh + padY;
             }
             else if (ctl == CK_TEXT || ctl == CK_STUB) {
-                w = this.attrNum(n, "size", 20.0) * adv + m.cellW * 1.5; h = lh + m.cellH * 0.75;
+                w = this.attrNum(n, "size", 20.0) * adv + m.cellW * 1.5; h = lh + padY;
             }
             else if (ctl == CK_TEXTAREA) {
-                w = this.attrNum(n, "cols", 20.0) * adv + m.cellW * 1.5; h = this.attrNum(n, "rows", 2.0) * lh + m.cellH * 0.75;
+                w = this.attrNum(n, "cols", 20.0) * adv + padT; h = this.attrNum(n, "rows", 2.0) * lh + padY;
             }
             else if (ctl == CK_CHECK || ctl == CK_RADIO) { w = m.cellH * 1.375; h = w; }
             else if (ctl == CK_RANGE) { w = m.cellW * 16.0; h = m.cellH * 1.25; }
@@ -316,7 +322,7 @@ struct Layout {
         lc.count = 0; lc.lineNo = 0; lc.lastSp = true;
         lc.ta = parent.st.textAlign; lc.strut = this.lh(&parent.st);
         lc.wrap = parent.st.whiteSpace != WS_NOWRAP && parent.st.whiteSpace != WS_PRE;
-        lc.head = nullptr; lc.tail = nullptr; lc.first = nullptr;
+        lc.head = nullptr; lc.tail = nullptr; lc.first = nullptr; lc.afirst = nullptr; lc.atail = nullptr;
         let c: Node* = start; let stop: bool = false;
         if (single) {
             this.inlineItem(start, &lc);
@@ -405,6 +411,10 @@ struct Layout {
         f.atom = n as void*;
         f.x = lc.x; f.y = lc.y; f.w = mw; f.h = mh; f.line = lc.lineNo;
         this.linkFrag(lc, f);
+        let ar: AtomRef* = CMem.malloc(sizeof(AtomRef)) as AtomRef*;
+        ar.node = n; ar.next = nullptr;
+        if (lc.atail != nullptr) lc.atail.next = ar; else lc.afirst = ar;
+        lc.atail = ar;
         lc.x = lc.x + mw; lc.count = lc.count + 1;
         lc.lineH = maxF(lc.lineH, mh); lc.lastSp = false; lc.trail = 0.0;
     }
@@ -420,12 +430,16 @@ struct Layout {
         else if (lc.ta == TA_RIGHT) off = free;
         if (off < 0.0) off = 0.0;
         let f: Frag* = lc.first;
+        let ar: AtomRef* = lc.afirst;
         while (f != nullptr) {
             let ny: float = lc.y + (h - f.h);
-            if (f.atom != nullptr) { this.translate(f.atom as Node*, off, ny - f.y); }
+            if (f.atom != nullptr && ar != nullptr) { this.translate(ar.node, off, ny - f.y); ar = ar.next; }
             f.x = f.x + off; f.y = ny;
             f = f.lnext;
         }
+        let rr: AtomRef* = lc.afirst;
+        while (rr != nullptr) { let rn: AtomRef* = rr.next; CMem.free(rr as void*); rr = rn; }
+        lc.afirst = nullptr; lc.atail = nullptr;
         lc.first = nullptr;
         lc.y = lc.y + h; lc.x = lc.x0; lc.lineH = 0.0; lc.trail = 0.0;
         lc.count = 0; lc.lineNo = lc.lineNo + 1; lc.lastSp = true;

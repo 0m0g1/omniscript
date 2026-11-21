@@ -21,6 +21,10 @@ extern "dependencies/glfw/glfw-3.4/bin/lib-mingw-w64/glfw3.dll" {
     fn glfwGetMouseButton(w: void*, b: int) => int;
     fn glfwGetCursorPos(w: void*, x: double*, y: double*) => void;
     fn glfwGetProcAddress(name: char*) => void*;
+    fn glfwCreateStandardCursor(shape: int) => void*;       // 0x36001 arrow, 0x36002 I-beam, 0x36003 crosshair, 0x36004 hand, 0x36005 h-resize, 0x36006 v-resize
+    fn glfwSetCursor(w: void*, c: void*) => void;           // c = nullptr restores the default arrow
+    fn glfwDestroyCursor(c: void*) => void;
+    fn glfwSetScrollCallback(w: void*, cb: void*) => void;  // cb: function(w: void*, dx: double, dy: double) => void, passed as `fn as void*`
     fn glfwVulkanSupported() => int;
     fn glfwGetRequiredInstanceExtensions(n: u32*) => char**;
     fn glfwCreateWindowSurface(inst: void*, w: void*, alloc: void*, surf: u64*) => int;
