@@ -9,6 +9,36 @@
         return r;
     }
 
+    // SVG bytes -> image id (0 on failure). scale: 2.0 = rasterize at 2x intrinsic size.
+    // rgb = 0xRRGGBB, used as the CSS color so currentColor resolves. Works on every backend.
+    // outW/outH receive the INTRINSIC (1x) size, for layout; the image itself is scale times bigger.
+    createImageSvg(data: u8*, len: int, scale: float, rgb: u32, outW: float*, outH: float*) => u32 {
+        let result: u32 = 0;
+        let sw: float = 0.0; let sh: float = 0.0;
+        if (data == nullptr || len <= 0) { Console.log("[createImageSvg] no data"); return 0; }
+        if (SVG.svg_size(data as char*, len, &sw, &sh) == 1) {
+            if (sw < 1.0) sw = 24.0;
+            if (sh < 1.0) sh = 24.0;
+            // clamp the raster to 2048 px per side (huge intrinsic sizes, or a big scale, used to fail with "bad size")
+            let sc: float = scale;
+            if (sw * sc > 2048.0) sc = 2048.0 / sw;
+            if (sh * sc > 2048.0) sc = 2048.0 / sh;
+            let pw: int = (sw * sc) as int;
+            let ph: int = (sh * sc) as int;
+            if (pw > 0 && ph > 0 && pw <= 4096 && ph <= 4096) {
+                let buf = CMem.malloc((pw * ph * 4) as u64) as u8*;
+                if (buf != nullptr) {
+                    if (SVG.svg_rasterize(data as char*, len, pw, ph, rgb, buf) == 1) {
+                        result = this.createImage(buf, pw, ph);
+                        if (result > 0) { *outW = sw; *outH = sh; }
+                    } else { Console.log("[createImageSvg] rasterize failed"); }
+                    CMem.free(buf as void*);
+                } else { Console.log("[createImageSvg] malloc failed"); }
+            } else { Console.log("[createImageSvg] bad size"); }
+        } else { Console.log("[createImageSvg] not a valid SVG"); }
+        return result;
+    }
+
     // px: RGBA8, w*h*4 bytes, row 0 = top. Returns 0 on failure. Free with freeImage().
     createImage(px: u8*, w: int, hh: int) => u32 {
         if (px == nullptr) { Console.log("[createImage] px is NULL"); return 0; }

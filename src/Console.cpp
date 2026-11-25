@@ -249,40 +249,77 @@ void Console::showSourceContext(const FileSpan& rawSpan, int contextLines) {
     }
 }
 
+void Console::beginBuild() {
+    resetCounts();
+    seenDiagnostics.clear();
+    displayedErrors = 0;
+    suppressedErrors = 0;
+    lastDiagnosticShown = true;
+}
+
+void Console::setErrorDisplayLimit(int limit) { errorDisplayLimit = limit < 0 ? 0 : limit; }
+void Console::setThrowOnFatal(bool enable) { throwOnFatal = enable; }
+
+void Console::printSuppressedSummary() {
+    if (suppressedErrors > 0) {
+        std::cout << getColorCode(WARN) << "... and " << suppressedErrors
+                  << " more error(s) not shown" << "\033[0m" << std::endl;
+    }
+    suppressedErrors = 0;
+}
+
+// Identical diagnostics (same text + location) print once; errors beyond the limit are only counted.
+// errorCount is always incremented by the callers, so the "Gate" checks stay accurate.
+bool Console::shouldDisplay(const std::string& key, bool isError) {
+    if (!seenDiagnostics.insert(key).second) { lastDiagnosticShown = false; return false; }
+    if (isError && errorDisplayLimit > 0 && displayedErrors >= errorDisplayLimit) {
+        ++suppressedErrors;
+        lastDiagnosticShown = false;
+        return false;
+    }
+    if (isError) ++displayedErrors;
+    lastDiagnosticShown = true;
+    return true;
+}
+
 void Console::reportError(ErrorType errorType, const std::string& message, const FileSpan& span) {
     errorCount++;
-    
+
     std::string location = formatSpan(span);
-    std::cout << getColorCode(ERR) << getErrorTypeName(errorType) << ": " 
-              << "\033[0m" << message << std::endl;
-    
-    if (isUsable(span)) {
-        std::cout << getColorCode(INFO) << "  --> " << location << "\033[0m" << std::endl;
-        showSourceContext(span, 1);
+    if (shouldDisplay(getErrorTypeName(errorType) + "\n" + message + "\n" + location, true)) {
+        std::cout << getColorCode(ERR) << getErrorTypeName(errorType) << ": "
+                  << "\033[0m" << message << std::endl;
+
+        if (isUsable(span)) {
+            std::cout << getColorCode(INFO) << "  --> " << location << "\033[0m" << std::endl;
+            showSourceContext(span, 1);
+        }
+
+        writeToLogFile(getErrorTypeName(errorType) + " at " + location + ": " + message);
     }
-    
-    writeToLogFile(getErrorTypeName(errorType) + " at " + location + ": " + message);
 
     if (errorType == RUNTIME_ERROR || errorType == FATAL_ERROR || errorType == INTERNAL_ERROR) {
+        if (throwOnFatal) throw FatalDiagnostic(message);   // watch mode: keep the watcher alive
         std::exit(EXIT_FAILURE);
     }
 }
 
-void Console::reportError(ErrorType errorType, const std::string& message, 
+void Console::reportError(ErrorType errorType, const std::string& message,
                          const std::string& suggestion, const FileSpan& span) {
     reportError(errorType, message, span);
-    
-    if (!suggestion.empty()) {
+
+    if (!suggestion.empty() && lastDiagnosticShown) {
         std::cout << getColorCode(HELP) << "help: " << "\033[0m" << suggestion << std::endl;
     }
 }
 
 void Console::reportWarning(const std::string& message, const FileSpan& span) {
     warningCount++;
-    
+
     std::string location = formatSpan(span);
+    if (!shouldDisplay("warning\n" + message + "\n" + location, false)) return;
     std::cout << getColorCode(WARN) << "warning: " << "\033[0m" << message << std::endl;
-    
+
     if (isUsable(span)) {
         std::cout << getColorCode(INFO) << "  --> " << location << "\033[0m" << std::endl;
         showSourceContext(span, 1);
@@ -299,22 +336,26 @@ void Console::reportNote(const std::string& message, const FileSpan& span) {
     std::cout << std::endl;
 }
 
-void Console::reportErrorWithContext(ErrorType errorType, const std::string& message, 
+void Console::reportErrorWithContext(ErrorType errorType, const std::string& message,
                                     const std::vector<std::pair<FileSpan, std::string>>& contexts) {
     errorCount++;
-    
-    std::cout << getColorCode(ERR) << getErrorTypeName(errorType) << ": " 
+
+    std::string key = getErrorTypeName(errorType) + "\n" + message;
+    for (const auto& c : contexts) key += "\n" + formatSpan(c.first);
+    if (!shouldDisplay(key, true)) return;
+
+    std::cout << getColorCode(ERR) << getErrorTypeName(errorType) << ": "
               << "\033[0m" << message << std::endl;
-    
+
     for (const auto& context : contexts) {
         std::string location = formatSpan(context.first);
         std::cout << getColorCode(INFO) << "  --> " << location << "\033[0m";
-        
+
         if (!context.second.empty()) {
             std::cout << ": " << context.second;
         }
         std::cout << std::endl;
-        
+
         if (isUsable(context.first)) {
             showSourceContext(context.first, 1);
         }

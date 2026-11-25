@@ -54,7 +54,13 @@ void ContextAwareStatement::validateAccessiblity(std::string baseTypeName, std::
                 return;
             }
         } else if (moduleExpr) {
-            member = moduleExpr->getMember(memberName);
+            // Silent lookups: getMember() reports its own error on a miss, and we report below.
+            // Module functions/variables are registered under their alias-qualified name ("V.vec2"),
+            // while structs are registered bare ("Vec2"); findMember accepts both.
+            member = moduleExpr->findMember(memberName);
+            if (!member) {
+                member = moduleExpr->findMember(baseTypeName + "." + memberName);
+            }
             
             if (!member) {
                 std::string availableMembers;

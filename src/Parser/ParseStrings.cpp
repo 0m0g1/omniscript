@@ -35,45 +35,29 @@ std::u32string Parser::parseStringLiteral() {
         );
     });
 
+    // Fold "a" + "b" / "a" + 5 at parse time only when a literal follows the '+'.
+    // Anything else ("a" + name, "a" + f(x)) is left for the expression parser's binary '+'.
     while (currentToken.getType() == TokenTypes::Plus) {
-        eat(TokenTypes::Plus, [&]() {
-            std::string suggestion = Console::formatString(
-                "To resolve this:\n"
-                "1. Use '+' for string concatenation\n"
-                "2. Check string concatenation syntax\n"
-                "3. Expected token: '+', found '%s'",
-                getTokenTypeName(currentToken.getType()).c_str()
-            );
-            console.reportError(
-                Console::SYNTAX_ERROR,
-                Console::formatString("Expected '+' for string concatenation, found '%s'", 
-                    getTokenTypeName(currentToken.getType()).c_str()),
-                suggestion,
-                span
-            );
-        });
-        
+        TokenTypes next = lexer.peekToken().getType();   // ADAPT: your one-token lookahead
+        if (next != TokenTypes::StringLiteral &&
+            next != TokenTypes::IntegerLiteral &&
+            next != TokenTypes::FloatLiteral) {
+            break;
+        }
+
+        eat(TokenTypes::Plus);
+
         if (currentToken.getType() == TokenTypes::StringLiteral) {
             value += currentToken.getU32Value();
             eat(TokenTypes::StringLiteral);
         } else if (currentToken.getType() == TokenTypes::IntegerLiteral) {
             value += utf8_to_utf32(currentToken.getValue());
             eat(TokenTypes::IntegerLiteral);
-        } else if (currentToken.getType() == TokenTypes::FloatLiteral) {
+        } else {
             value += utf8_to_utf32(currentToken.getValue());
             eat(TokenTypes::FloatLiteral);
-        } else {
-            console.reportError(
-                Console::SYNTAX_ERROR,
-                Console::formatString("Expected string, integer, or float literal after '+', found '%s'", 
-                    getTokenTypeName(currentToken.getType()).c_str()),
-                "To resolve this:\n1. Provide a valid literal for concatenation\n2. Check concatenation syntax\n3. Ensure valid string, integer, or float literal",
-                span
-            );
-            break;
         }
     }
-
     span.end.line = previousToken.getLine();
     span.end.col = previousToken.getColumn();
     span.end.filePath = previousToken.getFilePath();

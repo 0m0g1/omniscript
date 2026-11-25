@@ -781,6 +781,18 @@ std::shared_ptr<Expression> Call::findCallable(const std::string& contextualName
     if (overloads.empty()) {
         overloads = findOverloadsInContext(scope);
     }
+    // TEMP diagnostics: which scope answers a bare-name call, and which candidates it holds.
+    if (contextualName.find('.') == std::string::npos) {
+        DEBUG_LOG("[CallScope] '" + contextualName + "' evaluated in scope '" + scope->getName() +
+                  "' with " + std::to_string(overloads.size()) + " candidate(s); accessContext size " +
+                  std::to_string(accessContext.size()));
+        for (const auto& o : overloads) {
+            if (auto fe = std::dynamic_pointer_cast<FunctionExpression>(o)) {
+                DEBUG_LOG("[CallScope]   candidate '" + fe->name + "' mangled '" + fe->mangledName + "' returns '" +
+                          (fe->getType() ? fe->getType()->toString() : std::string("<none>")) + "'");
+            }
+        }
+    }
     
     if (!overloads.empty()) {
         return resolveOverload(overloads, scope);
@@ -926,8 +938,51 @@ std::shared_ptr<Expression> Call::resolveOverload(
                     }
                     return true;
                 };
-                std::stable_partition(ordered.begin(), ordered.end(), isCompatible);
-                std::stable_partition(ordered.begin(), ordered.end(), isExact);
+                // Rank candidates: tier (exact < compatible < other) decides first. Among equally good
+                // candidates, prefer one declared in the caller's own module (enclosing scope 'Json.newNull' ->
+                // module 'Json', candidate 'Json.alloc' -> module 'Json'). Without this, two modules that
+                // both declare `alloc(int)` tie and registration order wins (util.os's `U.alloc` was picked
+                // for calls made inside Json.os).
+                auto modulePrefix = [](const std::string& n) -> std::string {
+                    const size_t d = n.rfind('.');
+                    return d == std::string::npos ? std::string() : n.substr(0, d);
+                };
+                auto endsWith = [](const std::string& s, const std::string& suffix) {
+                    return s.size() >= suffix.size() &&
+                           s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+                };
+                // The scope a call is evaluated in is often a nested block (an `if`/`while` body), whose
+                // name carries no module. Collect the module prefix of every enclosing scope up the parent
+                // chain; the enclosing function scope ('Json.parseValue') contributes 'Json'.
+                std::vector<std::string> callerModules;
+                for (auto s = scope; s; s = s->getParent()) {
+                    const std::string mp = modulePrefix(s->getName());
+                    if (!mp.empty()) callerModules.push_back(mp);
+                }
+                auto sameModule = [&](const std::string& a, const std::string& b) {
+                    if (a.empty() || b.empty()) return false;
+                    return a == b || endsWith(a, "." + b) || endsWith(b, "." + a); // 'V.Json' vs 'Json'
+                };
+
+                struct Ranked { std::shared_ptr<Expression> fn; int tier; bool own; };
+                std::vector<Ranked> ranked;
+                ranked.reserve(ordered.size());
+                for (const auto& o : ordered) {
+                    const int tier = isExact(o) ? 0 : (isCompatible(o) ? 1 : 2);
+                    bool own = false;
+                    if (auto fe = std::dynamic_pointer_cast<FunctionExpression>(o)) {
+                        const std::string candModule = modulePrefix(fe->name);
+                        for (const auto& cm : callerModules) {
+                            if (sameModule(cm, candModule)) { own = true; break; }
+                        }
+                    }
+                    ranked.push_back({o, tier, own});
+                }
+                std::stable_sort(ranked.begin(), ranked.end(), [](const Ranked& a, const Ranked& b) {
+                    if (a.tier != b.tier) return a.tier < b.tier;
+                    return a.own && !b.own;
+                });
+                for (size_t i = 0; i < ranked.size(); ++i) ordered[i] = ranked[i].fn;
             }
         }
     }

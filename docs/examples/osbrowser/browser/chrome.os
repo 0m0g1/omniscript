@@ -5,8 +5,8 @@
 // (inline styles here win for the properties they set). NEXT: scope page CSS under the page container.
 module UI = import "standard/1/Ui.os";
 module C = import "standard/1/Canvas.os";
-module U = import "browser/util.os";
-module B = import "browser/browser.os";
+module U = import "util.os";
+module B = import "browser.os";
 
 struct Chrome {
     bar: UI.Node* = nullptr;
@@ -24,7 +24,7 @@ struct Chrome {
     lastFrac: float = 0.0;
     backOn: bool = true;
     fwdOn: bool = true;
-    lastFit: float = 0.0 - 1.0;         // page height set by fit()
+    lastH: float = 0.0;
 
     init(root: UI.Node*) => void {
         root.style("display: flex; flex-direction: column;");          // ADAPT if the root should be wrapped in a panel instead
@@ -39,26 +39,20 @@ struct Chrome {
         this.progress = root.progress(0.0);
         this.progress.setAttr("hidden", "hidden");
         this.page = root.box();
-        this.page.style("overflow: auto;");                          // its height is set every frame by fit(): the window minus toolbar and status line
+        this.page.style("overflow: auto;");               // height is set by fit() every frame
         this.statusLbl = root.label("");
         this.statusLbl.style("padding: 2px 8px; background-color: #2a2a33;");
     }
 
-    // Gives the page a definite height (window height minus what sits above and below it), so that content taller
-    // than that scrolls inside the page instead of stretching it past the window. Call every frame after update():
-    // it re-fits after a resize, a hidden/shown progress bar, or a status change. Uses last frame's layout boxes.
+    // Page height = window height - toolbar - progress (when shown) - status line. Call every frame BEFORE ui.frame()
+    // (and from the resize redraw) so a resize lays out at once. Bar/status heights come from the previous layout.
     fit(win: C.Win*) => void {
-        let st: UI.Node* = this.statusLbl;
-        let below: float = st.box.h + st.box.mt + st.box.mb;
-        let avail: float = (win.height() as float) - this.page.box.y - below;
-        if (avail < 40.0) avail = 40.0;
-        let d: float = avail - this.lastFit;
-        if (d < 0.0) d = 0.0 - d;
-        if (d > 0.5) {
-            this.lastFit = avail;
-            this.page.height = avail;
-            this.page.markLayout();
-        }
+        let wh: float = win.height() as float;
+        let used: float = this.bar.box.h + this.statusLbl.box.h;
+        if (this.progShown) used = used + this.progress.box.h;
+        let h: float = wh - used;
+        if (h < 60.0) h = 60.0;
+        if (h != this.lastH) { this.lastH = h; this.page.height = h; this.page.dirty(); }
     }
 
     // call right after ui.frame(): flags like `pressed` / `submitted` are true for exactly this frame

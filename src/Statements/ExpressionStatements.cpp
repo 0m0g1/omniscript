@@ -1,3 +1,4 @@
+// src/Statements/ExpressionStatements.cpp
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/LiteralStatements.h>
@@ -48,6 +49,7 @@ std::shared_ptr<Expression> ASTTernaryExpression::express(SymbolTableType scope)
             suggestion,
             condition->getSpan()
         );
+        return nullptr;
     }
 
     std::shared_ptr<Expression> trueValue = truthy->express(scope);
@@ -66,6 +68,7 @@ std::shared_ptr<Expression> ASTTernaryExpression::express(SymbolTableType scope)
             suggestion,
             truthy->getSpan()
         );
+        return nullptr;
     }
 
     std::shared_ptr<Expression> falseValue = falsey->express(scope);
@@ -84,16 +87,21 @@ std::shared_ptr<Expression> ASTTernaryExpression::express(SymbolTableType scope)
             suggestion,
             falsey->getSpan()
         );
+        return nullptr;
     }
 
+    // The result type is computed into a local. Writing it back into `type` made the next express() of
+    // this node (the AST is expressed more than once) push that type onto BOTH branches via setType()
+    // above, e.g. the type of the shorter string literal onto the longer one, which then failed.
+    std::shared_ptr<Type> resultType = type;
     if (Type::isSameOrCastableTo(trueValue->getType(), falseValue->getType())) {
-        type = falseValue->getType();
+        resultType = falseValue->getType();
     } else if (Type::isSameOrCastableTo(falseValue->getType(), trueValue->getType())) {
-        type = trueValue->getType();
+        resultType = trueValue->getType();
     }
 
-    if (type) {
-        if (!Type::isSameOrCastableTo(trueValue->getType(), type)) {
+    if (resultType) {
+        if (!Type::isSameOrCastableTo(trueValue->getType(), resultType)) {
             std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Check type requirements for truthy branch\n"
@@ -103,20 +111,20 @@ std::shared_ptr<Expression> ASTTernaryExpression::express(SymbolTableType scope)
                 "3. Verify source type implements required traits\n"
                 "4. Expected type: %s\n"
                 "5. Actual type: %s",
-                type->toString().c_str(),
-                type->toString().c_str(),
-                type->toString().c_str(),
+                resultType->toString().c_str(),
+                resultType->toString().c_str(),
+                resultType->toString().c_str(),
                 trueValue->getType()->toString().c_str()
             );
             console.reportError(
                 Console::TYPE_ERROR,
                 Console::formatString("Type mismatch in ternary expression: cannot use truthy value of type '%s' as '%s'",
                                    trueValue->getType()->toString().c_str(),
-                                   type->toString().c_str()),
+                                   resultType->toString().c_str()),
                 suggestion,
                 truthy->getSpan()
             );
-        } else if (!Type::isSameOrCastableTo(falseValue->getType(), type)) {
+        } else if (!Type::isSameOrCastableTo(falseValue->getType(), resultType)) {
             std::string suggestion = Console::formatString(
                 "To resolve this:\n"
                 "1. Check type requirements for falsey branch\n"
@@ -126,16 +134,16 @@ std::shared_ptr<Expression> ASTTernaryExpression::express(SymbolTableType scope)
                 "3. Verify source type implements required traits\n"
                 "4. Expected type: %s\n"
                 "5. Actual type: %s",
-                type->toString().c_str(),
-                type->toString().c_str(),
-                type->toString().c_str(),
+                resultType->toString().c_str(),
+                resultType->toString().c_str(),
+                resultType->toString().c_str(),
                 falseValue->getType()->toString().c_str()
             );
             console.reportError(
                 Console::TYPE_ERROR,
                 Console::formatString("Type mismatch in ternary expression: cannot use falsey value of type '%s' as '%s'",
                                    falseValue->getType()->toString().c_str(),
-                                   type->toString().c_str()),
+                                   resultType->toString().c_str()),
                 suggestion,
                 falsey->getSpan()
             );
@@ -143,7 +151,7 @@ std::shared_ptr<Expression> ASTTernaryExpression::express(SymbolTableType scope)
     }
 
     auto ternaryExpr = std::make_shared<TernaryExpression>(
-        condValue, trueValue, falseValue, type
+        condValue, trueValue, falseValue, resultType
     );
     ternaryExpr->setSpan(this->getSpan());
     return ternaryExpr;
@@ -162,6 +170,12 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
 
     extendContextOf(left);
     extendContextOf(right);
+
+    // An operand with no type yet is expressed on a clone (temp scope) to learn its type, and then again for real
+    // at the end of this function. For nested operands that doubles the work at every level: `a || b || c || ...`
+    // with n terms costs 2^n. Remember the original nodes so the temp result can be reused (see leftValue below).
+    const auto leftOrig = left;
+    const auto rightOrig = right;
 
     std::shared_ptr<Type> leftType = nullptr;
     std::shared_ptr<Type> rightType = nullptr;
@@ -390,11 +404,13 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
                 );
                 console.reportError(
                     Console::TYPE_ERROR,
-                    Console::formatString("Incompatible comparison types: '%s' vs '%s'",
+                    Console::formatString("Incompatible comparison types: '%s' (%s) vs '%s' (%s)",
+                                       left->toString().c_str(),
                                        leftType->toString().c_str(),
+                                       right->toString().c_str(),
                                        rightType->toString().c_str()),
                     suggestion,
-                    getSpan()
+                    left->getSpan()
                 );
                 return nullptr;
             }
@@ -453,11 +469,13 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
                 );
                 console.reportError(
                     Console::TYPE_ERROR,
-                    Console::formatString("Incompatible arithmetic/bitwise types: '%s' vs '%s'",
+                    Console::formatString("Incompatible arithmetic/bitwise types: '%s' (%s) vs '%s' (%s)",
+                                       left->toString().c_str(),
                                        leftType->toString().c_str(),
+                                       right->toString().c_str(),
                                        rightType->toString().c_str()),
                     suggestion,
-                    getSpan()
+                    left->getSpan()
                 );
                 return nullptr;
             }
@@ -494,8 +512,17 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
         DEBUG_LOG("Inferred binary expression type as: " + type->toString());
     }
 
-    std::shared_ptr<Expression> leftValue = left->express(scope);
-    std::shared_ptr<Expression> rightValue = right->express(scope);
+    // Reuse the temp-scope result when the operand is untouched since it was cloned: still the same node (not
+    // wrapped in an ASTCast above) and not given a type by the inference above (e.g. retyped in a comparison).
+    // The original node is deliberately NOT marked as expressed/typed, so a second pass over the same AST
+    // re-infers (and re-inserts casts) exactly like a first pass.
+    auto typeSet = [](const decltype(leftTyped)& t) {
+        return t && t->getType() && !t->getType()->isInvalid();
+    };
+    const bool reuseLeft = leftResult && left == leftOrig && !typeSet(leftTyped);
+    const bool reuseRight = rightResult && right == rightOrig && !typeSet(rightTyped);
+    std::shared_ptr<Expression> leftValue = reuseLeft ? leftResult : left->express(scope);
+    std::shared_ptr<Expression> rightValue = reuseRight ? rightResult : right->express(scope);
     
     if (!leftValue) {
         std::string suggestion = Console::formatString(

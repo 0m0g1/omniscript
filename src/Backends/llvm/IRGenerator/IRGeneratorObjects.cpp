@@ -197,6 +197,22 @@ llvm::Value* IRGenerator::createStructInstance(
                                               varName + "_load_field" + std::to_string(i));
         }
         
+        // A field initialiser may have another numeric width than the field (`P{ x: 1.0 }` with an f32 field,
+        // an i32 into an i64 field, ...). Convert instead of storing a mismatched type.
+        if (valueToStore->getType() != expectedType) {
+            llvm::Type* from = valueToStore->getType();
+            const std::string cname = varName + "_conv_field" + std::to_string(i);
+            if (from->isFloatingPointTy() && expectedType->isFloatingPointTy()) {
+                valueToStore = Builder->CreateFPCast(valueToStore, expectedType, cname);
+            } else if (from->isIntegerTy() && expectedType->isIntegerTy()) {
+                valueToStore = Builder->CreateIntCast(valueToStore, expectedType, from->getIntegerBitWidth() != 1, cname);
+            } else if (from->isIntegerTy() && expectedType->isFloatingPointTy()) {
+                valueToStore = Builder->CreateSIToFP(valueToStore, expectedType, cname);
+            } else if (from->isFloatingPointTy() && expectedType->isIntegerTy()) {
+                valueToStore = Builder->CreateFPToSI(valueToStore, expectedType, cname);
+            }
+        }
+
         Builder->CreateStore(valueToStore, fieldPtr);
     }
 

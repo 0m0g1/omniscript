@@ -26,6 +26,7 @@ struct Ui {
     fillWindow: bool = true;
     themeFg: u32 = 0; themeBg: u32 = 0;
     ready: bool = false;
+    recordStyles: bool = false;        // inspector: the cascade fills node.styleNotes while this is on
 
     // ---- setup ----
     wire() => void {
@@ -52,6 +53,9 @@ struct Ui {
         this.wire();
         this.gui.init(this.pen);
         this.ev.init(win, this.pen);
+        this.painter.pop = &this.ev.pop;
+        this.painter.sel = &this.ev.sel;
+        this.painter.ctx = &this.ev.ctx;
         return true;
     }
 
@@ -69,6 +73,8 @@ struct Ui {
     root() => Node* { return this.rootNode; }
 
     // ---- style ----
+    // turn declaration recording on/off and restyle so every node's styleNotes are rebuilt
+    setRecordStyles(on: bool) => void { this.recordStyles = on; this.rootNode.markStyle(); }
     addCss(css: char*) => void { sheetParse(&this.sheet, css); this.rootNode.markStyle(); }
     clearCss() => void { sheetClear(&this.sheet); this.rootNode.markStyle(); }
     setTheme(fg: u32, bg: u32) => void {
@@ -79,6 +85,7 @@ struct Ui {
 
     // ---- events ----
     poll(out: Event*) => bool { return this.ev.poll(out); }
+    dispatch() => void { this.ev.dispatch(); }       // run per-node handlers for queued events (frame() calls this too)
     wheel(dy: float) => bool { return this.ev.wheel(dy); }
     wheelX(dx: float) => bool { return this.ev.wheelX(dx); }
     focused() => Node* { return this.ev.focus; }
@@ -97,13 +104,16 @@ struct Ui {
         }
 
         if (this.backend == BK_GUI) {
+            this.ev.viewW = w; this.ev.viewH = h;
             this.ev.begin(root);
             this.ev.scan(root);
             this.ev.update(root, this.sheet.usesPseudo);
+            this.ev.dispatch();
             this.win.setCursor(this.ev.cursor);
         }
 
         if (root.dirtyStyle || root.subStyle) {
+            cssSetRecord(this.recordStyles);
             cascadeNode(root, &this.base, &this.sheet, &this.ctx, false);
             if ((root.st.bg & 0xFF) == 0) root.st.bg = this.themeBg;
             root.st.display = DP_BLOCK;
@@ -111,7 +121,11 @@ struct Ui {
         if (root.dirtyLayout) {
             this.lay.layoutRoot(root, w, h, this.fillWindow);
         }
-        if (this.backend == BK_GUI) ctlGeom(root, 0.0, 0.0, 0.0, 0.0, w, h, false);
+        if (this.backend == BK_GUI) {
+            ctlGeom(root, 0.0, 0.0, 0.0, 0.0, w, h, false);
+            if (this.ev.ctx.isOpen()) ctlHideUnder(root, nullptr, this.ev.ctx.x, this.ev.ctx.y, this.ev.ctx.w, this.ev.ctx.h);
+            if (this.ev.pop.isOpen()) ctlHideUnder(root, this.ev.pop.owner, this.ev.pop.x, this.ev.pop.y, this.ev.pop.w, this.ev.pop.h);
+        }
 
         if (root.dirtyPaint) {
             this.painter.paint(root);

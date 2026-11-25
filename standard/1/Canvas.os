@@ -31,6 +31,7 @@ module VK = import "standard/1/Vulkan.os";
 module VKC = import "standard/1/c/vulkan.os";
 module CMem = import "standard/1/c/mem.os";
 module Console = import "standard/1/Console.os";
+module SVG = import "standard/1/c/svg.os";
 
 // Implementation is split under standard/1/Canvas/; `include` pastes each file in place (order matters).
 include "standard/1/Canvas/Constants.os";

@@ -370,14 +370,36 @@ bool scanImports(const std::string& path, ScanResult& result, std::string& error
     return true;
 }
 
-// Import paths are used as the engine does (relative to the working directory);
-// as a fallback they are tried relative to the importing file.
+// Mirrors the engine's explicit-path lookup (ModuleResolver's PathSource): std/ and standard/ paths go to the
+// toolchain; everything else is tried relative to the working directory, then the importing file's directory
+// and every ancestor of it (closest wins), with ".os" appended for extension-less paths.
 fs::path resolveImportPath(const std::string& p, const fs::path& importer) {
     std::error_code ec;
-    const fs::path direct(p);
-    if (fs::exists(direct, ec)) return direct;
-    const fs::path sibling = importer.parent_path() / direct;
-    if (fs::exists(sibling, ec)) return sibling;
+    const fs::path given(p);
+
+    if (p.rfind("std/", 0) == 0 || p.rfind("std\\", 0) == 0 ||
+        p.rfind("standard/", 0) == 0 || p.rfind("standard\\", 0) == 0) {
+        const fs::path stdPath = resolveDocTarget(p);
+        if (fs::is_regular_file(stdPath, ec)) return stdPath;
+    }
+
+    std::vector<fs::path> candidates{given};
+    if (given.is_relative()) {
+        fs::path up = importer.parent_path();
+        while (!up.empty()) {
+            candidates.push_back(up / given);
+            const fs::path parent = up.parent_path();
+            if (parent == up) break;
+            up = parent;
+        }
+    }
+    if (given.extension().empty()) {
+        const size_t n = candidates.size();
+        for (size_t i = 0; i < n; ++i) candidates.push_back(candidates[i].string() + ".os");
+    }
+    for (const auto& c : candidates) {
+        if (fs::is_regular_file(c, ec)) return c;
+    }
     return {};
 }
 

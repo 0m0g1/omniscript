@@ -10,6 +10,7 @@
 #include <vector>
 #include <span>
 #include <expected>
+#include <atomic>
 
 namespace Omniscript {
 
@@ -52,6 +53,15 @@ public:
     [[nodiscard]] static std::expected<ExecutionStats, std::string>
     run(const Config& config) noexcept;
 
+    // Watch mode: build + run, then block until a source file changes and do it again.
+    // `stop` is polled so Ctrl-C (Application::shutdownRequested_) ends the loop.
+    static std::expected<ExecutionStats, std::string>
+    runWithHotReload(const Config& config, const std::atomic<bool>& stop) noexcept;
+
+    // Default --watch: this process only watches files and (re)starts a child process running the
+    // program, so servers / endless loops / exit() / runtime errors cannot hurt the watcher.
+    static void runSupervised(const Config& config, const std::atomic<bool>& stop) noexcept;
+
     [[nodiscard]] static std::expected<size_t, std::string>
     parseSizeString(std::string_view sizeStr) noexcept;
     
@@ -69,6 +79,10 @@ public:
     static void printVersion() noexcept;
 
 private:
+    // The real pipeline; run() wraps it so a JIT/compiler exception becomes an error value.
+    [[nodiscard]] static std::expected<ExecutionStats, std::string>
+    runImpl(const Config& config) noexcept;
+
     [[nodiscard]] static ParseResult handleDebugArgs(Config& config, std::span<char*>& args) noexcept;
     [[nodiscard]] static ParseResult handleTargetArgs(Config& config, std::span<char*>& args) noexcept;
     [[nodiscard]] static ParseResult handleOptimizationArgs(Config& config, std::span<char*>& args) noexcept;

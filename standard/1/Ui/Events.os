@@ -4,8 +4,8 @@
 //   1. polling:   while (ui.poll(&ev)) { if (ev.kind == EV_CLICK && ev.node == ok) ... }
 //   2. flags:     node.clicked / pressed / changed / submitted are true for the frame an event happened
 //                 (clicked also bubbles to ancestors). Controls keep the Pen2D names: value, checked, text.
-// Per-node handlers (node.on(EV_CLICK, fn, user)) are stored and looked up with bubbling; the one missing piece is
-// the call itself, see Events.invoke (the calling convention for function pointers is not in the uploaded Canvas files).
+// Per-node handlers (node.on(EV_CLICK, fn, user)) run in Events.dispatch(): fn(node, event, user), bubbling, ev.stop / ev.cancelled.
+//   Ui.frame() dispatches once per frame; ui.dispatch() may also be called by the app (events run only once).
 // State written to nodes (hover, focus, active, checked) is what :hover/:focus/:active/:checked CSS reads.
 // Focus order for wrapped controls is Pen2D's (creation order). Other focusables: tabindex, <a href>, <summary>.
 
@@ -181,6 +181,15 @@ function hbarAt(from: Node*, mx: float, my: float) => Node* {
     return res;
 }
 
+// true when `target` is somewhere under `n`. Walks down from the root, so a freed node is never dereferenced.
+function treeHas(n: Node*, target: Node*) => bool {
+    if (n == target) return true;
+    let r: bool = false;
+    let c: Node* = n.first;
+    while (c != nullptr && !r) { r = treeHas(c, target); c = c.next; }
+    return r;
+}
+
 struct Events {
     win: C.Win* = nullptr; pen: C.Pen2D* = nullptr;
     sbH: bool = false;                 // the scrollbar being dragged is the horizontal one
@@ -191,13 +200,19 @@ struct Events {
     down: Node* = nullptr;             // element the mouse went down on
     focus: Node* = nullptr;
     q: Event* = nullptr; qHead: int = 0; qCount: int = 0;
+    dPending: int = 0;                 // queued events not yet run through dispatch()
     root: Node* = nullptr;
+    pop: Popup;                        // the open <select> list (Popup.os); closed when pop.owner == nullptr
+    sel: Selection;                    // page-text selection (Selection.os)
+    ctx: CtxMenu;                      // right-click menu
+    viewW: float = 0.0; viewH: float = 0.0;   // window size in pixels, set by Ui each frame (0 = unknown)
 
     init(win: C.Win*, pen: C.Pen2D*) => void {
         this.win = win; this.pen = pen;
         this.q = CMem.malloc((EV_QCAP as u64) * sizeof(Event)) as Event*;
         this.qHead = 0; this.qCount = 0;
         this.hot = nullptr; this.down = nullptr; this.focus = nullptr;
+        this.pop.reset(); this.sel.reset(); this.ctx.reset();
     }
 
     handlerOf(n: Node*, kind: int) => Handler* {
@@ -211,26 +226,58 @@ struct Events {
         return h;
     }
 
-    // NEXT: this is the only missing piece for per-node handlers. Call h.fn with (node, event, h.user) using the
-    // language's function-pointer call syntax. Until then use ev polling or the node flags.
-    invoke(h: Handler*, n: Node*, ev: Event*) => void { }
+    // Calls one handler: fn(node, event, user). ADAPT: if the cast/call syntax differs, this is the only line to change.
+    invoke(h: Handler*, n: Node*, ev: Event*) => void {
+        let f: fn(Node*, Event*, void*) => void = h.fn as fn(Node*, Event*, void*) => void;
+        f(n, ev, h.user);
+    }
+
+    // modifier keys held now (GLFW codes: shift 340/344, ctrl 341/345, alt 342/346). ADAPT: win.keyDown(k) name.
+    modsNow() => int {
+        let m: int = 0;
+        if (this.win == nullptr) return 0;
+        if (this.win.keyDown(340) || this.win.keyDown(344)) m = m | 1;
+        if (this.win.keyDown(341) || this.win.keyDown(345)) m = m | 2;
+        if (this.win.keyDown(342) || this.win.keyDown(346)) m = m | 4;
+        return m;
+    }
+
+    // Runs per-node handlers for every event queued since the last dispatch, oldest first. Ui.frame() calls this after the
+    // mouse/keyboard phase; apps may also call ui.dispatch() themselves (calling it twice is harmless: events run once).
+    // click/key/input/change bubble target -> root; hover/leave/focus/blur/submit run on the target only.
+    // Events stay in the poll queue afterwards, with `cancelled` set if a handler prevented the default.
+    dispatch() => void {
+        if (this.dPending > this.qCount) this.dPending = this.qCount;      // poll() may have consumed some
+        let n: int = this.dPending;
+        let i: int = 0;
+        while (i < n) {
+            let slot: int = (this.qHead + this.qCount - this.dPending) % EV_QCAP;
+            let e: Event* = &this.q[slot];
+            this.dPending = this.dPending - 1;
+            let bubbles: bool = e.kind == EV_CLICK || e.kind == EV_KEY || e.kind == EV_INPUT || e.kind == EV_CHANGE;
+            let a: Node* = e.node;
+            while (a != nullptr && !e.stop) {
+                let h: Handler* = this.handlerOf(a, e.kind);
+                if (h.fn != nullptr) { e.cur = a; this.invoke(h, a, e); }
+                if (bubbles) a = a.parent; else a = nullptr;
+            }
+            e.cur = nullptr; e.dispatched = true;
+            i = i + 1;
+        }
+    }
 
     push(kind: int, node: Node*) => Event* {
         let slot: int = (this.qHead + this.qCount) % EV_QCAP;
-        if (this.qCount >= EV_QCAP) { this.qHead = (this.qHead + 1) % EV_QCAP; this.qCount = this.qCount - 1; slot = (this.qHead + this.qCount) % EV_QCAP; }
+        if (this.qCount >= EV_QCAP) { this.qHead = (this.qHead + 1) % EV_QCAP; this.qCount = this.qCount - 1; if (this.dPending > this.qCount) this.dPending = this.qCount; slot = (this.qHead + this.qCount) % EV_QCAP; }
         let e: Event* = &this.q[slot];
         e.kind = kind; e.node = node; e.key = 0; e.ch = 0;
         e.x = 0.0; e.y = 0.0;
+        e.mods = this.modsNow(); e.text = nullptr; e.cur = nullptr;
+        e.stop = false; e.cancelled = false; e.dispatched = false;
         if (this.win != nullptr) { e.x = this.win.mx; e.y = this.win.my; }
+        if (node != nullptr && node.kind == NK_CONTROL && (kind == EV_INPUT || kind == EV_CHANGE)) e.text = node.text;
         this.qCount = this.qCount + 1;
-        // handlers: click/key/input/change/submit bubble; hover/focus/blur do not
-        let bubbles: bool = kind == EV_CLICK || kind == EV_KEY || kind == EV_INPUT || kind == EV_CHANGE;
-        let a: Node* = node;
-        while (a != nullptr) {
-            let h: Handler* = this.handlerOf(a, kind);
-            if (h.fn != nullptr) this.invoke(h, a, e);
-            if (bubbles) a = a.parent; else a = nullptr;
-        }
+        this.dPending = this.dPending + 1;
         return e;
     }
 
@@ -238,11 +285,12 @@ struct Events {
         if (this.qCount == 0) return false;
         let e: Event* = &this.q[this.qHead];
         out.kind = e.kind; out.node = e.node; out.key = e.key; out.ch = e.ch; out.x = e.x; out.y = e.y;
+        out.mods = e.mods; out.text = e.text; out.cur = nullptr; out.stop = e.stop; out.cancelled = e.cancelled; out.dispatched = e.dispatched;
         this.qHead = (this.qHead + 1) % EV_QCAP; this.qCount = this.qCount - 1;
         return true;
     }
 
-    clearQueue() => void { this.qHead = 0; this.qCount = 0; }
+    clearQueue() => void { this.qHead = 0; this.qCount = 0; this.dPending = 0; }
 
     // ---- focus ----
     setFocus(n: Node*) => void {
@@ -288,6 +336,7 @@ struct Events {
             if ((bits & CB_BLUR) != 0) { if (this.focus == n) this.focus = nullptr; this.push(EV_BLUR, n); }
             if ((bits & CB_CLICK) != 0) {
                 this.markClicked(n); this.push(EV_CLICK, n);
+                if (n.ctl == CK_SELECT && !this.kbHeld()) this.popToggle(n);
                 if (n.itype == IT_SUBMIT) { let f: Node* = this.formOf(n); if (f != nullptr) this.push(EV_SUBMIT, f); }
             }
             if ((bits & CB_CHANGE) != 0) {
@@ -350,7 +399,10 @@ struct Events {
     update(root: Node*, usesPseudo: bool) => void {
         if (this.win == nullptr) return;
         let mx: float = this.win.mx; let my: float = this.win.my;
-        let hit: Node* = hitNode(root, mx, my, 0.0, 0.0);
+        if (this.pop.isOpen()) this.popValidate(root);
+        let popIn: bool = this.pop.contains(mx, my) || this.ctx.contains(mx, my);                 // the popup is on top: nothing underneath is hit
+        let hit: Node* = nullptr;
+        if (!popIn) hit = hitNode(root, mx, my, 0.0, 0.0);
         let target: Node* = elementOf(hit);
 
         // hover
@@ -369,6 +421,9 @@ struct Events {
             this.hot = target;
             if (target != nullptr) this.push(EV_HOVER, target);
         }
+
+        if (this.pop.isOpen()) this.popMouse(mx, my, target, popIn);
+        else this.selMouse(root, mx, my, popIn);
 
         // scrollbar: press on the thumb drags it, press on the track jumps there; the click does not reach what is underneath
         if (this.win.mousePressed()) {
@@ -408,11 +463,17 @@ struct Events {
         let k: int = C.KEY_FIRST;
         while (k <= C.KEY_LAST) {
             if (this.win.keyRepeat(k)) {
-                let tgt: Node* = this.focus;
-                if (tgt == nullptr) tgt = root;
-                let e: Event* = this.push(EV_KEY, tgt);
-                e.key = k;
-                if ((k == 257 || k == 32) && this.focus != nullptr && this.focus.wd == nullptr) this.clickElement(this.focus);   // Enter / Space
+                let used: bool = false;
+                if (this.pop.isOpen()) { this.popKey(k); used = true; }       // an open popup takes every key
+                else if (this.popKeyClosed(k)) { used = true; }
+                else if (this.selKey(root, k)) { used = true; }
+                if (!used) {
+                    let tgt: Node* = this.focus;
+                    if (tgt == nullptr) tgt = root;
+                    let e: Event* = this.push(EV_KEY, tgt);
+                    e.key = k;
+                    if ((k == 257 || k == 32) && this.focus != nullptr && this.focus.wd == nullptr) this.clickElement(this.focus);   // Enter / Space
+                }
             }
             k = k + 1;
         }
@@ -420,6 +481,189 @@ struct Events {
         // cursor: arrow over scrollbars, otherwise by element
         if (this.sbN != nullptr || scrollbarAt(target, mx, my) != nullptr || hbarAt(target, mx, my) != nullptr) this.cursor = 0;
         else this.cursor = cursorKindOf(target);
+    }
+
+    // ---- page text selection, copy, right-click menu ----
+    textFocused() => bool {
+        let f: Node* = this.focus;
+        if (f == nullptr) return false;
+        return f.ctl == CK_TEXT || f.ctl == CK_TEXTAREA;
+    }
+
+    // copy the selection to the in-app clipboard (pen.clip, the same one the text boxes paste from)
+    copySelection(root: Node*) => void {
+        let t: char* = selectedText(root, &this.sel);
+        if (this.pen.clip != nullptr) CMem.free(this.pen.clip as void*);
+        this.pen.clip = t; this.pen.clipLen = strLen(t);
+        this.win.setClipboard(t);                                   // and the OS clipboard
+    }
+
+    ctxClose(root: Node*) => void { this.ctx.close(); root.markPaint(); }
+
+    ctxRun(root: Node*, row: int) => void {
+        if (row == 0 && this.sel.active()) this.copySelection(root);
+        else if (row == 1) selectAllText(root, &this.sel);
+        else return;
+        this.ctxClose(root);
+    }
+
+    // keys outside a popup: Esc closes the menu, Ctrl+C copies, Ctrl+A selects all (not while a text box has focus)
+    selKey(root: Node*, k: int) => bool {
+        if (this.ctx.isOpen() && k == 256) { this.ctxClose(root); return true; }
+        if (this.textFocused()) return false;
+        if (k == 67 && this.win.ctrlDown() && this.sel.active()) { this.copySelection(root); return true; }
+        if (k == 65 && this.win.ctrlDown()) { selectAllText(root, &this.sel); root.markPaint(); return true; }
+        return false;
+    }
+
+    // mouse for selection and the right-click menu (no <select> popup open). inside = the mouse is over the menu.
+    selMouse(root: Node*, mx: float, my: float, inside: bool) => void {
+        let c: CtxMenu* = &this.ctx;
+        if (c.isOpen()) {
+            if (mx != c.lastX || my != c.lastY) {
+                c.lastX = mx; c.lastY = my;
+                if (inside) {
+                    let r: int = c.rowAt(mx, my);
+                    if (r != c.hover) { c.hover = r; root.markPaint(); }
+                }
+            }
+            if (this.win.mousePressed() || this.win.rightPressed()) {
+                if (inside && this.win.mousePressed()) c.grab = true;
+                else if (!inside) this.ctxClose(root);                    // press outside: close, the press goes on below
+            }
+            if (this.win.mouseReleased() && c.isOpen() && c.grab) {
+                c.grab = false;
+                if (inside) this.ctxRun(root, c.rowAt(mx, my));
+            }
+            if (c.isOpen()) return;                                       // the menu owns the mouse while it is open
+        }
+        if (this.win.rightPressed()) {
+            c.show(mx, my, this.viewW, this.viewH);
+            root.markPaint();
+            return;
+        }
+        let s: Selection* = &this.sel;
+        if (this.win.mousePressed()) {
+            if (s.pick(root, mx, my)) {
+                if (this.win.doubleClicked()) s.wordAt(s.pn, s.po);
+                else { s.an = s.pn; s.ao = s.po; s.fn = s.pn; s.fo = s.po; s.dragging = true; s.moved = false; s.px = mx; s.py = my; }
+            } else { s.clear(); }
+            root.markPaint();
+        }
+        else if (s.dragging && this.win.mouseDown()) {
+            let dx: float = mx - s.px; if (dx < 0.0) dx = 0.0 - dx;
+            let dy: float = my - s.py; if (dy < 0.0) dy = 0.0 - dy;
+            if (dx > 3.0 || dy > 3.0) s.moved = true;
+            if (s.moved && s.pick(root, mx, my)) { s.fn = s.pn; s.fo = s.po; root.markPaint(); }
+        }
+        if (this.win.mouseReleased()) {
+            if (s.dragging && !s.moved) { s.clear(); root.markPaint(); }  // a plain click clears the selection
+            s.dragging = false;
+        }
+    }
+
+    // ---- <select> popup ----
+    kbHeld() => bool {
+        if (this.win == nullptr) return false;
+        return this.win.keyDown(257) || this.win.keyDown(32);
+    }
+
+    popOpen(sel: Node*) => void {
+        if (this.pop.owner == sel) return;
+        if (this.pop.isOpen()) this.popClose();
+        if (sel.disabled || selectCount(sel) == 0) return;
+        if (this.ctx.isOpen()) this.ctx.close();
+        sel.open = true; sel.markPaint();
+        let mx: float = 0.0; let my: float = 0.0;
+        if (this.win != nullptr) { mx = this.win.mx; my = this.win.my; }
+        this.pop.open(sel, this.viewW, this.viewH, mx, my);
+    }
+
+    popClose() => void {
+        let o: Node* = this.pop.owner;
+        if (o != nullptr) { o.open = false; o.markPaint(); }
+        this.pop.close();
+    }
+
+    popToggle(sel: Node*) => void {
+        if (this.pop.owner == sel) this.popClose(); else this.popOpen(sel);
+    }
+
+    // choose row i of the open popup, close it, and raise EV_CHANGE when the value changed
+    popCommit(i: int) => void {
+        let s: Node* = this.pop.owner;
+        if (s == nullptr) return;
+        let ch: bool = selectCommit(s, i);
+        this.popClose();
+        if (ch) this.push(EV_CHANGE, s);
+    }
+
+    // closes the popup when its select was removed, disabled, hidden or moved (page scroll, relayout)
+    popValidate(root: Node*) => void {
+        let o: Node* = this.pop.owner;
+        if (o == nullptr) return;
+        if (!treeHas(root, o)) { this.pop.close(); return; }          // owner gone: do not touch it
+        let bx: float = o.box.x + scrollOffX(o);
+        let by: float = o.box.y + scrollOffY(o);
+        let moved: bool = bx - this.pop.ax > 0.5 || this.pop.ax - bx > 0.5 || by - this.pop.ay > 0.5 || this.pop.ay - by > 0.5;
+        if (o.disabled || o.st.display == DP_NONE || o.st.hidden || moved) this.popClose();
+    }
+
+    // mouse while the popup is open (target = element under the mouse, nullptr over the popup itself)
+    popMouse(mx: float, my: float, target: Node*, inside: bool) => void {
+        let p: Popup* = &this.pop;
+        if (mx != p.lastX || my != p.lastY) {
+            p.lastX = mx; p.lastY = my;
+            if (inside) p.setHover(p.rowAt(mx, my));
+        }
+        if (this.win.mousePressed()) {
+            if (inside) { p.grab = true; }
+            else {
+                let onOwner: bool = target != nullptr && p.owner.contains(target);
+                if (!onOwner) this.popClose();                         // press outside: close, the press goes on to what is there
+            }
+        }
+        if (this.win.mouseReleased() && this.pop.isOpen() && p.grab) {
+            p.grab = false;
+            if (inside) {
+                let i: int = p.rowAt(mx, my);
+                if (i >= 0 && !p.disabledAt(i)) this.popCommit(i);
+            }
+        }
+    }
+
+    // keys while the popup is open (GLFW codes: Esc 256, Enter 257, Tab 258, Right.. Down 264, Up 265, PgUp 266, PgDn 267, Home 268, End 269)
+    popKey(k: int) => void {
+        let p: Popup* = &this.pop;
+        let o: Node* = p.owner;
+        if (k == 256 || k == 258) { this.popClose(); }
+        else if (k == 257 || k == 32) {
+            if (p.hover >= 0 && !p.disabledAt(p.hover)) this.popCommit(p.hover); else this.popClose();
+        }
+        else if (k == 264) { p.setHover(selStep(o, p.hover, 1)); p.reveal(p.hover); }
+        else if (k == 265) { p.setHover(selStep(o, p.hover, 0 - 1)); p.reveal(p.hover); }
+        else if (k == 268) { p.setHover(selStep(o, 0 - 1, 1)); p.reveal(p.hover); }
+        else if (k == 269) { p.setHover(selStep(o, p.count, 0 - 1)); p.reveal(p.hover); }
+        else if (k == 266) { let t: int = p.hover - p.rows; if (t < 0) t = 0; p.setHover(selStep(o, t - 1, 1)); p.reveal(p.hover); }
+        else if (k == 267) { let t2: int = p.hover + p.rows; if (t2 > p.count - 1) t2 = p.count - 1; p.setHover(selStep(o, t2 + 1, 0 - 1)); p.reveal(p.hover); }
+        else if ((k >= 65 && k <= 90) || (k >= 48 && k <= 57)) {      // type-ahead: next option starting with that character
+            let f: int = selFindByChar(o, p.hover, k);
+            if (f >= 0) { p.setHover(f); p.reveal(f); }
+        }
+    }
+
+    // keys for a focused, closed select: Enter / Space / Alt+Down open it, Up / Down change the choice. true = key used.
+    popKeyClosed(k: int) => bool {
+        let f: Node* = this.focus;
+        if (f == nullptr || f.kind != NK_CONTROL || f.ctl != CK_SELECT || f.disabled) return false;
+        let alt: bool = (this.modsNow() & 4) != 0;
+        if (k == 257 || k == 32 || (k == 264 && alt)) { this.popOpen(f); return true; }
+        if (k == 264 || k == 265) {
+            let dir: int = 1; if (k == 265) dir = 0 - 1;
+            if (selectCommit(f, selStep(f, f.selIndex, dir))) this.push(EV_CHANGE, f);
+            return true;
+        }
+        return false;
     }
 
     // ---- scrollbar drag ----
@@ -485,6 +729,11 @@ struct Events {
 
     // Returns true when something scrolled, false when nothing under the mouse could (the app may then scroll the page itself).
     wheel(dy: float) => bool {
+        if (this.ctx.isOpen()) this.ctx.close();
+        if (this.pop.isOpen()) {
+            if (this.pop.contains(this.win.mx, this.win.my)) { this.pop.scroll(dy); return true; }
+            this.popClose();                                  // the page is about to move away from the select
+        }
         let a: Node* = this.hot;
         let done: bool = false;
         while (a != nullptr && !done) {

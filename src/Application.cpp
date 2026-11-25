@@ -50,6 +50,22 @@ int Application::run() noexcept {
     console.info("Starting Omniscript engine execution...");
     DEBUG_NOTE("Configuration loaded successfully");
 
+    if (config_->hotReload.enabled) {
+        if (config_->hotReload.inProcess) {
+            static_cast<void>(Engine::runWithHotReload(*config_, shutdownRequested_));   // returns on Ctrl-C; never an error
+        } else {
+            Engine::runSupervised(*config_, shutdownRequested_);                         // returns on Ctrl-C
+        }
+        logErrors(*config_);
+        console.info("Watch mode stopped");
+        DEBUG_PHASE_END();
+        return 0;
+    }
+
+    if (config_->hotReload.child) {   // spawned by the --watch supervisor: keep error output short
+        console.setErrorDisplayLimit(config_->hotReload.maxDisplayedErrors);
+    }
+
     auto result = Engine::run(*config_);
     if (!result) {
         OMNISCRIPT_UNLIKELY

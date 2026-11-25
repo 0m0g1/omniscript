@@ -116,6 +116,9 @@ struct Win {
 
     setTitle(t: char*) => void { this.win.setTitle(t); }
     close() => void { this.win.requestClose(); }
+    // OS clipboard (GL and software windows; the handle is the GLFW window)
+    setClipboard(t: char*) => void { G.glfwSetClipboardString(this.win.h, t); }
+    clipboardText() => char* { return G.glfwGetClipboardString(this.win.h); }
 
     // ---- input queries (valid after frame() started) ----
     mouseDown() => bool { return this.ldown; }
@@ -291,4 +294,10 @@ struct Win {
         if (this.typed != nullptr) { CMem.free(this.typed as void*); this.typed = nullptr; }
         this.isOpen = false;
     }
+        // Top-left of the window's client area in screen coordinates (screen units, not framebuffer pixels).
+    posX() => int { let x: int = 0; let y: int = 0; G.glfwGetWindowPos(this.win.h, &x, &y); return x; }
+    posY() => int { let x: int = 0; let y: int = 0; G.glfwGetWindowPos(this.win.h, &x, &y); return y; }
+    // Client size in screen units (differs from width()/height() on high-DPI displays).
+    screenW() => int { let a: int = 0; let b: int = 0; this.win.size(&a, &b); return a; }
+    screenH() => int { let a: int = 0; let b: int = 0; this.win.size(&a, &b); return b; }
 }

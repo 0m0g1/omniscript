@@ -497,8 +497,33 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
                     return Builder->CreateGEP(elemTy, baseVal, indexVal, "ref.index");
                 }
 
-                console.reportError(Console::SEMANTIC_ERROR, "Cannot take a reference to expression: " + e->toString(), FileSpan{});
-                return nullptr;
+                // Anything else is an rvalue: a call result (`a.sub(b)` in `a.sub(b).normalize()`), a struct
+                // literal, a cast, ... It has no storage of its own, so evaluate it once into a temporary stack
+                // slot and hand out that slot's address. This is what lets a method be called on a
+                // temporary (`this` = &temp) and lets a member be read from one (`f().x`).
+                llvm::Value* rvalue = codegen(e, scope);
+                if (!rvalue) {
+                    console.reportError(Console::SEMANTIC_ERROR, "Cannot take a reference to expression: " + e->toString(), FileSpan{});
+                    return nullptr;
+                }
+                if (rvalue->getType()->isVoidTy()) {
+                    console.reportError(Console::SEMANTIC_ERROR, "Cannot take a reference to a void expression: " + e->toString(), FileSpan{});
+                    return nullptr;
+                }
+                // Aggregates (struct/array values that are not pointers in the language) can already evaluate
+                // to their address, e.g. `*p` or an object literal materialised in a local: use it as is.
+                auto rvalueOmniType = e->getType();
+                if (rvalueOmniType && !rvalueOmniType->isPointer() && rvalue->getType()->isPointerTy()) {
+                    return rvalue;
+                }
+                // Entry-block alloca, like the by-value parameter spill below: one slot per call site no matter
+                // how many times a loop runs it, and it stays valid until the function returns.
+                llvm::Function* fn = Builder->GetInsertBlock()->getParent();
+                llvm::IRBuilder<> entry(&fn->getEntryBlock(), fn->getEntryBlock().begin());
+                llvm::AllocaInst* temp = entry.CreateAlloca(rvalue->getType(), nullptr, "rvalue.tmp");
+                Builder->CreateStore(rvalue, temp);
+                DEBUG_LOG("Spilled rvalue '" + e->toString() + "' to a temporary to take its address");
+                return temp;
             };
 
             return addressOf(refValue->referent);

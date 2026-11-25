@@ -13,6 +13,12 @@ llvm::Value* IRGenerator::assignVariable(
               (statement->getType() ? statement->getType()->toString() : std::string("<none>")) + "'");
     llvm::Type* type = resolveLLVMType(statement->getType());
     DEBUG_LOG("Variable '" + name + "' has type '" + debugType(type) + "'");
+    
+    // A function-typed variable stores a pointer to the function. The bare FunctionType is
+    // unsized and cannot be allocated or used as a global's value type.
+    if (type && type->isFunctionTy()) {
+        type = Builder->getPtrTy();
+    }
 
     bool isGlobal = statement->isGlobal;
     bool isConstant = statement->isConstant;
@@ -346,6 +352,16 @@ llvm::Value* IRGenerator::assignVariable(
     }
     llvm::Function* function = Builder->GetInsertBlock()->getParent();
     llvm::BasicBlock* entryBlock = &function->getEntryBlock();
+
+    if (!type || !type->isSized()) {
+        console.reportError(
+            Console::TYPE_ERROR,
+            Console::formatString("Cannot allocate local variable '%s': type '%s' is null or unsized",
+                                  name.c_str(), type ? debugType(type).c_str() : "<null>"),
+            "The type may be undefined, opaque, or declared later in the file than its use",
+            statement->getSpan());
+        return nullptr;
+    }
 
     llvm::IRBuilder<>::InsertPoint savedIP = Builder->saveIP();
     Builder->SetInsertPoint(entryBlock, entryBlock->begin());

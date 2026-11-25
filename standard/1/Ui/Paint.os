@@ -85,6 +85,9 @@ function contentRight(n: Node*) => float {
 
 struct Painter {
     dl: DisplayList* = nullptr; m: Metrics* = nullptr; tui: bool = false;
+    pop: Popup* = nullptr;             // the open <select> list (Events.pop); painted last, above everything
+    sel: Selection* = nullptr;         // page-text selection (Events.sel)
+    ctx: CtxMenu* = nullptr;           // right-click menu (Events.ctx)
 
     fill(x: float, y: float, w: float, h: float, color: u32) => void {
         if ((color & 0xFF) == 0 || w <= 0.0 || h <= 0.0) return;
@@ -106,7 +109,62 @@ struct Painter {
 
     paint(root: Node*) => void {
         this.dl.clear();
+        if (this.sel != nullptr) this.sel.walkStart();                    // selection is resolved in paint order (= document order)
         this.paintNode(root, 0.0, 0.0, 1.0);
+        this.paintPopup();
+        this.paintCtx();
+    }
+
+    // right-click menu, above the page and any select list
+    paintCtx() => void {
+        let c: CtxMenu* = this.ctx;
+        if (c == nullptr || this.tui) return;
+        if (!c.isOpen()) return;
+        this.fill(c.x, c.y, c.w, c.h, 0x6A6A7AFF);
+        this.fill(c.x + 1.0, c.y + 1.0, c.w - 2.0, c.h - 2.0, 0x2A2A33FF);
+        let i: int = 0;
+        while (i < c.count) {
+            let ry: float = c.y + 1.0 + (i as float) * c.rowH;
+            let on: bool = true;
+            if (i == 0) on = this.sel != nullptr && this.sel.active();       // Copy needs a selection
+            if (i == c.hover && on) this.fill(c.x + 1.0, ry, c.w - 2.0, c.rowH, DEF_ACCENT);
+            let col: u32 = DEF_TEXT;
+            if (!on) col = DEF_DIM;
+            let lbl: char* = ctxLabel(i);
+            this.text(c.x + 10.0, ry + (c.rowH - this.m.lineH) * 0.5, lbl, 0, strLen(lbl), this.m.cellH, col, 0);
+            i = i + 1;
+        }
+    }
+
+    // <select> dropdown: after the whole tree and every POPCLIP, so nothing clips or covers it. Labels are slices of the option
+    // text (the display list keeps pointers until the backend has run). Pen2D widgets under it are hidden by ctlHideUnder.
+    paintPopup() => void {
+        let p: Popup* = this.pop;
+        if (p == nullptr || this.tui) return;
+        if (!p.isOpen()) return;
+        let o: Node* = p.owner;
+        let size: float = o.st.fontPx;
+        let th: float = size * this.m.lineH / this.m.cellH;
+        this.fill(p.x, p.y, p.w, p.h, 0x6A6A7AFF);                       // 1px border
+        this.fill(p.x + 1.0, p.y + 1.0, p.w - 2.0, p.h - 2.0, 0x2A2A33FF);
+        let pc: Cmd* = this.dl.add(CM_PUSHCLIP);
+        pc.x = p.x + 1.0; pc.y = p.y + 1.0; pc.w = p.w - 2.0; pc.h = p.h - 2.0;
+        let thumbW: float = 0.0;
+        if (p.hasThumb()) thumbW = sbBarW();
+        let i: int = p.top;
+        while (i < p.top + p.rows && i < p.count) {
+            let ry: float = p.rowY(i);
+            let dis: bool = p.disabledAt(i);
+            if (i == p.hover && !dis) this.fill(p.x + 1.0, ry, p.w - 2.0 - thumbW, p.rowH, DEF_ACCENT);
+            let col: u32 = DEF_TEXT;
+            if (dis) col = DEF_DIM;
+            let flags: int = 0;
+            if (i == o.selIndex) flags = TF_BOLD;
+            this.text(p.x + 7.0, ry + (p.rowH - th) * 0.5, selLabelBase(o, i), selSpan(o, i, 0), selSpan(o, i, 1), size, col, flags);
+            i = i + 1;
+        }
+        if (p.hasThumb()) this.fill(p.x + p.w - 1.0 - thumbW, p.y + p.thumbPos(), thumbW, p.thumbLen(), 0x88889AFF);
+        this.dl.add(CM_POPCLIP);
     }
 
     paintText(n: Node*, ox: float, oy: float, op: float) => void {
@@ -123,6 +181,10 @@ struct Painter {
         let f: Frag* = n.frags;
         while (f != nullptr) {
             if (pbg != 0) this.fill(f.x + ox, f.y + oy, f.w, f.h, fadeColor(pbg, op));
+            if (this.sel != nullptr && f.len > 0 && this.sel.frag(n, f)) {
+                let cw: float = f.w / (f.len as float);
+                this.fill(f.x + ox + ((this.sel.lo - f.from) as float) * cw, f.y + oy, ((this.sel.hi - this.sel.lo) as float) * cw, f.h, SEL_COLOR);
+            }
             this.text(f.x + ox, f.y + oy, n.ctext, f.from, f.len, st.fontPx, fadeColor(st.color, op), flags);
             f = f.next;
         }

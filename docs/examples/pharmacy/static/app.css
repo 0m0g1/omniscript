@@ -1,0 +1,36 @@
+/* Pharmacy Manager: plain CSS, only features OmniBrowser's Ui supports (flex, block, tables, forms). */
+body { min-height: 100vh; margin: 0; font-family: sans-serif; background: #f4f6f8; color: #1d2733; }
+.top { display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 10px 16px; background: #0f5c4d; color: #ffffff; }
+.top a { color: #ffffff; }
+.brand { font-weight: bold; font-size: 18px; margin-right: 12px; }
+.nav { flex: 1; display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px 18px; }
+.nav a { white-space: nowrap; }
+.who { display: flex; flex-direction: row; align-items: center; gap: 8px; margin: 0; }
+.page { padding: 16px 24px; }
+h1 { font-size: 24px; margin: 8px 0 14px 0; }
+h2 { font-size: 18px; margin: 18px 0 8px 0; }
+a { color: #0b5cad; }
+table { border-collapse: collapse; background: #ffffff; margin: 8px 0; }
+th { background: #e3ebe9; text-align: left; padding: 6px 10px; border: 1px solid #c9d3d1; }
+td { padding: 6px 10px; border: 1px solid #dde4e3; }
+.num { text-align: right; }
+tr.low td { background: #fff6dd; }
+tr.expired td { background: #fde3e3; }
+tr.total td { font-weight: bold; background: #eef3f2; }
+.flash { padding: 8px 12px; margin: 8px 0; border-radius: 4px; }
+.flash.ok { background: #dff3e4; color: #14532d; }
+.flash.err { background: #fde3e3; color: #7f1d1d; }
+.cards { display: flex; flex-direction: row; gap: 12px; margin: 10px 0; }
+.card { background: #ffffff; padding: 14px 20px; border-radius: 6px; border: 1px solid #dde4e3; }
+.card b { display: block; font-size: 24px; }
+.card.warn { background: #fff6dd; }
+.card.bad { background: #fde3e3; }
+.bar { display: flex; flex-direction: row; align-items: center; gap: 8px; margin: 8px 0; }
+.form { display: flex; flex-direction: column; gap: 10px; max-width: 420px; margin: 10px 0; }
+.form label { display: flex; flex-direction: column; gap: 4px; }
+.login { max-width: 340px; margin: 80px auto; background: #ffffff; padding: 24px; border-radius: 8px; border: 1px solid #dde4e3; }
+.login form { display: flex; flex-direction: column; gap: 10px; }
+.login label { display: flex; flex-direction: column; gap: 4px; }
+button { padding: 6px 14px; }
+button.danger { background: #b91c1c; color: #ffffff; }
+.pager { margin: 8px 0; }

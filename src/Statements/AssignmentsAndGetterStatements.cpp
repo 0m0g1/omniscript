@@ -3,14 +3,20 @@
 #include <omniscript/Statements/LiteralStatements.h>
 #include <omniscript/Statements/FunctionStatement.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
+#include <omniscript/Statements/CallableStatement.h>      // Call (used to build default struct instances)
 
 #include <omniscript/Expressions/GetterExpressions.h>
+#include <omniscript/Expressions/ClassExpression.h>
+#include <omniscript/Expressions/StructExpression.h>      // StructExpression, InstanceExpression
+#include <omniscript/Expressions/CallableExpression.h>    // CallExpression
 #include <omniscript/Expressions/FunctionExpression.h>
 #include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Expressions/AssignmentExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
 namespace Omniscript {
+
+std::string canonicalTypeName(const std::string& name);   // defined elsewhere (see CallStatement.cpp)
 
 std::shared_ptr<Expression> AddressOf::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
@@ -319,6 +325,62 @@ static void rebindUserTypeName(const std::shared_ptr<Type>& type, const SymbolTa
     }
 }
 
+// `let x: T;` (a typed declaration with no initializer) of a plain struct T must start from the field
+// defaults declared in the struct body, exactly like `let x = T{};` does. Expressing the implicit null
+// initializer would give an all-zero value and silently drop every non-zero default (e.g.
+// `maxDt: double = 0.04`).
+//
+// Returns nullptr when this does not apply (not a struct, struct with a constructor, class, unresolved
+// name); the caller then keeps the old zero-initialised behaviour.
+static std::shared_ptr<Expression> buildDefaultStructInstance(
+    const std::shared_ptr<Type>& type, const std::string& variable, SymbolTableType scope) {
+    if (!type || type->isPointer() || type->isNullable() || type->isFunction()) return nullptr;
+
+    auto udt = std::dynamic_pointer_cast<UserDefinedType>(type);
+    if (!udt) return nullptr;     // primitives, arrays (`Char[32]`), ...
+    const std::string typeName = udt->name;
+
+    // Find the symbol the type name denotes, trying the same spellings Call::express falls back to
+    // (alias-qualified "Str.String", canonical name, bare name after the last dot).
+    std::vector<std::string> candidates{typeName};
+    const std::string canon = canonicalTypeName(typeName);
+    if (canon != typeName) candidates.push_back(canon);
+    const size_t dot = typeName.rfind('.');
+    if (dot != std::string::npos) candidates.push_back(typeName.substr(dot + 1));
+
+    bool isStruct = false;
+    for (const auto& c : candidates) {
+        auto sym = scope->get(c);
+        if (std::dynamic_pointer_cast<ClassExpression>(sym)) return nullptr;     // classes: unchanged
+        if (std::dynamic_pointer_cast<StructExpression>(sym)) { isStruct = true; break; }
+    }
+    if (!isStruct) return nullptr;
+
+    // A type with a constructor is initialised by that constructor, not by plain defaults.
+    for (const auto& c : candidates) {
+        if (!scope->getOverloads(c + ".constructor").empty()) {
+            DEBUG_LOG("[Assign] '" + variable + "': '" + c + "' has a constructor, skipping field defaults.");
+            return nullptr;
+        }
+    }
+
+    // Same route as ObjectConstructorStatement::express with no arguments: a Call with no arguments
+    // yields a CallExpression whose members carry every field's default value.
+    std::vector<std::shared_ptr<Statement>> noArgs;
+    auto call = std::dynamic_pointer_cast<CallExpression>(std::make_shared<Call>(typeName, noArgs)->express(scope));
+    if (!call) {
+        DEBUG_LOG("[Assign] '" + variable + "': could not build default instance of '" + typeName + "'.");
+        return nullptr;
+    }
+
+    auto instance = std::make_shared<InstanceExpression>(typeName, variable, call->members);
+    instance->instanceType = type;
+    instance->type = type;
+    DEBUG_LOG("[Assign] '" + variable + "' of struct '" + typeName + "' initialised from field defaults (" +
+              std::to_string(call->members.size()) + " members).");
+    return instance;
+}
+
 std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
     if (type && type->isUnresolved()) {
@@ -398,7 +460,18 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
                     }
                 }
             }
-            result = value->express(scope);
+            // The parser turns `let x: T;` into `let x: T = <null literal>`, so a plain local struct
+            // declaration arrives here rather than in the no-initializer branch below. Build the instance
+            // from the field defaults instead of expressing the implicit null (which zero-initialises
+            // every field). TODO: test the literal's class instead of its printed name.
+            bool implicitStructDefault = false;
+            if (value->toString() == "NullLiteralStatement" && !isGlobal && !isExtern && !isReassign) {
+                result = buildDefaultStructInstance(type, variable, scope);
+                implicitStructDefault = (result != nullptr);
+            }
+            if (!implicitStructDefault) {
+                result = value->express(scope);
+            }
             if (!result) {
                 std::string suggestion = "To resolve this:\n"
                                        "1. Check right-hand expression\n"
@@ -452,7 +525,15 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
                 return nullptr;
             }
         } else {
-            result = std::make_shared<NullExpression>(type);
+            // No initializer node at all (declarations built by the compiler rather than parsed from
+            // `let x: T;`): same rule as above, a plain local struct starts from its field defaults and
+            // everything else is zero-initialised.
+            if (!isGlobal && !isExtern && !isReassign) {
+                result = buildDefaultStructInstance(type, variable, scope);
+            }
+            if (!result) {
+                result = std::make_shared<NullExpression>(type);
+            }
         }
     } else if (value) {
         // A reassignment has no declared type, so an untyped literal (`fy = 0.0;`) would default to
@@ -483,6 +564,10 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
             );
             return nullptr;
         }
+        // An inferred type (`let v = alloc(k);`) can carry the same unrenamed module placeholder that the
+        // declared-type path rebinds (`JsonValue*` vs `Json.JsonValue*`); without this a later `v.s` cannot
+        // resolve the pointee as a user-defined type.
+        rebindUserTypeName(result->getType(), scope);
         type = result->getType();
     }
 

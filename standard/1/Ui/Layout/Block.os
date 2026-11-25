@@ -1,6 +1,6 @@
 // standard/1/Ui/Layout/Block.os
 // Layout engine: ONE struct, several display families. This file holds the shared core + block and inline flow;
-// Flex.os, Table.os and Abs.os are fragments pasted INSIDE the struct body at the end (so they can call each other).
+// Flex.os, Grid.os, Table.os and Abs.os are fragments pasted INSIDE the struct body at the end (so they can call each other).
 // All coordinates are absolute document coordinates in layout units (Metrics). Entry point: layoutRoot().
 //
 //   placeBlock(n, x, y, cbw, shrink)  (x, y) = top-left of n's MARGIN box, cbw = containing block content width.
@@ -280,8 +280,9 @@ struct Layout {
         if (n.kind == NK_TEXT) return this.textBox(n);
         let d: int = n.st.display;
         if (d == DP_FLEX) return this.flexContent(n);
+        if (d == DP_GRID) return this.gridContent(n);
         if (d == DP_TABLE) return this.tableContent(n);
-        return this.blockContent(n);       // block, inline-block, table-cell, groups; NEXT: grid
+        return this.blockContent(n);       // block, inline-block, table-cell, groups
     }
 
     blockContent(n: Node*) => float {
@@ -458,6 +459,7 @@ struct Layout {
     }
 
     include "standard/1/Ui/Layout/Flex.os";
+    include "standard/1/Ui/Layout/Grid.os";
     include "standard/1/Ui/Layout/Table.os";
     include "standard/1/Ui/Layout/Abs.os";
 }

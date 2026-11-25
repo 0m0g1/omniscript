@@ -13,9 +13,13 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <filesystem>
 
 
 namespace Omniscript {
+
+// Defined in ModuleResolver.cpp. Records a source file for the --watch supervisor; no-op otherwise.
+void recordWatchDependency(const std::string& path);
 
 namespace {
 // C/C++ header paths: `import "sth.h";` is treated like `include "sth.h";`
@@ -25,6 +29,28 @@ bool hasHeaderExtension(const std::string& path) {
     std::string ext = path.substr(dot);
     for (auto& ch : ext) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     return ext == ".h" || ext == ".hpp" || ext == ".hh" || ext == ".hxx";
+}
+
+// Lets --watch follow `include "x.h"`: cwd first, then the including file's directory and its ancestors
+// (the same search order as explicit path imports). Paths that do not exist are ignored.
+void watchInclude(const std::string& includePath, const std::string& fromFile) {
+    namespace fs = std::filesystem;
+    if (includePath.empty()) return;
+    const fs::path given(includePath);
+    std::vector<fs::path> candidates{given};
+    if (given.is_relative() && !fromFile.empty()) {
+        fs::path up = fs::path(fromFile).parent_path();
+        while (!up.empty()) {
+            candidates.push_back(up / given);
+            const fs::path parent = up.parent_path();
+            if (parent == up) break;
+            up = parent;
+        }
+    }
+    for (const auto& c : candidates) {
+        std::error_code ec;
+        if (fs::is_regular_file(c, ec)) { recordWatchDependency(c.generic_string()); return; }
+    }
 }
 } // namespace
 
@@ -67,27 +93,30 @@ std::shared_ptr<Statement> Parser::parseInclude() {
     includePath = currentToken.getValue();
     eat(TokenTypes::StringLiteral);
 
-    eat(TokenTypes::Semicolon, [&]() {
-        std::string suggestion = Console::formatString(
-            "To resolve this:\n"
-            "1. End include statement with ';'\n"
-            "2. Check for proper termination\n"
-            "3. Expected token: ';', found '%s'",
-            getTokenTypeName(currentToken.getType()).c_str()
-        );
-        console.reportError(
-            Console::SYNTAX_ERROR,
-            Console::formatString("Expected ';' after include path, found '%s'", 
-                getTokenTypeName(currentToken.getType()).c_str()),
-            suggestion,
-            span
-        );
-    });
+    if (currentToken.getType() == TokenTypes::Semicolon) {
+        eat(TokenTypes::Semicolon, [&]() {
+            std::string suggestion = Console::formatString(
+                "To resolve this:\n"
+                "1. End include statement with ';'\n"
+                "2. Check for proper termination\n"
+                "3. Expected token: ';', found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()
+            );
+            console.reportError(
+                Console::SYNTAX_ERROR,
+                Console::formatString("Expected ';' after include path, found '%s'", 
+                    getTokenTypeName(currentToken.getType()).c_str()),
+                suggestion,
+                span
+            );
+        });
+    }
 
     span.end.line = previousToken.getLine();
     span.end.col = previousToken.getColumn();
     span.end.filePath = previousToken.getFilePath();
 
+    watchInclude(includePath, lexer.getFilePath());
     auto includeStmt = std::make_shared<IncludeStatement>(includePath);
     includeStmt->setSpan(span);
     return includeStmt;
@@ -410,6 +439,7 @@ std::shared_ptr<Statement> Parser::parseModuleImport() {
     span.end.filePath = previousToken.getFilePath();
 
     if (isHeaderImport) {
+        watchInclude(path, lexer.getFilePath());
         auto includeStmt = std::make_shared<IncludeStatement>(path);
         includeStmt->setSpan(span);
         return includeStmt;
@@ -533,6 +563,7 @@ std::shared_ptr<Statement> Parser::parseModule() {
             }
             std::string filePath = currentToken.getValue();
             eat(TokenTypes::StringLiteral);
+            watchInclude(filePath, lexer.getFilePath());
             auto includeStatement = std::make_shared<IncludeStatement>(filePath);
             members.push_back(includeStatement);
             expectSemicolonOrNewLine();

@@ -1,3 +1,16 @@
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <unistd.h>
+#include <signal.h>
+#include <sys/wait.h>
+#endif
 #include <omniscript/Engine.h>
 #include <omniscript/Lexer.h>
 #include <omniscript/Parser.h>
@@ -9,6 +22,9 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <thread>
+#include <atomic>
+#include <chrono>
 #include <vector>
 
 namespace Omniscript {
@@ -111,6 +127,32 @@ thread_local Engine::ExecutionStats Engine::currentStats_;
 
 const std::unordered_map<std::string_view, std::function<Engine::ParseResult(Config&, std::span<char*>&)>> 
 Engine::ArgumentParser::argHandlers = {
+    {"--watch", [](Config& config, std::span<char*>&) {
+        config.hotReload.enabled = true;
+        return ParseResult::Success;
+    }},
+    {"--watch-interval", [](Config& config, std::span<char*>& args) {
+        if (args.empty()) return ParseResult::MissingValue;
+        int ms = 0;
+        try { ms = std::stoi(args[0]); } catch (...) { return ParseResult::InvalidValue; }
+        if (ms < 50) return ParseResult::InvalidValue;   // anything faster just burns CPU
+        config.hotReload.pollInterval = std::chrono::milliseconds(ms);
+        args = args.subspan(1);
+        return ParseResult::Success;
+    }},
+    {"--watch-inproc", [](Config& config, std::span<char*>&) {
+        config.hotReload.enabled = true;
+        config.hotReload.inProcess = true;
+        return ParseResult::Success;
+    }},
+    {"--watch-child", [](Config& config, std::span<char*>&) {   // internal: passed by the supervisor
+        config.hotReload.child = true;
+        return ParseResult::Success;
+    }},
+    {"--watch-no-clear", [](Config& config, std::span<char*>&) {
+        config.hotReload.clearScreen = false;
+        return ParseResult::Success;
+    }},
     {"--main-source", [](Config& config, std::span<char*>& args) {
         if (args.empty()) return ParseResult::MissingValue;
         config.mainSourceFile = args[0];
@@ -426,6 +468,7 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
     }
 
     Config config;
+    config.rawArgs.assign(argv, argv + argc);
     bool fileSpecified = false;
     config.targetArch = TargetArch::Auto;
     config.targetOS = TargetOS::Auto;
@@ -695,8 +738,313 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
     return config;
 }
 
+namespace {
+struct SourceStamp {
+    fs::file_time_type time{};
+    std::uintmax_t size = 0;
+    bool operator==(const SourceStamp&) const = default;   // size too: FAT/network mounts have coarse mtimes
+};
+using StampMap = std::unordered_map<std::string, SourceStamp>;
+
+StampMap snapshotSources(const Config& config, const std::vector<std::string>& extra = {}) {
+    StampMap stamps;
+    auto add = [&](const std::string& p) {
+        if (p.empty() || p == "-") return;
+        std::error_code ec;
+        auto t = fs::last_write_time(p, ec);
+        if (ec) return;   // mid-save (delete + rename); it shows up as a change once it is back
+        auto sz = fs::file_size(p, ec);
+        stamps[p] = SourceStamp{t, ec ? 0 : sz};
+    };
+    if (config.sourcePaths.empty()) add(config.filePath);
+    else for (const auto& s : config.sourcePaths) add(s);
+    for (const auto& p : extra) add(p);   // imported files found by ModuleResolver
+    return stamps;
+}
+
+// Blocks until a watched file differs from `before`. Returns false if `stop` was raised.
+bool waitForChange(const Config& config, const StampMap& before, const std::atomic<bool>& stop) {
+    using namespace std::chrono;
+    const auto interval = config.hotReload.pollInterval;
+    const auto slice = std::min<milliseconds>(interval, milliseconds(100));   // keeps Ctrl-C responsive
+    auto next = steady_clock::now() + interval;
+    while (!stop.load(std::memory_order_acquire)) {
+        std::this_thread::sleep_for(slice);
+        if (steady_clock::now() < next) continue;
+        next += interval;
+        if (snapshotSources(config) != before) return true;
+    }
+    return false;
+}
+} // namespace
+
 std::expected<Engine::ExecutionStats, std::string>
 Engine::run(const Config& config) noexcept {
+    try {
+        return runImpl(config);
+    } catch (const Console::FatalDiagnostic& e) {   // only thrown in watch mode (see Console::setThrowOnFatal)
+        currentStats_.result = ParseResult::ConfigurationError;
+        return std::unexpected(std::string("Fatal diagnostic: ") + e.what());
+    } catch (const std::exception& e) {              // the JIT backend throws std::runtime_error on failure
+        currentStats_.result = ParseResult::ConfigurationError;
+        error::globalErrorCollector.addError(error::Severity::Error, e.what(), "Execution");
+        return std::unexpected(std::string("Compilation/execution failed: ") + e.what());
+    } catch (...) {
+        currentStats_.result = ParseResult::ConfigurationError;
+        return std::unexpected("Compilation/execution failed: unknown exception");
+    }
+}
+
+namespace {
+// One child process at a time. Windows: job object (kill-on-close) so no orphan keeps the port open.
+class ChildProcess {
+public:
+    ChildProcess() = default;
+    ChildProcess(const ChildProcess&) = delete;
+    ChildProcess& operator=(const ChildProcess&) = delete;
+    ~ChildProcess() {
+        terminate();
+#ifdef _WIN32
+        if (job_) CloseHandle(job_);
+#endif
+    }
+
+    bool start(const std::string& exe, const std::vector<std::string>& args) {
+#ifdef _WIN32
+        if (!job_) {
+            job_ = CreateJobObjectA(nullptr, nullptr);
+            if (job_) {
+                JOBOBJECT_EXTENDED_LIMIT_INFORMATION info{};
+                info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+                SetInformationJobObject(job_, JobObjectExtendedLimitInformation, &info, sizeof(info));
+            }
+        }
+        std::string cmd = quote(exe);
+        for (const auto& a : args) cmd += " " + quote(a);
+        STARTUPINFOA si{};
+        si.cb = sizeof(si);
+        PROCESS_INFORMATION pi{};
+        if (!CreateProcessA(nullptr, cmd.data(), nullptr, nullptr, TRUE, CREATE_SUSPENDED,
+                            nullptr, nullptr, &si, &pi)) return false;
+        if (job_) AssignProcessToJobObject(job_, pi.hProcess);
+        ResumeThread(pi.hThread);
+        CloseHandle(pi.hThread);
+        proc_ = pi.hProcess;
+        return true;
+#else
+        pid_ = fork();
+        if (pid_ == 0) {
+            std::vector<char*> argv;
+            argv.push_back(const_cast<char*>(exe.c_str()));
+            for (const auto& a : args) argv.push_back(const_cast<char*>(a.c_str()));
+            argv.push_back(nullptr);
+            execv(exe.c_str(), argv.data());
+            _exit(127);
+        }
+        return pid_ > 0;
+#endif
+    }
+
+    // True exactly once, when the child has ended on its own.
+    bool exited(int& code) {
+#ifdef _WIN32
+        if (!proc_) return false;
+        if (WaitForSingleObject(proc_, 0) != WAIT_OBJECT_0) return false;
+        DWORD c = 0;
+        GetExitCodeProcess(proc_, &c);
+        code = static_cast<int>(c);
+        CloseHandle(proc_);
+        proc_ = nullptr;
+        return true;
+#else
+        if (pid_ <= 0) return false;
+        int st = 0;
+        if (waitpid(pid_, &st, WNOHANG) != pid_) return false;
+        code = WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
+        pid_ = -1;
+        return true;
+#endif
+    }
+
+    // Kill and wait until it is really gone (the new instance needs the port).
+    void terminate() {
+#ifdef _WIN32
+        if (!proc_) return;
+        TerminateProcess(proc_, 1);
+        WaitForSingleObject(proc_, 5000);
+        CloseHandle(proc_);
+        proc_ = nullptr;
+#else
+        if (pid_ <= 0) return;
+        ::kill(pid_, SIGTERM);
+        for (int i = 0; i < 40; ++i) {
+            if (waitpid(pid_, nullptr, WNOHANG) == pid_) { pid_ = -1; return; }
+            usleep(50000);
+        }
+        ::kill(pid_, SIGKILL);
+        waitpid(pid_, nullptr, 0);
+        pid_ = -1;
+#endif
+    }
+
+private:
+#ifdef _WIN32
+    static std::string quote(const std::string& s) {
+        std::string out = "\"";
+        for (char c : s) { if (c == '"') out += '\\'; out += c; }
+        return out + "\"";
+    }
+    HANDLE proc_ = nullptr;
+    HANDLE job_ = nullptr;
+#else
+    pid_t pid_ = -1;
+#endif
+};
+
+std::string currentExecutable(const Config& config) {
+#ifdef _WIN32
+    char buf[MAX_PATH] = {};
+    if (GetModuleFileNameA(nullptr, buf, MAX_PATH) > 0) return buf;
+#else
+    char buf[4096] = {};
+    ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (n > 0) return std::string(buf, static_cast<size_t>(n));
+#endif
+    return config.rawArgs.empty() ? std::string("omniscript") : config.rawArgs[0];
+}
+} // namespace
+
+void Engine::runSupervised(const Config& config, const std::atomic<bool>& stop) noexcept {
+    using namespace std::chrono;
+    try {
+        // The child gets our exact command line, minus the watch flags, plus the internal marker.
+        std::vector<std::string> childArgs;
+        for (size_t i = 1; i < config.rawArgs.size(); ++i) {
+            const std::string& a = config.rawArgs[i];
+            if (a == "--watch" || a == "--watch-inproc" || a == "--watch-no-clear") continue;
+            if (a == "--watch-interval") { ++i; continue; }   // skip its value too
+            childArgs.push_back(a);
+        }
+        childArgs.push_back("--watch-child");
+
+        const std::string exe = currentExecutable(config);
+        const auto interval = config.hotReload.pollInterval;
+        const auto slice = std::min<milliseconds>(interval, milliseconds(100));   // Ctrl-C responsiveness
+
+        // The child appends every module file it resolves to this file; we watch those too.
+        const fs::path depsPath = fs::temp_directory_path() /
+#ifdef _WIN32
+            ("omniscript-deps-" + std::to_string(static_cast<unsigned long>(GetCurrentProcessId())) + ".txt");
+        SetEnvironmentVariableA("OMNISCRIPT_DEPS_FILE", depsPath.string().c_str());
+#else
+            ("omniscript-deps-" + std::to_string(static_cast<unsigned long>(getpid())) + ".txt");
+        setenv("OMNISCRIPT_DEPS_FILE", depsPath.string().c_str(), 1);
+#endif
+        auto readDeps = [&] {
+            std::vector<std::string> v;
+            std::ifstream in(depsPath);
+            std::string line;
+            while (std::getline(in, line)) {
+                if (!line.empty() && line.back() == '\r') line.pop_back();
+                if (!line.empty()) v.push_back(line);
+            }
+            return v;
+        };
+
+        ChildProcess child;
+        auto launch = [&] {
+            { std::ofstream clearDeps(depsPath, std::ios::trunc); }   // fresh list for this run
+            if (!child.start(exe, childArgs)) console.error("[fail] Could not start the program process");
+        };
+
+        StampMap stamps = snapshotSources(config);   // before the first launch: a save during startup is not lost
+        console.info("Watching " + std::to_string(stamps.size()) + " file(s). Ctrl-C to stop.");
+        launch();
+
+        bool reportedExit = false;
+        auto next = steady_clock::now() + interval;
+        while (!stop.load(std::memory_order_acquire)) {
+            std::this_thread::sleep_for(slice);
+
+            int code = 0;
+            if (!reportedExit && child.exited(code)) {
+                console.info("[exit] program ended with code " + std::to_string(code) +
+                             ". Waiting for changes... (Ctrl-C to stop)");
+                reportedExit = true;
+            }
+
+            if (steady_clock::now() < next) continue;
+            next += interval;
+            const StampMap current = snapshotSources(config, readDeps());
+            bool changed = false;
+            for (const auto& [path, stamp] : stamps) {
+                auto it = current.find(path);
+                if (it == current.end() || !(it->second == stamp)) { changed = true; break; }
+            }
+            if (!changed) {
+                for (const auto& [path, stamp] : current) stamps.emplace(path, stamp);   // newly imported files join the watch set
+                continue;
+            }
+
+            std::this_thread::sleep_for(milliseconds(100));   // let the editor finish writing
+            stamps = snapshotSources(config);                 // imports are re-discovered by the new child
+            child.terminate();                                // waits, so the port is free again
+            if (config.hotReload.clearScreen) std::cout << "\033[2J\033[H" << std::flush;
+            console.info("Change detected, restarting...");
+            launch();
+            reportedExit = false;
+        }
+        child.terminate();
+        std::error_code rmEc;
+        fs::remove(depsPath, rmEc);
+    } catch (...) {
+        console.error("[fail] watch supervisor stopped unexpectedly");
+    }
+}
+
+std::expected<Engine::ExecutionStats, std::string>
+Engine::runWithHotReload(const Config& config, const std::atomic<bool>& stop) noexcept {
+    using namespace std::chrono;
+    ExecutionStats last{};
+    console.setErrorDisplayLimit(config.hotReload.maxDisplayedErrors);
+    console.setThrowOnFatal(true);   // a runtime/fatal diagnostic must not exit() the watcher
+
+    bool firstBuild = true;
+    while (!stop.load(std::memory_order_acquire)) {
+        // Snapshot BEFORE building so a save that lands mid-build still triggers the next one.
+        const StampMap stamps = snapshotSources(config);
+
+        // Fresh slate: this is what stops old errors from poisoning "Gate 1" and from piling up on screen.
+        console.beginBuild();
+        error::globalErrorCollector.clear();
+        if (config.hotReload.clearScreen && !firstBuild) std::cout << "\033[2J\033[H" << std::flush;
+        firstBuild = false;
+
+        const auto start = steady_clock::now();
+        auto result = run(config);
+        console.printSuppressedSummary();
+        const auto ms = duration_cast<milliseconds>(steady_clock::now() - start).count();
+
+        if (!result) {
+            console.error("[fail] " + result.error());
+        } else if (console.getErrorCount() > 0) {
+            console.error("[fail] " + std::to_string(console.getErrorCount()) + " error(s)");
+        } else {
+            last = *result;
+            console.info("[ok] built and ran in " + std::to_string(ms) + "ms");
+        }
+
+        console.info("Watching for changes... (Ctrl-C to stop)");
+        if (!waitForChange(config, stamps, stop)) break;
+        std::this_thread::sleep_for(milliseconds(100));   // let the editor finish writing
+        console.info("Change detected, rebuilding...");
+    }
+    console.setThrowOnFatal(false);
+    return last;
+}
+
+std::expected<Engine::ExecutionStats, std::string>
+Engine::runImpl(const Config& config) noexcept {
     OMNISCRIPT_PROFILE_FUNCTION();
     currentStats_ = {};
     perf::ScopedTimer totalTimer(currentStats_.totalTime);
@@ -978,6 +1326,10 @@ void Engine::printUsage() noexcept {
     console.log("  --error-log <file>       Log errors to file");
     console.log("  --max-errors <n>         Set maximum error count");
     console.log("  --debug, -d              Enable debug mode");
+    console.log("  --watch                  Rebuild and re-run whenever a source file changes");
+    console.log("  --watch-inproc           With --watch: re-run inside this process (only for programs that exit)");
+    console.log("  --watch-interval <ms>    Poll interval for --watch (default 500, min 50)");
+    console.log("  --watch-no-clear         Do not clear the screen between rebuilds");
     console.log("  --dry                    Compile to object file only");
     console.log("  --entry <function>       Set entry function");
     console.log("  --doc <module|file>      Print the file's /// docs as Markdown (add -o <file> to save, --html for a web page)");

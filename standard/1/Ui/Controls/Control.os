@@ -32,8 +32,58 @@ function ctlWidgetKind(n: Node*) => int {
     return k;
 }
 
-// <select options="A|B|C">: number of options and the label of option `idx` (new string)
-function selectCount(n: Node*) => int {
+// ---- <select> options ----
+// Options are the <option> children of the select (also inside an <optgroup>); an `options="A|B|C"` attribute
+// is still honoured when there are none. Index order = document order, optgroup rows are not counted.
+function selIsTag(c: Node*, tag: char*) => bool {
+    if (c.kind == NK_TEXT) return false;
+    if (c.tag == nullptr) return false;
+    return strEq(c.tag, tag);
+}
+
+function selOptionCount(n: Node*) => int {
+    let k: int = 0;
+    let c: Node* = n.first;
+    while (c != nullptr) {
+        if (selIsTag(c, "option")) k = k + 1;
+        else if (selIsTag(c, "optgroup")) {
+            let g: Node* = c.first;
+            while (g != nullptr) { if (selIsTag(g, "option")) k = k + 1; g = g.next; }
+        }
+        c = c.next;
+    }
+    return k;
+}
+
+// the idx-th <option> node, or nullptr
+function selOptionAt(n: Node*, idx: int) => Node* {
+    let k: int = 0; let res: Node* = nullptr;
+    let c: Node* = n.first;
+    while (c != nullptr && res == nullptr) {
+        if (selIsTag(c, "option")) { if (k == idx) res = c; k = k + 1; }
+        else if (selIsTag(c, "optgroup")) {
+            let g: Node* = c.first;
+            while (g != nullptr && res == nullptr) {
+                if (selIsTag(g, "option")) { if (k == idx) res = g; k = k + 1; }
+                g = g.next;
+            }
+        }
+        c = c.next;
+    }
+    return res;
+}
+
+// trimmed copy of option text (new string)
+function selOptionText(o: Node*) => char* {
+    let t: char* = ctlCaption(o);
+    let a: int = 0; let b: int = strLen(t);
+    while (a < b && isSpaceC(t[a] as int)) a = a + 1;
+    while (b > a && isSpaceC(t[b - 1] as int)) b = b - 1;
+    return strSub(t, a, b - a);
+}
+
+// <select options="A|B|C"> (attribute form): number of options and the label of option `idx` (new string)
+function selectAttrCount(n: Node*) => int {
     let o: char* = n.getAttr("options");
     let cnt: int = 0;
     if (o != nullptr) {
@@ -44,7 +94,7 @@ function selectCount(n: Node*) => int {
     return cnt;
 }
 
-function selectLabel(n: Node*, idx: int) => char* {
+function selectAttrLabel(n: Node*, idx: int) => char* {
     let o: char* = n.getAttr("options");
     if (o == nullptr) return strDup("");
     let cur: int = 0; let start: int = 0; let i: int = 0; let res: char* = nullptr; let more: bool = true;
@@ -60,14 +110,144 @@ function selectLabel(n: Node*, idx: int) => char* {
     return res;
 }
 
+function selectCount(n: Node*) => int {
+    let cnt: int = selOptionCount(n);
+    if (cnt == 0) cnt = selectAttrCount(n);
+    return cnt;
+}
+
+function selectLabel(n: Node*, idx: int) => char* {
+    let o: Node* = selOptionAt(n, idx);
+    if (o != nullptr) return selOptionText(o);
+    return selectAttrLabel(n, idx);
+}
+
+// first <option selected> becomes the initial choice (called once, when the widget is created)
+function selectApplySelected(n: Node*) => void {
+    let cnt: int = selOptionCount(n);
+    let i: int = 0; let found: bool = false;
+    while (i < cnt && !found) {
+        let o: Node* = selOptionAt(n, i);
+        if (o != nullptr && o.hasAttr("selected")) { n.selIndex = i; found = true; }
+        i = i + 1;
+    }
+}
+
 function selectSync(n: Node*) => void {
     let cnt: int = selectCount(n);
     if (cnt > 0) {
-        if (n.selIndex >= cnt) n.selIndex = 0;
+        if (n.selIndex >= cnt || n.selIndex < 0) n.selIndex = 0;
         let lbl: char* = selectLabel(n, n.selIndex);
         if (n.text == nullptr || !strEq(n.text, lbl)) { n.setText(lbl); }
         strFree(lbl);
     }
+}
+
+// value for form submission: the option's value attribute, else its text. Borrowed pointer, valid until the next
+// selectSync / DOM change. "" when there are no options.
+function selectSelectedValue(n: Node*) => char* {
+    let o: Node* = selOptionAt(n, n.selIndex);
+    if (o != nullptr) {
+        let v: char* = o.getAttr("value");
+        if (v != nullptr) return v;
+    }
+    selectSync(n);
+    if (n.text == nullptr) return "";
+    return n.text;
+}
+
+// scripts/apps: choose option i (ignored when out of range). Does not raise EV_CHANGE; sets no `changed` flag.
+function selectSetSelected(n: Node*, i: int) => void {
+    let cnt: int = selectCount(n);
+    if (i >= 0 && i < cnt) { n.selIndex = i; selectSync(n); n.valueDirty = true; }
+}
+
+// Label of option idx as a slice of an existing string (no allocation; the display list keeps the pointer for the frame).
+// selLabelBase = the string, selSpan(n, idx, 0) = first char, selSpan(n, idx, 1) = length. Option text is trimmed.
+function selLabelBase(n: Node*, idx: int) => char* {
+    let o: Node* = selOptionAt(n, idx);
+    if (o != nullptr) return ctlCaption(o);
+    let a: char* = n.getAttr("options");
+    if (a == nullptr) return "";
+    return a;
+}
+
+function selSpan(n: Node*, idx: int, which: int) => int {
+    let o: Node* = selOptionAt(n, idx);
+    let from: int = 0; let len: int = 0;
+    if (o != nullptr) {
+        let t: char* = ctlCaption(o);
+        let a: int = 0; let b: int = strLen(t);
+        while (a < b && isSpaceC(t[a] as int)) a = a + 1;
+        while (b > a && isSpaceC(t[b - 1] as int)) b = b - 1;
+        from = a; len = b - a;
+    } else {
+        let s: char* = n.getAttr("options");
+        if (s != nullptr) {
+            let cur: int = 0; let i: int = 0; let start: int = 0; let more: bool = true;
+            while (more) {
+                let c: int = s[i] as int;
+                if (c == 124 || c == 0) {
+                    if (cur == idx) { from = start; len = i - start; more = false; }
+                    cur = cur + 1; start = i + 1;
+                    if (c == 0) more = false;
+                }
+                i = i + 1;
+            }
+        }
+    }
+    if (which == 0) return from;
+    return len;
+}
+
+// true when option idx (or its <optgroup>) has the `disabled` attribute. Attribute-form options are never disabled.
+function selOptionDisabled(n: Node*, idx: int) => bool {
+    let o: Node* = selOptionAt(n, idx);
+    if (o == nullptr) return false;
+    if (o.hasAttr("disabled")) return true;
+    if (o.parent != nullptr && o.parent != n && o.parent.hasAttr("disabled")) return true;
+    return false;
+}
+
+// next enabled option from `from` in direction dir (1 or -1); `from` itself when there is none. from = -1 starts before the
+// first option, from = count starts after the last.
+function selStep(n: Node*, from: int, dir: int) => int {
+    let cnt: int = selectCount(n);
+    let i: int = from + dir; let res: int = from; let done: bool = false;
+    while (i >= 0 && i < cnt && !done) {
+        if (!selOptionDisabled(n, i)) { res = i; done = true; }
+        i = i + dir;
+    }
+    return res;
+}
+
+// first enabled option whose label starts with letter/digit `ch` (case-insensitive), searching after `from` and wrapping; -1 if none
+function selFindByChar(n: Node*, from: int, ch: int) => int {
+    let cnt: int = selectCount(n);
+    let want: int = ch; if (want >= 65 && want <= 90) want = want + 32;
+    let res: int = 0 - 1; let k: int = 1;
+    while (k <= cnt && res < 0) {
+        let i: int = (from + k + cnt) % cnt;
+        if (!selOptionDisabled(n, i)) {
+            let lbl: char* = selectLabel(n, i);
+            let c: int = lbl[0] as int;
+            if (c >= 65 && c <= 90) c = c + 32;
+            if (c == want) res = i;
+            strFree(lbl);
+        }
+        k = k + 1;
+    }
+    return res;
+}
+
+// choose option i from the UI (popup or keyboard). Returns true when the choice changed; the caller pushes EV_CHANGE.
+function selectCommit(n: Node*, i: int) => bool {
+    let cnt: int = selectCount(n);
+    if (i < 0 || i >= cnt || selOptionDisabled(n, i)) return false;
+    let diff: bool = n.selIndex != i;
+    n.selIndex = i; selectSync(n); n.valueDirty = true; n.markPaint();
+    if (diff) n.changed = true;
+    return diff;
 }
 
 function ctlEnsure(n: Node*, pen: C.Pen2D*) => void {
@@ -85,6 +265,7 @@ function ctlEnsure(n: Node*, pen: C.Pen2D*) => void {
         else n.wd = pen.createSlider(0.0, 0.0, 10.0, n.min, n.max);
         n.wpen = pen;
         n.valueDirty = true;
+        if (n.ctl == CK_SELECT) selectApplySelected(n);
     }
     let wd: C.Widget* = n.wd;
     if (wd == nullptr) return;                     // widget cap reached
@@ -137,10 +318,7 @@ function ctlCollect(n: Node*) => int {
         n.value = wd.value;
     }
     else if (wd.kind == C.WK_TEXTBOX) { n.text = wd.text; n.ownsText = false; }
-    else if (n.ctl == CK_SELECT && wd.pressed) {
-        let cnt: int = selectCount(n);
-        if (cnt > 0) { n.selIndex = (n.selIndex + 1) % cnt; selectSync(n); n.changed = true; }
-    }
+    // select: a press only reports CB_CLICK; Events opens the popup (events.pop) and commits the choice
     if (n.pressed) bits = bits | CB_CLICK;
     if (n.changed) bits = bits | CB_CHANGE;
     if (n.submitted) bits = bits | CB_SUBMIT;
@@ -173,4 +351,16 @@ function ctlGeom(n: Node*, ox: float, oy: float, x0: float, y0: float, x1: float
         ctlGeom(c, cox, coy, cx0, cy0, cx1, cy1, ch);
         c = c.next;
     }
+}
+
+// While a popup is open: hide every widget (except `keep`, the select itself) whose rectangle overlaps the popup rectangle,
+// because Pen2D widgets draw above the display list. Call after ctlGeom each frame the popup is open.
+function ctlHideUnder(n: Node*, keep: Node*, px: float, py: float, pw: float, ph: float) => void {
+    if (n.kind == NK_TEXT) return;
+    if (n.wd != nullptr && n != keep) {
+        let wd: C.Widget* = n.wd;
+        if (wd.visible && wd.x < px + pw && wd.x + wd.w > px && wd.y < py + ph && wd.y + wd.h > py) wd.visible = false;
+    }
+    let c: Node* = n.first;
+    while (c != nullptr) { ctlHideUnder(c, keep, px, py, pw, ph); c = c.next; }
 }

@@ -165,13 +165,25 @@ public AggregateExpression {
         return std::make_shared<ModuleExpression>(name, clonedMembers);
     }
 
-    std::shared_ptr<ModuleMemberExpression> getMember(const std::string& name) {
+    // Silent lookup (no error is reported on a miss). Module functions/variables are registered under
+    // their alias-qualified name ("V.vec2") while structs use the bare name ("Vec2"), so accept both.
+    std::shared_ptr<ModuleMemberExpression> findMember(const std::string& memberName) {
+        const std::string qualified = this->name + "." + memberName;
         for (const auto& member : members) {
-            if (member->getName() == name) {
+            const std::string& n = member->getName();
+            if (n == memberName || n == qualified) {
                 return member;
             }
         }
-        console.reportError(Console::SEMANTIC_ERROR, "Member '" + name + "' not found in class '" + this->getName() + "'.", FileSpan{});
+        return nullptr;
+    }
+
+    // Same lookup, but reports a semantic error when the member does not exist.
+    std::shared_ptr<ModuleMemberExpression> getMember(const std::string& name) {
+        if (auto member = findMember(name)) {
+            return member;
+        }
+        console.reportError(Console::SEMANTIC_ERROR, "Member '" + name + "' not found in module '" + this->getName() + "'.", FileSpan{});
         return nullptr;
     }
 

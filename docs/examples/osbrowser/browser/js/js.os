@@ -6,11 +6,11 @@
 //   setTimeout.
 // NEXT: real AST, closures/scopes, objects/arrays, for loops, ++/--, arrow functions, prototypes, exceptions,
 //       split HOST section into js/bindings.os once Value is in its own module.
-module U = import "browser/util.os";
+module U = import "util.os";
 module UI = import "standard/1/Ui.os";
-module A = import "browser/uiapi.os";
+module A = import "uiapi.os";
 module Console = import "standard/1/Console.os";
-module Dbg = import "browser/dbg.os";
+module Dbg = import "dbg.os";
 
 // ---------- values ----------
 // k: 0 undefined, 1 number, 2 string, 3 bool, 4 user function, 5 element, 6 style object, 7 document,

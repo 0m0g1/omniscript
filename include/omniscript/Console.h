@@ -2,6 +2,8 @@
 
 #include <omniscript/FileSpan.h>
 #include <unordered_map>
+#include <unordered_set>
+#include <stdexcept>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -35,6 +37,9 @@ public:
         INTERNAL_ERROR,
         FATAL_ERROR
     };
+
+    // Thrown instead of std::exit() for runtime/fatal/internal errors when setThrowOnFatal(true).
+    struct FatalDiagnostic : std::runtime_error { using std::runtime_error::runtime_error; };
 
     static Console& instance();
 
@@ -78,6 +83,12 @@ public:
     int getWarningCount() const;
     void resetCounts();
 
+    // Per-build diagnostics hygiene (used by --watch, harmless otherwise).
+    void beginBuild();                         // resets counts + the "already shown" set
+    void setErrorDisplayLimit(int limit);      // 0 = unlimited; extra errors are counted but not printed
+    void printSuppressedSummary();             // "... and N more error(s) not shown"
+    void setThrowOnFatal(bool enable);
+
     static std::string formatString(const char* format, ...);
 
 private:
@@ -92,7 +103,15 @@ private:
     std::string loadSourceLine(const std::string& filePath, int lineNumber) const;
     void writeToLogFile(const std::string& content) const;
 
+    bool shouldDisplay(const std::string& key, bool isError);
+
     bool debugEnabled;
+    std::unordered_set<std::string> seenDiagnostics;
+    int displayedErrors = 0;
+    int suppressedErrors = 0;
+    int errorDisplayLimit = 0;
+    bool throwOnFatal = false;
+    bool lastDiagnosticShown = true;
     bool colorEnabled = true;
     int errorCount = 0;
     int warningCount = 0;

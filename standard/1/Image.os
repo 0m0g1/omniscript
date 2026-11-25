@@ -4,6 +4,7 @@
 // Works directly with Pen2D.createImage(img.pixels, img.width, img.height).
 
 module C = import "standard/1/c/image.os";
+module WP = import "standard/1/c/webp.os";
 
 // Returns 1=png 2=jpg 3=bmp 4=tga, 0=unknown (case-insensitive).
 fn image_ext_kind(path: char*) => int {
@@ -28,6 +29,7 @@ struct Image {
     pixels: u8* = nullptr;
     width: int = 0;
     height: int = 0;
+    webp: bool = false;                 // pixels came from the WebP decoder: free with om_webp_free
 
     // ---------------- construction ----------------
 
@@ -60,12 +62,21 @@ struct Image {
         return true;
     }
 
-    // Decode from memory.
+    // Decode from memory (WebP is detected by its header; everything else goes through stb).
     load_memory(buf: u8*, len: int) => bool {
         this.free();
         let w: int = 0;
         let h: int = 0;
         let ch: int = 0;
+        if (WP.om_webp_check(buf, len) == 1) {
+            let wp = WP.om_webp_decode(buf, len, &w, &h);
+            if (wp == nullptr) { return false; }
+            this.pixels = wp;
+            this.width = w;
+            this.height = h;
+            this.webp = true;
+            return true;
+        }
         let p = C.stbi_load_from_memory(buf, len, &w, &h, &ch, 4);
         if (p == nullptr) { return false; }
         this.pixels = p;
@@ -320,7 +331,11 @@ struct Image {
     // ---------------- lifetime ----------------
 
     free() => void {
-        if (this.pixels != nullptr) { C.om_free(this.pixels as void*); }
+        if (this.pixels != nullptr) {
+            if (this.webp) { WP.om_webp_free(this.pixels as void*); }
+            else { C.om_free(this.pixels as void*); }
+        }
+        this.webp = false;
         this.pixels = nullptr;
         this.width = 0;
         this.height = 0;

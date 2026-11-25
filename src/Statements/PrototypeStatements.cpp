@@ -1,4 +1,5 @@
 #include <unordered_set>
+#include <typeinfo>
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/FunctionStatement.h>
 #include <omniscript/Statements/CallableStatement.h>
@@ -107,6 +108,12 @@ std::shared_ptr<Expression> ParameterStatement::express(SymbolTableType scope) {
         isValidDefaultValue = false;
     }
 
+    // DIAGNOSTIC (remove after investigating lost field defaults): shows which branch each field takes.
+    DEBUG_LOG(std::string("[DefaultsProbe] field '") + name + "' hasDefault=" + (defaultValue ? "yes" : "no") +
+              " class=" + (defaultValue ? typeid(*defaultValue).name() : "none") +
+              " typed=" + (std::dynamic_pointer_cast<TypedStatement>(defaultValue) ? "yes" : "no") +
+              " valid=" + (isValidDefaultValue ? "yes" : "no"));
+
     if (isValidDefaultValue) {
         DEBUG_LOG("The default value is " + defaultValue->toString());
         extendContextOf(defaultValue);
@@ -152,6 +159,10 @@ std::shared_ptr<Expression> ParameterStatement::express(SymbolTableType scope) {
             result = std::make_shared<NullExpression>(type);
         }
     }
+
+    // DIAGNOSTIC (remove with the one above): what expression the field ended up with.
+    DEBUG_LOG(std::string("[DefaultsProbe] field '") + name + "' result class=" + typeid(*result).name() +
+              " value=" + result->toString());
 
     if (result->getType()) {
         DEBUG_LOG("[Parameter] Created value for parameter '" + name + "' which is of type '" + result->getType()->toString() + "'.");
@@ -609,10 +620,85 @@ std::shared_ptr<Expression> ObjectConstructorStatement::express(SymbolTableType 
         actualInstanceName = "__anonymous_" + objectType + "_" + std::to_string(anonymousCounter++);
     }
 
+    // Struct literal `T{ field: value, ... }` / positional `T{ a, b }` / `new T(a, b)` on a type WITHOUT a
+    // constructor: the arguments initialise the fields. (Before, they were silently dropped, so every field
+    // kept its default value.) With a constructor the arguments go to it instead, below.
+    std::vector<std::shared_ptr<MemberExpression>> instanceMembers = call->members;
+    if (scope->getOverloads(objectType + ".constructor").empty() && !constructorArgs.empty()) {
+        // Shallow copies: the default members may be shared with the struct definition, and we replace values.
+        for (auto& m : instanceMembers) {
+            if (m) {
+                m = std::make_shared<MemberExpression>(m->getName(), m->getType(), m->value, m->modifiers);
+            }
+        }
+
+        auto fieldMatches = [](const std::shared_ptr<MemberExpression>& m, const std::string& fieldName) {
+            if (m->getName() == fieldName) return true;
+            return m->getType() && m->getType()->getParameterName() == fieldName;
+        };
+
+        size_t positional = 0;
+        for (const auto& arg : constructorArgs) {
+            std::shared_ptr<Statement> valueStmt = arg;
+            std::string fieldName;
+            if (auto named = std::dynamic_pointer_cast<ArgumentStatement>(arg)) {
+                fieldName = named->name;
+                valueStmt = named->value;
+            }
+
+            std::shared_ptr<MemberExpression> target;
+            if (!fieldName.empty()) {
+                for (auto& m : instanceMembers) {
+                    if (m && fieldMatches(m, fieldName)) { target = m; break; }
+                }
+                if (!target) {
+                    std::string availableFields;
+                    for (const auto& m : instanceMembers) {
+                        if (m) availableFields += " - " + m->getName() + "\n";
+                    }
+                    console.reportError(
+                        Console::TYPE_ERROR,
+                        Console::formatString("'%s' has no field '%s'", objectType.c_str(), fieldName.c_str()),
+                        "Available fields:\n" + availableFields,
+                        getSpan()
+                    );
+                    return nullptr;
+                }
+            } else {
+                if (positional < instanceMembers.size()) target = instanceMembers[positional];
+                ++positional;
+                if (!target) {
+                    console.reportError(
+                        Console::TYPE_ERROR,
+                        Console::formatString("Too many initialisers for '%s' (it has %zu fields)",
+                                              objectType.c_str(), instanceMembers.size()),
+                        "Remove the extra values or add a constructor.",
+                        getSpan()
+                    );
+                    return nullptr;
+                }
+            }
+
+            extendContextOf(valueStmt);
+            auto valueExpr = valueStmt ? valueStmt->express(scope) : nullptr;
+            if (!valueExpr) {
+                console.reportError(
+                    Console::TYPE_ERROR,
+                    Console::formatString("Invalid initialiser for '%s.%s'", objectType.c_str(),
+                                          target->getName().c_str()),
+                    "Check the expression on the right-hand side.",
+                    getSpan()
+                );
+                return nullptr;
+            }
+            target->value = valueExpr;
+        }
+    }
+
     auto instance = std::make_shared<InstanceExpression>(
         objectType,
         actualInstanceName,  // Always has a name now
-        call->members
+        instanceMembers
     );
 
     // Store in scope with the actual name
@@ -672,13 +758,7 @@ std::shared_ptr<Expression> ObjectConstructorStatement::express(SymbolTableType 
         return constructionBlock;
     }
     
-    // No constructor found
-    if (!constructorArgs.empty()) {
-        DEBUG_LOG("No constructor found but arguments provided - this might be field initialization");
-        // For now, just return the instance and let the system handle field initialization
-        // The arguments should be used for direct field assignment if possible
-    }
-    
+    // No constructor: any arguments were applied to the fields above.
     return instance;
 }
 

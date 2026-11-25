@@ -1,5 +1,5 @@
 // browser/dbg.os  -- log buffer shared by the engine, loader and inspector (prints to terminal AND keeps history).
-module U = import "browser/util.os";
+module U = import "util.os";
 module Console = import "standard/1/Console.os";
 
 let lines: char** = nullptr;

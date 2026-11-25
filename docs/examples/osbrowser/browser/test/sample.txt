@@ -1,0 +1,4 @@
+Plain text sample.
+  Indented line, <tags> & ampersands stay literal.
+Last line without newline
+no trailing newline

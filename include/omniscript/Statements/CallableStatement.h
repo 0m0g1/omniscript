@@ -237,9 +237,10 @@ private:
     );
 };
 
-class ObjectConstructorStatement : 
+class ObjectConstructorStatement :
 public TypedStatement,
-public NamedStatement {
+public NamedStatement,
+public ContextAwareStatement {
     friend class GenericInstantiator;
 private:
     std::shared_ptr<Statement> expr;

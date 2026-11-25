@@ -4,7 +4,10 @@
 #include <omniscript/utils.h>
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <mutex>
 
 namespace Omniscript {
 
@@ -238,6 +241,18 @@ std::unique_ptr<ModuleResolver>& globalSlot() {
 
 } // namespace
 
+// --watch support. When the supervisor sets OMNISCRIPT_DEPS_FILE, every source file the compiler pulls in
+// (resolved modules here, `include`d headers from the parser) is appended to that file so the watcher can
+// follow imports and not just the files named on the command line. A no-op in every normal run.
+void recordWatchDependency(const std::string& path) {
+    const char* file = std::getenv("OMNISCRIPT_DEPS_FILE");
+    if (!file || !*file || path.empty()) return;
+    static std::mutex m;
+    std::lock_guard<std::mutex> lock(m);
+    std::ofstream out(file, std::ios::app);
+    if (out) out << path << '\n';
+}
+
 ModuleResolver::ModuleResolver(std::string toolchainRoot,
                                std::optional<PackageManifest> manifest,
                                std::optional<Lockfile> lock) {
@@ -275,6 +290,7 @@ ResolveResult ModuleResolver::resolve(const ModuleRequest& req) {
     for (auto& src : sources_) {
         result.tried.push_back("[" + src->describe() + "]");
         if (auto m = src->resolve(req, result.tried)) {
+            recordWatchDependency(m->displayPath);
             result.module = std::move(m);
             return result;
         }

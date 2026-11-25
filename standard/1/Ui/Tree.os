@@ -20,6 +20,7 @@ struct Node {
     // computed
     st: Style; box: Box;
     frags: Frag* = nullptr;
+    styleNotes: StyleNote* = nullptr;                            // declarations that targeted this node (filled when ui.recordStyles is on)
     forceW: float = 0.0; forceH: float = 0.0;                    // forced border-box size from flex/table/abs (UNSET = none)
     rowNext: Node* = nullptr;                                    // table row chain (Table.os scratch)
     fbase: float = 0.0; fmain: float = 0.0; fcross: float = 0.0; flexMeasured: bool = false;   // flex scratch
@@ -44,7 +45,11 @@ struct Node {
     gap: float = 0.0; padding: float = 0.0; grow: float = 0.0; width: float = 0.0; height: float = 0.0;
     tabIndex: int = 0; hasTab: bool = false;
 
-    // handlers (see Events.os: poll queue works today, handler invocation is one hook)
+    // host data: the app (e.g. the browser's JS layer) hangs its own object here. Ui never reads or frees it.
+    // destroyFn (optional, fn(void*) => void) is called with userData just before this node is freed.
+    userData: void* = nullptr; destroyFn: void* = nullptr;
+
+    // handlers (Events.dispatch calls them: fn(node, event, user); poll queue and flags still work)
     onClick: Handler; onHover: Handler; onKey: Handler; onInput: Handler;
     onChange: Handler; onFocus: Handler; onBlur: Handler;
 
@@ -135,12 +140,18 @@ struct Node {
     }
 
     release() => void {
+        if (this.destroyFn != nullptr) {
+            let df: fn(void*) => void = this.destroyFn as fn(void*) => void;     // ADAPT: function-pointer cast/call syntax
+            df(this.userData);
+        }
+        this.userData = nullptr; this.destroyFn = nullptr;
         let c: Node* = this.first;
         while (c != nullptr) { let nx: Node* = c.next; c.release(); c = nx; }
         this.first = nullptr; this.last = nullptr;
         if (this.wd != nullptr && this.wpen != nullptr) { this.wpen.destroyWidget(this.wd); }
         this.wd = nullptr;
         this.clearFrags();
+        if (this.styleNotes != nullptr) { freeStyleNotes(this.styleNotes); this.styleNotes = nullptr; }
         let a: Attr* = this.attrs;
         while (a != nullptr) { let an: Attr* = a.next; strFree(a.name); strFree(a.value); CMem.free(a as void*); a = an; }
         strFree(this.tag); strFree(this.id); strFree(this.cls); strFree(this.inlineCss); strFree(this.ctext);
@@ -315,6 +326,12 @@ struct Node {
         this.markStyle();
     }
 
+    // ---- <select> (Controls/Control.os) ----
+    optionCount() => int { return selectCount(this); }
+    optionAt(i: int) => Node* { return selOptionAt(this, i); }           // the <option> node (nullptr for the options="A|B" form)
+    selectedValue() => char* { return selectSelectedValue(this); }       // borrowed; valid until the next DOM change
+    setSelected(i: int) => void { selectSetSelected(this, i); this.markPaint(); }
+
     // ---- scrolling (overflow: auto / scroll) ----
     scrollMax() => float {
         let m: float = this.box.contentH - this.box.ch;
@@ -349,9 +366,13 @@ struct Node {
 }
 
 // One event, as returned by Ui.poll(). `node` is the deepest element the event happened on.
+// Handlers may set `stop` (no further ancestors see it) and `cancelled` (preventDefault; the poller reads it after dispatch).
+// `cur` is the node whose handler is running (currentTarget). mods: 1 shift, 2 ctrl, 4 alt. text: control value at event time.
 struct Event {
     kind: int = 0; node: Node* = nullptr;
     key: int = 0; ch: int = 0; x: float = 0.0; y: float = 0.0;
+    mods: int = 0; text: char* = nullptr;
+    cur: Node* = nullptr; stop: bool = false; cancelled: bool = false; dispatched: bool = false;
 }
 
 // Free-function constructors (the HTML parser calls createByTag instead of D.newElement).

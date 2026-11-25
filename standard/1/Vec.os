@@ -38,6 +38,18 @@ struct Vec2 {
         return this.scale(ONE / len);
     }
     lerp(o: Vec2, t: f32) => Vec2 { return this.add(o.sub(*this).scale(t)); }
+    // this + o * s  (one step of Euler integration: p.mulAdd(v, dt))
+    mulAdd(o: Vec2, s: f32) => Vec2 { return Vec2{ x: this.x + o.x * s, y: this.y + o.y * s }; }
+    // Rotated 90 degrees counter-clockwise: (x, y) -> (-y, x)
+    perp() => Vec2 { return Vec2{ x: -this.y, y: this.x }; }
+    // Same direction, length capped at maxLen.
+    limit(maxLen: f32) => Vec2 {
+        let len = this.length();
+        if (len <= maxLen || len == ZERO) return *this;
+        return this.scale(maxLen / len);
+    }
+    // Mirror about the UNIT normal n: v - 2 (v . n) n
+    reflect(n: Vec2) => Vec2 { return this.sub(n.scale(TWO * this.dot(n))); }
 }
 function vec2(x: f32, y: f32) => Vec2 { return Vec2{ x: x, y: y }; }
 

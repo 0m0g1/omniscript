@@ -1,7 +1,8 @@
 // standard/1/Math.os
 // Tier 1: scalar math on double. Vec2/Vec3/Vec4/Mat4 come in a later file (Vec.os).
 // Imports the raw C math under an alias so these wrappers can use the plain names (sqrt, sin, ...).
-// Use Core.minF64 / maxF64 / clampF64 for min / max / clamp.
+// Use Core.minF64 / maxF64 / clampF64 for f64 min / max / clamp; the f32 versions (minF32 / maxF32 /
+// clampF32 / dampF32) are at the bottom of this file because Vec.os and the f32 simulations need them.
 
 module CMath = import "standard/1/c/math.os";
 
@@ -79,4 +80,21 @@ function smoothstep(edge0: double, edge1: double, x: double) => double {
     return t * t * (3.0 - 2.0 * t);
 }
 
+// Frame-rate independent ease of a toward b. rate is in 1/seconds (higher = snappier); dt in seconds.
+function damp(a: double, b: double, rate: double, dt: double) => double {
+    return a + (b - a) * (1.0 - exp(0.0 - rate * dt));
+}
+
 function approxEq(a: double, b: double, eps: double) => bool { return abs(a - b) <= eps; }
+
+// ---- f32 helpers (no literals, so they work under Vec.os's strict same-type rule) ----
+function minF32(a: f32, b: f32) => f32 { if (a < b) return a; return b; }
+function maxF32(a: f32, b: f32) => f32 { if (a > b) return a; return b; }
+function clampF32(v: f32, lo: f32, hi: f32) => f32 {
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
+function dampF32(a: f32, b: f32, rate: f32, dt: f32) => f32 {
+    return damp(a as f64, b as f64, rate as f64, dt as f64) as f32;
+}

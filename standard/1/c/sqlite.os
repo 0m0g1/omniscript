@@ -7,14 +7,20 @@ extern "dependencies/sqlite/sqlite-dll-win-x64-3500000/sqlite3.dll" {
     fn sqlite3_step(st: void*) => int;
     fn sqlite3_finalize(st: void*) => int;
     fn sqlite3_reset(st: void*) => int;
+    fn sqlite3_clear_bindings(st: void*) => int;
     fn sqlite3_bind_int64(st: void*, i: int, v: i64) => int;
     fn sqlite3_bind_double(st: void*, i: int, v: double) => int;
     fn sqlite3_bind_text(st: void*, i: int, v: char*, n: int, d: void*) => int;
+    fn sqlite3_bind_null(st: void*, i: int) => int;
     fn sqlite3_column_count(st: void*) => int;
+    fn sqlite3_column_type(st: void*, i: int) => int;
     fn sqlite3_column_int64(st: void*, i: int) => i64;
     fn sqlite3_column_double(st: void*, i: int) => double;
     fn sqlite3_column_text(st: void*, i: int) => char*;
     fn sqlite3_column_name(st: void*, i: int) => char*;
     fn sqlite3_errmsg(db: void*) => char*;
     fn sqlite3_free(p: void*) => void;
+    fn sqlite3_last_insert_rowid(db: void*) => i64;
+    fn sqlite3_changes(db: void*) => int;
+    fn sqlite3_busy_timeout(db: void*, ms: int) => int;
 }

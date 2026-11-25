@@ -217,9 +217,19 @@ struct IncrementalConfig {
     std::string dependencyCachePath;
 };
 
+struct HotReloadConfig {
+    bool enabled = false;                           // --watch
+    std::chrono::milliseconds pollInterval{500};    // --watch-interval <ms>
+    bool clearScreen = true;                        // --watch-no-clear turns this off
+    int maxDisplayedErrors = 10;                    // extra errors are counted, not printed
+    bool inProcess = false;                         // --watch-inproc: old in-process loop (only for programs that exit)
+    bool child = false;                             // internal: set by the supervisor on the process it spawns
+};
+
 struct Config {
     std::string filePath;
     std::string mainSourceFile;
+    std::vector<std::string> rawArgs;   // original argv; --watch re-launches itself with these
     std::string outputPath = "a.out";
     std::string entry;
     CompileMode mode = CompileMode::JIT;
@@ -239,6 +249,7 @@ struct Config {
     HybridConfig hybrid;
     ModuleConfig modules;
     IncrementalConfig incremental;
+    HotReloadConfig hotReload;
     OptimizationConfig optimization;
     RuntimeConfig runtime;
     SecurityConfig security;

@@ -30,6 +30,8 @@ struct Style {
     top: Len; right: Len; bottom: Len; left: Len;
     flexDir: int = 0; wrap: bool = false; grow: float = 0.0; shrink: float = 1.0; basis: Len;
     gap: float = 0.0; alignItems: int = 0; alignSelf: int = 9; justify: int = 0;
+    gn: int = 0;                                  // grid-template-columns: track count (max 12); track i is g<i>: LU_PX / LU_PCT fixed, LU_AUTO = flexible (v = fr weight)
+    g0: Len; g1: Len; g2: Len; g3: Len; g4: Len; g5: Len; g6: Len; g7: Len; g8: Len; g9: Len; g10: Len; g11: Len;
     cursor: int = 0; listStyle: int = 0;
 
     reset() => void {
@@ -49,6 +51,10 @@ struct Style {
         lenSet(&this.top, LU_AUTO, 0.0); lenSet(&this.right, LU_AUTO, 0.0);
         lenSet(&this.bottom, LU_AUTO, 0.0); lenSet(&this.left, LU_AUTO, 0.0);
         this.flexDir = FD_ROW; this.wrap = false; this.grow = 0.0; this.shrink = 1.0; lenSet(&this.basis, LU_AUTO, 0.0);
+        this.gn = 0;
+        lenSet(&this.g0, LU_AUTO, 1.0); lenSet(&this.g1, LU_AUTO, 1.0); lenSet(&this.g2, LU_AUTO, 1.0); lenSet(&this.g3, LU_AUTO, 1.0);
+        lenSet(&this.g4, LU_AUTO, 1.0); lenSet(&this.g5, LU_AUTO, 1.0); lenSet(&this.g6, LU_AUTO, 1.0); lenSet(&this.g7, LU_AUTO, 1.0);
+        lenSet(&this.g8, LU_AUTO, 1.0); lenSet(&this.g9, LU_AUTO, 1.0); lenSet(&this.g10, LU_AUTO, 1.0); lenSet(&this.g11, LU_AUTO, 1.0);
         this.gap = 0.0; this.alignItems = AL_STRETCH; this.alignSelf = AL_AUTO; this.justify = JC_START;
         this.cursor = CU_DEFAULT; this.listStyle = LS_DISC;
     }
@@ -122,6 +128,13 @@ struct Rule {
     sel: Compound* = nullptr; decls: Attr* = nullptr;
     spec: int = 0; seq: int = 0;
     next: Rule* = nullptr;
+    selText: char* = nullptr;          // selector as written (inspector); may be nullptr
+}
+
+// One declaration that targeted a node and how it was handled (node.styleNotes; constants SN_* / SRC_* are in Css.os).
+struct StyleNote {
+    prop: char* = nullptr; value: char* = nullptr; source: int = 0; status: int = 0;
+    selector: char* = nullptr; next: StyleNote* = nullptr;
 }
 
 // Rules sorted by (specificity, source order): iterating head -> tail applies them in cascade order.

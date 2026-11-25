@@ -26,7 +26,9 @@ include "standard/1/Ui/Tree.os";                  // struct Node; pastes Api.os 
 include "standard/1/Ui/Css.os";
 include "standard/1/Ui/Measure.os";
 include "standard/1/Ui/Controls/Control.os";
+include "standard/1/Ui/Controls/Popup.os";
 include "standard/1/Ui/Layout/Block.os";          // struct Layout; pastes Flex.os, Table.os, Abs.os (fragments) into its body
+include "standard/1/Ui/Selection.os";
 include "standard/1/Ui/Paint.os";
 include "standard/1/Ui/Events.os";
 include "standard/1/Ui/Backend/Gui.os";
