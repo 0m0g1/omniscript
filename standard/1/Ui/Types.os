@@ -25,7 +25,11 @@ struct Style {
     mt: Len; mr: Len; mb: Len; ml: Len;
     pt: Len; pr: Len; pb: Len; pl: Len;
     bt: float = 0.0; br: float = 0.0; bb: float = 0.0; bl: float = 0.0;
-    radius: float = 0.0; boxSizing: int = 0; overflow: int = 0;
+    radius: float = 0.0;               // CM_FILL / CM_BORDER corner radius (px); <= 0 is a plain rectangle
+    boxSizing: int = 0; overflow: int = 0;
+    aspect: float = 0.0;               // aspect-ratio as width / height; 0 = auto (Block.placeBlock derives an auto height from the width)
+    shOn: bool = false; shInset: bool = false;   // one box-shadow: lengths below are layout units; Painter only draws blur 0
+    shX: float = 0.0; shY: float = 0.0; shBlur: float = 0.0; shSpread: float = 0.0; shColor: u32 = 0;
     opacity: float = 1.0; zIndex: int = 0;
     top: Len; right: Len; bottom: Len; left: Len;
     flexDir: int = 0; wrap: bool = false; grow: float = 0.0; shrink: float = 1.0; basis: Len;
@@ -47,6 +51,8 @@ struct Style {
         lenSet(&this.pt, LU_PX, 0.0); lenSet(&this.pr, LU_PX, 0.0); lenSet(&this.pb, LU_PX, 0.0); lenSet(&this.pl, LU_PX, 0.0);
         this.bt = 0.0; this.br = 0.0; this.bb = 0.0; this.bl = 0.0;
         this.radius = 0.0; this.boxSizing = 0; this.overflow = OV_VISIBLE;
+        this.aspect = 0.0;
+        this.shOn = false; this.shInset = false; this.shX = 0.0; this.shY = 0.0; this.shBlur = 0.0; this.shSpread = 0.0; this.shColor = 0;
         this.opacity = 1.0; this.zIndex = 0;
         lenSet(&this.top, LU_AUTO, 0.0); lenSet(&this.right, LU_AUTO, 0.0);
         lenSet(&this.bottom, LU_AUTO, 0.0); lenSet(&this.left, LU_AUTO, 0.0);
@@ -113,6 +119,7 @@ struct CssCtx {
     rootPx: float = 16.0;
     vw: float = 0.0; vh: float = 0.0;
     tui: bool = false;                 // font-size is ignored in a terminal (every glyph is one cell)
+    parent: Style* = nullptr;          // parent element's computed style, for `inherit` (nullptr at the root)
 }
 
 // Compound selector. Stored right-to-left: `left` is the compound to the left, `comb` the combinator between.
@@ -151,4 +158,5 @@ struct Cmd {
     text: char* = nullptr; tfrom: int = 0; tlen: int = 0;     // CM_TEXT slice; CM_MARK: tfrom = list style, tlen = index; CM_IMAGE: tfrom = image id
     size: float = 16.0; flags: int = 0;
     bt: float = 0.0; br: float = 0.0; bb: float = 0.0; bl: float = 0.0;
+    radius: float = 0.0;               // CM_FILL / CM_BORDER corner radius (px); <= 0 is a plain rectangle
 }

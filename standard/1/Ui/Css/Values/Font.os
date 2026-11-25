@@ -26,7 +26,7 @@ function parseFontSize(v: char*, ctx: CssCtx*, out: FsRes*) => void {
 
 // font: [style] [weight] size[/line-height] family...
 // Pass 0 applies the size (and returns the one diagnostic for the declaration); pass 1 applies style / weight / line-height
-// and returns AP_SKIP so the inspector lists the declaration once. The family is not rendered, hence AP_UNSUPPORTED.
+// and returns AP_SKIP so the inspector lists the declaration once. The family is accepted but not rendered (as font-family).
 // As in CSS, the shorthand resets style, weight and line-height to their initial values.
 function applyFontShorthand(st: Style*, v: char*, ctx: CssCtx*, pass: int) => int {
     if (containsStr(v, "var(") || containsStr(v, "calc(")) { if (pass == 0) return AP_UNSUPPORTED; return AP_SKIP; }
@@ -71,7 +71,7 @@ function applyFontShorthand(st: Style*, v: char*, ctx: CssCtx*, pass: int) => in
         }
     }
     let res: int = AP_INVALID;
-    if (found) res = AP_UNSUPPORTED;
+    if (found) res = AP_APPLIED;
     if (pass == 0) {
         if (found && !ctx.tui) st.fontPx = fr.px;
         strFree(lhTok);

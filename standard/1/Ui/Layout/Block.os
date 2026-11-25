@@ -249,6 +249,11 @@ struct Layout {
         let defH: float = UNSET;
         if (n.forceH >= 0.0) defH = n.forceH;
         else if (st.height.u == LU_PX) { defH = st.height.v; if (st.boxSizing == 0) defH = defH + vpad; }
+        // aspect-ratio: an auto height follows the width (replaced elements and controls keep their intrinsic size)
+        if (defH < 0.0 && st.aspect > 0.0 && n.forceH < 0.0 && st.height.u != LU_PX && n.kind != NK_CONTROL && n.kind != NK_REPLACED) {
+            if (st.boxSizing == 1) defH = w / st.aspect;
+            else defH = (w - hpad) / st.aspect + vpad;
+        }
         b.ch = UNSET;
         if (defH >= 0.0) b.ch = maxF(defH - vpad, 0.0);
 

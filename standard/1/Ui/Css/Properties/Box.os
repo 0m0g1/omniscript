@@ -1,7 +1,38 @@
 // standard/1/Ui/Css/Properties/Box.os
-// Property handlers: width/height (+min/max), margin*, padding*, logical margin/padding, box-sizing
+// Property handlers: width/height (+min/max), aspect-ratio, margin*, padding*, logical margin/padding, box-sizing
 // applyPropBox returns AP_NOMATCH when `name` is not one of its properties, so Property.os tries the next group.
 // To add a property: put one `else if (strEq(name, "...")) { ... }` branch here and the name in cssSupportedProps().
+
+// aspect-ratio value -> width / height. 0.0 = auto, -1.0 = invalid. Accepts "auto", "16/9", "16 / 9", "1.5", "auto 16/9", "16/9 auto".
+function parseRatio(v: char*) => float {
+    let res: float = -1.0;
+    if (strEqI(v, "auto")) { res = 0.0; }
+    else {
+        let len: int = strLen(v);
+        let a: char* = CMem.malloc((len + 1) as u64) as char*;
+        let d: char* = CMem.malloc((len + 1) as u64) as char*;
+        let na: int = 0; let nd: int = 0; let inDen: bool = false; let bad: bool = false; let i: int = 0;
+        while (i < len) {
+            let ch: int = v[i] as int;
+            if ((ch >= 48 && ch <= 57) || ch == 46) {
+                if (inDen) { d[nd] = ch as char; nd = nd + 1; } else { a[na] = ch as char; na = na + 1; }
+            }
+            else if (ch == 47) { if (inDen) bad = true; inDen = true; }
+            else if (ch == 32 || ch == 9 || (ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122)) { }   // spaces and the `auto` keyword
+            else { bad = true; }
+            i = i + 1;
+        }
+        a[na] = 0 as char; d[nd] = 0 as char;
+        if (!bad && na > 0 && (!inDen || nd > 0)) {
+            let num: float = parseFloatStr(a, 0.0);
+            let den: float = 1.0;
+            if (inDen) den = parseFloatStr(d, 0.0);
+            if (num > 0.0 && den > 0.0) res = num / den;
+        }
+        CMem.free(a as void*); CMem.free(d as void*);
+    }
+    return res;
+}
 
 function applyPropBox(st: Style*, name: char*, v: char*, ctx: CssCtx*, isFs: bool) => int {
     let res: int = AP_APPLIED;
@@ -44,6 +75,7 @@ function applyPropBox(st: Style*, name: char*, v: char*, ctx: CssCtx*, isFs: boo
         else if (strEq(name, "padding-block-start")) copyLen(&st.pt, &l);
         else copyLen(&st.pb, &l);
     }
+    else if (strEq(name, "aspect-ratio")) { let r: float = parseRatio(v); if (r < 0.0) res = AP_INVALID; else st.aspect = r; }
     else if (strEq(name, "box-sizing")) { st.boxSizing = 0; if (strEqI(v, "border-box")) st.boxSizing = 1; else if (!strEqI(v, "content-box")) res = AP_INVALID; }
     else { hit = false; }
     if (!hit) res = AP_NOMATCH;

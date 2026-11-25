@@ -15,6 +15,7 @@ function cascadeNode(n: Node*, parent: Style*, sheet: Sheet*, ctx: CssCtx*, forc
         if (n.styleNotes != nullptr) { freeStyleNotes(n.styleNotes); n.styleNotes = nullptr; }     // refilled below when recording
         n.st.reset();
         n.st.inheritFrom(parent);
+        ctx.parent = parent;                               // for inherit / unset (Properties/Wide.os)
         if (n.kind == NK_TEXT) {
             n.st.display = DP_INLINE;
         } else {

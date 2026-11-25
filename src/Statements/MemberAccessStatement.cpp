@@ -72,7 +72,7 @@ MemberAccess::MemberAccess(std::shared_ptr<Statement> obj, const std::string& me
     this->memberName = member;
     auto named = std::dynamic_pointer_cast<NamedStatement>(obj);
     if (!named) {
-        console.reportError(Console::SEMANTIC_ERROR, "The object having members should be named", FileSpan{});
+        console.reportError(Console::SEMANTIC_ERROR, "The object having members should be named", getSpan());
     } else {
         this->name = named->getName();
     }
@@ -120,7 +120,7 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
         // Handle string-based object name
         auto expr = scope->get(objectName);
         if (!expr) {
-            console.reportError(Console::SEMANTIC_ERROR, "Variable '" + objectName + "' not found in scope", FileSpan{});
+            console.reportError(Console::SEMANTIC_ERROR, "Variable '" + objectName + "' not found in scope", getSpan());
             return nullptr;
         }
         baseExpr = std::make_shared<VariableAccessExpression>(objectName, expr->getType());
@@ -130,7 +130,7 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
         // Handle expression-based object
         baseExpr = object->express(scope);
         if (!baseExpr) {
-            console.reportError(Console::SEMANTIC_ERROR, "Failed to evaluate base expression for member access", FileSpan{});
+            console.reportError(Console::SEMANTIC_ERROR, "Failed to evaluate base expression for member access", getSpan());
             return nullptr;
         }
         baseTypeName = extractTypeName(unwrapNullableType(baseExpr->getType()));
@@ -329,7 +329,7 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
             }
             return result;
         } else {
-            console.reportError(Console::SEMANTIC_ERROR, "Method '" + methodName + "' not found in scope", FileSpan{});
+            console.reportError(Console::SEMANTIC_ERROR, "Method '" + methodName + "' not found in scope", getSpan());
             return nullptr;
         }
     }
@@ -467,7 +467,7 @@ MemberAccess::resolveBaseExpression(SymbolTableType scope) {
     // General expression case
     auto baseExpr = object->express(scope);
     if (!baseExpr) {
-        console.reportError(Console::SEMANTIC_ERROR, "Failed to evaluate base expression for member access", FileSpan{});
+        console.reportError(Console::SEMANTIC_ERROR, "Failed to evaluate base expression for member access", getSpan());
         return {nullptr, "", ""};
     }
     
@@ -479,7 +479,7 @@ std::tuple<std::shared_ptr<Expression>, std::string, std::string>
 MemberAccess::resolveVariableBase(SymbolTableType scope, const std::string& varName) {
     auto [expr, resolvedName] = findVariableInScope(scope, varName);
     if (!expr) {
-        console.reportError(Console::SEMANTIC_ERROR, "Variable '" + varName + "' not found in current or contextual scope", FileSpan{});
+        console.reportError(Console::SEMANTIC_ERROR, "Variable '" + varName + "' not found in current or contextual scope", getSpan());
         return {nullptr, "", ""};
     }
     
@@ -494,7 +494,7 @@ std::tuple<std::shared_ptr<Expression>, std::string, std::string>
 MemberAccess::resolveChainedAccess(SymbolTableType scope, std::shared_ptr<MemberAccess> memberAcc) {
     auto baseExpr = memberAcc->express(scope);
     if (!baseExpr) {
-        console.reportError(Console::SEMANTIC_ERROR, "Failed to evaluate chained member access base expression", FileSpan{});
+        console.reportError(Console::SEMANTIC_ERROR, "Failed to evaluate chained member access base expression", getSpan());
         return {nullptr, "", ""};
     }
     
@@ -573,7 +573,7 @@ MemberAccess::getUserDefinedType(SymbolTableType scope, const std::string& typeN
         } else {
             DEBUG_LOG("No type definition found for: " + typeName);
         }
-        console.reportError(Console::TYPE_ERROR, "Type '" + typeName + "' is not a user-defined type.", FileSpan{});
+        console.reportError(Console::TYPE_ERROR, "Type '" + typeName + "' is not a user-defined type.", getSpan());
     }
     return userType;
 }
@@ -592,7 +592,7 @@ int MemberAccess::findMemberIndex(std::shared_ptr<UserDefinedType> userType) {
                      userType->paramTypes[i]->getParameterName() + "' ";
     }
     console.reportError(Console::TYPE_ERROR, "Type '" + userType->name + "' has no member '" + memberName +
-                  "'. Members: " + available, FileSpan{});
+                  "'. Members: " + available, getSpan());
     return -1;
 }
 
@@ -610,7 +610,7 @@ MemberAccess::processAssignment(SymbolTableType scope) {
     
     auto assignmentExpr = assignmentValue->express(scope);
     if (!assignmentExpr) {
-        console.reportError(Console::SEMANTIC_ERROR, "Failed to evaluate assignment expression", FileSpan{});
+        console.reportError(Console::SEMANTIC_ERROR, "Failed to evaluate assignment expression", getSpan());
     }
     
     return assignmentExpr;

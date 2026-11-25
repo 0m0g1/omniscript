@@ -65,6 +65,7 @@ function applyPropText(st: Style*, name: char*, v: char*, ctx: CssCtx*, isFs: bo
         else res = AP_INVALID;
     }
     else if (inList(name, "text-rendering -webkit-font-smoothing -moz-osx-font-smoothing font-smooth text-size-adjust -webkit-text-size-adjust")) { }   // rendering hints: no visual effect here
+    else if (strEq(name, "font-family")) { }                                     // accepted: every glyph comes from the one built-in atlas font, so the family list cannot change anything
     else { hit = false; }
     if (!hit) res = AP_NOMATCH;
     return res;

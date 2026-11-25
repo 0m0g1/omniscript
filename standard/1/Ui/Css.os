@@ -42,6 +42,7 @@ include "standard/1/Ui/Css/Properties/Display.os";
 include "standard/1/Ui/Css/Properties/Flex.os";
 include "standard/1/Ui/Css/Properties/Grid.os";
 include "standard/1/Ui/Css/Properties/Misc.os";
+include "standard/1/Ui/Css/Properties/Wide.os";
 include "standard/1/Ui/Css/Properties/Property.os";
 include "standard/1/Ui/Css/Cascade/Apply.os";
 include "standard/1/Ui/Css/Cascade/Defaults.os";

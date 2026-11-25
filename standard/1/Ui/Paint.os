@@ -4,7 +4,8 @@
 // Paint order per node: background, border, marker/native control, children (non-positioned first, then positioned by
 // z-index), scrollbar. overflow != visible pushes a clip on the padding box and offsets children by the scroll position.
 // Scrollbar: thumb is sbBarW() wide at the right edge of the padding box; Events.update lets you drag it or click the track.
-// NEXT: border-radius, per-side border colours, fixed elements ignoring ancestor scroll.
+// border-radius: CM_FILL / CM_BORDER carry Cmd.radius, Gui draws them with Pen2D.fillRoundRect / strokeRoundRect.
+// NEXT: per-side border colours, fixed elements ignoring ancestor scroll.
 
 struct DisplayList {
     cmds: Cmd* = nullptr; n: int = 0; cap: int = 0;
@@ -25,7 +26,7 @@ struct DisplayList {
         this.n = this.n + 1;
         c.op = op; c.x = 0.0; c.y = 0.0; c.w = 0.0; c.h = 0.0; c.color = 0;
         c.text = nullptr; c.tfrom = 0; c.tlen = 0; c.size = 16.0; c.flags = 0;
-        c.bt = 0.0; c.br = 0.0; c.bb = 0.0; c.bl = 0.0;
+        c.bt = 0.0; c.br = 0.0; c.bb = 0.0; c.bl = 0.0; c.radius = 0.0;
         return c;
     }
 
@@ -93,6 +94,13 @@ struct Painter {
         if ((color & 0xFF) == 0 || w <= 0.0 || h <= 0.0) return;
         let c: Cmd* = this.dl.add(CM_FILL);
         c.x = x; c.y = y; c.w = w; c.h = h; c.color = color;
+    }
+
+    // rounded fill (CM_FILL with radius); radius <= 0 is the plain rectangle
+    fillR(x: float, y: float, w: float, h: float, color: u32, radius: float) => void {
+        if ((color & 0xFF) == 0 || w <= 0.0 || h <= 0.0) return;
+        let c: Cmd* = this.dl.add(CM_FILL);
+        c.x = x; c.y = y; c.w = w; c.h = h; c.color = color; c.radius = radius;
     }
 
     text(x: float, y: float, s: char*, from: int, len: int, size: float, color: u32, flags: int) => void {
@@ -222,11 +230,25 @@ struct Painter {
         let x: float = b.x + ox; let y: float = b.y + oy;
 
         if (!st.hidden) {
-            this.fill(x, y, b.w, b.h, fadeColor(st.bg, op));
+            let rad: float = st.radius * this.m.unit;
+            // outer box-shadow with no blur = a hard copy of the box behind it (offset + spread)
+            if (st.shOn && !st.shInset && st.shBlur <= 0.0 && st.shSpread >= 0.0) {
+                let srad: float = rad; if (srad > 0.0) srad = srad + st.shSpread;
+                this.fillR(x + st.shX - st.shSpread, y + st.shY - st.shSpread, b.w + 2.0 * st.shSpread, b.h + 2.0 * st.shSpread, fadeColor(st.shColor, op), srad);
+            }
+            this.fillR(x, y, b.w, b.h, fadeColor(st.bg, op), rad);
             if (st.bt > 0.0 || st.br > 0.0 || st.bb > 0.0 || st.bl > 0.0) {
                 let c: Cmd* = this.dl.add(CM_BORDER);
                 c.x = x; c.y = y; c.w = b.w; c.h = b.h; c.color = fadeColor(st.borderColor, op);
-                c.bt = st.bt; c.br = st.br; c.bb = st.bb; c.bl = st.bl;
+                c.bt = st.bt; c.br = st.br; c.bb = st.bb; c.bl = st.bl; c.radius = rad;
+            }
+            // inset box-shadow with no offset and no blur = a ring of `spread` width just inside the border
+            if (st.shOn && st.shInset && st.shBlur <= 0.0 && st.shX == 0.0 && st.shY == 0.0 && st.shSpread > 0.0) {
+                let rg: Cmd* = this.dl.add(CM_BORDER);
+                rg.x = x + b.bl; rg.y = y + b.bt; rg.w = b.w - b.bl - b.br; rg.h = b.h - b.bt - b.bb;
+                rg.color = fadeColor(st.shColor, op);
+                rg.bt = st.shSpread; rg.br = st.shSpread; rg.bb = st.shSpread; rg.bl = st.shSpread;
+                rg.radius = maxF(rad - maxF(b.bt, b.bl), 0.0);
             }
             if (n.row.spec == SP_LI && st.listStyle != LS_NONE) {
                 let idx: int = 1; let ps: Node* = n.prevEl();

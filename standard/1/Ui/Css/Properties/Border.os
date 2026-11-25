@@ -78,7 +78,13 @@ function applyPropBorder(st: Style*, name: char*, v: char*, ctx: CssCtx*, isFs: 
         }
     }
     else if (strEq(name, "border-style")) { if (strEqI(v, "none") || strEqI(v, "hidden")) { st.bt = 0.0; st.br = 0.0; st.bb = 0.0; st.bl = 0.0; } }
-    else if (strEq(name, "border-radius")) { st.radius = parseWidthPx(v, ctx, st.radius); res = AP_UNSUPPORTED; }   // stored, NEXT: painted (Pen2D has no rounded rects)
+    else if (strEq(name, "border-radius")) {                                     // painted: Cmd.radius -> Pen2D.fillRoundRect / strokeRoundRect
+        if (containsStr(v, "%")) { st.radius = 9999.0; res = AP_UNSUPPORTED; }          // 50% = circle / pill; other percentages approximated the same way
+        else {
+            st.radius = parseWidthPx(v, ctx, st.radius);
+            if (containsStr(v, " ") || containsStr(v, "/")) res = AP_UNSUPPORTED;      // `a b c d` / `a / b`: one radius for all corners (the first value)
+        }
+    }
     else { hit = false; }
     if (!hit) res = AP_NOMATCH;
     return res;

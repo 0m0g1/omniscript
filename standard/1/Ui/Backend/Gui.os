@@ -1,5 +1,5 @@
 // standard/1/Ui/Backend/Gui.os
-// Display list -> Pen2D. Uses only fillRect, textScaled, pushClip/popClip and image. Called every frame
+// Display list -> Pen2D. Uses only fillRect, fillRoundRect, strokeRoundRect, textScaled, pushClip/popClip and image. Called every frame
 // (Pen2D clears each frame); the display list itself is rebuilt only when something is dirty.
 // Text is drawn with the 8x16 bitmap font scaled by fontPx / cellH. Bold = drawn twice 1px apart, italic is ignored
 // (NEXT: Font variants), underline / strike are drawn as lines. Widgets (buttons, inputs...) are drawn by Pen2D
@@ -29,12 +29,21 @@ struct GuiBackend {
         if (w > 0.0 && h > 0.0 && (color & 0xFF) != 0) this.pen.fillRect(x, y, w, h, color);
     }
 
+    rrect(x: float, y: float, w: float, h: float, r: float, color: u32) => void {
+        if (w > 0.0 && h > 0.0 && (color & 0xFF) != 0) this.pen.fillRoundRect(x, y, w, h, r, color);
+    }
+
     run(dl: DisplayList*, m: Metrics*) => void {
         let i: int = 0;
         while (i < dl.n) {
             let c: Cmd* = &dl.cmds[i];
             if (c.op == CM_FILL) {
-                this.rect(c.x, c.y, c.w, c.h, c.color);
+                if (c.radius > 0.0) this.rrect(c.x, c.y, c.w, c.h, c.radius, c.color);
+                else this.rect(c.x, c.y, c.w, c.h, c.color);
+            }
+            else if (c.op == CM_BORDER && c.radius > 0.0 && c.bt == c.br && c.bt == c.bb && c.bt == c.bl) {
+                // uniform border on a rounded box: a ring (per-side widths with a radius fall back to the square border below)
+                if (c.bt > 0.0 && (c.color & 0xFF) != 0) this.pen.strokeRoundRect(c.x, c.y, c.w, c.h, c.radius, c.bt, c.color);
             }
             else if (c.op == CM_BORDER) {
                 this.rect(c.x, c.y, c.w, c.bt, c.color);
