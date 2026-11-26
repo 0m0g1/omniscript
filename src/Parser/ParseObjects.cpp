@@ -389,6 +389,39 @@ std::shared_ptr<Statement> Parser::parseStruct() {
             continue;
         }
 
+        // ---- DESTRUCTOR: `~destructor() { ... }` ----
+        // Parsed like any other method; it is registered as '<structName>.destructor' (the same
+        // name parseClass gives class destructors) and gets the implicit `this` in
+        // ConstructStructPrototype::express.
+        if (currentToken.getType() == TokenTypes::Tilde) {
+            eat(TokenTypes::Tilde);
+            if (currentToken.getType() != TokenTypes::Identifier || currentToken.getValue() != "destructor") {
+                console.reportError(Console::SYNTAX_ERROR,
+                    "Expected 'destructor' after '~' in struct '" + structName + "' (write `~destructor() { ... }`).",
+                    errorSpanAtCurrentToken());
+                skipBadMember();
+                continue;
+            }
+            eat(TokenTypes::Identifier);
+            if (currentToken.getType() != TokenTypes::LeftParen) {
+                console.reportError(Console::SYNTAX_ERROR,
+                    "Expected '(' after '~destructor' in struct '" + structName + "'.",
+                    errorSpanAtCurrentToken());
+                skipBadMember();
+                continue;
+            }
+            auto dtor = parseLambdaFunction(structName + ".destructor");
+            if (!dtor) {
+                skipBadMember(); // the lambda parser already reported the error
+                continue;
+            }
+            body.push_back(dtor);
+            if (currentToken.getType() == TokenTypes::Semicolon) {
+                eat(TokenTypes::Semicolon);
+            }
+            continue;
+        }
+
         if (currentToken.getType() == TokenTypes::Identifier) {
             std::string fieldName = currentToken.getValue();
             eat(TokenTypes::Identifier);

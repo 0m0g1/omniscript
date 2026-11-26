@@ -16,6 +16,26 @@ struct ReturnExpression : public Expression {
     }
 };
 
+struct BreakExpression : public Expression {
+    BreakExpression() { type = Type::createInvalid(); }
+    std::string toString() const override { return "Break"; }
+    std::shared_ptr<Expression> clone() const override {
+        auto copy = std::make_shared<BreakExpression>();
+        copy->setSpan(getSpan());
+        return copy;
+    }
+};
+
+struct ContinueExpression : public Expression {
+    ContinueExpression() { type = Type::createInvalid(); }
+    std::string toString() const override { return "Continue"; }
+    std::shared_ptr<Expression> clone() const override {
+        auto copy = std::make_shared<ContinueExpression>();
+        copy->setSpan(getSpan());
+        return copy;
+    }
+};
+
 struct IfExpression : public Expression {
     std::vector<std::shared_ptr<Expression>> conditions;  
     std::vector<std::shared_ptr<Expression>> bodies;      

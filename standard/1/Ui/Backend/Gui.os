@@ -38,7 +38,9 @@ struct GuiBackend {
         while (i < dl.n) {
             let c: Cmd* = &dl.cmds[i];
             if (c.op == CM_FILL) {
-                if (c.radius > 0.0) this.rrect(c.x, c.y, c.w, c.h, c.radius, c.color);
+                if (c.flags == 4) { if (c.w > 0.0 && c.h > 0.0 && (c.color & 0xFF) != 0) this.pen.fillRoundRect4(c.x, c.y, c.w, c.h, c.rtl, c.rtr, c.rbr, c.rbl, c.color); }   // per-corner radii
+                else if (c.flags != 0) { if (c.w > 0.0 && c.h > 0.0) this.pen.fillGradient(c.x, c.y, c.w, c.h, c.color, c.color2, c.flags == 2); }      // gradient segment
+                else if (c.radius > 0.0) this.rrect(c.x, c.y, c.w, c.h, c.radius, c.color);
                 else this.rect(c.x, c.y, c.w, c.h, c.color);
             }
             else if (c.op == CM_BORDER && c.radius > 0.0 && c.bt == c.br && c.bt == c.bb && c.bt == c.bl) {

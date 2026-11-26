@@ -9,6 +9,7 @@
 #include <omniscript/Statements/Statement.h>
 
 #include <omniscript/Expressions/LiteralExpressions.h>
+#include <omniscript/Expressions/Expressions.h>
 #include <omniscript/Expressions/CastExpression.h>
 
 namespace Omniscript {
@@ -1369,6 +1370,32 @@ std::shared_ptr<Literal> Array::castTo(std::shared_ptr<Type> targetType) const {
         getSpan()
     );
     return nullptr;
+}
+
+std::shared_ptr<Expression> StringTemplateStatement::express(SymbolTableType scope) {
+    setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+
+    std::vector<StringTemplateExpression::Part> out;
+    for (const auto& part : parts) {
+        if (auto lit = std::dynamic_pointer_cast<StringLiteral>(part)) {
+            StringTemplateExpression::Part p;
+            p.isText = true;
+            p.text = utf32_to_utf8(lit->value);
+            out.push_back(p);
+            continue;
+        }
+        auto e = part->express(scope);
+        if (!e) {
+            return nullptr;   // the embedded expression already reported its error
+        }
+        StringTemplateExpression::Part p;
+        p.expr = e;
+        out.push_back(p);
+    }
+
+    auto result = std::make_shared<StringTemplateExpression>(out);
+    result->setSpan(getSpan());
+    return result;
 }
 
 } //namespace Omniscript

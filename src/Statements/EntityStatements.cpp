@@ -26,6 +26,14 @@ std::shared_ptr<Expression> EnumConstructor::express(SymbolTableType scope) {
         expr->addEntry(val->getIndex(), val->getName(), val->express(scope));
     }
 
+    // Same integer type the enumerators were expressed with (int32).
+    expr->underlyingType = std::make_shared<IntegerLiteral>(0)->express(scope)->getType();
+    expr->type = expr->underlyingType;
+
+    // Register like a struct does, so `Color` resolves as a symbol and `let c: Color` as a type.
+    scope->addType(name, expr->underlyingType);
+    scope->set(name, expr);
+
     expr->setSpan(this->getSpan());
     return expr;
 }

@@ -42,6 +42,7 @@ struct EnumExpression : public Expression {
         auto copy = std::make_shared<EnumExpression>(enumName, hasLookup, isEnumClass);
         copy->enumerators = enumerators;
         copy->expressionMap = expressionMap;  
+        copy->underlyingType = underlyingType;
         return copy;
     }
     
@@ -52,6 +53,9 @@ struct EnumExpression : public Expression {
     std::string enumName;
     bool hasLookup = false;
     bool isEnumClass = false;
+
+    // An enum is an alias of this integer type (int32): `let c: Color` is declared with it.
+    std::shared_ptr<Type> underlyingType;
 
     std::unordered_map<std::string, int> enumerators;  
     std::unordered_map<std::string, std::shared_ptr<Expression>> expressionMap;  

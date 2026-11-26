@@ -67,6 +67,17 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             statement = parseFunctionDeclaration("", {});
             break;
         case TokenTypes::Identifier: {
+            // `do` and `switch` are contextual keywords: only treated as statements when followed by
+            // `{` / `(`, so existing code that uses them as ordinary names keeps working.
+            const std::string word = currentToken.getValue();
+            if (word == "do" && lexer.peekToken(1).getType() == TokenTypes::LeftBrace) {
+                statement = parseDoWhile();
+                break;
+            }
+            if (word == "switch" && lexer.peekToken(1).getType() == TokenTypes::LeftParen) {
+                statement = parseSwitch();
+                break;
+            }
             if (lexer.peekToken(1).getType() == TokenTypes::Increment || 
                 lexer.peekToken(1).getType() == TokenTypes::Decrement) {
                 statement = parseExpression();

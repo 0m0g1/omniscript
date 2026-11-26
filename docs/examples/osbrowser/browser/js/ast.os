@@ -23,6 +23,9 @@ let N_ASSIGN: int = 18;  // op (OP_ASSIGN or the arithmetic op for +=), a = targ
 let N_COND: int = 19;    // a ? b : c
 let N_SEQ: int = 20;     // a , b
 let N_FUNC: int = 21;    // s = name, a = params (N_IDENT list), b = body, n = 1.0 when b is an expression (arrow)
+let N_REGEX: int = 22;   // s = pattern text (flags are dropped; evaluates to an object with .source)
+let N_PATTERN: int = 23; // destructuring pattern: a = N_PROP list (s = key, b = N_IDENT target, a = default), op = 1 for [array]
+let N_NEW: int = 24;     // a = callee, b = args
 // statements
 let N_VAR: int = 30;     // a = N_DECL list
 let N_DECL: int = 31;    // s = name, a = init
@@ -36,6 +39,9 @@ let N_BREAK: int = 38;
 let N_CONTINUE: int = 39;
 let N_FUNCDECL: int = 40;// s = name, a = N_FUNC
 let N_EMPTY: int = 41;
+let N_TRY: int = 43;     // a = block, s = catch variable ("" if none), b = catch block, c = finally block
+let N_THROW: int = 44;   // a
+let N_FOREACH: int = 42; // for (x of a) / for (x in a): s = name, n = 1.0 when declared (let/const/var), op = 1 for `of`, a = iterable, d = body
 
 // operators
 let OP_NONE: int = 0;
@@ -46,6 +52,9 @@ let OP_AND: int = 12; let OP_OR: int = 13;  let OP_NULLISH: int = 14;
 let OP_ASSIGN: int = 15;
 let OP_NOT: int = 16; let OP_NEG: int = 17; let OP_POS: int = 18; let OP_TYPEOF: int = 19;
 let OP_INC: int = 20; let OP_DEC: int = 21;
+let OP_BOR: int = 22; let OP_BAND: int = 23; let OP_BXOR: int = 24;
+let OP_SHL: int = 25; let OP_SHR: int = 26; let OP_USHR: int = 27;
+let OP_BNOT: int = 28; let OP_VOID: int = 29;
 
 struct Node {
     k: int = 0;
@@ -79,6 +88,8 @@ function binOp(s: char*) => int {
     if (U.streq(s, ">")) return 7;   if (U.streq(s, "<=")) return 8;  if (U.streq(s, ">=")) return 9;
     if (U.streq(s, "==")) return 10; if (U.streq(s, "!=")) return 11; if (U.streq(s, "&&")) return 12;
     if (U.streq(s, "||")) return 13; if (U.streq(s, "??")) return 14;
+    if (U.streq(s, "|")) return 22;  if (U.streq(s, "&")) return 23;  if (U.streq(s, "^")) return 24;
+    if (U.streq(s, "<<")) return 25; if (U.streq(s, ">>")) return 26; if (U.streq(s, ">>>")) return 27;
     return 0;
 }
 
@@ -87,10 +98,14 @@ function prec(op: int) => int {
     if (op == 14) return 1;
     if (op == 13) return 2;
     if (op == 12) return 3;
-    if (op == 10 || op == 11) return 4;
-    if (op >= 6 && op <= 9) return 5;
-    if (op == 1 || op == 2) return 6;
-    if (op == 3 || op == 4 || op == 5) return 7;
+    if (op == 22) return 4;
+    if (op == 24) return 5;
+    if (op == 23) return 6;
+    if (op == 10 || op == 11) return 7;
+    if (op >= 6 && op <= 9) return 8;
+    if (op >= 25 && op <= 27) return 9;
+    if (op == 1 || op == 2) return 10;
+    if (op == 3 || op == 4 || op == 5) return 11;
     return 0;
 }
 

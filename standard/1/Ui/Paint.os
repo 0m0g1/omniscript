@@ -24,9 +24,10 @@ struct DisplayList {
         }
         let c: Cmd* = &this.cmds[this.n];
         this.n = this.n + 1;
-        c.op = op; c.x = 0.0; c.y = 0.0; c.w = 0.0; c.h = 0.0; c.color = 0;
+        c.op = op; c.x = 0.0; c.y = 0.0; c.w = 0.0; c.h = 0.0; c.color = 0; c.color2 = 0;
         c.text = nullptr; c.tfrom = 0; c.tlen = 0; c.size = 16.0; c.flags = 0;
         c.bt = 0.0; c.br = 0.0; c.bb = 0.0; c.bl = 0.0; c.radius = 0.0;
+        c.rtl = 0.0; c.rtr = 0.0; c.rbr = 0.0; c.rbl = 0.0;
         return c;
     }
 
@@ -103,10 +104,50 @@ struct Painter {
         c.x = x; c.y = y; c.w = w; c.h = h; c.color = color; c.radius = radius;
     }
 
+    // fill with a different radius per corner (CM_FILL flags 4); radii in px, already scaled by the metrics unit
+    fillR4(x: float, y: float, w: float, h: float, color: u32, tl: float, tr: float, br: float, bl: float) => void {
+        if ((color & 0xFF) == 0 || w <= 0.0 || h <= 0.0) return;
+        let c: Cmd* = this.dl.add(CM_FILL);
+        c.x = x; c.y = y; c.w = w; c.h = h; c.color = color; c.flags = 4;
+        c.rtl = tl; c.rtr = tr; c.rbr = br; c.rbl = bl;
+        c.radius = maxF(maxF(tl, tr), maxF(br, bl));
+    }
+
     text(x: float, y: float, s: char*, from: int, len: int, size: float, color: u32, flags: int) => void {
         let c: Cmd* = this.dl.add(CM_TEXT);
         c.x = x; c.y = y; c.text = s; c.tfrom = from; c.tlen = len; c.size = size; c.color = color; c.flags = flags;
         c.h = size * this.m.lineH / this.m.cellH;
+    }
+
+    // one gradient segment: a CM_FILL with flags 1 (horizontal) / 2 (vertical); color = start colour, color2 = far-end colour.
+    // t0..t1 is the span along the gradient axis (0..1); rev = the axis runs right-to-left / bottom-to-top.
+    gradSeg(horiz: bool, rev: bool, x: float, y: float, w: float, h: float, t0: float, t1: float, ca: u32, cb: u32, op: float) => void {
+        if (t1 <= t0) return;
+        let a0: float = t0; let a1: float = t1; let cs: u32 = ca; let ce: u32 = cb;
+        if (rev) { a0 = 1.0 - t1; a1 = 1.0 - t0; cs = cb; ce = ca; }
+        let c: Cmd* = this.dl.add(CM_FILL);
+        if (horiz) { c.x = x + w * a0; c.y = y; c.w = w * (a1 - a0); c.h = h; c.flags = 1; }
+        else { c.x = x; c.y = y + h * a0; c.w = w; c.h = h * (a1 - a0); c.flags = 2; }
+        c.color = fadeColor(cs, op); c.color2 = fadeColor(ce, op);
+    }
+
+    // linear-gradient background (Style.gd*), drawn over the background colour / image on the border box.
+    // Diagonal angles use the nearest axis; border-radius is not applied to it.
+    paintGradient(st: Style*, x: float, y: float, w: float, h: float, op: float) => void {
+        let n: int = st.gdN;
+        if (n < 2 || w <= 0.0 || h <= 0.0) return;
+        let ang: float = st.gdAngle;
+        let horiz: bool = (ang >= 45.0 && ang < 135.0) || (ang >= 225.0 && ang < 315.0);
+        let rev: bool = ang >= 225.0 || ang < 45.0;
+        let p0: float = gradPos(st, 0);
+        if (p0 > 0.0) this.gradSeg(horiz, rev, x, y, w, h, 0.0, p0, gradColor(st, 0), gradColor(st, 0), op);
+        let i: int = 0;
+        while (i < n - 1) {
+            this.gradSeg(horiz, rev, x, y, w, h, gradPos(st, i), gradPos(st, i + 1), gradColor(st, i), gradColor(st, i + 1), op);
+            i = i + 1;
+        }
+        let pe: float = gradPos(st, n - 1);
+        if (pe < 1.0) this.gradSeg(horiz, rev, x, y, w, h, pe, 1.0, gradColor(st, n - 1), gradColor(st, n - 1), op);
     }
 
     skipChild(p: Node*, c: Node*) => bool {
@@ -193,6 +234,30 @@ struct Painter {
                 let cw: float = f.w / (f.len as float);
                 this.fill(f.x + ox + ((this.sel.lo - f.from) as float) * cw, f.y + oy, ((this.sel.hi - this.sel.lo) as float) * cw, f.h, SEL_COLOR);
             }
+            if (st.tsOn && (st.tsColor & 0xFF) != 0 && f.len > 0) {
+                let sf: int = flags & (TF_BOLD | TF_ITALIC);
+                if (st.tsBlur <= 0.0) {
+                    this.text(f.x + ox + st.tsX, f.y + oy + st.tsY, n.ctext, f.from, f.len, st.fontPx, fadeColor(st.tsColor, op), sf);
+                }
+                else {                      // blur: two rings of 8 faint copies around the offset position
+                    let ring: int = 0;
+                    while (ring < 2) {
+                        let rr: float = st.tsBlur * 0.25 * ((ring + 1) as float);
+                        let a: int = 0;
+                        while (a < 3) {
+                            let b2: int = 0;
+                            while (b2 < 3) {
+                                if (!(a == 1 && b2 == 1)) {
+                                    this.text(f.x + ox + st.tsX + rr * ((a - 1) as float), f.y + oy + st.tsY + rr * ((b2 - 1) as float), n.ctext, f.from, f.len, st.fontPx, fadeColor(st.tsColor, op * 0.08), sf);
+                                }
+                                b2 = b2 + 1;
+                            }
+                            a = a + 1;
+                        }
+                        ring = ring + 1;
+                    }
+                }
+            }
             this.text(f.x + ox, f.y + oy, n.ctext, f.from, f.len, st.fontPx, fadeColor(st.color, op), flags);
             f = f.next;
         }
@@ -244,6 +309,14 @@ struct Painter {
         if (clip) this.dl.add(CM_POPCLIP);
     }
 
+    // background colour of a box: uniform radius, or one radius per corner (border-radius with different values)
+    fillBox(st: Style*, x: float, y: float, w: float, h: float, color: u32, rad: float) => void {
+        if (st.rmix) {
+            let u: float = this.m.unit;
+            this.fillR4(x, y, w, h, color, st.rtl * u, st.rtr * u, st.rbr * u, st.rbl * u);
+        } else this.fillR(x, y, w, h, color, rad);
+    }
+
     paintNode(n: Node*, ox: float, oy: float, op0: float) => void {
         if (n.st.display == DP_NONE || n.kind == NK_HIDDEN) return;
         let st: Style* = &n.st;
@@ -259,8 +332,32 @@ struct Painter {
                 let srad: float = rad; if (srad > 0.0) srad = srad + st.shSpread;
                 this.fillR(x + st.shX - st.shSpread, y + st.shY - st.shSpread, b.w + 2.0 * st.shSpread, b.h + 2.0 * st.shSpread, fadeColor(st.shColor, op), srad);
             }
-            this.fillR(x, y, b.w, b.h, fadeColor(st.bg, op), rad);
-            if (st.bgUrl != nullptr && n.bgImgId > 0 && n.bgImgW > 0.0 && n.bgImgH > 0.0) this.paintBgImage(n, x, y, op);
+            // outer box-shadow with blur = a few stacked, increasingly larger translucent copies (soft edge from -blur/2 to +blur/2)
+            if (st.shOn && !st.shInset && st.shBlur > 0.0) {
+                let lay: int = 6; let j: int = 0;
+                let lf: float = op / (lay as float);
+                while (j < lay) {
+                    let d: float = st.shSpread - st.shBlur * 0.5 + st.shBlur * ((j + 1) as float) / (lay as float);
+                    let sw: float = b.w + 2.0 * d; let sh: float = b.h + 2.0 * d;
+                    if (sw > 0.0 && sh > 0.0) {
+                        let srad: float = rad + d;
+                        if (rad <= 0.0) srad = maxF(d, 0.0) * 0.5;
+                        if (srad < 0.0) srad = 0.0;
+                        this.fillR(x + st.shX - d, y + st.shY - d, sw, sh, fadeColor(st.shColor, lf), srad);
+                    }
+                    j = j + 1;
+                }
+            }
+            let hasBgImg: bool = st.bgUrl != nullptr && n.bgImgId > 0 && n.bgImgW > 0.0 && n.bgImgH > 0.0;
+            if (hasBgImg && st.bgOver) {                                  // background-blend-mode: colour tint over the image
+                this.paintBgImage(n, x, y, op);
+                this.fillBox(st, x, y, b.w, b.h, fadeColor(st.bg, op), rad);
+            }
+            else {
+                this.fillBox(st, x, y, b.w, b.h, fadeColor(st.bg, op), rad);
+                if (hasBgImg) this.paintBgImage(n, x, y, op);
+            }
+            if (st.gdN >= 2) this.paintGradient(st, x, y, b.w, b.h, op);
             if (st.bt > 0.0 || st.br > 0.0 || st.bb > 0.0 || st.bl > 0.0) {
                 let c: Cmd* = this.dl.add(CM_BORDER);
                 c.x = x; c.y = y; c.w = b.w; c.h = b.h; c.color = fadeColor(st.borderColor, op);
@@ -293,9 +390,25 @@ struct Painter {
             }
             else if (n.kind == NK_REPLACED) {
                 if (n.imgId > 0) {
+                    let ix: float = x + b.bl + b.pl; let iy: float = y + b.bt + b.pt; let iw: float = b.cw; let ih: float = b.ch;
+                    let clipI: bool = false;
+                    if (st.objFit != 0 && n.imgW > 0.0 && n.imgH > 0.0 && iw > 0.0 && ih > 0.0) {
+                        // object-fit / object-position: scale the picture, place it by the position fractions, clip to the content box
+                        let sx: float = iw / n.imgW; let sy: float = ih / n.imgH;
+                        let sc: float = minF(sx, sy);                           // contain
+                        if (st.objFit == 1) sc = maxF(sx, sy);                  // cover
+                        else if (st.objFit == 3) sc = this.m.unit;              // none: natural size
+                        else if (st.objFit == 4) sc = minF(sc, this.m.unit);    // scale-down: contain, but never above natural size
+                        let dw: float = n.imgW * sc; let dh: float = n.imgH * sc;
+                        let dx: float = ix + (iw - dw) * st.objFx; let dy: float = iy + (ih - dh) * st.objFy;
+                        clipI = dx < ix || dy < iy || dx + dw > ix + iw || dy + dh > iy + ih;
+                        if (clipI) { let pc: Cmd* = this.dl.add(CM_PUSHCLIP); pc.x = ix; pc.y = iy; pc.w = iw; pc.h = ih; }
+                        ix = dx; iy = dy; iw = dw; ih = dh;
+                    }
                     let im: Cmd* = this.dl.add(CM_IMAGE);
-                    im.x = x + b.bl + b.pl; im.y = y + b.bt + b.pt; im.w = b.cw; im.h = b.ch; im.tfrom = n.imgId;
+                    im.x = ix; im.y = iy; im.w = iw; im.h = ih; im.tfrom = n.imgId;
                     im.color = fadeColor(0xFFFFFFFF, op);
+                    if (clipI) this.dl.add(CM_POPCLIP);
                 } else {
                     this.fill(x, y, b.w, b.h, fadeColor(0x2A2A33FF, op));        // placeholder: the tag name in a dim box
                     let lbl: char* = n.getAttr("alt");                           // alt text if present, else the tag name

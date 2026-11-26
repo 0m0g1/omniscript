@@ -95,13 +95,59 @@ function parseTemplate(raw: char*) => AST.Node* {
 }
 
 // ---------- expressions ----------
+function parsePattern() => AST.Node* {                 // at '{' or '[' : one level of destructuring, targets are plain names
+    let pat: AST.Node* = AST.mk(AST.N_PATTERN);
+    let isArr: bool = isP("[");
+    let close: char* = "}";
+    if (isArr) close = "]";
+    pos = pos + 1;
+    if (isArr) pat.op = 1;
+    while (!isP(close) && !atEnd() && !failed) {
+        if (isArr && isP(",")) { pos = pos + 1; pat.n = pat.n + 1.0; }                                // hole: skipped (no index tracking, see N_PATTERN)
+        else {
+            let pr: AST.Node* = AST.mk(AST.N_PROP);
+            let id: AST.Node* = AST.mk(AST.N_IDENT);
+            if (isP("...")) fail("rest in a pattern is not supported");
+            else if (toks[pos].t != SC.T_ID && toks[pos].t != SC.T_STR) fail("bad pattern");
+            else {
+                pr.s = toks[pos].s;
+                id.s = toks[pos].s;
+                pr.n = pat.n;                                                    // element index for array patterns
+                pat.n = pat.n + 1.0;
+                pos = pos + 1;
+                if (!isArr && eatP(":")) {
+                    if (toks[pos].t != SC.T_ID) fail("nested patterns are not supported");
+                    else { id.s = toks[pos].s; pos = pos + 1; }
+                }
+                if (!failed) {
+                    pr.b = id;
+                    if (eatP("=")) pr.a = parseAssign();
+                    pat.a = AST.append(pat.a, pr);
+                    if (!eatP(",")) { if (!isP(close)) fail(U.cat("expected , or ", close)); }
+                }
+            }
+        }
+    }
+    expectP(close);
+    return pat;
+}
+
 function parseParams() => AST.Node* {                  // after '(' ... consumes ')'. `a = expr` keeps the default in p.a
     let head: AST.Node* = nullptr;
-    while (!isP(")") && !atEnd()) {
+    while (!isP(")") && !atEnd() && !failed) {
         let p: AST.Node* = AST.mk(AST.N_IDENT);
-        if (toks[pos].t != SC.T_ID) fail("unsupported parameter (destructuring/rest)");
-        p.s = toks[pos].s;
-        pos = pos + 1;
+        if (isP("{") || isP("[")) { p.s = ""; p.c = parsePattern(); }
+        else if (isP("...")) {                                                   // rest: gathers the remaining args into an array
+            pos = pos + 1;
+            if (toks[pos].t != SC.T_ID) fail("bad rest parameter");
+            p.s = toks[pos].s; p.op = 1;
+            pos = pos + 1;
+        }
+        else {
+            if (toks[pos].t != SC.T_ID) fail("unsupported parameter");
+            p.s = toks[pos].s;
+            pos = pos + 1;
+        }
         if (eatP("=")) p.a = parseAssign();
         head = AST.append(head, p);
         if (!eatP(",")) { if (!isP(")")) fail("bad parameter list"); }
@@ -173,6 +219,7 @@ function parsePrimary() => AST.Node* {
     if (t.t == SC.T_NUM) { r = AST.mk(AST.N_NUM); r.n = t.n; pos = pos + 1; }
     else if (t.t == SC.T_STR) { r = AST.mk(AST.N_STR); r.s = t.s; pos = pos + 1; }
     else if (t.t == SC.T_TPL) { pos = pos + 1; r = parseTemplate(t.s); }
+    else if (t.t == SC.T_REGEX) { r = AST.mk(AST.N_REGEX); r.s = t.s; pos = pos + 1; }
     else if (t.t == SC.T_ID) {
         let name: char* = t.s;
         pos = pos + 1;
@@ -184,6 +231,34 @@ function parsePrimary() => AST.Node* {
             let fname: char* = "";
             if (toks[pos].t == SC.T_ID) { fname = toks[pos].s; pos = pos + 1; }
             r = parseFunctionRest(fname);
+        }
+        else if (U.streq(name, "new")) {
+            r = AST.mk(AST.N_NEW);
+            let callee: AST.Node* = parsePrimary();
+            while (!failed && (isP(".") || isP("["))) {
+                if (isP(".")) {
+                    pos = pos + 1;
+                    let m: AST.Node* = AST.mk(AST.N_MEMBER);
+                    m.a = callee; m.s = toks[pos].s;
+                    pos = pos + 1;
+                    callee = m;
+                }
+                else {
+                    pos = pos + 1;
+                    let ix: AST.Node* = AST.mk(AST.N_INDEX);
+                    ix.a = callee; ix.b = parseExpression();
+                    expectP("]");
+                    callee = ix;
+                }
+            }
+            r.a = callee;
+            if (eatP("(")) {
+                while (!isP(")") && !atEnd() && !failed) {
+                    r.b = AST.append(r.b, parseAssign());
+                    if (!eatP(",")) { if (!isP(")")) fail("expected , or )"); }
+                }
+                expectP(")");
+            }
         }
         else { r = AST.mk(AST.N_IDENT); r.s = name; }
     }
@@ -246,6 +321,20 @@ function parseUnary() => AST.Node* {
         let u: AST.Node* = AST.mk(AST.N_UNARY);
         if (isP("!")) u.op = AST.OP_NOT; else if (isP("-")) u.op = AST.OP_NEG; else u.op = AST.OP_POS;
         pos = pos + 1;
+        u.a = parseUnary();
+        r = u;
+    }
+    else if (isP("~")) {
+        pos = pos + 1;
+        let u: AST.Node* = AST.mk(AST.N_UNARY);
+        u.op = AST.OP_BNOT;
+        u.a = parseUnary();
+        r = u;
+    }
+    else if (isKw("void")) {
+        pos = pos + 1;
+        let u: AST.Node* = AST.mk(AST.N_UNARY);
+        u.op = AST.OP_VOID;
         u.a = parseUnary();
         r = u;
     }
@@ -320,6 +409,10 @@ function assignOp() => int {                           // current token as an as
     if (U.streq(s, "-=")) return AST.OP_SUB;
     if (U.streq(s, "*=")) return AST.OP_MUL;
     if (U.streq(s, "/=")) return AST.OP_DIV;
+    if (U.streq(s, "%=")) return AST.OP_MOD;
+    if (U.streq(s, "|=")) return AST.OP_BOR;
+    if (U.streq(s, "&=")) return AST.OP_BAND;
+    if (U.streq(s, "^=")) return AST.OP_BXOR;
     return 0 - 1;
 }
 
@@ -428,8 +521,24 @@ function parseStatement() => AST.Node* {
     }
     else if (isKw("for")) {
         pos = pos + 1;
-        r = AST.mk(AST.N_FOR);
         expectP("(");
+        let declared: bool = isKw("let") || isKw("const") || isKw("var");
+        let at: int = pos;
+        if (declared) at = pos + 1;
+        let isOf: bool = toks[at].t == SC.T_ID && toks[at + 1].t == SC.T_ID && U.streq(toks[at + 1].s, "of");
+        let isIn: bool = toks[at].t == SC.T_ID && toks[at + 1].t == SC.T_ID && U.streq(toks[at + 1].s, "in");
+        if (isOf || isIn) {
+            r = AST.mk(AST.N_FOREACH);
+            r.s = toks[at].s;
+            if (declared) r.n = 1.0;
+            if (isOf) r.op = 1;
+            pos = at + 2;
+            r.a = parseExpression();
+            expectP(")");
+            r.d = parseStatement();
+            return r;
+        }
+        r = AST.mk(AST.N_FOR);
         if (isKw("let") || isKw("const") || isKw("var")) r.a = parseVarDecls();
         else if (!isP(";")) { let ex: AST.Node* = AST.mk(AST.N_EXPR); ex.a = parseExpression(); r.a = ex; }
         expectP(";");
@@ -445,6 +554,19 @@ function parseStatement() => AST.Node* {
         if (!isP(";") && !isP("}") && !atEnd()) r.a = parseExpression();
         endStmt();
     }
+    else if (isKw("try")) {
+        pos = pos + 1;
+        r = AST.mk(AST.N_TRY);
+        r.s = "";
+        r.a = parseBlock();
+        if (isKw("catch")) {
+            pos = pos + 1;
+            if (eatP("(")) { r.s = toks[pos].s; pos = pos + 1; expectP(")"); }
+            r.b = parseBlock();
+        }
+        if (isKw("finally")) { pos = pos + 1; r.c = parseBlock(); }
+    }
+    else if (isKw("throw")) { pos = pos + 1; r = AST.mk(AST.N_THROW); r.a = parseExpression(); endStmt(); }
     else if (isKw("break")) { pos = pos + 1; r = AST.mk(AST.N_BREAK); endStmt(); }
     else if (isKw("continue")) { pos = pos + 1; r = AST.mk(AST.N_CONTINUE); endStmt(); }
     else {

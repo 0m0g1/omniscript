@@ -86,4 +86,41 @@ struct UnaryExpression : public Expression {
         );
     }
 };
+
+// `text ${expr} text ...` after semantic analysis: literal text pieces and typed expressions.
+// Lowered in IRGenerator::createStringTemplate to snprintf into a rotating scratch buffer.
+struct StringTemplateExpression : public Expression {
+    struct Part {
+        bool isText = false;
+        std::string text;
+        std::shared_ptr<Expression> expr;
+    };
+    std::vector<Part> parts;
+
+    explicit StringTemplateExpression(std::vector<Part> p) : parts(std::move(p)) {
+        type = Type::createPointerType(Type::createPrimitiveType(Kind::Char));
+        rootType = type;
+    }
+
+    std::string toString() const override {
+        std::string out = "`";
+        for (const auto& part : parts) {
+            out += part.isText ? part.text : "${" + (part.expr ? part.expr->toString() : std::string("?")) + "}";
+        }
+        return out + "`";
+    }
+
+    std::shared_ptr<Expression> clone() const override {
+        std::vector<Part> copied;
+        for (const auto& part : parts) {
+            Part c = part;
+            if (part.expr) {
+                auto e = part.expr->clone();
+                c.expr = e ? e : part.expr;
+            }
+            copied.push_back(c);
+        }
+        return std::make_shared<StringTemplateExpression>(copied);
+    }
+};
 }

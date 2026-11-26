@@ -220,6 +220,24 @@ public:
     std::shared_ptr<Literal> castTo(std::shared_ptr<Type> targetType) const override;
 };
 
+// `text ${expr} text ...`: alternating literal text (StringLiteral) and embedded expressions.
+class StringTemplateStatement : public Literal {
+public:
+    std::vector<std::shared_ptr<Statement>> parts;
+
+    explicit StringTemplateStatement(std::vector<std::shared_ptr<Statement>> p) : parts(std::move(p)) {
+        setRootType(Type::createPointerType(Type::createPrimitiveType(Kind::Char)));
+    }
+    std::shared_ptr<Statement> evaluate(SymbolTableType scope) override { return nullptr; }
+    std::shared_ptr<Expression> express(SymbolTableType scope) override;
+    std::string toString() const override { return "StringTemplateStatement(" + std::to_string(parts.size()) + " parts)"; }
+    std::shared_ptr<Statement> clone() const override {
+        std::vector<std::shared_ptr<Statement>> copied;
+        for (const auto& part : parts) copied.push_back(part->clone());
+        return std::make_shared<StringTemplateStatement>(copied);
+    }
+};
+
 class BoolLiteral : public Literal {
 public:
     bool value;

@@ -38,6 +38,7 @@ function copyCssProp(d: Style*, s: Style*, name: char*) => bool {
     else if (strEq(name, "font-weight")) { d.bold = s.bold; }
     else if (strEq(name, "font-style")) { d.italic = s.italic; }
     else if (strEq(name, "text-align")) { d.textAlign = s.textAlign; }
+    else if (inList(name, "text-decoration-color text-decoration-thickness text-underline-offset")) { }      // no Style field: the line is drawn in the text colour, which is what inherit/initial give in practice
     else if (strEq(name, "line-height")) { d.lineH = s.lineH; }
     else if (inList(name, "white-space text-wrap")) { d.whiteSpace = s.whiteSpace; }
     else if (inList(name, "text-decoration text-decoration-line")) { d.underline = s.underline; d.strike = s.strike; }

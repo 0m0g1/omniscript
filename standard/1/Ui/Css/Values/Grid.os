@@ -125,3 +125,51 @@ function gridAutoCount(inner: char*, ctx: CssCtx*, st: Style*) => int {
     }
     return cols;
 }
+
+// ---- grid-column ----
+// "1 / -1", "span 2", "2 / span 3", "3", "auto" -> st.gcs / st.gce / st.gsp. false for named lines or line 0.
+function gridLineApply(tok: char*, st: Style*, isStart: bool) => bool {
+    let ok: bool = true;
+    let tl: int = strLen(tok);
+    if (strEqI(tok, "auto")) { }
+    else if (startsWith(tok, "span")) {
+        let num: char* = trimDup(tok, 4, tl);
+        let c: int = parseFloatStr(num, 0.0) as int;
+        strFree(num);
+        if (c < 1) ok = false; else st.gsp = c;
+    }
+    else {
+        let neg: bool = (tok[0] as int) == 45;
+        let a0: int = 0;
+        if (neg) a0 = 1;
+        let num: char* = trimDup(tok, a0, tl);
+        let c: int = parseFloatStr(num, 0.0) as int;
+        strFree(num);
+        if (c == 0) ok = false;
+        else {
+            if (neg) c = 0 - c;
+            if (isStart) st.gcs = c; else st.gce = c;
+        }
+    }
+    return ok;
+}
+
+function gridParseLine(v: char*, st: Style*) => bool {
+    let n: int = strLen(v);
+    let sl: int = 0 - 1; let i: int = 0;
+    while (i < n && sl < 0) { if ((v[i] as int) == 47) sl = i; i = i + 1; }
+    let ok: bool = true;
+    if (sl < 0) {
+        let a: char* = trimDup(v, 0, n);
+        ok = gridLineApply(a, st, true);
+        strFree(a);
+    }
+    else {
+        let a: char* = trimDup(v, 0, sl);
+        let z: char* = trimDup(v, sl + 1, n);
+        ok = gridLineApply(a, st, true);
+        if (ok) ok = gridLineApply(z, st, false);
+        strFree(a); strFree(z);
+    }
+    return ok;
+}

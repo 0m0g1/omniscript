@@ -362,12 +362,14 @@ Token Lexer::parseRawString() {
     return finalize(false);
 }
 
-Token Lexer::parseTemplateString() {
+Token Lexer::parseTemplateString(bool continuation) {
     size_t startLine = line_;
     size_t startColumn = column_;
-    advance(); // Skip `
+    if (!continuation) {
+        advance(); // Skip the opening `
+    }
+    // continuation == true: the '}' that closed a `${` was already consumed; scan the text after it.
     std::string value;
-    bool hasContent = false;
 
     auto finalizeToken = [&](TokenTypes type) {
         std::u32string u32chars = LexerUtils::utf8ToUtf32(value);
@@ -393,7 +395,28 @@ Token Lexer::parseTemplateString() {
 
         if (getCurrentChar() == '$' && peek() == '{') {
             advance(2);
-            return finalizeToken(hasContent ? TokenTypes::TemplateMiddle : TokenTypes::TemplateHead);
+            templateBraceDepth_.push_back(0);
+            return finalizeToken(continuation ? TokenTypes::TemplateMiddle : TokenTypes::TemplateHead);
+        }
+
+        if (getCurrentChar() == '\\') {
+            char n = peek();
+            char out = 0;
+            switch (n) {
+                case 'n': out = '\n'; break;
+                case 't': out = '\t'; break;
+                case 'r': out = '\r'; break;
+                case '0': out = '\0'; break;
+                case '`': out = '`'; break;
+                case '$': out = '$'; break;
+                case '\\': out = '\\'; break;
+                default: break;
+            }
+            if (out != 0 || n == '0') {
+                value += out;
+                advance(2);
+                continue;
+            }
         }
 
         if (isNewline(getCurrentChar())) {
@@ -403,7 +426,6 @@ Token Lexer::parseTemplateString() {
         }
 
         value += getCurrentChar();
-        hasContent = true;
         advance();
     }
 

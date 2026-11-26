@@ -66,6 +66,12 @@ std::shared_ptr<Statement> Parser::parseEnum() {
 
             values.push_back(std::make_shared<EnumValue>(valueName, assignedIndex));
             currentIndex = assignedIndex + 1;
+        } else if (currentToken.getType() != TokenTypes::RightBrace) {
+            // Anything else used to loop forever here.
+            console.reportError(Console::SYNTAX_ERROR,
+                "Expected an enumerator name, ',' or '}' in enum '" + enumName + "', found '" + currentToken.getValue() + "'",
+                FileSpan{});
+            break;
         }
     }
 

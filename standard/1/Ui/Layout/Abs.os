@@ -33,6 +33,13 @@
         let shrink: bool = st.width.u == LU_AUTO;
         if (hasL && hasR && st.width.u == LU_AUTO) { c.forceW = maxF(cw - l - r - b.ml - b.mr, 0.0); shrink = false; }
         if (hasT && hasB && st.height.u == LU_AUTO) { c.forceH = maxF(ch - t - bo - b.mt - b.mb, 0.0); }
+        // height:N% on an absolute box is a percentage of the containing block's padding box (placeBlock only knows px heights).
+        // forceH is the border-box height, so content-box adds the vertical padding + border back.
+        if (st.height.u == LU_PCT && c.forceH < 0.0) {
+            let hp: float = st.height.v * ch / 100.0;
+            if (st.boxSizing == 0) hp = hp + b.pt + b.pb + b.bt + b.bb;
+            c.forceH = maxF(hp, 0.0);
+        }
         this.placeBlock(c, 0.0, 0.0, cw, shrink);
         c.forceW = UNSET; c.forceH = UNSET;
         let mw: float = b.w + b.ml + b.mr; let mh: float = b.h + b.mt + b.mb;

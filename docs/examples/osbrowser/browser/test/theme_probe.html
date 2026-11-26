@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<!-- docs/examples/osbrowser/theme_probe.html -->
+<html>
+<head>
+<style>
+:root { --plain: green; --themed: red; }
+@media (prefers-color-scheme: dark) { :root { --themed: green; } }
+
+body { background: white; color: black; }
+div { background: silver; padding: 8px; margin: 4px; }
+
+@media (prefers-color-scheme: dark)  { .a { background: green; } }
+@media (prefers-color-scheme: light) { .b { background: red; } }
+.c { background: var(--plain); }
+.d { background: var(--themed); }
+.e { @media (prefers-color-scheme: dark)  { background: green; } }
+.f { @media (prefers-color-scheme: light) { background: red; } }
+</style>
+</head>
+<body>
+<div class="a">A dark block: expect GREEN</div>
+<div class="b">B light block: expect SILVER</div>
+<div class="c">C plain root var: expect GREEN</div>
+<div class="d">D dark root var override: expect GREEN</div>
+<div class="e">E nested dark: expect GREEN</div>
+<div class="f">F nested light: expect SILVER</div>
+</body>
+</html>

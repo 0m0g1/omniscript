@@ -51,6 +51,9 @@ function main() => int {
     b.startWorkers();                                           // image fetch + decode run on worker threads (before the first navigate)
     let ins: INS.Inspector;
     let recording: bool = false;
+    b.viewW = win.width() as int; b.viewH = win.height() as int;   // @media is evaluated against the window
+    let lastW: int = b.viewW; let lastH: int = b.viewH;
+    let settle: int = 0;                                        // frames the size has been stable but not yet applied
     b.navigate(START);                                          // queued; loads stage by stage in b.step()
 
     while (app.frame()) {
@@ -109,6 +112,15 @@ function main() => int {
         ins.update(&b);
         app.present();
         b.step(app.time() * 1000.0);                            // after present: the status of the coming stage is already visible
+
+        // re-evaluate @media once the window size has stopped changing for a few frames
+        let nowW: int = win.width() as int;
+        let nowH: int = win.height() as int;
+        if (nowW != lastW || nowH != lastH) { lastW = nowW; lastH = nowH; settle = 0; }
+        else if (nowW > 0 && nowH > 0 && (nowW != b.viewW || nowH != b.viewH)) {   // 0 x 0 = minimized
+            settle = settle + 1;
+            if (settle >= 8) { if (b.resizeView(nowW, nowH)) settle = 0; }
+        }
 
         // CSS queued by the loader is applied here, where the UI.Ui lives
         if (b.cssReset) { ui.clearCss(); b.cssReset = false; }

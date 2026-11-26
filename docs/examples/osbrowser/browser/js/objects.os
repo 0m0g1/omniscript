@@ -19,6 +19,7 @@ let K_OBJECT: int = 12;    // plain object            p = Obj*
 let K_ARRAY: int = 13;     // array                   p = Obj*
 let K_WINDOW: int = 14;
 let K_MATH: int = 15;
+let K_CTOR: int = 17;      // global constructor/function (Array, Object, String, parseInt...)  s = name
 let K_STORAGE: int = 16;   // localStorage / sessionStorage (in memory)
 
 struct Value {
@@ -35,6 +36,7 @@ struct Obj {
     cap: int = 0;
     keys: char** = nullptr;
     vals: Value* = nullptr;
+    proto: Obj* = nullptr;      // prototype chain (set by `new F()` and Object.create)
 }
 
 function setUndef(v: Value*) => void { v.k = 0; v.n = 0.0; v.s = nullptr; v.p = nullptr; }
@@ -48,7 +50,7 @@ function setRef(v: Value*, k: int, p: void*) => void { v.k = k; v.n = 0.0; v.s =
 // ---------- containers ----------
 function newObj(isArr: bool) => Obj* {
     let o: Obj* = U.alloc(sizeof(Obj)) as Obj*;
-    o.isArr = isArr; o.n = 0; o.cap = 8;
+    o.isArr = isArr; o.n = 0; o.cap = 8; o.proto = nullptr;
     o.keys = U.alloc(8 * 8) as char**;
     o.vals = U.alloc(sizeof(Value) * 8) as Value*;
     return o;
@@ -193,7 +195,7 @@ function typeOf(v: Value*) => char* {
     if (v.k == 1) return "number";
     if (v.k == 2) return "string";
     if (v.k == 3) return "boolean";
-    if (v.k == 4 || v.k == 10 || v.k == 11) return "function";
+    if (v.k == 4 || v.k == 10 || v.k == 11 || v.k == 17) return "function";
     return "object";
 }
 

@@ -13,6 +13,11 @@
     // rgb = 0xRRGGBB, used as the CSS color so currentColor resolves. Works on every backend.
     // outW/outH receive the INTRINSIC (1x) size, for layout; the image itself is scale times bigger.
     createImageSvg(data: u8*, len: int, scale: float, rgb: u32, outW: float*, outH: float*) => u32 {
+        return this.createImageSvgFx(data, len, scale, rgb, outW, outH, false);
+    }
+
+    // same, with invert = true the rasterised RGB is inverted (alpha kept): CSS filter: invert(100%) on an <img> svg
+    createImageSvgFx(data: u8*, len: int, scale: float, rgb: u32, outW: float*, outH: float*, invert: bool) => u32 {
         let result: u32 = 0;
         let sw: float = 0.0; let sh: float = 0.0;
         if (data == nullptr || len <= 0) { Console.log("[createImageSvg] no data"); return 0; }
@@ -29,6 +34,15 @@
                 let buf = CMem.malloc((pw * ph * 4) as u64) as u8*;
                 if (buf != nullptr) {
                     if (SVG.svg_rasterize(data as char*, len, pw, ph, rgb, buf) == 1) {
+                        if (invert) {
+                            let kk: int = 0; let tot: int = pw * ph * 4;
+                            while (kk < tot) {
+                                buf[kk] = (255 - (buf[kk] as int)) as u8;
+                                buf[kk + 1] = (255 - (buf[kk + 1] as int)) as u8;
+                                buf[kk + 2] = (255 - (buf[kk + 2] as int)) as u8;
+                                kk = kk + 4;
+                            }
+                        }
                         result = this.createImage(buf, pw, ph);
                         if (result > 0) { *outW = sw; *outH = sh; }
                     } else { Console.log("[createImageSvg] rasterize failed"); }

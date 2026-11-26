@@ -1,5 +1,8 @@
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/ControlFlowStatements.h>
+#include <omniscript/Statements/LiteralStatements.h>
+#include <omniscript/Statements/ExpressionStatements.h>
+#include <omniscript/Statements/AssignmentAndGetterStatements.h>
 
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
@@ -11,7 +14,18 @@
 
 namespace Omniscript {
 
+namespace {
+// Inside a loop body, `continue` belongs to that loop again, even if the loop sits inside a switch case.
+struct SwitchNestingReset {
+    int& slot; int saved;
+    explicit SwitchNestingReset(int& s) : slot(s), saved(s) { slot = 0; }
+    ~SwitchNestingReset() { slot = saved; }
+};
+int nextDesugarId() { static int id = 0; return ++id; }
+} // namespace
+
 std::shared_ptr<Statement> Parser::parseForLoop() {
+    SwitchNestingReset loopScope(switchNesting_);
     Token startToken = currentToken;
     FileSpan span;
     span.start.line = startToken.getLine();
@@ -197,6 +211,22 @@ std::shared_ptr<Statement> Parser::parseForLoop() {
 }
 
 std::shared_ptr<Statement> Parser::parseContinue() {
+    if (switchNesting_ > 0) {
+        FileSpan cspan;
+        cspan.start.line = currentToken.getLine();
+        cspan.start.col = currentToken.getColumn();
+        cspan.start.filePath = currentToken.getFilePath();
+        cspan.end = cspan.start;
+        cspan.end.col += 8;
+        console.reportError(
+            Console::SYNTAX_ERROR,
+            "'continue' directly inside a switch case is not supported",
+            "To resolve this:\n"
+            "1. Restructure so the continue is outside the switch\n"
+            "2. Or wrap the switch in an if/else chain",
+            cspan
+        );
+    }
     Token startToken = currentToken;
     FileSpan span;
     span.start.line = startToken.getLine();
@@ -584,6 +614,7 @@ std::shared_ptr<Statement> Parser::parseIfStatement() {
 }
 
 std::shared_ptr<Statement> Parser::parseWhileStatement() {
+    SwitchNestingReset loopScope(switchNesting_);
     Token startToken = currentToken;
     FileSpan span;
     span.start.line = startToken.getLine();
@@ -778,6 +809,233 @@ std::shared_ptr<Statement> Parser::parseReturnStatement() {
     result->setSpan(span);
     DEBUG_LOG("Completed parsing return statement");
     return result;
+}
+
+
+// do { body } while (cond);
+//
+// Lowered (no new IR) to
+//     { let __doN = true; while (__doN || cond) { __doN = false; { body } } }
+// so `continue` in the body jumps to the condition check, where __doN is already false and the real
+// condition decides, which is exactly do/while behaviour.
+std::shared_ptr<Statement> Parser::parseDoWhile() {
+    Token startToken = currentToken;
+    FileSpan span;
+    span.start.line = startToken.getLine();
+    span.start.col = startToken.getColumn();
+    span.start.filePath = startToken.getFilePath();
+
+    DEBUG_LOG("Parsing do/while statement");
+    eat(TokenTypes::Identifier);   // 'do'
+
+    SwitchNestingReset loopScope(switchNesting_);
+    auto body = std::dynamic_pointer_cast<BlockStatement>(parseBlock());
+    if (!body) {
+        console.reportError(Console::SYNTAX_ERROR, "Failed to parse do/while body",
+            "To resolve this:\n1. Start the body with '{'\n2. Check for balanced braces", span);
+        return nullptr;
+    }
+
+    while (currentToken.getType() == TokenTypes::Newline) eat(TokenTypes::Newline);
+
+    eat(TokenTypes::While, [&]() {
+        console.reportError(Console::SYNTAX_ERROR,
+            Console::formatString("Expected 'while' after do-block, found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()),
+            "To resolve this:\n1. Write: do { ... } while (condition);", span);
+    });
+    eat(TokenTypes::LeftParen, [&]() {
+        console.reportError(Console::SYNTAX_ERROR,
+            Console::formatString("Expected '(' after 'while', found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()),
+            "To resolve this:\n1. Write: do { ... } while (condition);", span);
+    });
+    auto condition = parseExpression();
+    if (!condition) {
+        console.reportError(Console::SYNTAX_ERROR, "Failed to parse do/while condition",
+            "To resolve this:\n1. Provide a boolean expression", span);
+        return nullptr;
+    }
+    eat(TokenTypes::RightParen, [&]() {
+        console.reportError(Console::SYNTAX_ERROR,
+            Console::formatString("Expected ')' after do/while condition, found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()),
+            "To resolve this:\n1. Close the condition with ')'", span);
+    });
+
+    const std::string flag = "__do" + std::to_string(nextDesugarId());
+
+    auto declare = std::make_shared<AssignVariable>(flag, nullptr, std::make_shared<BoolLiteral>(true));
+    auto reset   = std::make_shared<AssignVariable>(flag, nullptr, std::make_shared<BoolLiteral>(false), true);
+    auto loopCond = std::make_shared<ASTBinaryExpression>(
+        std::make_shared<GetVariable>(flag), TokenTypes::LogicalOr, condition);
+
+    std::vector<std::shared_ptr<Statement>> loopBodyStmts = { reset, body };
+    auto loopBody = std::make_shared<BlockStatement>(loopBodyStmts);
+
+    span.end.line = previousToken.getLine();
+    span.end.col = previousToken.getColumn();
+    span.end.filePath = previousToken.getFilePath();
+
+    auto loop = std::make_shared<WhileStatement>(loopCond, loopBody);
+    loop->setPosition(startToken, currentToken);
+    loop->setSpan(span);
+
+    std::vector<std::shared_ptr<Statement>> outerStmts = { declare, loop };
+    auto outer = std::make_shared<BlockStatement>(outerStmts);
+    outer->setPosition(startToken, currentToken);
+    outer->setSpan(span);
+    DEBUG_LOG("Completed parsing do/while statement");
+    return outer;
+}
+
+// switch (x) { case 1: ...; break; case 2: case 3: ...; default: ...; }
+//
+// Lowered (no new IR) to
+//     { let __swN = x;
+//       while (true) { if (__swN == 1) {...} else if (__swN == 2 || __swN == 3) {...} else {...}  break; } }
+// The one-pass while makes `break` inside a case leave only the switch. Cases do not fall through, except
+// that consecutive empty cases (`case 2: case 3: body`) share the next body. `continue` directly inside a
+// case is rejected (see parseContinue) because it would target the one-pass loop.
+std::shared_ptr<Statement> Parser::parseSwitch() {
+    Token startToken = currentToken;
+    FileSpan span;
+    span.start.line = startToken.getLine();
+    span.start.col = startToken.getColumn();
+    span.start.filePath = startToken.getFilePath();
+
+    DEBUG_LOG("Parsing switch statement");
+    eat(TokenTypes::Identifier);   // 'switch'
+    eat(TokenTypes::LeftParen, [&]() {
+        console.reportError(Console::SYNTAX_ERROR,
+            Console::formatString("Expected '(' after 'switch', found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()),
+            "To resolve this:\n1. Write: switch (value) { case 1: ... }", span);
+    });
+    auto discriminant = parseExpression();
+    if (!discriminant) {
+        console.reportError(Console::SYNTAX_ERROR, "Failed to parse switch expression",
+            "To resolve this:\n1. Provide the value to switch on", span);
+        return nullptr;
+    }
+    eat(TokenTypes::RightParen, [&]() {
+        console.reportError(Console::SYNTAX_ERROR,
+            Console::formatString("Expected ')' after switch expression, found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()),
+            "To resolve this:\n1. Close the expression with ')'", span);
+    });
+    while (currentToken.getType() == TokenTypes::Newline) eat(TokenTypes::Newline);
+    eat(TokenTypes::LeftBrace, [&]() {
+        console.reportError(Console::SYNTAX_ERROR,
+            Console::formatString("Expected '{' to open the switch body, found '%s'",
+                getTokenTypeName(currentToken.getType()).c_str()),
+            "To resolve this:\n1. Write: switch (value) { case 1: ... }", span);
+    });
+
+    const std::string tmp = "__sw" + std::to_string(nextDesugarId());
+    auto isLabel = [&](const char* word) {
+        return currentToken.getType() == TokenTypes::Identifier && currentToken.getValue() == word;
+    };
+    auto skipBlank = [&]() {
+        while (currentToken.getType() == TokenTypes::Newline || currentToken.getType() == TokenTypes::Semicolon)
+            eat(currentToken.getType());
+    };
+    auto parseCaseBody = [&]() {
+        std::vector<std::shared_ptr<Statement>> stmts;
+        ++switchNesting_;
+        skipBlank();
+        while (currentToken.getType() != TokenTypes::RightBrace &&
+               currentToken.getType() != TokenTypes::EOI &&
+               !isLabel("case") && !isLabel("default")) {
+            auto st = parseStatement();
+            if (st) stmts.push_back(st);
+            skipBlank();
+        }
+        --switchNesting_;
+        return stmts;
+    };
+
+    std::vector<std::shared_ptr<Statement>> conditions;
+    std::vector<std::shared_ptr<BlockStatement>> bodies;
+    std::shared_ptr<BlockStatement> defaultBody;
+    std::shared_ptr<Statement> carried;   // condition(s) of preceding empty cases
+
+    skipBlank();
+    while (currentToken.getType() != TokenTypes::RightBrace && currentToken.getType() != TokenTypes::EOI) {
+        if (isLabel("case")) {
+            eat(TokenTypes::Identifier);
+            auto value = parseExpression();
+            if (!value) {
+                console.reportError(Console::SYNTAX_ERROR, "Failed to parse case value",
+                    "To resolve this:\n1. Write: case 1:", span);
+                return nullptr;
+            }
+            eat(TokenTypes::Colon, [&]() {
+                console.reportError(Console::SYNTAX_ERROR,
+                    Console::formatString("Expected ':' after case value, found '%s'",
+                        getTokenTypeName(currentToken.getType()).c_str()),
+                    "To resolve this:\n1. Write: case 1:", span);
+            });
+            std::shared_ptr<Statement> cond = std::make_shared<ASTBinaryExpression>(
+                std::make_shared<GetVariable>(tmp), TokenTypes::Equals, value);
+            if (carried) {
+                cond = std::make_shared<ASTBinaryExpression>(carried, TokenTypes::LogicalOr, cond);
+                carried = nullptr;
+            }
+            auto stmts = parseCaseBody();
+            if (stmts.empty()) {
+                carried = cond;            // `case 2:` with no body shares the next case's body
+            } else {
+                conditions.push_back(cond);
+                bodies.push_back(std::make_shared<BlockStatement>(stmts));
+            }
+        } else if (isLabel("default")) {
+            eat(TokenTypes::Identifier);
+            eat(TokenTypes::Colon, [&]() {
+                console.reportError(Console::SYNTAX_ERROR,
+                    Console::formatString("Expected ':' after 'default', found '%s'",
+                        getTokenTypeName(currentToken.getType()).c_str()),
+                    "To resolve this:\n1. Write: default:", span);
+            });
+            defaultBody = std::make_shared<BlockStatement>(parseCaseBody());
+        } else {
+            console.reportError(Console::SYNTAX_ERROR,
+                Console::formatString("Expected 'case' or 'default' inside switch, found '%s'",
+                    getTokenTypeName(currentToken.getType()).c_str()),
+                "To resolve this:\n1. Every statement in a switch belongs to a case or default", span);
+            return nullptr;
+        }
+        skipBlank();
+    }
+    eat(TokenTypes::RightBrace, [&]() {
+        console.reportError(Console::SYNTAX_ERROR, "Expected '}' to close the switch",
+            "To resolve this:\n1. Check for balanced braces", span);
+    });
+
+    span.end.line = previousToken.getLine();
+    span.end.col = previousToken.getColumn();
+    span.end.filePath = previousToken.getFilePath();
+
+    std::vector<std::shared_ptr<Statement>> passStmts;
+    if (!conditions.empty()) {
+        passStmts.push_back(std::make_shared<IfStatement>(conditions, bodies, defaultBody));
+    } else if (defaultBody) {
+        passStmts.push_back(defaultBody);
+    }
+    passStmts.push_back(std::make_shared<BreakStatement>());
+
+    auto onePass = std::make_shared<WhileStatement>(
+        std::make_shared<BoolLiteral>(true), std::make_shared<BlockStatement>(passStmts));
+    onePass->setPosition(startToken, currentToken);
+    onePass->setSpan(span);
+
+    auto declare = std::make_shared<AssignVariable>(tmp, nullptr, discriminant);
+    std::vector<std::shared_ptr<Statement>> outerStmts = { declare, onePass };
+    auto outer = std::make_shared<BlockStatement>(outerStmts);
+    outer->setPosition(startToken, currentToken);
+    outer->setSpan(span);
+    DEBUG_LOG("Completed parsing switch statement");
+    return outer;
 }
 
 } // namespace Omniscript

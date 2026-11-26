@@ -36,11 +36,39 @@ function random() => double {
 
 function method(out: OBJ.Value*, recv: OBJ.Value*, name: char*) => void {
     out.k = OBJ.K_METHOD; out.s = name; out.n = recv.k as double; out.p = recv.p;
-    if (recv.k == OBJ.K_STR) out.p = recv.s as void*;
+    if (recv.k == OBJ.K_STR || recv.k == OBJ.K_CTOR) out.p = recv.s as void*;
 }
 
 // ---------- global names owned by this layer ----------
+function isCtorName(name: char*) => bool {
+    return U.streq(name, "Array") || U.streq(name, "Object") || U.streq(name, "Function") || U.streq(name, "String")
+        || U.streq(name, "Number") || U.streq(name, "Boolean") || U.streq(name, "Error") || U.streq(name, "parseInt")
+        || U.streq(name, "parseFloat") || U.streq(name, "isNaN")
+        || U.streq(name, "Element") || U.streq(name, "HTMLElement") || U.streq(name, "Node") || U.streq(name, "Event")
+        || U.streq(name, "CustomEvent") || U.streq(name, "Date") || U.streq(name, "RegExp") || U.streq(name, "Map")
+        || U.streq(name, "Set") || U.streq(name, "Promise") || U.streq(name, "Symbol") || U.streq(name, "XMLHttpRequest")
+        || U.streq(name, "MutationObserver") || U.streq(name, "IntersectionObserver") || U.streq(name, "ResizeObserver");
+}
+
+let nav: OBJ.Obj* = nullptr;
+function navigatorObj(out: OBJ.Value*) => void {
+    if (nav == nullptr) {
+        nav = OBJ.newObj(false);
+        let v: OBJ.Value;
+        OBJ.setStr(&v, "en-US"); OBJ.objSet(nav, "language", &v);
+        OBJ.setStr(&v, "Mozilla/5.0 (compatible; OSBrowser)"); OBJ.objSet(nav, "userAgent", &v);
+        OBJ.setStr(&v, "OS"); OBJ.objSet(nav, "platform", &v);
+        OBJ.setBool(&v, true); OBJ.objSet(nav, "onLine", &v);
+        let langs: OBJ.Obj* = OBJ.newObj(true);
+        OBJ.setStr(&v, "en-US"); OBJ.arrPush(langs, &v);
+        OBJ.setRef(&v, OBJ.K_ARRAY, langs as void*); OBJ.objSet(nav, "languages", &v);
+    }
+    OBJ.setRef(out, OBJ.K_OBJECT, nav as void*);
+}
+
 function global(name: char*, out: OBJ.Value*) => bool {
+    if (U.streq(name, "navigator")) { navigatorObj(out); return true; }
+    if (isCtorName(name)) { OBJ.setRef(out, OBJ.K_CTOR, nullptr); out.s = name; return true; }
     if (U.streq(name, "Math")) { OBJ.setRef(out, OBJ.K_MATH, nullptr); return true; }
     if (U.streq(name, "console")) { OBJ.setRef(out, OBJ.K_CONSOLE, nullptr); return true; }
     if (U.streq(name, "localStorage") || U.streq(name, "sessionStorage")) { OBJ.setRef(out, OBJ.K_STORAGE, nullptr); return true; }
@@ -59,6 +87,11 @@ function get(obj: OBJ.Value*, name: char*, out: OBJ.Value*) => bool {
         return true;
     }
     if (obj.k == OBJ.K_CONSOLE || obj.k == OBJ.K_STORAGE) { method(out, obj, name); return true; }
+    if (obj.k == OBJ.K_CTOR) {
+        if (U.streq(name, "prototype")) OBJ.setRef(out, OBJ.K_OBJECT, OBJ.newObj(false) as void*);
+        else method(out, obj, name);
+        return true;
+    }
     if (obj.k == OBJ.K_STR) {
         if (U.streq(name, "length")) OBJ.setNum(out, U.slen(obj.s) as double);
         else method(out, obj, name);
@@ -202,9 +235,105 @@ function callStorage(name: char*, args: OBJ.Value*, argc: int, out: OBJ.Value*) 
     else if (U.streq(name, "removeItem")) { let uv: OBJ.Value; OBJ.setUndef(&uv); OBJ.objSet(store, key, &uv); }
 }
 
+// ---------- global constructors / functions ----------
+function parseIntPrefix(s: char*, isFloat: bool) => double {
+    let n: int = U.slen(s);
+    let i: int = 0;
+    while (i < n && U.isSpace(s[i] as int)) i = i + 1;
+    let a: int = i;
+    if (i < n && ((s[i] as int) == 45 || (s[i] as int) == 43)) i = i + 1;
+    let ds: int = i;
+    while (i < n && U.isDigit(s[i] as int)) i = i + 1;
+    if (isFloat && i < n && (s[i] as int) == 46) { i = i + 1; while (i < n && U.isDigit(s[i] as int)) i = i + 1; }
+    if (i == ds) return 0.0 / 0.0;
+    return U.toNum(U.sub(s, a, i));
+}
+
+function callGlobal(name: char*, args: OBJ.Value*, argc: int, out: OBJ.Value*) => void {
+    OBJ.setUndef(out);
+    if (U.streq(name, "String")) { if (argc > 0) OBJ.setStr(out, OBJ.toStr(&args[0])); else OBJ.setStr(out, ""); }
+    else if (U.streq(name, "Number")) { if (argc > 0) OBJ.setNum(out, OBJ.toNum(&args[0])); else OBJ.setNum(out, 0.0); }
+    else if (U.streq(name, "Boolean")) { OBJ.setBool(out, argc > 0 && OBJ.truthy(&args[0])); }
+    else if (U.streq(name, "parseInt")) { if (argc > 0) OBJ.setNum(out, parseIntPrefix(OBJ.toStr(&args[0]), false)); else OBJ.setNum(out, 0.0 / 0.0); }
+    else if (U.streq(name, "parseFloat")) { if (argc > 0) OBJ.setNum(out, parseIntPrefix(OBJ.toStr(&args[0]), true)); else OBJ.setNum(out, 0.0 / 0.0); }
+    else if (U.streq(name, "isNaN")) { let x: double = argNum(args, argc, 0); OBJ.setBool(out, x != x); }
+    else construct(name, args, argc, out);
+}
+
+function construct(name: char*, args: OBJ.Value*, argc: int, out: OBJ.Value*) => void {   // new Array(...), new Object(), new Error(msg)
+    if (U.streq(name, "Array")) {
+        let arr: OBJ.Obj* = OBJ.newObj(true);
+        if (argc == 1 && args[0].k == OBJ.K_NUM) { let u: OBJ.Value; OBJ.setUndef(&u); let i: int = 0; while (i < (args[0].n as int) && i < 100000) { OBJ.arrPush(arr, &u); i = i + 1; } }
+        else { let j: int = 0; while (j < argc) { OBJ.arrPush(arr, &args[j]); j = j + 1; } }
+        OBJ.setRef(out, OBJ.K_ARRAY, arr as void*);
+        return;
+    }
+    let o: OBJ.Obj* = OBJ.newObj(false);
+    if (U.streq(name, "Error")) {
+        let mv: OBJ.Value;
+        if (argc > 0) OBJ.setStr(&mv, OBJ.toStr(&args[0])); else OBJ.setStr(&mv, "");
+        OBJ.objSet(o, "message", &mv);
+    }
+    OBJ.setRef(out, OBJ.K_OBJECT, o as void*);
+}
+
+function callCtorMethod(ctor: char*, name: char*, args: OBJ.Value*, argc: int, out: OBJ.Value*) => void {   // Array.isArray, Object.keys ...
+    OBJ.setUndef(out);
+    if (U.streq(ctor, "Array") && U.streq(name, "isArray")) { OBJ.setBool(out, argc > 0 && args[0].k == OBJ.K_ARRAY); }
+    else if (U.streq(ctor, "Array") && U.streq(name, "from") && argc > 0) {
+        let arr: OBJ.Obj* = OBJ.newObj(true);
+        if (args[0].k == OBJ.K_ARRAY) {
+            let src: OBJ.Obj* = args[0].p as OBJ.Obj*;
+            let i: int = 0;
+            while (i < src.n) { OBJ.arrPush(arr, &src.vals[i]); i = i + 1; }
+        }
+        else if (args[0].k == OBJ.K_STR) {
+            let k: int = 0;
+            while (k < U.slen(args[0].s)) { let ch: OBJ.Value; OBJ.setStr(&ch, U.sub(args[0].s, k, k + 1)); OBJ.arrPush(arr, &ch); k = k + 1; }
+        }
+        OBJ.setRef(out, OBJ.K_ARRAY, arr as void*);
+    }
+    else if (U.streq(ctor, "Object") && U.streq(name, "keys") && argc > 0) {
+        let arr2: OBJ.Obj* = OBJ.newObj(true);
+        if (args[0].k == OBJ.K_OBJECT) {
+            let src2: OBJ.Obj* = args[0].p as OBJ.Obj*;
+            let j: int = 0;
+            while (j < src2.n) {
+                if (src2.keys[j] != nullptr && src2.vals[j].k != OBJ.K_UNDEF) { let kv: OBJ.Value; OBJ.setStr(&kv, src2.keys[j]); OBJ.arrPush(arr2, &kv); }
+                j = j + 1;
+            }
+        }
+        OBJ.setRef(out, OBJ.K_ARRAY, arr2 as void*);
+    }
+    else if (U.streq(ctor, "Object") && U.streq(name, "assign") && argc > 0) {
+        if (args[0].k == OBJ.K_OBJECT) {
+            let dst: OBJ.Obj* = args[0].p as OBJ.Obj*;
+            let a: int = 1;
+            while (a < argc) {
+                if (args[a].k == OBJ.K_OBJECT) {
+                    let s3: OBJ.Obj* = args[a].p as OBJ.Obj*;
+                    let m: int = 0;
+                    while (m < s3.n) { if (s3.keys[m] != nullptr) OBJ.objSet(dst, s3.keys[m], &s3.vals[m]); m = m + 1; }
+                }
+                a = a + 1;
+            }
+        }
+        if (argc > 0) OBJ.copyVal(out, &args[0]);
+    }
+    else if (U.streq(ctor, "Object") && U.streq(name, "create")) {
+        let no: OBJ.Obj* = OBJ.newObj(false);
+        if (argc > 0 && args[0].k == OBJ.K_OBJECT) no.proto = args[0].p as OBJ.Obj*;
+        OBJ.setRef(out, OBJ.K_OBJECT, no as void*);
+    }
+    else if (U.streq(ctor, "Object") && (U.streq(name, "freeze") || U.streq(name, "defineProperty") || U.streq(name, "seal"))) {
+        if (argc > 0) OBJ.copyVal(out, &args[0]);               // accepted, not enforced
+    }
+}
+
 function call(m: OBJ.Value*, args: OBJ.Value*, argc: int, out: OBJ.Value*) => void {
     OBJ.setUndef(out);
     let kind: int = m.n as int;
+    if (kind == OBJ.K_CTOR) { callCtorMethod(m.p as char*, m.s, args, argc, out); return; }
     if (kind == OBJ.K_STORAGE) { callStorage(m.s, args, argc, out); return; }
     if (kind == OBJ.K_MATH) callMath(m.s, args, argc, out);
     else if (kind == OBJ.K_CONSOLE) {

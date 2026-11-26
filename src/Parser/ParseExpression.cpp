@@ -357,6 +357,14 @@ std::shared_ptr<Statement> Parser::factor() {
         left = std::make_shared<StringLiteral>(parseStringLiteral());
     }
 
+    else if (currentToken.getType() == TokenTypes::TemplateHead) {
+        // `text ${expr} text ...` (interpolated template string)
+        left = parseStringTemplate();
+        if (!left) {
+            left = std::make_shared<Invalid>();
+        }
+    }
+
     else if (currentToken.getType() == TokenTypes::TemplateTail) {
         eat(TokenTypes::TemplateTail);
         left = std::make_shared<StringLiteral>(previousToken.getU32Value());

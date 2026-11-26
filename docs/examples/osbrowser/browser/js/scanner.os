@@ -6,6 +6,7 @@ let T_NUM: int = 1;
 let T_STR: int = 2;
 let T_ID: int = 3;
 let T_PUNCT: int = 4;
+let T_REGEX: int = 6;    // regex literal, s = pattern text between the slashes (flags dropped)
 let T_TPL: int = 5;      // template literal, s = raw text between the backticks (the parser splits it)
 
 struct Tok {
@@ -101,18 +102,51 @@ function punct(src: char*, n: int, i: int) => int {   // adds one punctuator tok
     if (i + 2 < n) c3 = src[i + 2] as int;
     if (c1 == 61 && c2 == 61 && c3 == 61) { add(T_PUNCT, "==", 0.0); return 3; }
     if (c1 == 33 && c2 == 61 && c3 == 61) { add(T_PUNCT, "!=", 0.0); return 3; }
+    if (c1 == 62 && c2 == 62 && c3 == 62) { add(T_PUNCT, ">>>", 0.0); return 3; }
     if (c1 == 46 && c2 == 46 && c3 == 46) { add(T_PUNCT, "...", 0.0); return 3; }
     if (c2 != 0) {
         let two: char* = U.sub(src, i, i + 2);
         if (U.streq(two, "=>") || U.streq(two, "==") || U.streq(two, "!=") || U.streq(two, "<=") || U.streq(two, ">=")
             || U.streq(two, "&&") || U.streq(two, "||") || U.streq(two, "??") || U.streq(two, "++") || U.streq(two, "--")
-            || U.streq(two, "+=") || U.streq(two, "-=") || U.streq(two, "*=") || U.streq(two, "/=")) {
+            || U.streq(two, "+=") || U.streq(two, "-=") || U.streq(two, "*=") || U.streq(two, "/=")
+            || U.streq(two, "<<") || U.streq(two, ">>") || U.streq(two, "%=") || U.streq(two, "|=") || U.streq(two, "&=") || U.streq(two, "^=")) {
             add(T_PUNCT, two, 0.0); return 2;
         }
         if (U.streq(two, "?.") && !U.isDigit(c3)) { add(T_PUNCT, two, 0.0); return 2; }
     }
     add(T_PUNCT, U.sub(src, i, i + 1), 0.0);
     return 1;
+}
+
+// can a '/' here start a regex literal? Yes unless the previous token ends a value.
+function regexAllowed() => bool {
+    if (ntok == 0) return true;
+    let p: Tok* = &toks[ntok - 1];
+    if (p.t == T_NUM || p.t == T_STR || p.t == T_TPL || p.t == T_REGEX) return false;
+    if (p.t == T_ID) {
+        return U.streq(p.s, "return") || U.streq(p.s, "typeof") || U.streq(p.s, "case") || U.streq(p.s, "in")
+            || U.streq(p.s, "of") || U.streq(p.s, "delete") || U.streq(p.s, "void") || U.streq(p.s, "else") || U.streq(p.s, "do");
+    }
+    if (p.t == T_PUNCT) return !(U.streq(p.s, ")") || U.streq(p.s, "]") || U.streq(p.s, "}"));
+    return true;
+}
+
+// regex body starting after the opening '/': honours backslash escapes and [...] classes; returns the index past the flags
+function scanRegex(src: char*, n: int, start: int) => int {
+    let i: int = start;
+    let inCls: bool = false;
+    while (i < n && (src[i] as int) != 10 && (inCls || (src[i] as int) != 47)) {
+        let c: int = src[i] as int;
+        if (c == 92) i = i + 1;
+        else if (c == 91) inCls = true;
+        else if (c == 93) inCls = false;
+        i = i + 1;
+    }
+    let bodyEnd: int = i;
+    if (i < n && (src[i] as int) == 47) i = i + 1;
+    while (i < n && idPart(src[i] as int)) i = i + 1;
+    add(T_REGEX, U.sub(src, start, bodyEnd), 0.0);
+    return i;
 }
 
 function scan(src: char*) => Tok* {
@@ -137,6 +171,7 @@ function scan(src: char*) => Tok* {
             if (c3 == 1) { curFile = U.sub(src, a, i); curLine = 0; }
             i = i + 2;
         }
+        else if (c == 47 && regexAllowed()) { i = scanRegex(src, n, i + 1); }
         else if (U.isDigit(c) || (c == 46 && U.isDigit(c2))) { i = scanNumber(src, n, i); }
         else if (idStart(c)) {
             let a: int = i;

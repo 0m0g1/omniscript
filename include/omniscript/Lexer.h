@@ -147,7 +147,7 @@ private:
     Token parseStringLiteral();
     Token parseCharacterLiteral();
     Token parseRawString();
-    Token parseTemplateString();
+    Token parseTemplateString(bool continuation = false);
     
     // Numeric literal parsing
     Token getNumberLiterals(char currentChar);
@@ -247,6 +247,11 @@ private:
     // assigned (never appended to): lexing a comment twice must give the same table.
     std::map<size_t, std::string> docLines_;
     std::map<size_t, std::string> moduleDocLines_;
+
+    // Template strings: one entry per open `${` (innermost last); the value is the number of
+    // '{' opened INSIDE that interpolation that are still unclosed. A '}' seen while the top
+    // entry is 0 closes the `${` and resumes template scanning (see getOperator).
+    std::vector<int> templateBraceDepth_;
     
     // Keyword lookup table (static for performance)
     static const std::unordered_map<std::string, TokenTypes> keywordMap_;

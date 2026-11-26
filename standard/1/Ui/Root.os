@@ -75,7 +75,13 @@ struct Ui {
     // ---- style ----
     // turn declaration recording on/off and restyle so every node's styleNotes are rebuilt
     setRecordStyles(on: bool) => void { this.recordStyles = on; this.rootNode.markStyle(); }
-    addCss(css: char*) => void { sheetParse(&this.sheet, css); this.rootNode.markStyle(); }
+    addCss(css: char*) => void {
+        // media queries are evaluated at parse time: hand the sheet parser the real viewport and the dark scheme explicitly
+        let mw: float = 1280.0; let mh: float = 800.0;
+        if (this.backend == BK_GUI && this.win != nullptr) { mw = this.win.width() as float; mh = this.win.height() as float; }
+        cssSetMedia(mw, mh, true);
+        sheetParse(&this.sheet, css); this.rootNode.markStyle();
+    }
     clearCss() => void { sheetClear(&this.sheet); this.rootNode.markStyle(); }
     setTheme(fg: u32, bg: u32) => void {
         this.themeFg = fg; this.themeBg = bg;

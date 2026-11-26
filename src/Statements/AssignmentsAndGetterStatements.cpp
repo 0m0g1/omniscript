@@ -6,6 +6,7 @@
 #include <omniscript/Statements/CallableStatement.h>      // Call (used to build default struct instances)
 
 #include <omniscript/Expressions/GetterExpressions.h>
+#include <omniscript/Expressions/EntityExpressions.h>
 #include <omniscript/Expressions/ClassExpression.h>
 #include <omniscript/Expressions/StructExpression.h>      // StructExpression, InstanceExpression
 #include <omniscript/Expressions/CallableExpression.h>    // CallExpression
@@ -399,6 +400,16 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
                     getSpan()
                 );
                 return nullptr;
+            }
+        }
+    }
+
+    // `let c: Color` where Color is an enum: an enum is an alias of its integer type.
+    if (type) {
+        if (auto enumExpr = std::dynamic_pointer_cast<EnumExpression>(scope->get(type->getName()))) {
+            if (enumExpr->underlyingType) {
+                type = enumExpr->underlyingType;
+                rootType = type;
             }
         }
     }

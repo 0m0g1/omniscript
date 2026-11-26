@@ -4,6 +4,25 @@
         this.quad(x, y, w, hh, u, v, u, v, c, this.atlas, 0);
     }
 
+    // two-colour gradient rectangle: c0 at the left / top edge, c1 at the right / bottom edge (vertical = top to bottom).
+    // The colours are per-vertex, which every backend (GL, Vulkan, software) already interpolates.
+    fillGradient(x: float, y: float, w: float, hh: float, c0: u32, c1: u32, vertical: bool) => void {
+        if (w <= 0.0 || hh <= 0.0) return;
+        let u: float = this.whiteU(); let v: float = this.whiteV();
+        this.ensure(this.atlas, 0, 0.0, 0.0);
+        let base: u32 = this.vcount;
+        if (vertical) {
+            this.vert(x, y, u, v, c0); this.vert(x + w, y, u, v, c0);
+            this.vert(x + w, y + hh, u, v, c1); this.vert(x, y + hh, u, v, c1);
+        }
+        else {
+            this.vert(x, y, u, v, c0); this.vert(x + w, y, u, v, c1);
+            this.vert(x + w, y + hh, u, v, c1); this.vert(x, y + hh, u, v, c0);
+        }
+        this.tri(0, 1, 2, base); this.tri(0, 2, 3, base);
+        this.grow(6);
+    }
+
     rect(x: float, y: float, w: float, hh: float, t: float, c: u32) => void {
         this.fillRect(x, y, w, t, c);
         this.fillRect(x, y + hh - t, w, t, c);
@@ -125,6 +144,34 @@
         this.cornerFan(x + w - r, y + r, r, PI * 1.5, c);
         this.cornerFan(x + w - r, y + hh - r, r, 0.0, c);
         this.cornerFan(x + r, y + hh - r, r, PI * 0.5, c);
+    }
+
+    // filled rounded rectangle with a radius per corner (top-left, top-right, bottom-right, bottom-left).
+    // Radii are scaled down together when two neighbours do not fit a side (CSS rule). Same non-overlapping construction.
+    fillRoundRect4(x: float, y: float, w: float, hh: float, tl0: float, tr0: float, br0: float, bl0: float, c: u32) => void {
+        if (w <= 0.0 || hh <= 0.0) return;
+        let tl: float = tl0; let tr: float = tr0; let br: float = br0; let bl: float = bl0;
+        if (tl < 0.0) tl = 0.0; if (tr < 0.0) tr = 0.0; if (br < 0.0) br = 0.0; if (bl < 0.0) bl = 0.0;
+        let f: float = 1.0;
+        if (tl + tr > w && w / (tl + tr) < f) f = w / (tl + tr);
+        if (bl + br > w && w / (bl + br) < f) f = w / (bl + br);
+        if (tl + bl > hh && hh / (tl + bl) < f) f = hh / (tl + bl);
+        if (tr + br > hh && hh / (tr + br) < f) f = hh / (tr + br);
+        tl = tl * f; tr = tr * f; br = br * f; bl = bl * f;
+        let ht: float = tl; if (tr > ht) ht = tr;
+        let hb: float = bl; if (br > hb) hb = br;
+        if (ht < 0.75 && hb < 0.75) { this.fillRect(x, y, w, hh, c); return; }
+        if (hh - ht - hb > 0.0) this.fillRect(x, y + ht, w, hh - ht - hb, c);
+        if (ht > 0.0 && w - tl - tr > 0.0) this.fillRect(x + tl, y, w - tl - tr, ht, c);
+        if (ht - tl > 0.0 && tl > 0.0) this.fillRect(x, y + tl, tl, ht - tl, c);
+        if (ht - tr > 0.0 && tr > 0.0) this.fillRect(x + w - tr, y + tr, tr, ht - tr, c);
+        if (hb > 0.0 && w - bl - br > 0.0) this.fillRect(x + bl, y + hh - hb, w - bl - br, hb, c);
+        if (hb - bl > 0.0 && bl > 0.0) this.fillRect(x, y + hh - hb, bl, hb - bl, c);
+        if (hb - br > 0.0 && br > 0.0) this.fillRect(x + w - br, y + hh - hb, br, hb - br, c);
+        if (tl > 0.5) this.cornerFan(x + tl, y + tl, tl, PI, c);
+        if (tr > 0.5) this.cornerFan(x + w - tr, y + tr, tr, PI * 1.5, c);
+        if (br > 0.5) this.cornerFan(x + w - br, y + hh - br, br, 0.0, c);
+        if (bl > 0.5) this.cornerFan(x + bl, y + hh - bl, bl, PI * 0.5, c);
     }
 
     // rounded outline of uniform thickness t (the border box is x, y, w, hh)

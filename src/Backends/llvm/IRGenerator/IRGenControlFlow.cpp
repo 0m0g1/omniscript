@@ -167,6 +167,10 @@ llvm::Value* IRGenerator::createForLoop(
     llvm::BasicBlock* incrementBlock = llvm::BasicBlock::Create(context, "for.inc", function);
     llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "for.end");
 
+    // break -> for.end, continue -> for.inc
+    loopTargets_.push_back({afterBlock, incrementBlock, function});
+    struct LoopTargetGuard { std::vector<LoopTarget>& v; ~LoopTargetGuard() { v.pop_back(); } } loopTargetGuard{loopTargets_};
+
     Builder->CreateBr(condBlock);
 
     // === Condition block ===
@@ -274,6 +278,10 @@ llvm::Value* IRGenerator::createWhileLoop(
     llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context, "while.body");
     llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "while.end");
 
+    // break -> while.end, continue -> while.cond
+    loopTargets_.push_back({afterBlock, condBlock, function});
+    struct LoopTargetGuard { std::vector<LoopTarget>& v; ~LoopTargetGuard() { v.pop_back(); } } loopTargetGuard{loopTargets_};
+
     Builder->CreateBr(condBlock);
     Builder->SetInsertPoint(condBlock);
 
@@ -330,6 +338,35 @@ llvm::Value* IRGenerator::createWhileLoop(
     afterBlock->insertInto(function);
     Builder->SetInsertPoint(afterBlock);
 
+    return nullptr;
+}
+
+llvm::Value* IRGenerator::createLoopJump(bool isBreak, const FileSpan& span) {
+    const char* word = isBreak ? "break" : "continue";
+    llvm::Function* function = Builder->GetInsertBlock()->getParent();
+
+    if (loopTargets_.empty() || loopTargets_.back().function != function) {
+        console.reportError(
+            Console::SEMANTIC_ERROR,
+            Console::formatString("'%s' outside of a loop", word),
+            Console::formatString("To resolve this:\n"
+                                  "1. Use '%s' only inside a for or while loop body\n"
+                                  "2. 'continue' directly inside a switch case is not supported", word),
+            span
+        );
+        return nullptr;
+    }
+
+    if (!currentBlockHasTerminator()) {
+        const LoopTarget& target = loopTargets_.back();
+        Builder->CreateBr(isBreak ? target.breakTarget : target.continueTarget);
+    }
+
+    // Anything emitted after the jump (the rest of the block, the if-merge branch) needs a
+    // valid insertion point. This block has no predecessors, so it is dead code.
+    llvm::BasicBlock* dead = llvm::BasicBlock::Create(
+        Builder->getContext(), isBreak ? "break.dead" : "continue.dead", function);
+    Builder->SetInsertPoint(dead);
     return nullptr;
 }
 

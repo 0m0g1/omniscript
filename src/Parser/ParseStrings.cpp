@@ -75,177 +75,73 @@ std::shared_ptr<Statement> Parser::parseStringTemplate() {
 
     std::vector<std::shared_ptr<Statement>> parts;
 
-    // Handle TemplateHead or StringLiteral
-    if (currentToken.getType() == TokenTypes::TemplateHead || currentToken.getType() == TokenTypes::StringLiteral) {
-        std::u32string literalValue = currentToken.getU32Value();
-        auto literalStmt = std::make_shared<StringLiteral>(literalValue);
-        literalStmt->setPosition(currentToken, currentToken);
-        literalStmt->setSpan(span);
-        parts.push_back(literalStmt);
-        eat(currentToken.getType(), [&]() {
-            std::string suggestion = Console::formatString(
-                "To resolve this:\n"
-                "1. Start template with a string literal or template head\n"
-                "2. Check template syntax\n"
-                "3. Expected token: string literal or template head, found '%s'",
-                getTokenTypeName(currentToken.getType()).c_str()
-            );
-            console.reportError(
-                Console::SYNTAX_ERROR,
-                Console::formatString("Expected string literal or template head, found '%s'", 
-                    getTokenTypeName(currentToken.getType()).c_str()),
-                suggestion,
-                span
-            );
-        });
-    } else {
+    // Token shape from the lexer: Head(text) expr [Middle(text) expr]* Tail(text).
+    // A template without any `${}` is a single Tail and never reaches this function.
+    auto addText = [&]() {
+        std::u32string text = currentToken.getU32Value();
+        if (!text.empty()) {
+            auto lit = std::make_shared<StringLiteral>(text);
+            lit->setSpan(span);
+            parts.push_back(lit);
+        }
+    };
+
+    if (currentToken.getType() != TokenTypes::TemplateHead) {
         console.reportError(
             Console::SYNTAX_ERROR,
-            Console::formatString("Expected template head or string literal to start template, found '%s'", 
+            Console::formatString("Expected template head to start template, found '%s'",
                 getTokenTypeName(currentToken.getType()).c_str()),
-            "To resolve this:\n1. Start template with a string literal or backtick template\n2. Check template syntax\n3. Ensure valid template start",
+            "To resolve this:\n1. Start the template with a backtick string\n2. Check template syntax",
             span
         );
         return nullptr;
     }
 
-    // Handle TemplateMiddle and embedded expressions
-    while (currentToken.getType() == TokenTypes::TemplateMiddle) {
-        // Parse the embedded expression within ${}
+    addText();
+    eat(TokenTypes::TemplateHead);
+
+    while (true) {
         auto expr = parseExpression();
         if (!expr) {
             console.reportError(
                 Console::SYNTAX_ERROR,
                 "Invalid expression in template ${}",
-                "To resolve this:\n1. Provide a valid expression within ${}\n2. Check expression syntax\n3. Ensure valid literals or identifiers",
+                "To resolve this:\n1. Provide a valid expression within ${}\n2. Check expression syntax",
                 span
             );
             return nullptr;
         }
-        expr->setPosition(currentToken, previousToken);
         expr->setSpan(span);
         parts.push_back(expr);
 
-        // Consume TemplateMiddle
-        std::u32string literalValue = currentToken.getU32Value();
-        auto literalStmt = std::make_shared<StringLiteral>(literalValue);
-        literalStmt->setPosition(currentToken, currentToken);
-        literalStmt->setSpan(span);
-        parts.push_back(literalStmt);
-        eat(TokenTypes::TemplateMiddle, [&]() {
-            std::string suggestion = Console::formatString(
-                "To resolve this:\n"
-                "1. Continue template with valid middle part\n"
-                "2. Check template syntax\n"
-                "3. Expected token: template middle, found '%s'",
-                getTokenTypeName(currentToken.getType()).c_str()
-            );
-            console.reportError(
-                Console::SYNTAX_ERROR,
-                Console::formatString("Expected template middle, found '%s'", 
-                    getTokenTypeName(currentToken.getType()).c_str()),
-                suggestion,
-                span
-            );
-        });
-    }
-
-    // Handle TemplateTail
-    if (currentToken.getType() == TokenTypes::TemplateTail) {
-        std::u32string literalValue = currentToken.getU32Value();
-        auto literalStmt = std::make_shared<StringLiteral>(literalValue);
-        literalStmt->setPosition(currentToken, currentToken);
-        literalStmt->setSpan(span);
-        parts.push_back(literalStmt);
-        eat(TokenTypes::TemplateTail, [&]() {
-            std::string suggestion = Console::formatString(
-                "To resolve this:\n"
-                "1. End template with valid tail part\n"
-                "2. Check template syntax\n"
-                "3. Expected token: template tail, found '%s'",
-                getTokenTypeName(currentToken.getType()).c_str()
-            );
-            console.reportError(
-                Console::SYNTAX_ERROR,
-                Console::formatString("Expected template tail, found '%s'", 
-                    getTokenTypeName(currentToken.getType()).c_str()),
-                suggestion,
-                span
-            );
-        });
-    } else if (currentToken.getType() != TokenTypes::Plus) {
+        if (currentToken.getType() == TokenTypes::TemplateMiddle) {
+            addText();
+            eat(TokenTypes::TemplateMiddle);
+            continue;
+        }
+        if (currentToken.getType() == TokenTypes::TemplateTail) {
+            addText();
+            eat(TokenTypes::TemplateTail);
+            break;
+        }
         console.reportError(
             Console::SYNTAX_ERROR,
-            Console::formatString("Expected template tail or '+' for concatenation, found '%s'", 
+            Console::formatString("Expected '}' closing the template expression, found '%s'",
                 getTokenTypeName(currentToken.getType()).c_str()),
-            "To resolve this:\n1. Complete template with a tail or concatenate with '+'\n2. Check template syntax\n3. Ensure valid template closure",
+            "To resolve this:\n1. Close the ${ } expression with '}'\n2. Check the expression inside ${ }",
             span
         );
         return nullptr;
-    }
-
-    // Handle concatenation with additional string literals or templates
-    while (currentToken.getType() == TokenTypes::Plus) {
-        eat(TokenTypes::Plus, [&]() {
-            std::string suggestion = Console::formatString(
-                "To resolve this:\n"
-                "1. Use '+' for template concatenation\n"
-                "2. Check concatenation syntax\n"
-                "3. Expected token: '+', found '%s'",
-                getTokenTypeName(currentToken.getType()).c_str()
-            );
-            console.reportError(
-                Console::SYNTAX_ERROR,
-                Console::formatString("Expected '+' for template concatenation, found '%s'", 
-                    getTokenTypeName(currentToken.getType()).c_str()),
-                suggestion,
-                span
-            );
-        });
-
-        if (currentToken.getType() == TokenTypes::StringLiteral || currentToken.getType() == TokenTypes::TemplateHead) {
-            auto nextTemplate = parseStringTemplate();
-            if (!nextTemplate) {
-                console.reportError(
-                    Console::SYNTAX_ERROR,
-                    "Failed to parse concatenated string template or literal",
-                    "To resolve this:\n1. Ensure valid string or template after '+'\n2. Check template syntax\n3. Verify concatenation",
-                    span
-                );
-                return nullptr;
-            }
-            parts.push_back(nextTemplate);
-        } else if (currentToken.getType() == TokenTypes::IntegerLiteral || currentToken.getType() == TokenTypes::FloatLiteral) {
-            std::u32string literalValue = utf8_to_utf32(currentToken.getValue());
-            auto literalStmt = std::make_shared<StringLiteral>(literalValue);
-            literalStmt->setPosition(currentToken, currentToken);
-            literalStmt->setSpan(span);
-            parts.push_back(literalStmt);
-            eat(currentToken.getType());
-        } else {
-            console.reportError(
-                Console::SYNTAX_ERROR,
-                Console::formatString("Expected string, template, integer, or float literal after '+', found '%s'", 
-                    getTokenTypeName(currentToken.getType()).c_str()),
-                "To resolve this:\n1. Provide a valid literal or template for concatenation\n2. Check concatenation syntax\n3. Ensure valid string, template, or number",
-                span
-            );
-            return nullptr;
-        }
     }
 
     span.end.line = previousToken.getLine();
     span.end.col = previousToken.getColumn();
     span.end.filePath = previousToken.getFilePath();
 
-    // auto templateStmt = std::make_shared<StringTemplateStatement>(parts);
-    // templateStmt->setPosition(currentToken, previousToken);
-    // templateStmt->setSpan(span);
-
-    // DEBUG_LOG("Parsed string template with " + std::to_string(parts.size()) + " parts");
-
-    // return templateStmt;
-    return nullptr;
+    auto templateStmt = std::make_shared<StringTemplateStatement>(parts);
+    templateStmt->setSpan(span);
+    DEBUG_LOG("Parsed string template with " + std::to_string(parts.size()) + " parts");
+    return templateStmt;
 }
 
 } // namespace Omniscript

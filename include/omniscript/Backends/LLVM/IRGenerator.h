@@ -308,6 +308,17 @@ public:
         const std::string& functionTypeName
     );
     bool currentBlockHasTerminator() const;
+
+    // Innermost-last stack of enclosing loops: where `break` and `continue` jump to.
+    struct LoopTarget {
+        llvm::BasicBlock* breakTarget;
+        llvm::BasicBlock* continueTarget;
+        llvm::Function*   function;
+    };
+    std::vector<LoopTarget> loopTargets_;
+    llvm::Value* createLoopJump(bool isBreak, const FileSpan& span);
+    // `text ${expr}` -> snprintf into one of 8 rotating 512-byte scratch buffers; yields the char* buffer.
+    llvm::Value* createStringTemplate(const std::shared_ptr<Expression>& expr, SymbolTableType scope);
     llvm::Value* createReturn(llvm::Value* returnValue, llvm::Type* expectedReturnType);
 
     bool isNullableStruct(llvm::Type* type);

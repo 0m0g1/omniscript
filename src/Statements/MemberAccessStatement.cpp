@@ -19,6 +19,7 @@
 #include <omniscript/utils.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
+#include <omniscript/Expressions/EntityExpressions.h>
 
 namespace Omniscript {
 
@@ -107,6 +108,38 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
     
     // Validate access context chain
     validateAccessChain(scope);
+
+    // Enum member: `Color.Green` is the enumerator's integer constant.
+    {
+        std::string enumBaseName;
+        if (!object) {
+            enumBaseName = objectName;
+        } else if (auto getter = std::dynamic_pointer_cast<GetVariable>(object)) {
+            enumBaseName = getter->getName();
+        }
+        if (!enumBaseName.empty() && !isMethodCall() && arguments.empty()) {
+            if (auto enumExpr = std::dynamic_pointer_cast<EnumExpression>(scope->get(enumBaseName))) {
+                if (!enumExpr->enumerators.count(memberName)) {
+                    std::string available;
+                    for (const auto& entry : enumExpr->enumerators) {
+                        available += " - " + entry.first + "\n";
+                    }
+                    console.reportError(
+                        Console::TYPE_ERROR,
+                        "Enum '" + enumBaseName + "' has no member '" + memberName + "'",
+                        "To fix this:\n1. Check spelling of '" + memberName + "'\n2. Available members:\n" + available,
+                        getSpan()
+                    );
+                    return nullptr;
+                }
+                auto constant = enumExpr->getExpression(memberName);
+                if (!constant) return nullptr;
+                if (auto copy = constant->clone()) constant = copy;
+                constant->setSpan(getSpan());
+                return constant;
+            }
+        }
+    }
     
     // Get base expression and type info using public methods
     std::shared_ptr<Expression> baseExpr;

@@ -305,7 +305,7 @@ Token Lexer::getNextToken() {
             return token;
         }
 
-        if (isQuote(currentChar) || isRawStringPrefix) {
+        if (isQuote(currentChar) || isRawStringPrefix || (config_.allowTemplateStrings && currentChar == '`')) {
             Token stringToken = getStringToken(currentChar);
             updateStatistics(stringToken);
             if (debugMode_) debugPrintToken(stringToken);
@@ -350,6 +350,7 @@ Token Lexer::peekToken(unsigned long long offset) {
     std::optional<Token> savedPendingNewline = pendingNewlineToken_;
     size_t savedCachePosition = cachePosition_;
     LexerStats savedStats = stats_;
+    std::vector<int> savedTemplateDepth = templateBraceDepth_;
 
     // Advance to the desired offset by getting tokens
     Token token;
@@ -376,6 +377,7 @@ Token Lexer::peekToken(unsigned long long offset) {
     pendingNewlineToken_ = savedPendingNewline;
     cachePosition_ = savedCachePosition;
     stats_ = savedStats;
+    templateBraceDepth_ = savedTemplateDepth;
 
     return token;
 }
@@ -803,6 +805,7 @@ void Lexer::reset() {
     stats_.totalCharacters = source_.length();
     docLines_.clear();
     moduleDocLines_.clear();
+    templateBraceDepth_.clear();
 }
 
 void Lexer::seekTo(size_t position) {

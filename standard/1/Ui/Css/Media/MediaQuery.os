@@ -58,8 +58,9 @@ function mediaFeature(inner0: char*) => bool {
         else if (strEq(name, "max-height")) { mediaNumber(val, &mv); res = mv.ok && gMediaH <= mv.v; }
         else if (strEq(name, "height")) { mediaNumber(val, &mv); res = mv.ok && gMediaH == mv.v; }
         else if (strEq(name, "prefers-color-scheme")) {
-            if (strEq(val, "dark")) res = gMediaDark;
-            else if (strEq(val, "light")) res = !gMediaDark;
+            // written without `!` on the global: if the light and dark blocks both matched, a miscompiled negation would be the cause
+            if (strEq(val, "dark")) { if (gMediaDark == true) res = true; else res = false; }
+            else if (strEq(val, "light")) { if (gMediaDark == true) res = false; else res = true; }
         }
         else if (strEq(name, "prefers-reduced-motion") || strEq(name, "prefers-contrast") || strEq(name, "prefers-reduced-transparency")) { res = strEq(val, "no-preference"); }
         else if (strEq(name, "forced-colors")) { res = strEq(val, "none"); }

@@ -42,6 +42,23 @@ let BG_MAX: int = 64;            // CSS background images per page
 let BGC_MAX: int = 48;           // entries in the background image cache
 let CSS_MAX: int = 20;           // stylesheets queued per page (Browser.cssQ size)
 
+// CSS filter: invert(100%) on the node or an ancestor (Style.fInv)
+function nodeInverted(n: UI.Node*) => bool {
+    let r: bool = false; let p: UI.Node* = n;
+    while (p != nullptr) { if (p.st.fInv) r = true; p = p.parent; }
+    return r;
+}
+// RGBA8 pixels: invert R, G, B, keep alpha
+function invertRgba(px: u8*, count: int) => void {
+    let k: int = 0; let total: int = count * 4;
+    while (k < total) {
+        px[k] = (255 - (px[k] as int)) as u8;
+        px[k + 1] = (255 - (px[k + 1] as int)) as u8;
+        px[k + 2] = (255 - (px[k + 2] as int)) as u8;
+        k = k + 4;
+    }
+}
+
 // image slot states (Atomic i64, written by a worker, read by the main thread)
 let K_IDLE: i64 = 0;
 let K_QUEUED: i64 = 1;           // job submitted, worker has not finished
@@ -273,6 +290,31 @@ function absUrls(css: char*, base: char*) => char* {
     return r;
 }
 
+// The computed background url sometimes arrives as junk like `)background-image:url(/a/b.webp` (a leftover of the
+// declaration it was cut from). Keep only what is inside the LAST url( ... ), unquoted; anything else is returned as is.
+function cleanBgUrl(u: char*) => char* {
+    if (u == nullptr) return u;
+    let n: int = U.slen(u);
+    let last: int = 0 - 1;
+    let i: int = 0;
+    while (i + 4 <= n) { if (U.startsAt(u, i, "url(")) last = i; i = i + 1; }
+    if (last < 0) return u;
+    let j: int = last + 4;
+    while (j < n && U.isSpace(u[j] as int)) { j = j + 1; }
+    let q: int = 0;
+    if (j < n) q = u[j] as int;
+    let quoted: bool = (q == 34 || q == 39);
+    if (quoted) j = j + 1;
+    let s: int = j;
+    let done: bool = false;
+    while (j < n && !done) {
+        let ch: int = u[j] as int;
+        if (quoted) { if (ch == q) done = true; else j = j + 1; }
+        else { if (ch == 41 || U.isSpace(ch)) done = true; else j = j + 1; }
+    }
+    return U.sub(u, s, j);
+}
+
 function b64v(c: int) => int {
     let r: int = 0 - 1;
     if (c >= 65 && c <= 90) r = c - 65;
@@ -365,6 +407,7 @@ struct Browser {
     bgN: int = 0;
     bgI: int = 0;
     bgEmpty: int = 0;             // empty url() backgrounds logged for this page (capped)
+    bgScan: int = 0;              // frames left until the one delayed background rescan (the cascade may finish late)
     // url -> decoded image, kept across pages (Pen2D images stay valid): the same sprite is fetched once
     bgcUrl: [48]char*;
     bgcId: [48]u32;
@@ -386,16 +429,69 @@ struct Browser {
     cssReset: bool = false;
     cssQ: [20]char*;
     qN: int = 0;
+    pendQ: [20]char*;            // flattened but not yet var()-resolved sheets, published together by publishCss()
+    pendN: int = 0;
     viewW: int = 1000;           // viewport the @media conditions are evaluated against (set from the window size if you like)
     viewH: int = 700;
+    // the unflattened sheets of this page, kept so a window resize can evaluate @media again
+    srcCss: [20]char*;
+    srcBase: [20]char*;
+    srcN: int = 0;
     // base = URL the sheet came from (its own URL for <link>, the page URL for <style>): url() is resolved against it
     queueCss(text: char*, base: char*) => void {
-        if (this.qN < CSS_MAX) {
-            let flat: char* = CF.flatten(absUrls(text, base), this.viewW, this.viewH);
-            this.cssQ[this.qN] = flat;
-            this.qN = this.qN + 1;
+        if (this.srcN < CSS_MAX) {
+            this.srcCss[this.srcN] = U.dup(text);
+            this.srcBase[this.srcN] = U.dup(base);
+            this.srcN = this.srcN + 1;
+        }
+        this.flattenSheet(text, base);
+    }
+
+    flattenSheet(text: char*, base: char*) => void {
+        if (this.pendN < CSS_MAX) {
+            this.pendQ[this.pendN] = CF.flattenRaw(absUrls(text, base), this.viewW, this.viewH);   // registers --vars, keeps var()
+            this.pendN = this.pendN + 1;
         }
         else Dbg.log(U.cat("CSS dropped: queue full: ", base));
+    }
+
+    // After the LAST stylesheet is in: resolve var() everywhere (so a --var defined in a later sheet works), hand the
+    // sheets to main.os, and resolve var() inside style="" attributes.
+    publishCss() => void {
+        let i: int = 0;
+        while (i < this.pendN) {
+            if (this.qN < CSS_MAX) { this.cssQ[this.qN] = CF.resolve(this.pendQ[i]); this.qN = this.qN + 1; }
+            i = i + 1;
+        }
+        this.pendN = 0;
+        if (!CF.UI_VARS) this.resolveInlineVars(this.doc.root);   // with UI_VARS the Ui resolves them per element
+    }
+
+    // window size changed: re-flatten the kept sheets (main.os then clears and re-adds them). false = busy, call again.
+    resizeView(w: int, h: int) => bool {
+        if (this.loading) return false;
+        this.viewW = w; this.viewH = h;
+        if (this.srcN == 0 || this.doc.root == nullptr) return true;
+        CF.reset();
+        this.cssReset = true;
+        this.qN = 0;
+        this.pendN = 0;
+        let i: int = 0;
+        while (i < this.srcN) { this.flattenSheet(this.srcCss[i], this.srcBase[i]); i = i + 1; }
+        this.publishCss();
+        // rules that now match may bring new background images: look again after the restyle
+        if (this.pen != nullptr && this.state == S_IDLE) { this.bgN = 0; this.bgI = 0; this.bgScan = 45; }
+        return true;
+    }
+
+    resolveInlineVars(n: UI.Node*) => void {
+        let c: UI.Node* = n.firstEl();
+        while (c != nullptr) {
+            let st: char* = A.attr(c, "style");
+            if (st != nullptr && U.indexOf(st, 0, "var(") >= 0) c.setAttr("style", CF.resolve(st));
+            this.resolveInlineVars(c);
+            c = c.nextEl();
+        }
     }
 
     // call once, after the Browser has its final address (main.os: right after `let b`)
@@ -451,6 +547,7 @@ struct Browser {
             }
             else if (st == K_RASTER) {
                 let n: UI.Node* = this.imgQ[i];
+                if (nodeInverted(n)) invertRgba(s.im.pixels, s.im.width * s.im.height);
                 let id: u32 = this.pen.createImage(s.im.pixels, s.im.width, s.im.height);
                 let iw: float = s.im.width as float;
                 let ih: float = s.im.height as float;
@@ -462,7 +559,7 @@ struct Browser {
                 let n2: UI.Node* = this.imgQ[i];
                 let iw2: float = 0.0;
                 let ih2: float = 0.0;
-                let id2: u32 = this.pen.createImageSvg(s.buf.data as u8*, s.buf.len as int, 2.0, 0x000000, &iw2, &ih2);
+                let id2: u32 = this.pen.createImageSvgFx(s.buf.data as u8*, s.buf.len as int, 2.0, 0x000000, &iw2, &ih2, nodeInverted(n2));
                 if (id2 > 0) { n2.imgId = id2 as int; n2.imgW = iw2; n2.imgH = ih2; n2.markStyle(); }
                 else Dbg.log(U.cat("image not decoded: ", s.url));
                 s.im.free();
@@ -497,6 +594,7 @@ struct Browser {
     startLoad(url: char*, kind: int, pos: int) => void {
         this.pendingUrl = url;
         this.imgN = 0; this.imgI = 0; this.imgDone = 0;   // drop the image queue of the page being left
+        this.bgN = 0; this.bgI = 0; this.bgScan = 0;       // its nodes are destroyed at S_PARSE: never touch them again
         this.epoch.add(1);                     // queued/in-flight image jobs of the old page now skip themselves
         this.pendingBody = nullptr;
         this.navKind = kind;
@@ -611,6 +709,8 @@ struct Browser {
             CF.reset();                                          // custom properties belong to one page
             this.cssReset = true;
             this.qN = 0;
+            this.pendN = 0;
+            this.srcN = 0;
             this.doc.cssN = 0;
             this.doc.jsN = 0;
             this.gen = this.gen + 1;
@@ -621,17 +721,21 @@ struct Browser {
             this.queueCss(this.doc.css, this.url);
             this.stageI = 0;
             if (this.doc.cssN > 0) this.finishStage("inline css", S_CSS_LINK, "Fetching stylesheet 1");
-            else { this.jsAcc = U.dup(""); this.finishStage("inline css", S_JS_LINK, "Loading scripts"); }
+            else { this.jsAcc = U.dup(""); this.publishCss(); this.finishStage("inline css", S_JS_LINK, "Loading scripts"); }
         }
         else if (st == S_CSS_LINK) {
             let sheet: char* = Net.load(Net.resolve(this.url, this.doc.cssLinks[this.stageI]));
             let cssUrl: char* = Net.resolve(this.url, this.doc.cssLinks[this.stageI]);
             Dbg.log(U.cat("stylesheet: ", cssUrl));
-            if (sheet != nullptr) this.queueCss(sheet, cssUrl);
+            if (sheet != nullptr) {
+                Dbg.log(U.cat("  queueCss ", U.cat(U.fromInt(U.slen(sheet)), " bytes")));   // crash hunt: last line before a crash names the culprit
+                this.queueCss(sheet, cssUrl);
+                Dbg.log("  queueCss done");
+            }
             else Dbg.log(U.cat("stylesheet failed: ", cssUrl));
             this.stageI = this.stageI + 1;
             if (this.stageI < this.doc.cssN) this.finishStage("stylesheet", S_CSS_LINK, U.cat("Fetching stylesheet ", U.fromInt(this.stageI + 1)));
-            else { this.stageI = 0; this.jsAcc = U.dup(""); this.finishStage("stylesheet", S_JS_LINK, "Loading scripts"); }
+            else { this.stageI = 0; this.jsAcc = U.dup(""); this.publishCss(); this.finishStage("stylesheet", S_JS_LINK, "Loading scripts"); }
         }
         else if (st == S_JS_LINK) {
             let remote: bool = Net.isHttp(this.url);
@@ -672,6 +776,7 @@ struct Browser {
             this.stageName = "style + layout";
             this.state = S_IDLE;
             if (this.pen != nullptr) this.collectBgs(this.page);          // the cascade has run, so st.bgUrl is known now
+            if (this.pen != nullptr) { Dbg.log(U.cat("backgrounds queued: ", U.fromInt(this.bgN))); this.bgScan = 45; }
             if (this.pen != nullptr && (this.imgN > 0 || this.bgN > 0)) { this.state = S_IMG; this.status = "Loading images"; this.submitImages(); }
         }
         else if (st == S_IMG) {
@@ -710,8 +815,8 @@ struct Browser {
     collectBgs(n: UI.Node*) => void {
         let c: UI.Node* = n.firstEl();
         while (c != nullptr) {
-            let u: char* = c.st.bgUrl;
-            if (u != nullptr && U.slen(u) > 0) {
+            let u: char* = c.st.bgUrl;                                  // raw: must equal what the painter compares against
+            if (u != nullptr && U.slen(cleanBgUrl(u)) > 0) {
                 if (c.bgImgUrl == nullptr || !U.streq(c.bgImgUrl, u)) {
                     if (this.bgN < BG_MAX) { this.bgQ[this.bgN] = c; this.bgN = this.bgN + 1; }
                     else Dbg.log(U.cat("background image skipped (BG_MAX): ", u));
@@ -731,7 +836,8 @@ struct Browser {
         if (this.bgI >= this.bgN) return false;
         let n: UI.Node* = this.bgQ[this.bgI];
         this.bgI = this.bgI + 1;
-        let u: char* = n.st.bgUrl;
+        let u: char* = n.st.bgUrl;                                      // raw value: cache key and n.bgImgUrl (painter compares it with st.bgUrl)
+        let fetchUrl: char* = cleanBgUrl(u);                            // what is actually downloaded
         if (u != nullptr) {
             // 1. cache hit: the same image was already decoded (this page or an earlier one)
             let hit: int = 0 - 1;
@@ -740,17 +846,18 @@ struct Browser {
             if (hit >= 0) {
                 n.bgImgId = this.bgcId[hit] as int; n.bgImgW = this.bgcW[hit]; n.bgImgH = this.bgcH[hit];
                 n.bgImgUrl = U.dup(u); n.markPaint();
+                Dbg.log(U.cat("background image (cached): ", fetchUrl));
             }
             else {
                 // 2. get the bytes: data: URI, else the URL as rewritten by absUrls, else relative to the page
                 //    (style="" attributes are not rewritten)
                 let buf: Str.String;
                 let got: bool = false;
-                let abs: char* = u;
-                if (U.startsAt(u, 0, "data:")) got = decodeDataUri(u, &buf);
+                let abs: char* = fetchUrl;
+                if (U.startsAt(fetchUrl, 0, "data:")) got = decodeDataUri(fetchUrl, &buf);
                 else {
-                    got = Net.loadBytes(u, &buf);
-                    if (!got) { abs = Net.resolve(this.url, u); got = Net.loadBytes(abs, &buf); }
+                    got = Net.loadBytes(fetchUrl, &buf);
+                    if (!got) { abs = Net.resolve(this.url, fetchUrl); got = Net.loadBytes(abs, &buf); }
                 }
                 if (got) {
                     let id: u32 = 0; let iw: float = 0.0; let ih: float = 0.0;
@@ -763,6 +870,12 @@ struct Browser {
                     im.free();
                     if (id > 0) {
                         n.bgImgId = id as int; n.bgImgW = iw; n.bgImgH = ih; n.bgImgUrl = U.dup(u); n.markPaint();
+                        Dbg.log(U.cat("background image loaded: ", U.cat(abs, U.cat(" ", U.cat(U.fromInt(iw as int), U.cat("x", U.cat(U.fromInt(ih as int), U.cat(" box ", U.cat(U.fromInt(n.box.w as int), U.cat("x", U.fromInt(n.box.h as int)))))))))));
+                        if (n.inlineCss != nullptr) {
+                            let icl: int = U.slen(n.inlineCss);
+                            if (icl > 160) icl = 160;
+                            Dbg.log(U.cat("  inline css: ", U.sub(n.inlineCss, 0, icl)));
+                        }
                         if (this.bgcN < BGC_MAX) {
                             let e: int = this.bgcN;
                             this.bgcUrl[e] = U.dup(u); this.bgcId[e] = id; this.bgcW[e] = iw; this.bgcH[e] = ih;
@@ -837,6 +950,15 @@ struct Browser {
         if (this.state != S_IDLE) {
             this.stageT = now;
             this.runStage();
+        }
+        else if (this.bgScan > 0 && this.pen != nullptr) {
+            this.bgScan = this.bgScan - 1;
+            if (this.bgScan == 0) {                                  // late rescan: picks up backgrounds the first pass could not see
+                let before: int = this.bgN;
+                this.collectBgs(this.page);
+                Dbg.log(U.cat("background rescan: +", U.fromInt(this.bgN - before)));
+                if (this.bgI < this.bgN) { this.state = S_IMG; this.status = "Loading backgrounds"; }
+            }
         }
     }
 

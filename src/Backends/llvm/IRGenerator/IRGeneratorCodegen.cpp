@@ -1119,6 +1119,18 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         }
     }
     
+    if (std::dynamic_pointer_cast<StringTemplateExpression>(value)) {
+        return createStringTemplate(value, scope);
+    }
+
+    if (std::dynamic_pointer_cast<BreakExpression>(value)) {
+        return createLoopJump(true, value->getSpan());
+    }
+
+    if (std::dynamic_pointer_cast<ContinueExpression>(value)) {
+        return createLoopJump(false, value->getSpan());
+    }
+
     if (auto forExpr = std::dynamic_pointer_cast<ForLoopExpression>(value)) {
         DEBUG_LOG("Processing ForLoopExpression");
         return createForLoop(forExpr, scope);
@@ -1178,6 +1190,109 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
     }
 
     return nullptr;
+}
+
+llvm::Value* IRGenerator::createStringTemplate(const std::shared_ptr<Expression>& expr, SymbolTableType scope) {
+    auto tmpl = std::dynamic_pointer_cast<StringTemplateExpression>(expr);
+    if (!tmpl) return nullptr;
+
+    llvm::Module* mod = currentModule ? &*currentModule : &*Module;
+    llvm::LLVMContext& ctx = *Context;
+    llvm::Type* i8Ty  = llvm::Type::getInt8Ty(ctx);
+    llvm::Type* i32Ty = llvm::Type::getInt32Ty(ctx);
+    llvm::Type* i64Ty = llvm::Type::getInt64Ty(ctx);
+    llvm::Type* f64Ty = llvm::Type::getDoubleTy(ctx);
+    llvm::Type* ptrTy = llvm::PointerType::getUnqual(ctx);
+
+    constexpr uint64_t kSlots = 8;     // rotating scratch buffers (power of two)
+    constexpr uint64_t kSize  = 512;   // bytes per buffer, including the terminating NUL
+
+    // Build the printf format and the argument list, part by part, in source order.
+    std::string fmt;
+    std::vector<llvm::Value*> fmtArgs;
+    for (const auto& part : tmpl->parts) {
+        if (part.isText) {
+            for (char c : part.text) {
+                if (c == '%') fmt += "%%";
+                else fmt += c;
+            }
+            continue;
+        }
+
+        llvm::Value* v = codegen(part.expr, scope);
+        if (!v) {
+            console.reportError(Console::SEMANTIC_ERROR,
+                "Failed to generate code for template expression: " + (part.expr ? part.expr->toString() : std::string("?")),
+                tmpl->getSpan());
+            return nullptr;
+        }
+
+        llvm::Type* t = v->getType();
+        if (t->isIntegerTy(1)) {
+            fmt += "%s";
+            fmtArgs.push_back(Builder->CreateSelect(v,
+                Builder->CreateGlobalString("true", ".interp.true", 0, mod),
+                Builder->CreateGlobalString("false", ".interp.false", 0, mod)));
+        } else if (t->isIntegerTy()) {
+            fmt += "%lld";
+            fmtArgs.push_back(Builder->CreateSExtOrTrunc(v, i64Ty));
+        } else if (t->isFloatingPointTy()) {
+            fmt += "%g";
+            fmtArgs.push_back(Builder->CreateFPCast(v, f64Ty));
+        } else if (t->isPointerTy()) {
+            auto et = part.expr->getType();
+            auto pointee = (et && et->isPointer()) ? et->getPointeeType() : nullptr;
+            if (pointee && (pointee->isChar(8) || pointee->isString(8))) {
+                // char*: never hand NULL to %s
+                llvm::Value* isNull = Builder->CreateICmpEQ(v, llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(t)));
+                fmt += "%s";
+                fmtArgs.push_back(Builder->CreateSelect(isNull,
+                    Builder->CreateGlobalString("(null)", ".interp.null", 0, mod), v));
+            } else {
+                fmt += "%p";
+                fmtArgs.push_back(v);
+            }
+        } else {
+            console.reportError(Console::TYPE_ERROR,
+                "Cannot interpolate a value of this type into a template string: " + part.expr->toString(),
+                tmpl->getSpan());
+            return nullptr;
+        }
+    }
+
+    // Rotating scratch storage: one global byte array and a global slot counter per module.
+    llvm::ArrayType* bufTy = llvm::ArrayType::get(i8Ty, kSlots * kSize);
+    llvm::GlobalVariable* buf = mod->getNamedGlobal("__interp_buf");
+    if (!buf) {
+        buf = new llvm::GlobalVariable(*mod, bufTy, false, llvm::GlobalValue::InternalLinkage,
+                                       llvm::ConstantAggregateZero::get(bufTy), "__interp_buf");
+    }
+    llvm::GlobalVariable* counter = mod->getNamedGlobal("__interp_idx");
+    if (!counter) {
+        counter = new llvm::GlobalVariable(*mod, i32Ty, false, llvm::GlobalValue::InternalLinkage,
+                                           llvm::ConstantInt::get(i32Ty, 0), "__interp_idx");
+    }
+
+    llvm::Value* idx  = Builder->CreateLoad(i32Ty, counter, "interp.idx");
+    Builder->CreateStore(Builder->CreateAdd(idx, llvm::ConstantInt::get(i32Ty, 1)), counter);
+    llvm::Value* slot = Builder->CreateAnd(idx, llvm::ConstantInt::get(i32Ty, kSlots - 1), "interp.slot");
+    llvm::Value* off  = Builder->CreateMul(Builder->CreateZExt(slot, i64Ty), llvm::ConstantInt::get(i64Ty, kSize));
+    llvm::Value* dest = Builder->CreateGEP(i8Ty, buf, { off }, "interp.buf");
+
+    // UCRT has no exported snprintf; the engine provides os_snprintf (see CLLVMFunctionResolver.cpp),
+    // which is what the extern "C" name "snprintf" is mapped to. Declare that symbol directly.
+    llvm::FunctionCallee snprintfFn = mod->getOrInsertFunction(
+        "os_snprintf", llvm::FunctionType::get(i32Ty, { ptrTy, i64Ty, ptrTy }, /*isVarArg=*/true));
+
+    std::vector<llvm::Value*> callArgs = {
+        dest,
+        llvm::ConstantInt::get(i64Ty, kSize),
+        Builder->CreateGlobalString(fmt, ".interp.fmt", 0, mod)
+    };
+    callArgs.insert(callArgs.end(), fmtArgs.begin(), fmtArgs.end());
+    Builder->CreateCall(snprintfFn, callArgs, "interp.len");
+
+    return dest;
 }
 
 }

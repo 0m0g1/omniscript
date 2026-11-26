@@ -39,7 +39,14 @@ function applyPropBox(st: Style*, name: char*, v: char*, ctx: CssCtx*, isFs: boo
     let l: Len; lenSet(&l, LU_AUTO, 0.0);
     let cr: CRes; cr.ok = false; cr.c = 0;
     let hit: bool = true;
-    if (strEq(name, "width")) { if (parseLen(v, ctx, &l) && l.u != LU_NONE) { st.width.u = l.u; st.width.v = l.v; } else res = AP_INVALID; }
+    if (strEq(name, "width")) {
+        st.wkw = 0;
+        if (strEqI(v, "min-content")) { st.width.u = LU_AUTO; st.width.v = 0.0; st.wkw = 1; }          // sized in Block.placeBlock (minPref)
+        else if (strEqI(v, "max-content")) { st.width.u = LU_AUTO; st.width.v = 0.0; st.wkw = 2; }
+        else if (strEqI(v, "fit-content")) { st.width.u = LU_AUTO; st.width.v = 0.0; st.wkw = 3; }
+        else if (parseLen(v, ctx, &l) && l.u != LU_NONE) { st.width.u = l.u; st.width.v = l.v; }
+        else res = AP_INVALID;
+    }
     else if (strEq(name, "height")) { if (parseLen(v, ctx, &l) && l.u != LU_NONE) { st.height.u = l.u; st.height.v = l.v; } else res = AP_INVALID; }
     else if (strEq(name, "min-width")) { if (parseLen(v, ctx, &l)) { st.minW.u = l.u; st.minW.v = l.v; } else res = AP_INVALID; }
     else if (strEq(name, "max-width")) { if (parseLen(v, ctx, &l)) { st.maxW.u = l.u; st.maxW.v = l.v; } else res = AP_INVALID; }

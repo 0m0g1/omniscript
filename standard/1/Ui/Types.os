@@ -26,8 +26,12 @@ struct Style {
     pt: Len; pr: Len; pb: Len; pl: Len;
     bt: float = 0.0; br: float = 0.0; bb: float = 0.0; bl: float = 0.0;
     radius: float = 0.0;               // CM_FILL / CM_BORDER corner radius (px); <= 0 is a plain rectangle
+    fInv: bool = false;                // filter: invert(100%) on this element: <img> bitmaps in its subtree are inverted when they load (Browser.nodeInverted)
+    rmix: bool = false; rtl: float = 0.0; rtr: float = 0.0; rbr: float = 0.0; rbl: float = 0.0;   // per-corner radii (px) when the corners differ; radius then holds the largest
     boxSizing: int = 0; overflow: int = 0;
     bgUrl: char* = nullptr; bgSize: int = 0; bgFx: float = 0.0; bgFy: float = 0.0;   // background-image url (raw, unresolved); size 0 auto / 1 cover / 2 contain; position as 0..1 fractions
+    objFit: int = 0; objFx: float = 0.5; objFy: float = 0.5;   // object-fit of <img>: 0 fill / 1 cover / 2 contain / 3 none / 4 scale-down; object-position as 0..1 fractions
+    bgOver: bool = false;              // background-blend-mode != normal: the background colour is drawn OVER the background image (approximates the blend)
     aspect: float = 0.0;               // aspect-ratio as width / height; 0 = auto (Block.placeBlock derives an auto height from the width)
     shOn: bool = false; shInset: bool = false;   // one box-shadow: lengths below are layout units; Painter only draws blur 0
     shX: float = 0.0; shY: float = 0.0; shBlur: float = 0.0; shSpread: float = 0.0; shColor: u32 = 0;
@@ -36,7 +40,11 @@ struct Style {
     flexDir: int = 0; wrap: bool = false; grow: float = 0.0; shrink: float = 1.0; basis: Len;
     gap: float = 0.0; alignItems: int = 0; alignSelf: int = 9; justify: int = 0;
     gn: int = 0;                                  // grid-template-columns: track count (max 12); track i is g<i>: LU_PX / LU_PCT fixed, LU_AUTO = flexible (v = fr weight)
+    gcs: int = 0; gce: int = 0; gsp: int = 0; wkw: int = 0;     // wkw = width keyword (width stays auto): 1 min-content / 2 max-content / 3 fit-content; grid-column of an item: start / end line (1-based, negative counts from the end, 0 = auto), gsp = `span N` (0 = none)
     g0: Len; g1: Len; g2: Len; g3: Len; g4: Len; g5: Len; g6: Len; g7: Len; g8: Len; g9: Len; g10: Len; g11: Len;
+    gdN: int = 0; gdAngle: float = 180.0;         // linear-gradient background: stop count (0 = none, max 4), angle in degrees; colours gdC0..3 at positions gdP0..3 (0..1)
+    gdC0: u32 = 0; gdC1: u32 = 0; gdC2: u32 = 0; gdC3: u32 = 0; gdP0: float = 0.0; gdP1: float = 0.0; gdP2: float = 0.0; gdP3: float = 0.0;
+    tsOn: bool = false; tsX: float = 0.0; tsY: float = 0.0; tsBlur: float = 0.0; tsColor: u32 = 0;   // text-shadow (first shadow only, inherited); layout units
     cursor: int = 0; listStyle: int = 0;
 
     reset() => void {
@@ -51,15 +59,18 @@ struct Style {
         lenSet(&this.mt, LU_PX, 0.0); lenSet(&this.mr, LU_PX, 0.0); lenSet(&this.mb, LU_PX, 0.0); lenSet(&this.ml, LU_PX, 0.0);
         lenSet(&this.pt, LU_PX, 0.0); lenSet(&this.pr, LU_PX, 0.0); lenSet(&this.pb, LU_PX, 0.0); lenSet(&this.pl, LU_PX, 0.0);
         this.bt = 0.0; this.br = 0.0; this.bb = 0.0; this.bl = 0.0;
-        this.radius = 0.0; this.boxSizing = 0; this.overflow = OV_VISIBLE;
+        this.radius = 0.0; this.fInv = false; this.rmix = false; this.rtl = 0.0; this.rtr = 0.0; this.rbr = 0.0; this.rbl = 0.0; this.boxSizing = 0; this.overflow = OV_VISIBLE;
         this.aspect = 0.0;
+        this.objFit = 0; this.objFx = 0.5; this.objFy = 0.5; this.bgOver = false;
         this.bgUrl = nullptr; this.bgSize = 0; this.bgFx = 0.0; this.bgFy = 0.0;
         this.shOn = false; this.shInset = false; this.shX = 0.0; this.shY = 0.0; this.shBlur = 0.0; this.shSpread = 0.0; this.shColor = 0;
         this.opacity = 1.0; this.zIndex = 0;
         lenSet(&this.top, LU_AUTO, 0.0); lenSet(&this.right, LU_AUTO, 0.0);
         lenSet(&this.bottom, LU_AUTO, 0.0); lenSet(&this.left, LU_AUTO, 0.0);
         this.flexDir = FD_ROW; this.wrap = false; this.grow = 0.0; this.shrink = 1.0; lenSet(&this.basis, LU_AUTO, 0.0);
-        this.gn = 0;
+        this.gn = 0; this.gcs = 0; this.gce = 0; this.gsp = 0; this.wkw = 0;
+        this.gdN = 0; this.gdAngle = 180.0;
+        this.tsOn = false; this.tsX = 0.0; this.tsY = 0.0; this.tsBlur = 0.0; this.tsColor = 0;
         lenSet(&this.g0, LU_AUTO, 1.0); lenSet(&this.g1, LU_AUTO, 1.0); lenSet(&this.g2, LU_AUTO, 1.0); lenSet(&this.g3, LU_AUTO, 1.0);
         lenSet(&this.g4, LU_AUTO, 1.0); lenSet(&this.g5, LU_AUTO, 1.0); lenSet(&this.g6, LU_AUTO, 1.0); lenSet(&this.g7, LU_AUTO, 1.0);
         lenSet(&this.g8, LU_AUTO, 1.0); lenSet(&this.g9, LU_AUTO, 1.0); lenSet(&this.g10, LU_AUTO, 1.0); lenSet(&this.g11, LU_AUTO, 1.0);
@@ -72,6 +83,7 @@ struct Style {
         this.color = p.color; this.fontPx = p.fontPx;
         this.bold = p.bold; this.italic = p.italic; this.underline = p.underline; this.strike = p.strike;
         this.textAlign = p.textAlign; this.lineH = p.lineH; this.whiteSpace = p.whiteSpace;
+        this.tsOn = p.tsOn; this.tsX = p.tsX; this.tsY = p.tsY; this.tsBlur = p.tsBlur; this.tsColor = p.tsColor;
         this.hidden = p.hidden; this.cursor = p.cursor; this.listStyle = p.listStyle;
     }
 }
@@ -156,9 +168,10 @@ struct Sheet {
 struct Cmd {
     op: int = 0;
     x: float = 0.0; y: float = 0.0; w: float = 0.0; h: float = 0.0;
-    color: u32 = 0;
+    color: u32 = 0; color2: u32 = 0;   // color2: far-end colour of a gradient fill (CM_FILL with flags 1 horizontal / 2 vertical)
     text: char* = nullptr; tfrom: int = 0; tlen: int = 0;     // CM_TEXT slice; CM_MARK: tfrom = list style, tlen = index; CM_IMAGE: tfrom = image id
     size: float = 16.0; flags: int = 0;
     bt: float = 0.0; br: float = 0.0; bb: float = 0.0; bl: float = 0.0;
     radius: float = 0.0;               // CM_FILL / CM_BORDER corner radius (px); <= 0 is a plain rectangle
+    rtl: float = 0.0; rtr: float = 0.0; rbr: float = 0.0; rbl: float = 0.0;   // CM_FILL with flags 4: per-corner radii (top-left, top-right, bottom-right, bottom-left)
 }

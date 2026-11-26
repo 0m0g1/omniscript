@@ -231,10 +231,20 @@ Token Lexer::getOperator(char currentChar) {
             stats_.operatorCount++;
             return TokenFactory::createOperator(TokenTypes::RightParen, startLine, startColumn, sourceFilePath_);
         case '{':
+            if (!templateBraceDepth_.empty()) templateBraceDepth_.back()++;
             advance();
             stats_.operatorCount++;
             return TokenFactory::createOperator(TokenTypes::LeftBrace, startLine, startColumn, sourceFilePath_);
         case '}':
+            if (!templateBraceDepth_.empty()) {
+                if (templateBraceDepth_.back() == 0) {
+                    // This '}' closes a `${` of a template string: resume the template text.
+                    templateBraceDepth_.pop_back();
+                    advance();
+                    return parseTemplateString(true);
+                }
+                templateBraceDepth_.back()--;
+            }
             advance();
             stats_.operatorCount++;
             return TokenFactory::createOperator(TokenTypes::RightBrace, startLine, startColumn, sourceFilePath_);

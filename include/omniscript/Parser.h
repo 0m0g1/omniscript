@@ -29,6 +29,7 @@ class Parser {
         
         bool executeStatements = true;
         bool debugMode = false;
+        int switchNesting_ = 0;   // >0 while parsing the cases of a switch (continue is not allowed there)
         Lexer& lexer;
         Token currentToken;
         Token previousToken;
@@ -96,6 +97,8 @@ class Parser {
         std::shared_ptr<Statement> parseContinue();    
         std::shared_ptr<Statement> parseIfStatement();         
         std::shared_ptr<Statement> parseWhileStatement();      
+        std::shared_ptr<Statement> parseDoWhile();             // do { } while (cond);  (contextual keyword)
+        std::shared_ptr<Statement> parseSwitch();              // switch (x) { case v: ... default: ... }
         std::shared_ptr<Statement> parseReturnStatement();
         bool isAssignmentExpression(TokenTypes tokenType);
         std::shared_ptr<Statement> parseAssignment(std::shared_ptr<Statement> assignee = nullptr);          

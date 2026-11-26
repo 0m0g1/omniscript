@@ -178,11 +178,46 @@ struct Layout {
         return (best as float) * this.adv(n.st.fontPx);
     }
 
+    // ---- min-content width (longest unbreakable word), used by `width: min-content` ----
+    textMin(n: Node*) => float {
+        this.prepText(n);
+        if (n.ctext == nullptr) return 0.0;
+        let best: int = 0; let cur: int = 0; let i: int = 0;
+        while (n.ctext[i] as int != 0) {
+            let ch: int = n.ctext[i] as int;
+            if (ch == 32 || ch == 10 || ch == 9 || ch == 13) { cur = 0; } else { cur = cur + 1; if (cur > best) best = cur; }
+            i = i + 1;
+        }
+        return (best as float) * this.adv(n.st.fontPx);
+    }
+
+    // widest child minimum (content box); flex / grid / tables are approximated the same way
+    minPref(n: Node*) => float {
+        if (n.kind == NK_CONTROL || n.kind == NK_REPLACED) { this.intrinsic(n); return this.iw; }
+        if (n.kind == NK_TEXT) return this.textMin(n);
+        let best: float = 0.0;
+        let c: Node* = n.first;
+        while (c != nullptr) {
+            if (this.inFlow(c)) {
+                let st: Style* = &c.st;
+                let hp: float = this.resolve(&st.pl, 0.0, 0.0) + this.resolve(&st.pr, 0.0, 0.0) + st.bl + st.br;
+                let mg: float = this.resolve(&st.ml, 0.0, 0.0) + this.resolve(&st.mr, 0.0, 0.0);
+                let w: float = 0.0;
+                if (st.width.u == LU_PX) { w = st.width.v; if (st.boxSizing == 0) w = w + hp; }
+                else { w = this.minPref(c) + hp; }
+                best = maxF(best, w + mg);
+            }
+            c = c.next;
+        }
+        return best;
+    }
+
     prefW(n: Node*) => float {
         if (n.kind == NK_CONTROL || n.kind == NK_REPLACED) { this.intrinsic(n); return this.iw; }
         if (n.kind == NK_TEXT) return this.textPref(n);
         if (n.st.display == DP_FLEX) return this.flexPref(n);
         if (n.st.display == DP_TABLE) return this.tablePref(n);
+        if (n.st.display == DP_GRID) return this.gridPref(n);
         let best: float = 0.0; let run: float = 0.0;
         let c: Node* = n.first;
         while (c != nullptr) {
@@ -203,6 +238,7 @@ struct Layout {
         let mg: float = this.resolve(&st.ml, 0.0, 0.0) + this.resolve(&st.mr, 0.0, 0.0);
         let w: float = 0.0;
         if (st.width.u == LU_PX) { w = st.width.v; if (st.boxSizing == 0) w = w + hp; }
+        else if (st.wkw == 1 && st.width.u == LU_AUTO) { w = this.minPref(c) + hp; }
         else { w = this.prefW(c) + hp; }
         return w + mg;
     }
@@ -220,6 +256,12 @@ struct Layout {
         // width (border box)
         let w: float = 0.0; let fixed: bool = false;
         if (n.forceW >= 0.0) { w = n.forceW; fixed = true; }
+        else if (st.wkw != 0 && st.width.u == LU_AUTO && n.kind != NK_CONTROL && n.kind != NK_REPLACED) {      // width: min-content / max-content / fit-content
+            let availK: float = cbw - b.ml - b.mr;
+            if (st.wkw == 1) w = this.minPref(n) + hpad;
+            else { w = this.prefW(n) + hpad; if (st.wkw == 3 && availK > 0.0 && w > availK) w = availK; }
+            fixed = true;
+        }
         else if (st.width.u != LU_AUTO) {
             w = this.resolve(&st.width, cbw, 0.0);
             if (st.boxSizing == 0) w = w + hpad;

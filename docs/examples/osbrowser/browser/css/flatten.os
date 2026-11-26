@@ -5,11 +5,18 @@
 //   * @supports / @layer / @container   inlined as if true;  @font-face, @keyframes, @import, ... dropped
 //   * var()        `--name: value` declarations are collected (first definition wins, scoping ignored) and every
 //                  var(--name, fallback) is replaced by its value.
-// Custom properties persist across the stylesheets of one page (call reset() when a new page starts); a var defined in a
-// stylesheet that is queued LATER than its use stays unresolved.
+// Custom properties persist across the stylesheets of one page (call reset() when a new page starts). Use flattenRaw() per
+// sheet and resolve() once all sheets are known to resolve vars defined in later sheets (see Browser.publishCss).
 // The viewport size is a parameter of flatten(): resizing the window does not re-evaluate @media until the page reloads (F5).
 module Str = import "standard/1/String.os";
 module U = import "browser/util.os";
+
+// true: custom properties and var() pass through untouched and the Ui resolves them with proper per-element scopes
+// (Cascade.os / Values/Var.os, including `--x` set in style="" attributes). false: the old global first-wins flattening below.
+let UI_VARS: bool = true;
+
+// prefers-color-scheme for page CSS. Keep in step with the `dark` argument of cssSetMedia() in standard/1/Ui/Root.os.
+let PREFERS_DARK: bool = true;
 
 let gVars: char* = "\n";                 // "\n--name:value\n--name2:value\n" -- one custom property per line
 let gW: int = 1000;
@@ -36,8 +43,6 @@ function stripComments(s: char*) => char* {
         }
         else {
             if (q != 0) { if (c == q || c == 10) q = 0; }
-            else if (c == 92) i = i + 1;
-            else if (c == 34 || c == 39) q = c;
             else if (c == 34 || c == 39) q = c;
             o.appendChar(s[i]); i = i + 1;
         }
@@ -111,7 +116,10 @@ function featureTrue(name: char*, val: char*) => bool {
     }
     if (U.streq(nm, "hover") || U.streq(nm, "any-hover")) return U.streq(v, "hover") || U.slen(v) == 0;
     if (U.streq(nm, "pointer") || U.streq(nm, "any-pointer")) return U.streq(v, "fine") || U.slen(v) == 0;
-    if (U.streq(nm, "prefers-color-scheme")) return U.streq(v, "light");
+    if (U.streq(nm, "prefers-color-scheme")) {
+        if (PREFERS_DARK) return U.streq(v, "dark");
+        return U.streq(v, "light");
+    }
     return false;                                              // prefers-reduced-motion, resolution, ... : not supported
 }
 
@@ -300,7 +308,6 @@ function block(s: char*, parent: char*, out: Str.String*) => void {
         if (U.isSpace(c) || c == 59) i = i + 1;
         else {
             let j: int = i;
-            let j: int = i;
             let pd: int = 0;
             let q: int = 0;
             let stop: bool = false;
@@ -326,7 +333,7 @@ function block(s: char*, parent: char*, out: Str.String*) => void {
             else {                                             // declaration (or stray text)
                 let decl: char* = U.trim(U.sub(s, i, j));
                 if (U.slen(decl) > 0 && (decl[0] as int) != 64) {
-                    if (U.startsAt(decl, 0, "--")) registerVar(decl);
+                    if (U.startsAt(decl, 0, "--") && !UI_VARS) registerVar(decl);
                     else { d.append(decl); d.append(";"); }
                 }
                 i = j + 1;
@@ -344,8 +351,9 @@ function block(s: char*, parent: char*, out: Str.String*) => void {
     nest.free();
 }
 
-// the entry point: raw stylesheet text -> flat CSS the Ui's sheetParse understands
-function flatten(css: char*, vw: int, vh: int) => char* {
+// Stage 1: nesting + @media + collect `--vars`. var() is left in place, so a variable defined in a stylesheet that is
+// queued LATER than its use can still be found by resolve().
+function flattenRaw(css: char*, vw: int, vh: int) => char* {
     gW = vw;
     gH = vh;
     let src: char* = stripComments(css);
@@ -353,5 +361,16 @@ function flatten(css: char*, vw: int, vh: int) => char* {
     block(src, "", &out);
     let flat: char* = U.dup(out.cstr());
     out.free();
-    return subst(flat, 0);
+    return flat;
+}
+
+// Stage 2: replace every var(--x[, fallback]) using all the variables collected so far. Also used for style="" attributes.
+function resolve(css: char*) => char* {
+    if (UI_VARS) return css;
+    return subst(css, 0);
+}
+
+// the entry point for a single sheet: raw stylesheet text -> flat CSS the Ui's sheetParse understands
+function flatten(css: char*, vw: int, vh: int) => char* {
+    return resolve(flattenRaw(css, vw, vh));
 }

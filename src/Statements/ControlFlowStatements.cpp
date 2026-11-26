@@ -421,18 +421,16 @@ std::shared_ptr<Expression> ForLoop::express(SymbolTableType scope) {
 
 std::shared_ptr<Expression> BreakStatement::express(SymbolTableType scope) {
     DEBUG_LOG("Creating a break expression");
-    // auto breakExpr = std::make_shared<BreakExpression>();
-    // breakExpr->setSpan(this->getSpan());
-    // return breakExpr;
-    return nullptr;
+    auto breakExpr = std::make_shared<BreakExpression>();
+    breakExpr->setSpan(this->getSpan());
+    return breakExpr;
 }
 
 std::shared_ptr<Expression> ContinueStatement::express(SymbolTableType scope) {
     DEBUG_LOG("Creating a continue expression");
-    // auto continueExpr = std::make_shared<ContinueExpression>();
-    // continueExpr->setSpan(this->getSpan());
-    // return continueExpr;
-    return nullptr;
+    auto continueExpr = std::make_shared<ContinueExpression>();
+    continueExpr->setSpan(this->getSpan());
+    return continueExpr;
 }
 
 } // namespace Omniscript
