@@ -22,7 +22,7 @@ module Img = import "standard/1/Image.os";      // decoder: Image.load_memory(by
 module Th = import "standard/1/Thread.os";      // Mutex, Atomic
 module Ch = import "standard/1/Channel.os";     // ThreadPool
 
-let JS_REMOTE: bool = false;     // run scripts on http(s) pages? real-world JS is far beyond this engine; off by default
+let JS_REMOTE: bool = true;     // run scripts on http(s) pages? real-world JS is far beyond this engine; off by default
 let JS_MAX: int = 150000;        // skip scripts bigger than this many bytes
 
 let S_IDLE: int = 0;
@@ -38,6 +38,9 @@ let S_IMG: int = 9;              // after the page is shown: one <img> per frame
 let IMG_MAX: int = 48;           // images fetched per page
 let IMG_WORKERS: u64 = 2;        // worker threads for image fetch + decode
 let IMG_PER_FRAME: int = 3;      // GPU uploads / node updates per frame on the main thread
+let BG_MAX: int = 64;            // CSS background images per page
+let BGC_MAX: int = 48;           // entries in the background image cache
+let CSS_MAX: int = 20;           // stylesheets queued per page (Browser.cssQ size)
 
 // image slot states (Atomic i64, written by a worker, read by the main thread)
 let K_IDLE: i64 = 0;
@@ -222,6 +225,115 @@ function imgJob(p: void*) => void {
     else s.st.store(K_BYTES);                                    // maybe an SVG: the main thread rasterizes it
 }
 
+function hasText(s: char*, needle: char*) => bool {
+    let n: int = U.slen(s);
+    let i: int = 0;
+    while (i < n) {
+        if (U.startsAt(s, i, needle)) return true;
+        i = i + 1;
+    }
+    return false;
+}
+
+// ---- CSS url() handling ----
+// Every url(...) in a stylesheet is relative to THAT stylesheet, not to the page. Rewrite them to resolved URLs when
+// the sheet is queued (base = the stylesheet's own URL, or the page URL for <style> blocks). data: and #fragment stay.
+function absUrls(css: char*, base: char*) => char* {
+    let o: Str.String;
+    let n: int = U.slen(css);
+    let i: int = 0;
+    while (i < n) {
+        if (U.startsAt(css, i, "url(")) {
+            let j: int = i + 4;
+            while (j < n && U.isSpace(css[j] as int)) { j = j + 1; }
+            let q: int = css[j] as int;
+            let quoted: bool = (q == 34 || q == 39);
+            if (quoted) j = j + 1;
+            let s: int = j;
+            let done: bool = false;
+            while (j < n && !done) {
+                let ch: int = css[j] as int;
+                if (quoted) { if (ch == q) done = true; else j = j + 1; }
+                else { if (ch == 41 || U.isSpace(ch)) done = true; else j = j + 1; }
+            }
+            let raw: char* = U.sub(css, s, j);
+            if (quoted) j = j + 1;
+            while (j < n && U.isSpace(css[j] as int)) { j = j + 1; }
+            if (j < n && (css[j] as int) == 41) j = j + 1;
+            o.append("url(\"");
+            if (U.startsAt(raw, 0, "data:") || U.startsAt(raw, 0, "#") || U.slen(raw) == 0) o.append(raw);
+            else o.append(Net.resolve(base, raw));
+            o.append("\")");
+            i = j;
+        }
+        else { o.appendChar(css[i]); i = i + 1; }
+    }
+    let r: char* = U.dup(o.cstr());
+    o.free();
+    return r;
+}
+
+function b64v(c: int) => int {
+    let r: int = 0 - 1;
+    if (c >= 65 && c <= 90) r = c - 65;
+    else if (c >= 97 && c <= 122) r = c - 97 + 26;
+    else if (c >= 48 && c <= 57) r = c - 48 + 52;
+    else if (c == 43 || c == 45) r = 62;
+    else if (c == 47 || c == 95) r = 63;
+    return r;
+}
+
+function hexv(c: int) => int {
+    let r: int = 0 - 1;
+    if (c >= 48 && c <= 57) r = c - 48;
+    else if (c >= 97 && c <= 102) r = c - 97 + 10;
+    else if (c >= 65 && c <= 70) r = c - 65 + 10;
+    return r;
+}
+
+// data:[mime][;base64],payload  ->  raw bytes in `out` (base64 or percent-encoded). false when malformed.
+function decodeDataUri(uri: char*, out: Str.String*) => bool {
+    let n: int = U.slen(uri);
+    let comma: int = 0 - 1;
+    let i: int = 5;
+    while (i < n && comma < 0) { if ((uri[i] as int) == 44) comma = i; i = i + 1; }
+    if (comma < 0) return false;
+    let isB64: bool = hasText(U.sub(uri, 5, comma), ";base64");
+    let k: int = comma + 1;
+    let acc: int = 0;                                           // no shift operators: keep a 16-bit window with * and %
+    let bits: int = 0;
+    while (k < n) {
+        let c: int = uri[k] as int;
+        if (c == 37 && k + 2 < n && hexv(uri[k + 1] as int) >= 0 && hexv(uri[k + 2] as int) >= 0) {
+            let b: int = hexv(uri[k + 1] as int) * 16 + hexv(uri[k + 2] as int);
+            if (isB64) {
+                if (b == 61) { }                                 // %3D padding
+            }
+            else out.appendChar(b as char);
+            k = k + 3;
+        }
+        else {
+            if (isB64) {
+                let v: int = b64v(c);
+                if (v >= 0) {
+                    acc = (acc * 64 + v) % 65536;
+                    bits = bits + 6;
+                    if (bits >= 8) {
+                        bits = bits - 8;
+                        let d: int = 1;
+                        let t: int = 0;
+                        while (t < bits) { d = d * 2; t = t + 1; }
+                        out.appendChar(((acc / d) % 256) as char);
+                    }
+                }
+            }
+            else out.appendChar(c as char);
+            k = k + 1;
+        }
+    }
+    return out.len > 0;
+}
+
 struct Browser {
     page: UI.Node* = nullptr;    // container in the Ui tree that holds the document (scrolls)
     url: char* = nullptr;
@@ -249,6 +361,16 @@ struct Browser {
     // images: main.os sets `pen` (br.pen = ui.pen); without it <img> keeps its placeholder box
     pen: C.Pen2D* = nullptr;
     imgQ: [48]UI.Node*;
+    bgQ: [64]UI.Node*;            // nodes whose CSS background-image url() still has to load (found after the cascade)
+    bgN: int = 0;
+    bgI: int = 0;
+    bgEmpty: int = 0;             // empty url() backgrounds logged for this page (capped)
+    // url -> decoded image, kept across pages (Pen2D images stay valid): the same sprite is fetched once
+    bgcUrl: [48]char*;
+    bgcId: [48]u32;
+    bgcW: [48]float;
+    bgcH: [48]float;
+    bgcN: int = 0;
     imgN: int = 0;
     imgI: int = 0;
     imgDone: int = 0;
@@ -262,12 +384,18 @@ struct Browser {
 
     // CSS handed to main.os, which owns the UI.Ui and applies it (ui.clearCss / ui.addCss) once per frame
     cssReset: bool = false;
-    cssQ: [8]char*;
+    cssQ: [20]char*;
     qN: int = 0;
     viewW: int = 1000;           // viewport the @media conditions are evaluated against (set from the window size if you like)
     viewH: int = 700;
-    queueCss(text: char*) => void {
-        if (this.qN < 8) { this.cssQ[this.qN] = CF.flatten(text, this.viewW, this.viewH); this.qN = this.qN + 1; }
+    // base = URL the sheet came from (its own URL for <link>, the page URL for <style>): url() is resolved against it
+    queueCss(text: char*, base: char*) => void {
+        if (this.qN < CSS_MAX) {
+            let flat: char* = CF.flatten(absUrls(text, base), this.viewW, this.viewH);
+            this.cssQ[this.qN] = flat;
+            this.qN = this.qN + 1;
+        }
+        else Dbg.log(U.cat("CSS dropped: queue full: ", base));
     }
 
     // call once, after the Browser has its final address (main.os: right after `let b`)
@@ -490,14 +618,17 @@ struct Browser {
             this.finishStage("parse html", S_CSS_INLINE, "Parsing CSS");
         }
         else if (st == S_CSS_INLINE) {
-            this.queueCss(this.doc.css);
+            this.queueCss(this.doc.css, this.url);
             this.stageI = 0;
             if (this.doc.cssN > 0) this.finishStage("inline css", S_CSS_LINK, "Fetching stylesheet 1");
             else { this.jsAcc = U.dup(""); this.finishStage("inline css", S_JS_LINK, "Loading scripts"); }
         }
         else if (st == S_CSS_LINK) {
             let sheet: char* = Net.load(Net.resolve(this.url, this.doc.cssLinks[this.stageI]));
-            if (sheet != nullptr) this.queueCss(sheet);
+            let cssUrl: char* = Net.resolve(this.url, this.doc.cssLinks[this.stageI]);
+            Dbg.log(U.cat("stylesheet: ", cssUrl));
+            if (sheet != nullptr) this.queueCss(sheet, cssUrl);
+            else Dbg.log(U.cat("stylesheet failed: ", cssUrl));
             this.stageI = this.stageI + 1;
             if (this.stageI < this.doc.cssN) this.finishStage("stylesheet", S_CSS_LINK, U.cat("Fetching stylesheet ", U.fromInt(this.stageI + 1)));
             else { this.stageI = 0; this.jsAcc = U.dup(""); this.finishStage("stylesheet", S_JS_LINK, "Loading scripts"); }
@@ -509,17 +640,21 @@ struct Browser {
                 this.finishStage("scripts", S_ATTACH, "Styling & layout");
             }
             else if (this.stageI < this.doc.jsN) {
-                let code: char* = Net.load(Net.resolve(this.url, this.doc.jsLinks[this.stageI]));
-                if (code != nullptr) this.jsAcc = U.cat(this.jsAcc, U.cat(code, "\n"));
+                let jsUrl: char* = Net.resolve(this.url, this.doc.jsLinks[this.stageI]);
+                let code: char* = Net.load(jsUrl);
+                if (code != nullptr) this.jsAcc = U.cat(this.jsAcc, U.cat("\n/*@@", U.cat(jsUrl, U.cat("*/\n", U.cat(code, "\n")))));   // marker: error positions name the script
                 this.stageI = this.stageI + 1;
                 this.finishStage("script fetch", S_JS_LINK, "Loading scripts");
             }
             else { this.finishStage("scripts", S_JS_RUN, "Running scripts"); }
         }
         else if (st == S_JS_RUN) {
-            let js: char* = U.cat(this.doc.js, this.jsAcc);
+            let js: char* = U.cat("/*@@inline <script>*/\n", U.cat(this.doc.js, U.cat("\n", this.jsAcc)));
             if (U.slen(js) > JS_MAX) Dbg.log("scripts skipped: larger than JS_MAX");
-            else if (U.slen(js) > 0) JS.run(this.doc.root, js);
+            else if (U.slen(this.doc.js) + U.slen(this.jsAcc) > 0) {
+                JS.setViewport(this.page.box.w as double, this.page.box.h as double);   // window.innerWidth / innerHeight
+                JS.run(this.doc.root, js);                       // runs the scripts, then fires DOMContentLoaded + load
+            }
             this.finishStage("run js", S_ATTACH, "Styling & layout");
         }
         else if (st == S_ATTACH) {
@@ -527,7 +662,7 @@ struct Browser {
             this.page.append(this.doc.root);
             this.page.scrollTo(0.0, 0.0);
             if (this.workersOn) { this.pool.wait(); this.releaseSlots(); }   // old jobs skip instantly (epoch), so this is short
-            this.imgN = 0; this.imgI = 0; this.imgDone = 0;
+            this.imgN = 0; this.imgI = 0; this.imgDone = 0; this.bgN = 0; this.bgI = 0; this.bgEmpty = 0;
             this.collectImgs(this.doc.root);
             this.finishStage("attach", S_DONE, "Styling & layout");
         }
@@ -536,15 +671,16 @@ struct Browser {
             this.status = "";
             this.stageName = "style + layout";
             this.state = S_IDLE;
-            if (this.pen != nullptr && this.imgN > 0) { this.state = S_IMG; this.status = "Loading images"; this.submitImages(); }
+            if (this.pen != nullptr) this.collectBgs(this.page);          // the cascade has run, so st.bgUrl is known now
+            if (this.pen != nullptr && (this.imgN > 0 || this.bgN > 0)) { this.state = S_IMG; this.status = "Loading images"; this.submitImages(); }
         }
         else if (st == S_IMG) {
             if (this.workersOn) {                                    // workers fetch + decode; we only upload, a few per frame
                 this.consumeImages();
-                if (this.imgDone >= this.imgN) { this.status = ""; this.state = S_IDLE; }
+                if (this.imgDone >= this.imgN) { if (!this.stepBg()) { this.status = ""; this.state = S_IDLE; } }
                 else this.status = U.cat("Loading images ", U.cat(U.fromInt(this.imgDone), U.cat("/", U.fromInt(this.imgN))));
             }
-            else if (this.imgI >= this.imgN) { this.status = ""; this.state = S_IDLE; }   // no threads: old one-per-frame path
+            else if (this.imgI >= this.imgN) { if (!this.stepBg()) { this.status = ""; this.state = S_IDLE; } }   // no threads: old one-per-frame path
             else {
                 let n: UI.Node* = this.imgQ[this.imgI];
                 this.imgI = this.imgI + 1;
@@ -568,6 +704,79 @@ struct Browser {
             this.collectImgs(c);
             c = c.nextEl();
         }
+    }
+
+    // elements whose computed style has a background-image url (at most 24, document order)
+    collectBgs(n: UI.Node*) => void {
+        let c: UI.Node* = n.firstEl();
+        while (c != nullptr) {
+            let u: char* = c.st.bgUrl;
+            if (u != nullptr && U.slen(u) > 0) {
+                if (c.bgImgUrl == nullptr || !U.streq(c.bgImgUrl, u)) {
+                    if (this.bgN < BG_MAX) { this.bgQ[this.bgN] = c; this.bgN = this.bgN + 1; }
+                    else Dbg.log(U.cat("background image skipped (BG_MAX): ", u));
+                }
+            }
+            else if (u != nullptr && this.bgEmpty < 5) {              // url() with nothing in it: say so instead of failing silently
+                this.bgEmpty = this.bgEmpty + 1;
+                Dbg.log(U.cat("background-image has an EMPTY url() on <", U.cat(A.tagOf(c), ">")));
+            }
+            this.collectBgs(c);
+            c = c.nextEl();
+        }
+    }
+
+    // load the next queued background image (main thread, one per frame). Returns false when the queue is empty.
+    stepBg() => bool {
+        if (this.bgI >= this.bgN) return false;
+        let n: UI.Node* = this.bgQ[this.bgI];
+        this.bgI = this.bgI + 1;
+        let u: char* = n.st.bgUrl;
+        if (u != nullptr) {
+            // 1. cache hit: the same image was already decoded (this page or an earlier one)
+            let hit: int = 0 - 1;
+            let ci: int = 0;
+            while (ci < this.bgcN && hit < 0) { if (U.streq(this.bgcUrl[ci], u)) hit = ci; ci = ci + 1; }
+            if (hit >= 0) {
+                n.bgImgId = this.bgcId[hit] as int; n.bgImgW = this.bgcW[hit]; n.bgImgH = this.bgcH[hit];
+                n.bgImgUrl = U.dup(u); n.markPaint();
+            }
+            else {
+                // 2. get the bytes: data: URI, else the URL as rewritten by absUrls, else relative to the page
+                //    (style="" attributes are not rewritten)
+                let buf: Str.String;
+                let got: bool = false;
+                let abs: char* = u;
+                if (U.startsAt(u, 0, "data:")) got = decodeDataUri(u, &buf);
+                else {
+                    got = Net.loadBytes(u, &buf);
+                    if (!got) { abs = Net.resolve(this.url, u); got = Net.loadBytes(abs, &buf); }
+                }
+                if (got) {
+                    let id: u32 = 0; let iw: float = 0.0; let ih: float = 0.0;
+                    let im: Img.Image;
+                    if (im.load_memory(buf.data as u8*, buf.len as int)) {
+                        id = this.pen.createImage(im.pixels, im.width, im.height);
+                        iw = im.width as float; ih = im.height as float;
+                    }
+                    else { id = this.pen.createImageSvg(buf.data as u8*, buf.len as int, 2.0, 0x000000, &iw, &ih); }
+                    im.free();
+                    if (id > 0) {
+                        n.bgImgId = id as int; n.bgImgW = iw; n.bgImgH = ih; n.bgImgUrl = U.dup(u); n.markPaint();
+                        if (this.bgcN < BGC_MAX) {
+                            let e: int = this.bgcN;
+                            this.bgcUrl[e] = U.dup(u); this.bgcId[e] = id; this.bgcW[e] = iw; this.bgcH[e] = ih;
+                            this.bgcN = e + 1;
+                        }
+                    }
+                    else Dbg.log(U.cat("background image not decoded: ", U.cat(abs, U.cat(" (", U.cat(U.fromInt(buf.len as int), " bytes)")))));
+                }
+                else Dbg.log(U.cat("background image not loaded: ", abs));
+                buf.free();
+            }
+        }
+        this.status = U.cat("Loading backgrounds ", U.cat(U.fromInt(this.bgI), U.cat("/", U.fromInt(this.bgN))));
+        return true;
     }
 
     // inline <svg>: the parser stored its source text in data-osb-svg
@@ -662,5 +871,9 @@ struct Browser {
         return out;
     }
 
-    tick(ms: double) => void { if (!this.loading) JS.tick(ms); }
+    tick(ms: double) => void {
+        if (this.loading) return;
+        JS.setViewport(this.page.box.w as double, this.page.box.h as double);   // a change fires "resize"
+        JS.tick(ms);
+    }
 }

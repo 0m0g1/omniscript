@@ -64,6 +64,11 @@ function applyPropText(st: Style*, name: char*, v: char*, ctx: CssCtx*, isFs: bo
         else if (strEqI(v, "pre-line")) st.whiteSpace = WS_PRELINE;
         else res = AP_INVALID;
     }
+    else if (strEq(name, "text-wrap")) {
+        if (strEqI(v, "nowrap")) st.whiteSpace = WS_NOWRAP;
+        else if (inList(v, "wrap balance pretty stable")) { }     // accepted: no effect (normal wrapping already)
+        else res = AP_INVALID;
+    }
     else if (inList(name, "text-rendering -webkit-font-smoothing -moz-osx-font-smoothing font-smooth text-size-adjust -webkit-text-size-adjust")) { }   // rendering hints: no visual effect here
     else if (strEq(name, "font-family")) { }                                     // accepted: every glyph comes from the one built-in atlas font, so the family list cannot change anything
     else { hit = false; }

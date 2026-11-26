@@ -221,6 +221,29 @@ struct Painter {
         }
     }
 
+    // CSS background-image: the loaded image (n.bgImgId, set by the host loader) sized by background-size and placed by
+    // background-position inside the padding box, clipped to it. No tiling: it is drawn once.
+    paintBgImage(n: Node*, x: float, y: float, op: float) => void {
+        let b: Box* = &n.box; let st: Style* = &n.st;
+        let px: float = x + b.bl; let py: float = y + b.bt;
+        let pw: float = b.w - b.bl - b.br; let ph: float = b.h - b.bt - b.bb;
+        if (pw <= 0.0 || ph <= 0.0) return;
+        let iw: float = n.bgImgW * this.m.unit; let ih: float = n.bgImgH * this.m.unit;
+        let dw: float = iw; let dh: float = ih;
+        if (st.bgSize == 1 || st.bgSize == 2) {
+            let sx: float = pw / n.bgImgW; let sy: float = ph / n.bgImgH;
+            let sc: float = maxF(sx, sy);
+            if (st.bgSize == 2) sc = minF(sx, sy);
+            dw = n.bgImgW * sc; dh = n.bgImgH * sc;
+        }
+        let dx: float = px + (pw - dw) * st.bgFx; let dy: float = py + (ph - dh) * st.bgFy;
+        let clip: bool = dx < px || dy < py || dx + dw > px + pw || dy + dh > py + ph;
+        if (clip) { let pc: Cmd* = this.dl.add(CM_PUSHCLIP); pc.x = px; pc.y = py; pc.w = pw; pc.h = ph; }
+        let im: Cmd* = this.dl.add(CM_IMAGE);
+        im.x = dx; im.y = dy; im.w = dw; im.h = dh; im.tfrom = n.bgImgId; im.color = fadeColor(0xFFFFFFFF, op);
+        if (clip) this.dl.add(CM_POPCLIP);
+    }
+
     paintNode(n: Node*, ox: float, oy: float, op0: float) => void {
         if (n.st.display == DP_NONE || n.kind == NK_HIDDEN) return;
         let st: Style* = &n.st;
@@ -237,6 +260,7 @@ struct Painter {
                 this.fillR(x + st.shX - st.shSpread, y + st.shY - st.shSpread, b.w + 2.0 * st.shSpread, b.h + 2.0 * st.shSpread, fadeColor(st.shColor, op), srad);
             }
             this.fillR(x, y, b.w, b.h, fadeColor(st.bg, op), rad);
+            if (st.bgUrl != nullptr && n.bgImgId > 0 && n.bgImgW > 0.0 && n.bgImgH > 0.0) this.paintBgImage(n, x, y, op);
             if (st.bt > 0.0 || st.br > 0.0 || st.bb > 0.0 || st.bl > 0.0) {
                 let c: Cmd* = this.dl.add(CM_BORDER);
                 c.x = x; c.y = y; c.w = b.w; c.h = b.h; c.color = fadeColor(st.borderColor, op);
@@ -274,7 +298,9 @@ struct Painter {
                     im.color = fadeColor(0xFFFFFFFF, op);
                 } else {
                     this.fill(x, y, b.w, b.h, fadeColor(0x2A2A33FF, op));        // placeholder: the tag name in a dim box
-                    if (n.tag != nullptr) this.text(x + b.bl + b.pl, y + b.bt + b.pt, n.tag, 0, strLen(n.tag), st.fontPx, fadeColor(DEF_DIM, op), 0);
+                    let lbl: char* = n.getAttr("alt");                           // alt text if present, else the tag name
+                    if (lbl == nullptr || strLen(lbl) == 0) lbl = n.tag;
+                    if (lbl != nullptr) this.text(x + b.bl + b.pl, y + b.bt + b.pt, lbl, 0, strLen(lbl), st.fontPx, fadeColor(DEF_DIM, op), 0);
                 }
             }
         }

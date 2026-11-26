@@ -15,7 +15,7 @@ function isCssWide(v: char*) => bool {
 
 // properties that inherit by default (`unset` = inherit for these)
 function cssIsInheritedProp(name: char*) => bool {
-    return inList(name, "color font-size font-weight font-style text-align line-height white-space visibility cursor list-style list-style-type");
+    return inList(name, "color font-size font-weight font-style text-align line-height text-wrap white-space visibility cursor list-style list-style-type");
 }
 
 // copy the Style field(s) that `name` controls from s to d. false = name not mapped.
@@ -39,7 +39,7 @@ function copyCssProp(d: Style*, s: Style*, name: char*) => bool {
     else if (strEq(name, "font-style")) { d.italic = s.italic; }
     else if (strEq(name, "text-align")) { d.textAlign = s.textAlign; }
     else if (strEq(name, "line-height")) { d.lineH = s.lineH; }
-    else if (strEq(name, "white-space")) { d.whiteSpace = s.whiteSpace; }
+    else if (inList(name, "white-space text-wrap")) { d.whiteSpace = s.whiteSpace; }
     else if (inList(name, "text-decoration text-decoration-line")) { d.underline = s.underline; d.strike = s.strike; }
     else if (strEq(name, "width")) { d.width = s.width; }
     else if (strEq(name, "height")) { d.height = s.height; }

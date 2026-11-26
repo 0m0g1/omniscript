@@ -12,6 +12,11 @@
 #include <omniscript/Expressions/CastExpression.h>
 
 namespace Omniscript {
+
+// AssignmentsAndGetterStatements.cpp: re-points a parser-made UserDefinedType ("Closure") at the name the
+// scope knows the type by ("I.Closure"), in place, through pointers/references/nullables.
+void rebindUserTypeName(const std::shared_ptr<Type>& type, const SymbolTableType& scope);
+
     
 std::shared_ptr<Expression> ASTCast::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
@@ -45,6 +50,12 @@ std::shared_ptr<Expression> ASTCast::express(SymbolTableType scope) {
     if (type->isFunction()) {
         type = std::make_shared<PointerType>(type);
     }
+
+    // The parser spells the target as written ("Closure*"), but a type declared in an imported module
+    // is known to the scope as "I.Closure". Rebind it exactly like a typed `let` does, so the cast
+    // expression (type and root type) carries the resolved name and overload matching sees one type.
+    rebindUserTypeName(type, scope);
+    if (targetType && targetType != type) rebindUserTypeName(targetType, scope);
 
     if (auto typed = std::dynamic_pointer_cast<TypedStatement>(value)) {
         if (typed->getRootType()) {

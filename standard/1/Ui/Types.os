@@ -27,6 +27,7 @@ struct Style {
     bt: float = 0.0; br: float = 0.0; bb: float = 0.0; bl: float = 0.0;
     radius: float = 0.0;               // CM_FILL / CM_BORDER corner radius (px); <= 0 is a plain rectangle
     boxSizing: int = 0; overflow: int = 0;
+    bgUrl: char* = nullptr; bgSize: int = 0; bgFx: float = 0.0; bgFy: float = 0.0;   // background-image url (raw, unresolved); size 0 auto / 1 cover / 2 contain; position as 0..1 fractions
     aspect: float = 0.0;               // aspect-ratio as width / height; 0 = auto (Block.placeBlock derives an auto height from the width)
     shOn: bool = false; shInset: bool = false;   // one box-shadow: lengths below are layout units; Painter only draws blur 0
     shX: float = 0.0; shY: float = 0.0; shBlur: float = 0.0; shSpread: float = 0.0; shColor: u32 = 0;
@@ -52,6 +53,7 @@ struct Style {
         this.bt = 0.0; this.br = 0.0; this.bb = 0.0; this.bl = 0.0;
         this.radius = 0.0; this.boxSizing = 0; this.overflow = OV_VISIBLE;
         this.aspect = 0.0;
+        this.bgUrl = nullptr; this.bgSize = 0; this.bgFx = 0.0; this.bgFy = 0.0;
         this.shOn = false; this.shInset = false; this.shX = 0.0; this.shY = 0.0; this.shBlur = 0.0; this.shSpread = 0.0; this.shColor = 0;
         this.opacity = 1.0; this.zIndex = 0;
         lenSet(&this.top, LU_AUTO, 0.0); lenSet(&this.right, LU_AUTO, 0.0);

@@ -39,7 +39,7 @@ struct Chrome {
         this.progress = root.progress(0.0);
         this.progress.setAttr("hidden", "hidden");
         this.page = root.box();
-        this.page.style("overflow: auto;");               // height is set by fit() every frame
+        this.page.style("overflow: auto; position: relative;");   // positioned: page-level position:absolute boxes (e.g. a site header) resolve against the page, not the whole window               // height is set by fit() every frame
         this.statusLbl = root.label("");
         this.statusLbl.style("padding: 2px 8px; background-color: #2a2a33;");
     }

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html><head><title>Hero test</title>
+<style>
+.hero { position: relative; height: 320px; color: white; }
+.hero .background-image { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: #234; background-size: cover; }
+.hero .credits { position: relative; padding: 16px; }
+</style></head>
+<body>
+<section class="hero">
+  <div class="background-image"></div>
+  <div class="credits"><a href="#"><span class="game"></span><span class="by"></span></a></div>
+</section>
+<script>
+document.addEventListener("DOMContentLoaded",()=>{const t=[{game:"Halls of Torment",by:"Chasing Carrots",url:"/showcase/halls-of-torment/",image:"/assets/showcase/halls-of-torment-1.webp"},{game:"Cassette Beasts",by:"Bytten Studio",url:"/showcase/cassette-beasts/",image:"/assets/showcase/cassette-beasts-3.webp"},{game:"Usagi Shima",by:"pank0",url:"/showcase/usagi-shima/",image:"/assets/showcase/usagi-shima-5.webp"}];let e=t[Math.floor(Math.random()*t.length)];document.querySelector(".hero .background-image").style.backgroundImage=`url(${e.image})`,document.querySelector(".hero .credits a").href=e.url,document.querySelector(".hero .credits a span.game").innerText=e.game,document.querySelector(".hero .credits a span.by").innerText=" - "+e.by;const n=window.matchMedia("(prefers-reduced-motion)");if(!n.matches){const e=document.querySelector("section.hero .background-image"),n=768,s=.4,t=()=>{window.innerWidth>n?e.style.transform=`translateY(${window.pageYOffset*s}px)`:e.style.transform="none"};window.addEventListener("scroll",()=>{window.requestAnimationFrame(t)}),window.addEventListener("resize",()=>{window.requestAnimationFrame(t)})}})
+</script>
+</body></html>

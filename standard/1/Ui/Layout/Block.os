@@ -141,9 +141,22 @@ struct Layout {
             else if (ctl == CK_RANGE) { w = m.cellW * 16.0; h = m.cellH * 1.25; }
             else if (ctl == CK_PROGRESS || ctl == CK_METER) { w = m.cellW * 20.0; h = m.cellH; }
         } else {
-            w = this.attrNum(n, "width", 0.0) * u; h = this.attrNum(n, "height", 0.0) * u;
-            if (n.imgW > 0.0) w = n.imgW * u;
-            if (n.imgH > 0.0) h = n.imgH * u;
+            // width/height attributes win over the decoded size (browser behaviour); a single attribute keeps the natural aspect ratio
+            let aw: float = this.attrNum(n, "width", 0.0); let ah: float = this.attrNum(n, "height", 0.0);
+            let nw: float = n.imgW; let nh: float = n.imgH;
+            if (aw > 0.0 && ah > 0.0) { w = aw * u; h = ah * u; }
+            else if (aw > 0.0) {
+                w = aw * u;
+                if (nw > 0.0 && nh > 0.0) h = aw * nh / nw * u;
+            }
+            else if (ah > 0.0) {
+                h = ah * u;
+                if (nw > 0.0 && nh > 0.0) w = ah * nw / nh * u;
+            }
+            else {
+                if (nw > 0.0) w = nw * u;
+                if (nh > 0.0) h = nh * u;
+            }
             if (w <= 0.0 && h <= 0.0) {
                 if (n.row.spec == SP_IMG) { w = 24.0 * u; h = 24.0 * u; }       // placeholder until an image is attached
                 else { w = 300.0 * u; h = 150.0 * u; }
@@ -254,6 +267,12 @@ struct Layout {
             if (st.boxSizing == 1) defH = w / st.aspect;
             else defH = (w - hpad) / st.aspect + vpad;
         }
+        // replaced element with a CSS width and auto height: the height follows the decoded aspect ratio
+        // (without this an inline <svg style="width:13px"> keeps its natural height and is stretched into a thin strip)
+        if (defH < 0.0 && n.kind == NK_REPLACED && n.forceH < 0.0 && st.height.u == LU_AUTO && n.imgW > 0.0 && n.imgH > 0.0
+            && (fixed || n.forceW >= 0.0) && this.attrNum(n, "height", 0.0) <= 0.0) {
+            defH = (w - hpad) * n.imgH / n.imgW + vpad;
+        }
         b.ch = UNSET;
         if (defH >= 0.0) b.ch = maxF(defH - vpad, 0.0);
 
@@ -361,8 +380,14 @@ struct Layout {
         else if (n.row.spec == SP_WBR) { }
         else if (n.st.display == DP_INLINE && n.kind == NK_BOX) {
             this.resolveBox(n, lc.cw);
-            let c: Node* = n.first;
-            while (c != nullptr) { if (this.inFlow(c)) this.inlineItem(c, lc); c = c.next; }   // NEXT: inline padding/border/margin
+            let b: Box* = &n.box;
+            if (b.pl > 0.0 || b.pr > 0.0 || b.bl > 0.0 || b.br > 0.0) {
+                this.inlineAtomic(n, lc);      // padded/bordered inline: give it a box of its own
+            }
+            else {
+                let c: Node* = n.first;
+                while (c != nullptr) { if (this.inFlow(c)) this.inlineItem(c, lc); c = c.next; }
+            }
         }
         else { this.inlineAtomic(n, lc); }
     }

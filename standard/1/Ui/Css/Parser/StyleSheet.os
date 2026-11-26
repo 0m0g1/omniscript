@@ -24,6 +24,45 @@ function sheetClear(sheet: Sheet*) => void {
     sheet.head = nullptr; sheet.seq = 0; sheet.usesPseudo = false;
 }
 
+// Moves lx.i to the `}` that closes the block whose `{` was just consumed (or to the end of the text).
+// Braces inside "strings", 'strings', /* comments */, \-escapes and ( ... ) groups (url(data:...{...})) do not count.
+function scanCssBlock(css: char*, lx: Lex*) => void {
+    let depth: int = 1;
+    let paren: int = 0;
+    let go: bool = true;
+    while (go) {
+        let c: int = css[lx.i] as int;
+        if (c == 0) { go = false; }
+        else if (c == 34 || c == 39) {
+            lx.i = lx.i + 1;
+            let inStr: bool = true;
+            while (inStr) {
+                let d: int = css[lx.i] as int;
+                if (d == 0) { inStr = false; }
+                else if (d == 92) { lx.i = lx.i + 1; if (css[lx.i] as int != 0) lx.i = lx.i + 1; }
+                else if (d == c) { lx.i = lx.i + 1; inStr = false; }
+                else { lx.i = lx.i + 1; }
+            }
+        }
+        else if (c == 47 && css[lx.i + 1] as int == 42) {
+            lx.i = lx.i + 2;
+            let inCom: bool = true;
+            while (inCom) {
+                let e: int = css[lx.i] as int;
+                if (e == 0) { inCom = false; }
+                else if (e == 42 && css[lx.i + 1] as int == 47) { lx.i = lx.i + 2; inCom = false; }
+                else { lx.i = lx.i + 1; }
+            }
+        }
+        else if (c == 92) { lx.i = lx.i + 1; if (css[lx.i] as int != 0) lx.i = lx.i + 1; }
+        else if (c == 40) { paren = paren + 1; lx.i = lx.i + 1; }
+        else if (c == 41) { if (paren > 0) paren = paren - 1; lx.i = lx.i + 1; }
+        else if (c == 123 && paren == 0) { depth = depth + 1; lx.i = lx.i + 1; }
+        else if (c == 125 && paren == 0) { depth = depth - 1; if (depth == 0) go = false; else lx.i = lx.i + 1; }
+        else { lx.i = lx.i + 1; }
+    }
+}
+
 // Adds every rule in `css` to the sheet. Selector lists become one rule per selector.
 // Conditional group rules (@media, @supports, @layer) are evaluated NOW and their rules flattened into the sheet;
 // call cssSetMedia() first and re-parse when the viewport changes (see Media/MediaQuery.os).
@@ -43,12 +82,8 @@ function sheetParseBlock(sheet: Sheet*, css: char*, depth: int) => void {
             if (lx.peek() == 59) { lx.i = lx.i + 1; }                    // @import @charset @layer a, b;  (ignored)
             else if (lx.peek() == 123) {
                 lx.i = lx.i + 1;
-                let abs: int = lx.i; let ad: int = 1;
-                while (lx.peek() != 0 && ad > 0) {
-                    if (lx.peek() == 123) ad = ad + 1;
-                    if (lx.peek() == 125) ad = ad - 1;
-                    if (ad > 0) lx.i = lx.i + 1;
-                }
+                let abs: int = lx.i;
+                scanCssBlock(css, &lx);
                 let abody: char* = strSub(css, abs, lx.i - abs);
                 if (lx.peek() == 125) lx.i = lx.i + 1;
                 if (depth < 6 && atRuleEnter(prelude)) sheetParseBlock(sheet, abody, depth + 1);   // Parser/AtRules.os
@@ -60,18 +95,21 @@ function sheetParseBlock(sheet: Sheet*, css: char*, depth: int) => void {
             while (lx.peek() != 123 && lx.peek() != 0) lx.i = lx.i + 1;
             let selText: char* = strSub(css, ss, lx.i - ss);
             if (lx.peek() == 123) lx.i = lx.i + 1;
-            let bs: int = lx.i; let depth2: int = 1;
-            while (lx.peek() != 0 && depth2 > 0) {
-                if (lx.peek() == 123) depth2 = depth2 + 1;
-                if (lx.peek() == 125) depth2 = depth2 - 1;
-                if (depth2 > 0) lx.i = lx.i + 1;
-            }
+            let bs: int = lx.i;
+            scanCssBlock(css, &lx);
             let body: char* = strSub(css, bs, lx.i - bs);
             if (lx.peek() == 125) lx.i = lx.i + 1;
-            // split the selector list on commas
+            // split the selector list on top-level commas (not inside (...), [...] or quotes)
             let sl: int = strLen(selText); let a: int = 0; let k: int = 0;
+            let pd: int = 0; let q: int = 0;
             while (k <= sl) {
-                if (k == sl || selText[k] as int == 44) {
+                let ch: int = 0;
+                if (k < sl) ch = selText[k] as int;
+                if (q != 0) { if (ch == q) q = 0; }
+                else if (ch == 34 || ch == 39) { q = ch; }
+                else if (ch == 40 || ch == 91) { pd = pd + 1; }
+                else if (ch == 41 || ch == 93) { if (pd > 0) pd = pd - 1; }
+                if (k == sl || (ch == 44 && pd == 0 && q == 0)) {
                     let one: char* = strSub(selText, a, k - a);
                     let sel: Compound* = parseSelector(one, sheet);
                     let oneT: char* = trimDup(one, 0, strLen(one));

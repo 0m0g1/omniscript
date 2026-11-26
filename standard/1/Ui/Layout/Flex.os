@@ -149,12 +149,44 @@
             // e is now the first item of the next line
 
             // 3. flexible lengths
+                        // 3. flexible lengths (rows shrink with an automatic min-content floor)
             let free: float = 0.0;
             if (defMain) free = mainAvail - sum;
             let used: float = 0.0; let it: Node* = ls; let k: int = 0;
+            let floored: bool = free < 0.0 && ts > 0.0 && rowDir;
+            let fr: float = free; let tsu: float = ts;
+            if (floored) {
+                it = ls; k = 0;
+                while (k < cnt) { it.fmain = 0.0 - 1.0; it = this.itemFrom(it.next); k = k + 1; }
+                let again: bool = true; let guard: int = 0;
+                while (again && guard <= cnt) {
+                    again = false; guard = guard + 1;
+                    fr = free; tsu = 0.0;
+                    it = ls; k = 0;
+                    while (k < cnt) {
+                        if (it.fmain < 0.0) tsu = tsu + it.st.shrink * it.fbase;
+                        else fr = fr + (it.fbase - it.fmain);
+                        it = this.itemFrom(it.next); k = k + 1;
+                    }
+                    it = ls; k = 0;
+                    while (k < cnt) {
+                        if (it.fmain < 0.0 && tsu > 0.0) {
+                            let t: float = it.fbase + fr * it.st.shrink * it.fbase / tsu;
+                            let fl: float = this.flexFloor(it);
+                            if (t < fl) { it.fmain = fl; again = true; }
+                        }
+                        it = this.itemFrom(it.next); k = k + 1;
+                    }
+                }
+            }
+            it = ls; k = 0;
             while (k < cnt) {
                 let fm: float = it.fbase;
-                if (free > 0.0 && tg > 0.0) fm = fm + free * it.st.grow / tg;
+                if (floored) {
+                    if (it.fmain >= 0.0) fm = it.fmain;
+                    else if (tsu > 0.0) fm = fm + fr * it.st.shrink * it.fbase / tsu;
+                }
+                else if (free > 0.0 && tg > 0.0) fm = fm + free * it.st.grow / tg;
                 else if (free < 0.0 && ts > 0.0) fm = fm + free * it.st.shrink * it.fbase / ts;
                 fm = this.clampMain(it, fm, rowDir);
                 if (fm < 0.0) fm = 0.0;
@@ -228,4 +260,60 @@
         }
         if (rowDir) { if (cnt > 1) sum = sum + n.st.gap * ((cnt - 1) as float); return sum; }
         return mx;
+    }
+
+        // min-content width of a text node: whole run for nowrap/pre, else the longest word
+    minText(n: Node*) => float {
+        this.prepText(n);
+        if (n.ctext == nullptr) return 0.0;
+        let ws: int = n.st.whiteSpace;
+        if (ws == WS_NOWRAP || ws == WS_PRE) return this.textPref(n);
+        let best: int = 0; let cur: int = 0; let i: int = 0;
+        while (n.ctext[i] as int != 0) {
+            let ch: int = n.ctext[i] as int;
+            if (ch == 32 || ch == 10) { cur = 0; } else { cur = cur + 1; if (cur > best) best = cur; }
+            i = i + 1;
+        }
+        return (best as float) * this.adv(n.st.fontPx);
+    }
+
+    minPref(n: Node*) => float {
+        if (n.kind == NK_CONTROL || n.kind == NK_REPLACED) { this.intrinsic(n); return this.iw; }
+        if (n.kind == NK_TEXT) return this.minText(n);
+        if (n.st.display == DP_TABLE) return this.tablePref(n);
+        let row: bool = n.st.display == DP_FLEX && (n.st.flexDir == FD_ROW || n.st.flexDir == FD_ROW_REV);
+        let sum: float = 0.0; let best: float = 0.0; let cnt: int = 0;
+        let c: Node* = n.first;
+        while (c != nullptr) {
+            if (this.inFlow(c) && (c.kind != NK_TEXT || !isBlank(c.text))) {
+                let w: float = this.outerMin(c);
+                sum = sum + w; best = maxF(best, w); cnt = cnt + 1;
+            }
+            c = c.next;
+        }
+        if (row && !n.st.wrap) { if (cnt > 1) sum = sum + n.st.gap * ((cnt - 1) as float); return sum; }
+        return best;
+    }
+
+    outerMin(c: Node*) => float {
+        let st: Style* = &c.st;
+        let hp: float = this.resolve(&st.pl, 0.0, 0.0) + this.resolve(&st.pr, 0.0, 0.0) + st.bl + st.br;
+        let mg: float = this.resolve(&st.ml, 0.0, 0.0) + this.resolve(&st.mr, 0.0, 0.0);
+        let w: float = 0.0;
+        if (st.width.u == LU_PX) { w = st.width.v; if (st.boxSizing == 0) w = w + hp; }
+        else { w = this.minPref(c) + hp; }
+        return w + mg;
+    }
+
+    // automatic minimum main size of a row flex item (border box)
+    flexFloor(c: Node*) => float {
+        let b: Box* = &c.box;
+        let hp: float = b.pl + b.pr + b.bl + b.br;
+        let fl: float = this.minPref(c) + hp;
+        if (c.st.width.u == LU_PX) {
+            let sw: float = c.st.width.v; if (c.st.boxSizing == 0) sw = sw + hp;
+            if (sw < fl) fl = sw;
+        }
+        if (fl > c.fbase) fl = c.fbase;
+        return fl;
     }

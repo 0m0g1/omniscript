@@ -24,13 +24,23 @@ function stripComments(s: char*) => char* {
     let o: Str.String;
     let n: int = U.slen(s);
     let i: int = 0;
+    let q: int = 0;
     while (i < n) {
         let c: int = s[i] as int;
-        if (c == 47 && (s[i + 1] as int) == 42) {
+        if (c == 92 && i + 1 < n) {                 // keep escapes as written
+            o.appendChar(s[i]); o.appendChar(s[i + 1]); i = i + 2;
+        }
+        else if (q == 0 && c == 47 && (s[i + 1] as int) == 42) {
             let e: int = U.indexOf(s, i + 2, "*/");
             if (e < 0) i = n; else i = e + 2;
         }
-        else { o.appendChar(c as char); i = i + 1; }
+        else {
+            if (q != 0) { if (c == q || c == 10) q = 0; }
+            else if (c == 92) i = i + 1;
+            else if (c == 34 || c == 39) q = c;
+            else if (c == 34 || c == 39) q = c;
+            o.appendChar(s[i]); i = i + 1;
+        }
     }
     let r: char* = U.dup(o.cstr());
     o.free();
@@ -290,15 +300,21 @@ function block(s: char*, parent: char*, out: Str.String*) => void {
         if (U.isSpace(c) || c == 59) i = i + 1;
         else {
             let j: int = i;
+            let j: int = i;
             let pd: int = 0;
+            let q: int = 0;
             let stop: bool = false;
-            while (j < n && !stop) {                           // end of the first item: ';' '{' or '}' outside ( )
+            while (j < n && !stop) {
                 let c2: int = s[j] as int;
-                if (c2 == 40) pd = pd + 1;
+                if (c2 == 92) j = j + 1;                       // skip the escaped character
+                else if (q != 0) { if (c2 == q || c2 == 10) q = 0; }
+                else if (c2 == 34 || c2 == 39) q = c2;
+                else if (c2 == 40) pd = pd + 1;
                 else if (c2 == 41) pd = pd - 1;
                 else if (pd <= 0 && (c2 == 59 || c2 == 123 || c2 == 125)) stop = true;
                 if (!stop) j = j + 1;
             }
+            if (j > n) j = n;
             let term: int = 0;
             if (j < n) term = s[j] as int;
             if (term == 123) {                                 // nested rule or at-rule

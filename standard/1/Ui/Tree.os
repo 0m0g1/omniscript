@@ -39,6 +39,7 @@ struct Node {
     pressed: bool = false; changed: bool = false; submitted: bool = false; clicked: bool = false;
     valueDirty: bool = false;          // app changed value/checked/text: push into the widget next frame
     selIndex: int = 0;                 // select: chosen option
+    bgImgId: int = 0; bgImgW: float = 0.0; bgImgH: float = 0.0; bgImgUrl: char* = nullptr;   // CSS background-image: loaded image id/size, and the st.bgUrl it was loaded for
     imgId: int = 0; imgW: float = 0.0; imgH: float = 0.0;        // img/canvas: Pen2D image id (0 = none) and its size
 
     // API sugar read after the cascade (UNSET = not used). Assign right after creating a node, or call dirty() later.

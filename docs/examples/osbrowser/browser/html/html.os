@@ -10,7 +10,7 @@ struct Doc {
     root: UI.Node* = nullptr;
     css: char* = nullptr;
     js: char* = nullptr;
-    cssLinks: [4]char*;
+    cssLinks: [16]char*;
     cssN: int = 0;
     jsLinks: [4]char*;
     jsN: int = 0;
@@ -256,7 +256,7 @@ function parseHtml(src: char*, doc: Doc*) => void {
                     if (g < 0) i = n; else i = g + 1;
                 } else {
                     stack[sp].append(el);
-                    if (U.streq(name, "link") && U.streq(rel, "stylesheet") && doc.cssN < 4) {
+                    if (U.streq(name, "link") && U.streq(rel, "stylesheet") && doc.cssN < 16) {
                         doc.cssLinks[doc.cssN] = href;
                         doc.cssN = doc.cssN + 1;
                     }

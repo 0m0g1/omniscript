@@ -7,6 +7,32 @@ module Http = import "standard/1/Http.os";
 module CFile = import "standard/1/c/file.os";
 module Str = import "standard/1/String.os";
 
+// ---- request log (read by the inspector's Network tab) ----
+// Ring of the last LOGMAX requests: url, a "status  bytes" label and ok flag. Written under the browser's net mutex.
+let LOGMAX: int = 128;
+let logTotal: int = 0;
+let logUrls: void* = nullptr;
+let logLbls: void* = nullptr;
+let logOks: void* = nullptr;
+
+function logNote(url: char*, ok: bool, status: int, bytes: int) => void {
+    if (logUrls == nullptr) { logUrls = U.alloc(8 * LOGMAX); logLbls = U.alloc(8 * LOGMAX); logOks = U.alloc(8 * LOGMAX); }
+    let us: char** = logUrls as char**;
+    let ls: char** = logLbls as char**;
+    let os: int* = logOks as int*;
+    let e: int = logTotal % LOGMAX;
+    us[e] = U.dup(url);
+    if (status == 0) ls[e] = U.dup("failed");
+    else ls[e] = U.cat(U.fromInt(status), U.cat("  ", U.cat(U.fromInt(bytes), " B")));
+    if (ok) os[e] = 1; else os[e] = 0;
+    logTotal = logTotal + 1;
+}
+function logCount() => int { if (logTotal < LOGMAX) return logTotal; return LOGMAX; }
+function logIdx(k: int) => int { return (logTotal - 1 - k) % LOGMAX; }           // k = 0 is the newest request
+function logUrl(k: int) => char* { let a: char** = logUrls as char**; return a[logIdx(k)]; }
+function logLabel(k: int) => char* { let a: char** = logLbls as char**; return a[logIdx(k)]; }
+function logOk(k: int) => bool { let a: int* = logOks as int*; return a[logIdx(k)] == 1; }
+
 function isHttp(u: char*) => bool { return U.startsAt(u, 0, "http://") || U.startsAt(u, 0, "https://"); }
 
 function dirOf(u: char*) => char* {
@@ -132,6 +158,7 @@ function loadBytes(url: char*, out: Str.String*) => bool {
         let got: bool = Http.get(url, &r);
         let code: int = r.status as int;
         if (got && code >= 200 && code < 300 && r.body.len > 0) ok = r.body.clone(out);
+        logNote(url, ok, code, r.body.len as int);
         r.free();
     } else {
         let path: char* = url;
@@ -149,6 +176,7 @@ function loadBytes(url: char*, out: Str.String*) => bool {
                 CFile.fclose(f);
             }
         }
+        if (ok) logNote(url, true, 200, out.len as int); else logNote(url, false, 404, 0);
     }
     return ok;
 }
@@ -254,7 +282,11 @@ function readHttp(url: char*) => char* {
     Http.setCookieFile("browser_cookies.txt");
     let r: Http.Response;
     let ok: bool = Http.get(url, &r);
-    return finish(&r, ok);
+    let o: char* = finish(&r, ok);
+    let nb: int = 0;
+    if (o != nullptr) nb = U.slen(o);
+    logNote(url, o != nullptr, lastStatus, nb);
+    return o;
 }
 
 // POST application/x-www-form-urlencoded (what <form method=post> sends)
@@ -262,7 +294,11 @@ function post(url: char*, body: char*) => char* {
     Http.setCookieFile("browser_cookies.txt");
     let r: Http.Response;
     let ok: bool = Http.post(url, body, "application/x-www-form-urlencoded", &r);
-    return finish(&r, ok);
+    let o: char* = finish(&r, ok);
+    let nb: int = 0;
+    if (o != nullptr) nb = U.slen(o);
+    logNote(url, o != nullptr, lastStatus, nb);
+    return o;
 }
 
 // what the user typed -> a loadable url: keeps http(s)/file://, existing local paths, else assumes https://
@@ -278,8 +314,11 @@ function load(url: char*) => char* {
     lastDownload = false;
     lastType = "";
     if (isHttp(url)) return readHttp(url);
-    if (U.startsAt(url, 0, "file://")) return readLocal(U.sub(url, 7, U.slen(url)));
-    return readLocal(url);
+    let p: char* = url;
+    if (U.startsAt(url, 0, "file://")) p = U.sub(url, 7, U.slen(url));
+    let o: char* = readLocal(p);
+    if (o != nullptr) logNote(url, true, 200, U.slen(o)); else logNote(url, false, 404, 0);
+    return o;
 }
 
 // "name.csv" -> "name.csv", or "name (1).csv" when it already exists

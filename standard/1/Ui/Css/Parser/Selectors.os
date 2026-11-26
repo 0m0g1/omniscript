@@ -111,7 +111,14 @@ function specOf(c0: Compound*) => int {
     let s: int = 0; let c: Compound* = c0;
     while (c != nullptr) {
         if (c.id != nullptr) s = s + 10000;
-        if (c.cls != nullptr) s = s + 100 * (1 + (strLen(c.cls) - strLen(c.cls)));
+        if (c.cls != nullptr) {
+            s = s + 100;
+            let i: int = 0;
+            while (c.cls[i] as int != 0) {
+                if (c.cls[i] as int == 32) s = s + 100;   // one more class
+                i = i + 1;
+            }
+        }
         if (c.attr != nullptr) s = s + 100;
         if (c.pseudo != 0) s = s + 100;
         if (c.tag != nullptr) s = s + 1;

@@ -286,7 +286,7 @@ std::shared_ptr<Expression> GetVariable::express(SymbolTableType scope) {
 // renameTypeInPlace in ModuleAndImportStatements.cpp).
 std::string mangleTypeArgs(const std::vector<std::shared_ptr<Type>>& args);   // Genericinstantiator.cpp
 
-static void rebindUserTypeName(const std::shared_ptr<Type>& type, const SymbolTableType& scope) {
+void rebindUserTypeName(const std::shared_ptr<Type>& type, const SymbolTableType& scope) {
     if (!type) return;
 
     if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(type)) {
