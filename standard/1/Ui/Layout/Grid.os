@@ -27,6 +27,24 @@
         return c;
     }
 
+    // column count for a content width of cw: repeat(auto-fill / auto-fit) is counted here, from the real width
+    gridCols(n: Node*, cw: float) => int {
+        let st: Style* = &n.st;
+        let cols: int = st.gn;
+        if (st.gAuto != 0 && st.gAutoMin > 0.0) {
+            cols = ((cw + st.gap) / (st.gAutoMin + st.gap)) as int;
+            if (cols > 12) cols = 12;
+            if (st.gAuto == 2) {                              // auto-fit: empty tracks collapse
+                let items: int = 0;
+                let c: Node* = this.itemFrom(n.first);
+                while (c != nullptr) { items = items + 1; c = this.itemFrom(c.next); }
+                if (items > 0 && cols > items) cols = items;
+            }
+        }
+        if (cols < 1) cols = 1;
+        return cols;
+    }
+
     // max-content width of every column into out[0..cols): the widest single-column item placed in it (fixed px tracks keep
     // their size; items spanning several columns are ignored). Placement = same rules as gridContent.
     // Returns the grid's preferred width: the columns plus the gaps.
@@ -71,6 +89,13 @@
         let st: Style* = &n.st;
         let gap: float = st.gap;
         let cols: int = st.gn;
+        if (st.gAuto != 0) {                                  // repeated track: equal columns
+            let ac: int = this.gridCols(n, cw);
+            let each: float = (cw - gap * ((ac - 1) as float)) / (ac as float);
+            let k: int = 0;
+            while (k < ac) { tw[k] = each; k = k + 1; }
+            return;
+        }
         if (cols < 1) { tw[0] = cw; return; }
         let fixed: float = 0.0; let frSum: float = 0.0;
         let j: int = 0; let t: Len;
@@ -109,8 +134,7 @@
     gridContent(n: Node*) => float {
         let st: Style* = &n.st; let b: Box* = &n.box;
         let gap: float = st.gap;
-        let cols: int = st.gn;
-        if (cols < 1) cols = 1;
+        let cols: int = this.gridCols(n, b.cw);
         let y: float = 0.0;
         let tw: float* = CMem.malloc(96) as float*;
         let c0: float* = CMem.malloc(96) as float*;       // start column of the k-th item of the current row
@@ -134,13 +158,13 @@
                     let w: float = gap * ((sp - 1) as float);
                     let q: int = col;
                     while (q < col + sp) { w = w + tw[q]; q = q + 1; }
-                    this.resolveBox(e, b.cw);
+                    this.resolveBox(e, w);                       // percentages refer to the grid area, not the whole grid
                     if (e.st.width.u == LU_AUTO) {
                         let inner: float = w - e.box.ml - e.box.mr;
                         if (inner < 0.0) inner = 0.0;
                         e.forceW = inner;
                     }
-                    this.placeBlock(e, 0.0, 0.0, b.cw, false);
+                    this.placeBlock(e, 0.0, 0.0, w, false);
                     e.forceW = UNSET;
                     rowH = maxF(rowH, e.box.h + e.box.mt + e.box.mb);
                     c0[k] = col as float; spn[k] = sp as float;
@@ -157,7 +181,11 @@
                 let cpos: float = 0.0;
                 if (al == AL_END) cpos = rowH - outerH;
                 else if (al == AL_CENTER) cpos = (rowH - outerH) * 0.5;
-                else if (al == AL_STRETCH) { this.stretchCross(it, true, rowH, b.cw); }
+                else if (al == AL_STRETCH) {
+                    // align-self: normal does not stretch items with an aspect-ratio or replaced items (they stay at their own height)
+                    let keep: bool = it.st.alignSelf == AL_AUTO && (it.st.aspect > 0.0 || it.kind == NK_REPLACED);
+                    if (!keep) this.stretchCross(it, true, rowH, b.cw);
+                }
                 let x: float = 0.0; let q2: int = 0; let cm: int = c0[m] as int;
                 while (q2 < cm) { x = x + tw[q2] + gap; q2 = q2 + 1; }
                 this.translate(it, b.cx + x - (it.box.x - it.box.ml), b.cy + y + cpos - (it.box.y - it.box.mt));

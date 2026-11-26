@@ -96,7 +96,11 @@
             let want: float = lineCross - c.box.mt - c.box.mb;
             let have: float = c.box.h;
             if (want > have + 0.01) {
-                if (c.st.display == DP_FLEX && c.kind == NK_BOX) {
+                // a child with height:% needs a second layout now that this item's height is known
+                let pct: bool = false;
+                let k: Node* = c.first;
+                while (k != nullptr) { if (k.kind != NK_TEXT && k.st.height.u == LU_PCT) pct = true; k = k.next; }
+                if (c.kind == NK_BOX && (c.st.display == DP_FLEX || pct)) {
                     let ox: float = c.box.x - c.box.ml; let oy: float = c.box.y - c.box.mt;
                     c.forceW = c.box.w; c.forceH = want;
                     this.placeBlock(c, ox, oy, cw, false);
@@ -106,6 +110,19 @@
                 }
             }
         }
+    }
+
+    // 1 when the main-start / main-end margin of c is `auto` (it then absorbs the line's free space, before justify-content)
+    autoStart(c: Node*, rowDir: bool) => int {
+        if (rowDir) { if (c.st.ml.u == LU_AUTO) return 1; return 0; }
+        if (c.st.mt.u == LU_AUTO) return 1;
+        return 0;
+    }
+
+    autoEnd(c: Node*, rowDir: bool) => int {
+        if (rowDir) { if (c.st.mr.u == LU_AUTO) return 1; return 0; }
+        if (c.st.mb.u == LU_AUTO) return 1;
+        return 0;
     }
 
     flexContent(n: Node*) => float {
@@ -211,10 +228,19 @@
             if (!rowDir) lineCross = b.cw;
             else if (e == nullptr && lineNo == 0 && crossDef) lineCross = crossSize;
 
-            // 5. justify + align + final positions
+            // 5. justify + align + final positions (auto margins on the main axis take the free space first)
+            let autoN: int = 0;
+            it = ls; k = 0;
+            while (k < cnt) {
+                autoN = autoN + this.autoStart(it, rowDir) + this.autoEnd(it, rowDir);
+                it = this.itemFrom(it.next); k = k + 1;
+            }
+            let autoEach: float = 0.0;
+            if (autoN > 0 && remain > 0.0) autoEach = remain / (autoN as float);
             let off: float = 0.0; let between: float = 0.0;
             let jc: int = st.justify;
-            if (jc == JC_END) off = remain;
+            if (autoN > 0) { }                                  // justify-content has no effect when an auto margin exists
+            else if (jc == JC_END) off = remain;
             else if (jc == JC_CENTER) off = remain * 0.5;
             else if (jc == JC_BETWEEN) { if (cnt > 1) between = remain / ((cnt - 1) as float); }
             else if (jc == JC_AROUND) { between = remain / (cnt as float); off = between * 0.5; }
@@ -224,9 +250,12 @@
             let pos: float = off;
             it = ls; k = 0;
             while (k < cnt) {
-                let outerMain: float = it.fmain + this.mainMargins(it, rowDir);
+                let sx: float = autoEach * (this.autoStart(it, rowDir) as float);
+                let ex: float = autoEach * (this.autoEnd(it, rowDir) as float);
+                let outerMain: float = it.fmain + this.mainMargins(it, rowDir) + sx + ex;
                 let mpos: float = pos;
                 if (rev) mpos = lineMain - pos - outerMain;
+                mpos = mpos + sx;
                 let al: int = this.alignOf(it, st);
                 let cpos: float = 0.0;
                 if (al == AL_END) cpos = lineCross - it.fcross;

@@ -1041,6 +1041,15 @@ void IRGenerator::generateFunctionBody(
     // Create a new scope for function parameters + body
     pushScope(name);
     DEBUG_LOG("Pushed new scope for function");
+
+    // Destructor scope for the function body. The guard restores the outer function's state on every
+    // exit path (this body may be compiled while another function's body is in progress).
+    struct FnDtorGuard {
+        IRGenerator* g; size_t depth; size_t base;
+        ~FnDtorGuard() { g->dtorScopes_.resize(depth); g->dtorBase_ = base; }
+    } fnDtorGuard{this, dtorScopes_.size(), dtorBase_};
+    beginDtorScope();
+    dtorBase_ = dtorScopes_.size() - 1;
     auto localScope = scope->createChildScope(name);
 
     // Find the count index as before
@@ -1176,6 +1185,7 @@ void IRGenerator::generateFunctionBody(
 
     // Handle implicit return if needed
     if (!currentBlockHasTerminator()) {
+        emitDtors(dtorBase_);   // fall off the end of the function: destroy its locals
         if (function->getReturnType()->isVoidTy()) {
             DEBUG_LOG("Creating void return for function: " + function->getName().str());
             Builder->CreateRetVoid();

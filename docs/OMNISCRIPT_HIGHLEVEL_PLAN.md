@@ -38,6 +38,13 @@ and nobody owns the result (so it leaks), early `return` skips cleanup, and long
 - Fix compiler gaps found so far: **defaults on malloc'd structs** (give a `new T` that allocates + runs defaults), the module-qualified handler bug.
 - Output: `docs/language_facts.md` listing what is and isn't supported, so nobody (me included) guesses again.
 
+### Design decision (2026-11-26): C++ style, not Rust style
+Freedom over safety: constructors, `~Destructors`, `new`/`delete`/`new[]`/`delete[]`, free aliasing and raw pointers, no borrow checker.
+The only compiler guard: copying a struct that has a destructor needs a copy constructor, a pointer, or `[trivialCopy]`
+(returning a local by value is an automatic move). `defer`, arenas, `Owned<T>`/`Shared<T>` (library), optionals `T?` with `.value`/`.valueOr`.
+Reference programs: `ownership_demo.os` (16 sections, self-checking) and `destructor_demo.os`. Where this section differs from the
+Phase 1 text below (the `drop()` name, move-only values), this section wins.
+
 ### Phase 1 - Scope-based ownership (core, biggest win)
 - **Destructor**: a struct may define `drop() => void`. The compiler calls it when a local goes out of scope: end of block, `return`, `break`, `continue`.
 - **Move on return / assignment of owning values**: returning a `String` transfers ownership; the local is not dropped. Rule: an owning value has exactly one owner.

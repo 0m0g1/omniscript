@@ -14,6 +14,7 @@
 #include <omniscript/Expressions/FunctionExpression.h>
 #include <omniscript/Expressions/AssignmentExpression.h>
 #include <omniscript/Expressions/ControlFlowExpressions.h>
+#include <omniscript/Expressions/DeleteExpression.h>
 #include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
@@ -314,9 +315,30 @@ public:
         llvm::BasicBlock* breakTarget;
         llvm::BasicBlock* continueTarget;
         llvm::Function*   function;
+        size_t            dtorDepth = 0;   // index of the loop body's destructor scope (see dtorScopes_)
     };
     std::vector<LoopTarget> loopTargets_;
+
+    // ---- Destructors (`~destructor()`) ----
+    // Struct locals are recorded per lexical scope (function body, loop body, if/else branch) and their
+    // `<Struct>.destructor` is called in reverse order when the scope ends: normal fall-through,
+    // `return` (all scopes of the current function), `break` / `continue` (scopes inside the loop).
+    // Independent of pushScope()/popScope(), which only handle name lookup.
+    struct DtorLocal { llvm::Value* ptr; std::string structName; };
+    std::vector<std::vector<DtorLocal>> dtorScopes_;
+    size_t dtorBase_ = 0;                       // first dtor scope of the function being compiled
+    void registerDtorLocal(llvm::Value* alloca, llvm::Type* type);
+    void emitDtors(size_t fromDepth);           // emit scopes top..fromDepth, does not pop them
+    inline void beginDtorScope() { dtorScopes_.emplace_back(); }
+    inline void endDtorScope() {                // block end: destroy, then drop the scope
+        if (!dtorScopes_.empty()) {
+            if (!currentBlockHasTerminator()) emitDtors(dtorScopes_.size() - 1);
+            dtorScopes_.pop_back();
+        }
+    }
     llvm::Value* createLoopJump(bool isBreak, const FileSpan& span);
+    // `delete p;`: null-check, run `<Struct>.destructor` if the pointee has one, then free().
+    llvm::Value* createDelete(const std::shared_ptr<DeleteExpression>& del, SymbolTableType scope);
     // `text ${expr}` -> snprintf into one of 8 rotating 512-byte scratch buffers; yields the char* buffer.
     llvm::Value* createStringTemplate(const std::shared_ptr<Expression>& expr, SymbolTableType scope);
     llvm::Value* createReturn(llvm::Value* returnValue, llvm::Type* expectedReturnType);

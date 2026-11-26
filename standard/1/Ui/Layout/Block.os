@@ -277,7 +277,7 @@ struct Layout {
         if (n.forceW < 0.0) {
             if (st.maxW.u != LU_NONE) {
                 let mx: float = this.resolve(&st.maxW, cbw, w); if (st.boxSizing == 0) mx = mx + hpad;
-                if (w > mx) w = mx;
+                if (w > mx) { w = mx; fixed = true; }      // clamped by max-width: auto margins can centre it
             }
             if (st.minW.u != LU_AUTO) {
                 let mn: float = this.resolve(&st.minW, cbw, 0.0); if (st.boxSizing == 0) mn = mn + hpad;
@@ -285,6 +285,26 @@ struct Layout {
             }
         }
         if (w < hpad) w = hpad;
+
+        // replaced element, both sizes auto: max-width / max-height scale BOTH sides, keeping the aspect ratio
+        let fitH: float = UNSET;
+        if (n.kind == NK_REPLACED && n.forceW < 0.0 && n.forceH < 0.0 && st.width.u == LU_AUTO && st.height.u == LU_AUTO
+            && n.imgW > 0.0 && n.imgH > 0.0) {
+            this.intrinsic(n);
+            let rw: float = this.iw; let rh: float = this.ih;
+            if (rw > 0.0 && rh > 0.0) {
+                if (st.maxW.u != LU_NONE) {
+                    let lw: float = this.resolve(&st.maxW, cbw, rw); if (st.boxSizing == 1 && st.maxW.u != LU_NONE) lw = lw - hpad;
+                    if (lw >= 0.0 && rw > lw) { rh = rh * lw / rw; rw = lw; }
+                }
+                if (st.maxH.u == LU_PX) {
+                    let lh2: float = st.maxH.v; if (st.boxSizing == 1) lh2 = lh2 - vpad;
+                    if (lh2 >= 0.0 && rh > lh2) { rw = rw * lh2 / rh; rh = lh2; }
+                }
+                w = rw + hpad;
+                fitH = rh + vpad;
+            }
+        }
 
         // auto margins centre fixed/shrunk boxes
         if (n.forceW < 0.0 && cbw > 0.0 && (fixed || shrink) && (b.autoL || b.autoR)) {
@@ -304,15 +324,21 @@ struct Layout {
         let defH: float = UNSET;
         if (n.forceH >= 0.0) defH = n.forceH;
         else if (st.height.u == LU_PX) { defH = st.height.v; if (st.boxSizing == 0) defH = defH + vpad; }
+        else if (fitH >= 0.0) defH = fitH;
+        else if (st.height.u == LU_PCT && n.parent != nullptr && n.parent.box.ch >= 0.0) {   // % of a definite parent height
+            defH = this.resolve(&st.height, n.parent.box.ch, 0.0);
+            if (st.boxSizing == 0) defH = defH + vpad;
+        }
         // aspect-ratio: an auto height follows the width (replaced elements and controls keep their intrinsic size)
         if (defH < 0.0 && st.aspect > 0.0 && n.forceH < 0.0 && st.height.u != LU_PX && n.kind != NK_CONTROL && n.kind != NK_REPLACED) {
             if (st.boxSizing == 1) defH = w / st.aspect;
             else defH = (w - hpad) / st.aspect + vpad;
         }
         // replaced element with a CSS width and auto height: the height follows the decoded aspect ratio
-        // (without this an inline <svg style="width:13px"> keeps its natural height and is stretched into a thin strip)
+        // (without this an inline <svg style="width:13px"> keeps its natural height and is stretched into a thin strip).
+        // A CSS width beats the width/height attributes (img width="1" height="1" + CSS width:400px keeps the decoded ratio).
         if (defH < 0.0 && n.kind == NK_REPLACED && n.forceH < 0.0 && st.height.u == LU_AUTO && n.imgW > 0.0 && n.imgH > 0.0
-            && (fixed || n.forceW >= 0.0) && this.attrNum(n, "height", 0.0) <= 0.0) {
+            && (fixed || n.forceW >= 0.0) && (st.width.u != LU_AUTO || this.attrNum(n, "height", 0.0) <= 0.0)) {
             defH = (w - hpad) * n.imgH / n.imgW + vpad;
         }
         b.ch = UNSET;
@@ -506,6 +532,8 @@ struct Layout {
         let ar: AtomRef* = lc.afirst;
         while (f != nullptr) {
             let ny: float = lc.y + (h - f.h);
+            // a small image / icon on a taller line is centred on it (approximates CSS baseline alignment)
+            if (f.atom != nullptr && ar != nullptr && ar.node.kind == NK_REPLACED && f.h < lc.strut) ny = lc.y + (h - f.h) * 0.5;
             if (f.atom != nullptr && ar != nullptr) { this.translate(ar.node, off, ny - f.y); ar = ar.next; }
             f.x = f.x + off; f.y = ny;
             f = f.lnext;

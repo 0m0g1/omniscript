@@ -14,11 +14,14 @@ include "standard/1/Ui/Api.os";                    // textual include, order mat
 
 let LIMIT: int = 100;                              // module-level variable [ok]
 
-function main() => int {                           // entry point returns int [ok]
+Console.println("hello");                          // top-level statements run directly, no main needed [from you]
+
+function main() => int {                           // a main() also works; my test files used it [ok]
     Console.println("hello");
     return 0;
 }
 ```
+Top-level `let` variables are globals. A `main()` runs automatically even when nothing calls it **[test p26: AUTO]**.
 
 - Scripts run from the project root; relative paths (`"browser/util.os"`) resolve from there. **[ok]**
 - Comments: `// line` and `/* block */` **[test]**.
@@ -42,7 +45,8 @@ function main() => int {                           // entry point returns int [o
 
 Casts: `x as T` — `(n as float)`, `ptr as void*`, `p as Event*`. **[ok]**
 Sizes: `sizeof(T)`. **[ok]**
-Literals: decimal, hex `0xFF` **[ok]**, strings `"a\nb"` with `\"` escapes **[ok]**, char via `s[i] as int` compared to a code (`== 38` for `&`).
+Literals: decimal, hex `0xFF` **[ok]**, strings `"a\nb"` with `\"` escapes **[ok]**, raw strings `r"..."` **[from you]**, char literals `'&'` (`'&' as int == 38`) **[test]**.
+Strings: `==` compares contents **[test]** (no `streq` needed); `"a" + "b"` concatenates **[test]**; `"n=" + 5` is a type error, use interpolation **[test]**.
 
 ## 3. Variables
 
@@ -105,6 +109,8 @@ p.x = 3;
 let q: Pt* = CMem.malloc(sizeof(Pt)) as Pt*;   // heap: set every field yourself
 ```
 
+- Struct literals `Pt { x: 1, y: 2 }` **[test]**. Default arguments `function f(a: char*, n: int = 2)` **[test]**.
+- `new T(args)` parses; `delete p;` is a PARSE ERROR today (the token exists, the statement does not) **[test: fails]**.
 - Enums `enum Color { Red, Green, Blue }` used as `Color.Green` **[test]**; `const MAXN: int = 5;` **[test]**.
 - Methods are declared inside the struct body: `name(args) => ret { ... }`. **[ok]**
 - Call with `.`: `p.len()`. Also on pointers.

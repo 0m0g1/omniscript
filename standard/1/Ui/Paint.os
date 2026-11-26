@@ -227,8 +227,11 @@ struct Painter {
         let pbg: u32 = 0;
         let p: Node* = n.parent;
         if (p != nullptr && p.st.display == DP_INLINE && (p.st.bg & 0xFF) != 0) pbg = p.st.bg;
+        let gh: float = st.fontPx * this.m.lineH / this.m.cellH;      // glyph box height (as in text())
         let f: Frag* = n.frags;
         while (f != nullptr) {
+            let lead: float = (f.h - gh) * 0.5;                        // half-leading: centre the glyphs in the line box
+            if (lead < 0.0) lead = 0.0;
             if (pbg != 0) this.fill(f.x + ox, f.y + oy, f.w, f.h, fadeColor(pbg, op));
             if (this.sel != nullptr && f.len > 0 && this.sel.frag(n, f)) {
                 let cw: float = f.w / (f.len as float);
@@ -237,7 +240,7 @@ struct Painter {
             if (st.tsOn && (st.tsColor & 0xFF) != 0 && f.len > 0) {
                 let sf: int = flags & (TF_BOLD | TF_ITALIC);
                 if (st.tsBlur <= 0.0) {
-                    this.text(f.x + ox + st.tsX, f.y + oy + st.tsY, n.ctext, f.from, f.len, st.fontPx, fadeColor(st.tsColor, op), sf);
+                    this.text(f.x + ox + st.tsX, f.y + oy + lead + st.tsY, n.ctext, f.from, f.len, st.fontPx, fadeColor(st.tsColor, op), sf);
                 }
                 else {                      // blur: two rings of 8 faint copies around the offset position
                     let ring: int = 0;
@@ -248,7 +251,7 @@ struct Painter {
                             let b2: int = 0;
                             while (b2 < 3) {
                                 if (!(a == 1 && b2 == 1)) {
-                                    this.text(f.x + ox + st.tsX + rr * ((a - 1) as float), f.y + oy + st.tsY + rr * ((b2 - 1) as float), n.ctext, f.from, f.len, st.fontPx, fadeColor(st.tsColor, op * 0.08), sf);
+                                    this.text(f.x + ox + st.tsX + rr * ((a - 1) as float), f.y + oy + lead + st.tsY + rr * ((b2 - 1) as float), n.ctext, f.from, f.len, st.fontPx, fadeColor(st.tsColor, op * 0.08), sf);
                                 }
                                 b2 = b2 + 1;
                             }
@@ -258,7 +261,7 @@ struct Painter {
                     }
                 }
             }
-            this.text(f.x + ox, f.y + oy, n.ctext, f.from, f.len, st.fontPx, fadeColor(st.color, op), flags);
+            this.text(f.x + ox, f.y + oy + lead, n.ctext, f.from, f.len, st.fontPx, fadeColor(st.color, op), flags);
             f = f.next;
         }
     }

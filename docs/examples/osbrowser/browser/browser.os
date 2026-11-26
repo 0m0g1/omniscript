@@ -449,8 +449,20 @@ struct Browser {
 
     flattenSheet(text: char*, base: char*) => void {
         if (this.pendN < CSS_MAX) {
-            this.pendQ[this.pendN] = CF.flattenRaw(absUrls(text, base), this.viewW, this.viewH);   // registers --vars, keeps var()
+            let flat: char* = CF.flattenRaw(absUrls(text, base), this.viewW, this.viewH);   // registers --vars, keeps var()
+            this.pendQ[this.pendN] = flat;
             this.pendN = this.pendN + 1;
+            // DIAGNOSTIC (remove after issue A): does the footer rule survive flattening, and what does it look like?
+            let srcAt: int = U.indexOf(text, 0, "footer.footer-global");
+            let fAt: int = U.indexOf(flat, 0, "footer.footer-global");
+            if (srcAt >= 0 || fAt >= 0) {
+                Dbg.log(U.cat("footer rule in source: ", U.cat(U.fromInt(srcAt), U.cat("  in flat: ", U.cat(U.fromInt(fAt), U.cat("  sheet: ", base))))));
+                if (fAt >= 0) {
+                    let fe: int = fAt + 200;
+                    if (fe > U.slen(flat)) fe = U.slen(flat);
+                    Dbg.log(U.cat("flat footer: ", U.sub(flat, fAt, fe)));
+                }
+            }
         }
         else Dbg.log(U.cat("CSS dropped: queue full: ", base));
     }

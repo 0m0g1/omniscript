@@ -356,7 +356,13 @@ function block(s: char*, parent: char*, out: Str.String*) => void {
 function flattenRaw(css: char*, vw: int, vh: int) => char* {
     gW = vw;
     gH = vh;
-    let src: char* = stripComments(css);
+    // a UTF-8 byte order mark (EF BB BF) would stick to the first selector of the sheet and stop that rule from matching
+    let body: char* = css;
+    if (U.slen(css) >= 3) {
+        let b0: int = css[0] as int; let b1: int = css[1] as int; let b2: int = css[2] as int;
+        if ((b0 == 239 || b0 == 0 - 17) && (b1 == 187 || b1 == 0 - 69) && (b2 == 191 || b2 == 0 - 65)) body = U.sub(css, 3, U.slen(css));
+    }
+    let src: char* = stripComments(body);
     let out: Str.String;
     block(src, "", &out);
     let flat: char* = U.dup(out.cstr());

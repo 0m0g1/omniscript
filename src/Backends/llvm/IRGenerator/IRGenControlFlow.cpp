@@ -35,6 +35,11 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
         return nullptr;
     }
     
+    // Run destructors of every live local of this function before leaving it.
+    // (A returned value is already computed at this point; returning the address of a destructible
+    // local is not supported.)
+    emitDtors(dtorBase_);
+
     if (activeScope->get("va_list")) {
         llvm::Function* vaEndFunc = llvm::Intrinsic::getOrInsertDeclaration(Module.get(), llvm::Intrinsic::vaend);
         llvm::Value* vaListAlloca = activeScope->get("va_list");
@@ -168,7 +173,7 @@ llvm::Value* IRGenerator::createForLoop(
     llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "for.end");
 
     // break -> for.end, continue -> for.inc
-    loopTargets_.push_back({afterBlock, incrementBlock, function});
+    loopTargets_.push_back({afterBlock, incrementBlock, function, dtorScopes_.size()});
     struct LoopTargetGuard { std::vector<LoopTarget>& v; ~LoopTargetGuard() { v.pop_back(); } } loopTargetGuard{loopTargets_};
 
     Builder->CreateBr(condBlock);
@@ -215,6 +220,7 @@ llvm::Value* IRGenerator::createForLoop(
 
     // === Body block ===
     Builder->SetInsertPoint(bodyBlock);
+    beginDtorScope();   // the body is its own scope: destroyed at the end of every iteration
     auto block = std::dynamic_pointer_cast<BlockExpression>(forExpr->body);
     if (block) {
         for (auto& expr : block->values) {
@@ -223,6 +229,7 @@ llvm::Value* IRGenerator::createForLoop(
             }
         }
     }
+    endDtorScope();
 
     if (!currentBlockHasTerminator()) {
         Builder->CreateBr(incrementBlock);
@@ -279,7 +286,7 @@ llvm::Value* IRGenerator::createWhileLoop(
     llvm::BasicBlock* afterBlock = llvm::BasicBlock::Create(context, "while.end");
 
     // break -> while.end, continue -> while.cond
-    loopTargets_.push_back({afterBlock, condBlock, function});
+    loopTargets_.push_back({afterBlock, condBlock, function, dtorScopes_.size()});
     struct LoopTargetGuard { std::vector<LoopTarget>& v; ~LoopTargetGuard() { v.pop_back(); } } loopTargetGuard{loopTargets_};
 
     Builder->CreateBr(condBlock);
@@ -322,12 +329,14 @@ llvm::Value* IRGenerator::createWhileLoop(
     Builder->SetInsertPoint(bodyBlock);
 
     bool bodyHasContent = false;
+    beginDtorScope();   // per-iteration scope
     if (auto block = std::dynamic_pointer_cast<BlockExpression>(whileExpr->body)) {
         if (!block->values.empty()) {
             bodyHasContent = true;
             codegen(whileExpr->body, localScope);
         }
     }
+    endDtorScope();
 
     // If the loop body doesn't end in a terminator (return, break, etc.), jump to condition again
     if (!currentBlockHasTerminator()) {
@@ -338,6 +347,107 @@ llvm::Value* IRGenerator::createWhileLoop(
     afterBlock->insertInto(function);
     Builder->SetInsertPoint(afterBlock);
 
+    return nullptr;
+}
+
+void IRGenerator::registerDtorLocal(llvm::Value* alloca, llvm::Type* type) {
+    if (dtorScopes_.empty() || !alloca) return;
+    auto* st = llvm::dyn_cast_or_null<llvm::StructType>(type);
+    if (!st || !st->hasName()) return;
+    dtorScopes_.back().push_back({alloca, st->getName().str()});
+}
+
+void IRGenerator::emitDtors(size_t fromDepth) {
+    if (!Module || !Builder->GetInsertBlock() || currentBlockHasTerminator()) return;
+    for (size_t s = dtorScopes_.size(); s-- > fromDepth;) {
+        auto& locals = dtorScopes_[s];
+        for (size_t i = locals.size(); i-- > 0;) {          // reverse declaration order
+            llvm::Function* dtor = Module->getFunction(locals[i].structName + ".destructor");
+            if (!dtor || dtor->arg_size() != 1) continue;   // type has no destructor
+            Builder->CreateCall(dtor, { locals[i].ptr });
+        }
+    }
+}
+
+llvm::Value* IRGenerator::createDelete(const std::shared_ptr<DeleteExpression>& del, SymbolTableType scope) {
+    if (!del || !del->operand) return nullptr;
+    if (!Builder->GetInsertBlock() || currentBlockHasTerminator()) return nullptr;   // unreachable code
+
+    llvm::Function* function = Builder->GetInsertBlock()->getParent();
+    llvm::Module* mod = currentModule ? &*currentModule : &*Module;
+    llvm::LLVMContext& ctx = *Context;
+
+    auto omniType = del->operand->getType();
+    if (!omniType || !omniType->isPointer()) {
+        console.reportError(
+            Console::TYPE_ERROR,
+            Console::formatString("delete needs a pointer operand, got '%s'",
+                                  omniType ? omniType->toString().c_str() : "unknown"),
+            "To resolve this:\n"
+            "1. Pass a pointer, for example the result of an allocation\n"
+            "2. Do not delete values or locals; they are destroyed automatically at scope exit",
+            del->getSpan()
+        );
+        return nullptr;
+    }
+
+    llvm::Value* ptr = codegen(del->operand, scope);
+    if (!ptr || !ptr->getType()->isPointerTy()) {
+        console.reportError(Console::SEMANTIC_ERROR, "The operand of delete is invalid", "", del->getSpan());
+        return nullptr;
+    }
+
+    // `delete &local` would destroy the local twice (once here, once at scope exit).
+    {
+        llvm::Value* base = ptr->stripPointerCasts();
+        for (const auto& scopeLocals : dtorScopes_) {
+            for (const auto& local : scopeLocals) {
+                if (local.ptr && local.ptr->stripPointerCasts() == base) {
+                    console.reportError(
+                        Console::SEMANTIC_ERROR,
+                        "Cannot delete a local variable: it is destroyed automatically at scope exit",
+                        "To resolve this:\n"
+                        "1. Only delete pointers that own heap memory\n"
+                        "2. Remove the delete",
+                        del->getSpan()
+                    );
+                    return nullptr;
+                }
+            }
+        }
+    }
+
+    // Pointers are opaque `ptr`, so the destructor is found through the Omniscript pointee type,
+    // using the same `<Struct>.destructor` name that scope-exit cleanup uses.
+    llvm::Function* dtor = nullptr;
+    if (auto pointee = omniType->getPointeeType()) {
+        llvm::Type* pointeeLL = resolveLLVMType(pointee);
+        auto* st = llvm::dyn_cast_or_null<llvm::StructType>(pointeeLL);
+        if (st && st->hasName()) {
+            dtor = mod->getFunction(st->getName().str() + ".destructor");
+            if (dtor && dtor->arg_size() != 1) dtor = nullptr;
+        }
+    }
+
+    llvm::BasicBlock* doBlock  = llvm::BasicBlock::Create(ctx, "delete.do", function);
+    llvm::BasicBlock* endBlock = llvm::BasicBlock::Create(ctx, "delete.end", function);
+
+    // delete of a null pointer is a no-op
+    llvm::Value* isNull = Builder->CreateICmpEQ(
+        ptr, llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(ptr->getType())), "delete.isnull");
+    Builder->CreateCondBr(isNull, endBlock, doBlock);
+
+    Builder->SetInsertPoint(doBlock);
+    if (dtor) {
+        Builder->CreateCall(dtor, { ptr });
+    }
+    llvm::Type* ptrTy = llvm::PointerType::getUnqual(ctx);
+    llvm::FunctionCallee freeFn = mod->getOrInsertFunction(
+        "free", llvm::FunctionType::get(llvm::Type::getVoidTy(ctx), { ptrTy }, false));
+    Builder->CreateCall(freeFn, { ptr });
+    Builder->CreateBr(endBlock);
+
+    Builder->SetInsertPoint(endBlock);
     return nullptr;
 }
 
@@ -359,6 +469,7 @@ llvm::Value* IRGenerator::createLoopJump(bool isBreak, const FileSpan& span) {
 
     if (!currentBlockHasTerminator()) {
         const LoopTarget& target = loopTargets_.back();
+        emitDtors(target.dtorDepth);   // locals of the loop body (and nested blocks) end here
         Builder->CreateBr(isBreak ? target.breakTarget : target.continueTarget);
     }
 
@@ -456,7 +567,9 @@ llvm::Value* IRGenerator::createIfStatement(
 
         // Emit then block
         Builder->SetInsertPoint(thenBlock);
+        beginDtorScope();
         llvm::Value* thenValue = codegen(bodies[i], localScope);
+        endDtorScope();
         DEBUG_LOG(bodies[i]->toString());
 
         bool hasTerminator = currentBlockHasTerminator();
@@ -490,7 +603,9 @@ llvm::Value* IRGenerator::createIfStatement(
 
     // Handle final else block if provided
     if (elseBody) {
+        beginDtorScope();
         llvm::Value* elseValue = codegen(elseBody, localScope);
+        endDtorScope();
         if (!elseValue && !std::dynamic_pointer_cast<BlockExpression>(elseBody)) {
             std::string suggestion = "To resolve this:\n"
                                    "1. Verify else block expression is valid\n"

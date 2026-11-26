@@ -1123,6 +1123,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         return createStringTemplate(value, scope);
     }
 
+    if (auto delExpr = std::dynamic_pointer_cast<DeleteExpression>(value)) {
+        DEBUG_LOG("Creating a delete statement");
+        return createDelete(delExpr, scope);
+    }
+
     if (std::dynamic_pointer_cast<BreakExpression>(value)) {
         return createLoopJump(true, value->getSpan());
     }

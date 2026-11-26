@@ -456,6 +456,7 @@ llvm::Value* IRGenerator::assignVariable(
     }
 
     activeScope->set(name, alloca);
+    registerDtorLocal(alloca, alloca->getAllocatedType());   // struct locals with ~destructor() are destroyed at scope end
     DEBUG_LOG("Local variable '" + name + "' allocated and initialized");
     return alloca;
 }

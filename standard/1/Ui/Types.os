@@ -40,6 +40,7 @@ struct Style {
     flexDir: int = 0; wrap: bool = false; grow: float = 0.0; shrink: float = 1.0; basis: Len;
     gap: float = 0.0; alignItems: int = 0; alignSelf: int = 9; justify: int = 0;
     gn: int = 0;                                  // grid-template-columns: track count (max 12); track i is g<i>: LU_PX / LU_PCT fixed, LU_AUTO = flexible (v = fr weight)
+    gAuto: int = 0; gAutoMin: float = 0.0;      // repeat(auto-fill = 1 | auto-fit = 2, min ...): Layout/Grid.os counts columns from the real width
     gcs: int = 0; gce: int = 0; gsp: int = 0; wkw: int = 0;     // wkw = width keyword (width stays auto): 1 min-content / 2 max-content / 3 fit-content; grid-column of an item: start / end line (1-based, negative counts from the end, 0 = auto), gsp = `span N` (0 = none)
     g0: Len; g1: Len; g2: Len; g3: Len; g4: Len; g5: Len; g6: Len; g7: Len; g8: Len; g9: Len; g10: Len; g11: Len;
     gdN: int = 0; gdAngle: float = 180.0;         // linear-gradient background: stop count (0 = none, max 4), angle in degrees; colours gdC0..3 at positions gdP0..3 (0..1)
@@ -68,6 +69,7 @@ struct Style {
         lenSet(&this.top, LU_AUTO, 0.0); lenSet(&this.right, LU_AUTO, 0.0);
         lenSet(&this.bottom, LU_AUTO, 0.0); lenSet(&this.left, LU_AUTO, 0.0);
         this.flexDir = FD_ROW; this.wrap = false; this.grow = 0.0; this.shrink = 1.0; lenSet(&this.basis, LU_AUTO, 0.0);
+        this.gAuto = 0; this.gAutoMin = 0.0;
         this.gn = 0; this.gcs = 0; this.gce = 0; this.gsp = 0; this.wkw = 0;
         this.gdN = 0; this.gdAngle = 180.0;
         this.tsOn = false; this.tsX = 0.0; this.tsY = 0.0; this.tsBlur = 0.0; this.tsColor = 0;

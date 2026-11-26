@@ -7,6 +7,7 @@
 #include <omniscript/Symboltable.h>
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
+#include <omniscript/Statements/DeleteStatement.h>
 
 namespace Omniscript {
 // Parse a single statement
@@ -65,6 +66,9 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             break;
         case TokenTypes::Function:
             statement = parseFunctionDeclaration("", {});
+            break;
+        case TokenTypes::Delete:
+            statement = parseDelete();
             break;
         case TokenTypes::Identifier: {
             // `do` and `switch` are contextual keywords: only treated as statements when followed by
@@ -217,6 +221,38 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
     // }
 
     return statement;
+}
+
+// delete <expr>;
+// The lexer emits TokenTypes::Delete for `delete` (after `.` or `::` it becomes a plain identifier,
+// so `x.delete()` never reaches this function).
+std::shared_ptr<Statement> Parser::parseDelete() {
+    const Token startToken = currentToken;
+
+    eat(TokenTypes::Delete);
+
+    switch (currentToken.getType()) {
+        case TokenTypes::Semicolon:
+        case TokenTypes::Newline:
+        case TokenTypes::RightBrace:
+        case TokenTypes::EOI:
+            SYNTAX_ERROR_F("Expected an expression after 'delete', found '%s'",
+                           getTokenTypeName(currentToken.getType()).c_str());
+            return nullptr;
+        default:
+            break;
+    }
+
+    auto operand = parseExpression();
+    if (!operand) {
+        SYNTAX_ERROR_F("Expected an expression after 'delete', found '%s'",
+                       getTokenTypeName(currentToken.getType()).c_str());
+        return nullptr;
+    }
+
+    auto stmt = std::make_shared<DeleteStatement>(operand);
+    stmt->setPosition(startToken, previousToken);
+    return stmt;
 }
 
 } // namespace Omniscript
