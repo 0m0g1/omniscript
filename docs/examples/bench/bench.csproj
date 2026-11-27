@@ -1,0 +1,16 @@
+<!-- docs/examples/bench/langs/dotnet/bench.csproj -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- run_bench.ps1 overrides this with the installed SDK's major version -->
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>bench_dotnet</AssemblyName>
+    <Optimize>true</Optimize>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+</Project>
