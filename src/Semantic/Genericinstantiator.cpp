@@ -1,6 +1,7 @@
 // src\Semantic\Genericinstantiator.cpp
 #include <omniscript/Semantic/GenericInstantiator.h>
 
+#include <algorithm>
 #include <omniscript/Core.h>
 #include <omniscript/Console.h>
 #include <omniscript/Statements/CallableStatement.h>
@@ -847,6 +848,128 @@ bool GenericInstantiator::ensureFunctionInstanceByCallee(const std::string& call
     }
     pending().push_back(expr);
     DEBUG_LOG("[GenericInstantiator] Instantiated function " + instName);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Type-argument inference for bare calls of lazy function templates
+// ---------------------------------------------------------------------------
+namespace {
+using BoundTypes = std::map<std::string, std::shared_ptr<Type>>;
+
+// Matches a declared parameter type against an argument type and binds the type parameters it finds.
+// `soft` (bare integer literals): never reports a conflict with an earlier binding.
+// Returns false only on a conflict; shapes that do not line up are left for the normal argument check.
+bool unifyType(const std::shared_ptr<Type>& param, const std::shared_ptr<Type>& arg,
+               const std::vector<std::string>& names, BoundTypes& bound, bool soft, std::string& conflict) {
+    if (!param || !arg) return true;
+
+    if (auto udt = std::dynamic_pointer_cast<UserDefinedType>(param)) {
+        if (udt->typeArgs.empty()) {
+            if (std::find(names.begin(), names.end(), udt->name) == names.end()) return true;   // concrete type
+            auto it = bound.find(udt->name);
+            if (it == bound.end()) { bound[udt->name] = arg; return true; }
+            if (soft || mangleTypeName(it->second) == mangleTypeName(arg)) return true;
+            conflict = "'" + udt->name + "' would be both " + it->second->toString() + " and " + arg->toString();
+            return false;
+        }
+        // List<T> against List<i64>
+        auto a = std::dynamic_pointer_cast<UserDefinedType>(arg);
+        if (!a || a->typeArgs.size() != udt->typeArgs.size()) return true;
+        for (size_t i = 0; i < udt->typeArgs.size(); ++i) {
+            if (!unifyType(udt->typeArgs[i], a->typeArgs[i], names, bound, soft, conflict)) return false;
+        }
+        return true;
+    }
+    if (auto p = std::dynamic_pointer_cast<PointerType>(param)) {
+        if (auto a = std::dynamic_pointer_cast<PointerType>(arg)) return unifyType(p->pointeeType, a->pointeeType, names, bound, soft, conflict);
+        if (auto fa = std::dynamic_pointer_cast<FixedArrayType>(arg)) return unifyType(p->pointeeType, fa->elementType, names, bound, soft, conflict);   // array decay
+        return true;
+    }
+    if (auto r = std::dynamic_pointer_cast<ReferenceType>(param)) {
+        // A `T&` parameter takes the object itself (its address is implicit), or an address already.
+        if (auto ar = std::dynamic_pointer_cast<ReferenceType>(arg)) return unifyType(r->referentType, ar->referentType, names, bound, soft, conflict);
+        if (auto ap = std::dynamic_pointer_cast<PointerType>(arg)) return unifyType(r->referentType, ap->pointeeType, names, bound, soft, conflict);
+        return unifyType(r->referentType, arg, names, bound, soft, conflict);
+    }
+    if (auto n = std::dynamic_pointer_cast<NullableType>(param)) {
+        if (auto an = std::dynamic_pointer_cast<NullableType>(arg)) return unifyType(n->innerType, an->innerType, names, bound, soft, conflict);
+        return unifyType(n->innerType, arg, names, bound, soft, conflict);   // T converts to T?
+    }
+    if (auto fa = std::dynamic_pointer_cast<FixedArrayType>(param)) {
+        if (auto a = std::dynamic_pointer_cast<FixedArrayType>(arg)) return unifyType(fa->elementType, a->elementType, names, bound, soft, conflict);
+        return true;
+    }
+    if (auto da = std::dynamic_pointer_cast<DynamicArrayType>(param)) {
+        if (auto a = std::dynamic_pointer_cast<DynamicArrayType>(arg)) return unifyType(da->elementType, a->elementType, names, bound, soft, conflict);
+        return true;
+    }
+    if (auto sp = std::dynamic_pointer_cast<SmartPointerType>(param)) {
+        if (auto a = std::dynamic_pointer_cast<SmartPointerType>(arg)) return unifyType(sp->pointeeType, a->pointeeType, names, bound, soft, conflict);
+        return true;
+    }
+    if (auto fn = std::dynamic_pointer_cast<FunctionType>(param)) {
+        auto a = std::dynamic_pointer_cast<FunctionType>(arg);
+        if (!a || a->parameterTypes.size() != fn->parameterTypes.size()) return true;
+        for (size_t i = 0; i < fn->parameterTypes.size(); ++i) {
+            if (!unifyType(fn->parameterTypes[i], a->parameterTypes[i], names, bound, soft, conflict)) return false;
+        }
+        return unifyType(fn->returnType, a->returnType, names, bound, soft, conflict);
+    }
+    return true;   // concrete type: nothing to bind
+}
+} // namespace
+
+bool GenericInstantiator::inferFunctionTypeArgs(const std::string& callee,
+                                                const std::vector<std::shared_ptr<Type>>& argTypes,
+                                                const std::vector<bool>& literalInts,
+                                                std::string& suffix,
+                                                std::string& error) {
+    suffix.clear();
+    error.clear();
+    const auto it = functionTemplates().find(bareName(callee));
+    if (it == functionTemplates().end()) return false;   // not a template: nothing to infer
+    const FunctionTemplate& tmpl = it->second;
+    if (tmpl.paramNames.empty()) return false;
+
+    std::vector<std::shared_ptr<Type>> paramTypes;
+    for (const auto& p : tmpl.decl->parameters) {
+        if (auto ps = std::dynamic_pointer_cast<ParameterStatement>(p)) paramTypes.push_back(ps->getType());
+    }
+
+    BoundTypes bound;
+    std::string conflict;
+    const auto defaultInt = resolveType({"int"});
+
+    // Pass 0: ordinary arguments fix the type parameters. Pass 1: bare integer literals default to `int`
+    // only for a parameter nothing else bound, so `max(someI64, 5)` stays i64.
+    for (int pass = 0; pass < 2; ++pass) {
+        for (size_t i = 0; i < argTypes.size() && i < paramTypes.size(); ++i) {
+            const bool literal = i < literalInts.size() && literalInts[i];
+            if (literal != (pass == 1)) continue;
+            auto argType = argTypes[i];
+            if (literal && argType && mangleTypeName(argType) == "i8" && defaultInt && !defaultInt->isInvalid()) {
+                argType = defaultInt;
+            }
+            if (!unifyType(paramTypes[i], argType, tmpl.paramNames, bound, literal, conflict)) {
+                error = "Cannot infer the type arguments of '" + tmpl.name + "': " + conflict + ".";
+                return false;
+            }
+        }
+    }
+
+    std::string joined;
+    for (size_t i = 0; i < tmpl.paramNames.size(); ++i) {
+        const auto b = bound.find(tmpl.paramNames[i]);
+        if (b == bound.end() || !b->second) {
+            error = "Cannot infer type parameter '" + tmpl.paramNames[i] + "' of '" + tmpl.name +
+                    "' from the call's arguments.";
+            return false;
+        }
+        if (i) joined += "__";
+        joined += mangleTypeName(b->second);
+    }
+    suffix = joined;
     return true;
 }
 

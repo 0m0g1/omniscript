@@ -29,6 +29,19 @@
 #include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
+// IntegerLiteral / FloatLiteral (AST statements) live in the literal statements header. The first path that
+// exists is used; without it the argument check below falls back to its i8 heuristic only.
+#if __has_include(<omniscript/Statements/LiteralStatements.h>)
+#include <omniscript/Statements/LiteralStatements.h>
+#define OS_HAS_LITERAL_STATEMENTS 1
+#elif __has_include(<omniscript/Statements/LiteralStatement.h>)
+#include <omniscript/Statements/LiteralStatement.h>
+#define OS_HAS_LITERAL_STATEMENTS 1
+#elif __has_include(<omniscript/Statements/Literals.h>)
+#include <omniscript/Statements/Literals.h>
+#define OS_HAS_LITERAL_STATEMENTS 1
+#endif
+
 namespace Omniscript {
 
 std::string instanceAliasTarget(const std::string& name);
@@ -291,7 +304,65 @@ std::shared_ptr<Expression> Call::express(SymbolTableType scope) {
     // exists yet but it names an instance of a registered function template, create it now.
     if (!calleeIsType && GenericInstantiator::hasFunctionTemplates() &&
         scope->getOverloads(contextualName).empty() && scope->getOverloads(callee).empty()) {
-        GenericInstantiator::ensureFunctionInstanceByCallee(callee);
+        if (!GenericInstantiator::ensureFunctionInstanceByCallee(callee) &&
+            (instanceName.empty() || isFromAssignment) &&
+            !std::dynamic_pointer_cast<MemberAccess>(expr) && !args.empty()) {
+            // Bare `f(x, y)`: infer the type arguments from the argument types (positional arguments only).
+            // A bare integer literal is typed i8 by the front end. An i8-typed argument that is not a plain
+            // name, member access or call is treated as a literal: it is flagged and defaults to `int`
+            // (it never overrides a type another argument fixed).
+            auto isNameOrCall = [](const std::shared_ptr<Statement>& a) {
+                return std::dynamic_pointer_cast<NamedStatement>(a) ||
+                       std::dynamic_pointer_cast<MemberAccess>(a) ||
+                       std::dynamic_pointer_cast<Call>(a);
+            };
+            // "Soft" argument: a bare numeric literal (`5`, `2.0`, also `-5` or `1 + 2`, which are i8 too).
+            // It defaults to int / double and never overrides a type another argument fixed.
+            auto isSoftLiteral = [&](const std::shared_ptr<Statement>& a, const std::shared_ptr<Type>& t) {
+#ifdef OS_HAS_LITERAL_STATEMENTS
+                if (std::dynamic_pointer_cast<IntegerLiteral>(a) || std::dynamic_pointer_cast<FloatLiteral>(a)) return true;
+#endif
+                return mangleTypeName(t) == "i8" && !isNameOrCall(a);
+            };
+            std::vector<std::shared_ptr<Type>> argTypes;
+            std::vector<bool> literalInts;
+            auto evaluatedArgs = evaluateArguments(scope);
+            bool inferable = evaluatedArgs.size() == args.size();
+            for (size_t i = 0; inferable && i < evaluatedArgs.size(); ++i) {
+                if (!evaluatedArgs[i] || !evaluatedArgs[i]->getType() || !evaluatedArgs[i]->name.empty()) {
+                    inferable = false;
+                    break;
+                }
+                // A string literal evaluates to the internal UTF-8 string type, but the statement itself is typed
+                // `char*`. Infer from the statement type for non-name literals so `id("abc")` binds T = char*.
+                auto inferType = evaluatedArgs[i]->getType();
+                if (!isNameOrCall(args[i])) {
+                    if (auto typedArg = std::dynamic_pointer_cast<TypedStatement>(args[i])) {
+                        auto st = typedArg->getType();
+                        if (st && !st->isInvalid() && std::dynamic_pointer_cast<PointerType>(st)) inferType = st;
+                    }
+                }
+                argTypes.push_back(inferType);
+                literalInts.push_back(isSoftLiteral(args[i], evaluatedArgs[i]->getType()));
+            }
+            std::string suffix, inferError;
+            if (inferable && GenericInstantiator::inferFunctionTypeArgs(callee, argTypes, literalInts, suffix, inferError)) {
+                const std::string inferred = "_" + suffix;
+                if (GenericInstantiator::ensureFunctionInstanceByCallee(callee + inferred)) {
+                    DEBUG_LOG("[Call] Inferred generic call '" + callee + "' -> '" + callee + inferred + "'.");
+                    callee += inferred;
+                    if (!targetName.empty()) targetName += inferred;
+                    contextualName += inferred;
+                }
+            } else if (!inferError.empty()) {
+                console.reportError(
+                    Console::TYPE_ERROR,
+                    inferError,
+                    "Write the type arguments explicitly, e.g. " + callee + "<i32>(...).",
+                    this->getSpan());
+                return nullptr;
+            }
+        }
     }
 
     // Find the callable
@@ -1583,6 +1654,22 @@ bool Call::handleVariadicParameter(
         //     auto argsCountExpr = std::make_shared<Integer<int>>(varArgsCount);
         //     localScope->set(paramName + "_count", argsCountExpr);
         // }
+
+        // Packing is not implemented, so extra arguments would be silently dropped. Fail loudly instead.
+        if (!variadicArgs.empty()) {
+            console.reportError(
+                Console::SEMANTIC_ERROR,
+                Console::formatString(
+                    "Variadic arguments are not supported yet for '%s': %zu extra argument(s) would be dropped. "
+                    "Only extern functions can take '...'.",
+                    callee.c_str(), variadicArgs.size()),
+                "To resolve this:\n"
+                "1. Pass a List<T> parameter instead of '...'\n"
+                "2. Or declare the function as extern \"C\" if it is a C varargs function",
+                this->getSpan()
+            );
+            return false;
+        }
     }
 
     DEBUG_LOG("[Call] Bound variadic parameter '" + paramName + "' with " + 
@@ -1638,8 +1725,19 @@ bool Call::processRegularPositionalArgument(
         return false;
     }
 
+    // `T&` parameter: a plain T value is accepted (its address is taken below). Only an exactly matching
+    // referent type is added here, so existing conversions behave as before.
+    bool bindsToReferent = false;
+    if (param->getType() && param->getType()->isReference() && value->getType() &&
+        !value->getType()->isPointer() && !value->getType()->isReference()) {
+        if (auto referent = param->getType()->getReferencedType()) {
+            bindsToReferent = canonicalTypeSpelling(value->getType()->toString()) ==
+                              canonicalTypeSpelling(referent->toString());
+        }
+    }
+
     // Check type compatibility
-    if (!isSameOrCastableToAliased(value->getType(), param->getType())) {
+    if (!bindsToReferent && !isSameOrCastableToAliased(value->getType(), param->getType())) {
         std::string suggestion = Console::formatString(
             "To resolve this:\n"
             "1. Check type requirements\n"

@@ -92,6 +92,21 @@ public:
     // Returns true when the instance exists afterwards; false when `callee` is not such a name.
     static bool ensureFunctionInstanceByCallee(const std::string& callee);
 
+    // Type-argument inference for a bare call `f(x, y)` of a lazy function template.
+    // `callee` is the bare call-site name (no type suffix); `argTypes` are the evaluated argument types
+    // (positional only); `literalInts[i]` marks an argument that is a bare integer literal, which is
+    // typed i8 by the front end and therefore defaults to `int` here (and never conflicts with a type
+    // already fixed by another argument).
+    // Returns true and sets `suffix` ("i32", "i64_ptr", "i32__f64": append "_" + suffix to `callee` and
+    // pass the result to ensureFunctionInstanceByCallee). Returns false with `error` empty when
+    // `callee` is not a registered function template, or false with `error` set when it is one but the
+    // type arguments cannot be inferred (conflicting argument types, or a parameter bound by nothing).
+    static bool inferFunctionTypeArgs(const std::string& callee,
+                                      const std::vector<std::shared_ptr<Type>>& argTypes,
+                                      const std::vector<bool>& literalInts,
+                                      std::string& suffix,
+                                      std::string& error);
+
     // Walks `type` (through pointers, refs, arrays...) and ensures every generic instance in it.
     static void ensureInstancesIn(const std::shared_ptr<Type>& type);
 

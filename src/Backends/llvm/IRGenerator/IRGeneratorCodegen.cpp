@@ -1047,6 +1047,11 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         }
 
 
+        // A lazily instantiated generic (`f<i32>(x)` or an inferred `f(x)`) is created while this call is
+        // expressed, i.e. after the block-start drain. Declare it now so the lookup below finds it.
+        // Function instances only register a prototype here; bodies are generated later.
+        emitAllInstances();
+
         if (call->instanceName.empty()) {
             DEBUG_LOG("Creating a normal call for " + call->calleeName);
             llvm::Value* callResult = createCall(call->calleeName, args, call->functionTypeName);
