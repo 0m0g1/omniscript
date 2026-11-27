@@ -140,10 +140,12 @@ Compiler::compile(const std::vector<std::shared_ptr<Statement>>& statements,
             // lastStats_.functionsCompiled = jitBackend_->getLastStats().functionsCompiled;
         }
         if (config.mode == CompileMode::AOT || config.isHybridMode()) {
+            // execute() already generates the IR AND emits/links the output (it calls emitToFile
+            // itself). Calling emitToFile again here ran a second emission against a module that
+            // was already consumed (null Module -> crash in setTargetTriple), and after the
+            // incremental "up to date" early return it ran with no IRGenerator at all.
             aotBackend_->execute(parsedStatements, config);
             updateProgress(callback, "Linking", 80.0);
-            perf::ScopedTimer linkTimer(lastStats_.linkTime);
-            aotBackend_->emitToFile(config);
         }
         lastStats_.optimizationsApplied = config.optimization.level > 0 ? 1 : 0;
         lastStats_.linesProcessed = parsedStatements.size();

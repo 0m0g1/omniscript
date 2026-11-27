@@ -799,7 +799,21 @@ llvm::Function* IRGenerator::createExternFunction(
         bool dynamicWasCopied = false;
         bool resolvedWithStatic = false;
 
-        if (!staticExists && !dynamicExists) {
+        // Linkage-only externs the Windows CRTs don't export (UCRT's snprintf is an inline
+        // header wrapper). The JIT uses an engine-side shim (os_snprintf); an AOT binary has
+        // no such shim, so declare the real symbol and let the linker take it from the
+        // MinGW runtime (libmingwex provides snprintf / vsnprintf).
+        if (!staticExists && !dynamicExists && genericStatic.empty() && genericDynamic.empty() &&
+            (externName == "snprintf" || externName == "vsnprintf" ||
+             externName == "sprintf"  || externName == "vsprintf")) {
+            function = Module->getFunction(externName);
+            if (!function) {
+                function = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
+                                                  externName, Module.get());
+            }
+        }
+
+        if (!function && !staticExists && !dynamicExists) {
             // Try common system libraries as fallback - user should provide explicit paths
             if (CStdLibResolver::isCStdLibFunction(externName)) {
                 if (targetOS == TargetOS::Windows) {

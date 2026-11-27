@@ -11,7 +11,7 @@
 #   AOT      `os file.os --make -o x.exe`, then the produced exe (run time only)
 # A run only counts if the program printed PASS (its own correctness check against known values).
 #
-# Other languages (langs\ folder): node, go, rust, java, dotnet (python is opt-in: it takes minutes to hours at full size).
+# Other languages (langs\ folder, or the bench folder itself if there is no langs\): node, go, rust, java, dotnet (python is opt-in: it takes minutes to hours at full size).
 # Each tool that is installed is built (release/-O3 settings) and run with the same benchmark names and sizes as bench.c;
 # its output must match the C reference's output (floating-point lines within 5e-9) or the run is marked WRONG.
 # Times are whole-process wall time (best of -Reps), so JVM / .NET / Node startup is included, as it is for the OmniScript JIT.
@@ -177,7 +177,9 @@ if (-not $SkipC) {
 # ---- other languages: build what is installed --------------------------------
 $langCmd = [ordered]@{}
 if (-not $SkipLangs) {
+    # Language sources live either in bench\langs or directly in bench\ (bench.js, bench.go, ...).
     $langDir = Join-Path $here "langs"
+    if (-not (Test-Path $langDir)) { $langDir = $here }
     foreach ($l in $Langs) {
         $l = $l.ToLower()
         if (-not (Test-Path $langDir)) { Write-Host "No langs folder at $langDir; skipping other languages." -ForegroundColor Yellow; break }

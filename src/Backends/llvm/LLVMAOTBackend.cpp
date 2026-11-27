@@ -417,7 +417,13 @@ void LLVMAOTBackend::emitObjectFile(const std::string& objFile, const std::share
         throw std::runtime_error("Failed to open output file: " + ec.message());
     }
 
+    if (!irGen) {
+        throw std::runtime_error("AOT: nothing to emit (no IR was generated; was execute() run?)");
+    }
     auto module = irGen->getModule();
+    if (!module) {
+        throw std::runtime_error("AOT: the LLVM module is no longer available (already emitted or moved)");
+    }
     module->setTargetTriple(tm->getTargetTriple());
     module->setDataLayout(tm->createDataLayout());
 

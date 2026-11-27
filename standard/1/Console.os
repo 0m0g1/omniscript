@@ -73,6 +73,37 @@ function println(v: bool) => void {
 /// Prints a `String` followed by a newline.
 function println(v: Str.String*) => void { printlnString(v); }
 
+// ---- print (no newline) for non-string values ----
+// Without these, Console.print(someInt) had only print(char*) to bind to and read the
+// integer as an address (crash inside fputs).
+
+/// Prints an integer without a trailing newline.
+function print(v: i64) => void {
+    let s: Str.String;
+    s.appendInt(v);
+    printString(&s);
+    s.free();
+}
+
+/// Prints a floating-point number without a trailing newline.
+function print(v: f64) => void { printf("%g", v); }
+
+/// Prints `true` or `false` without a trailing newline.
+function print(v: bool) => void {
+    if (v) print("true"); else print("false");
+}
+
+/// Prints a `String` without a trailing newline.
+function print(v: Str.String*) => void { printString(v); }
+
+/// 32-bit and unsigned integers, so `Console.print(someInt)` needs no cast.
+function print(v: i32) => void { print(v as i64); }
+function print(v: u32) => void { print(v as i64); }
+function print(v: u64) => void { print(v as i64); }
+
+/// 32-bit float.
+function print(v: f32) => void { print(v as f64); }
+
 function log(v: i64) => void { println(v); }
 function log(v: f64) => void { println(v); }
 function log(v: bool) => void { println(v); }
