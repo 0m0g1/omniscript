@@ -1,0 +1,7 @@
+"Bench","C_ms","Compile_ms","JIT_total_ms","JIT_run_ms","AOT_ms","JIT_vs_C","AOT_vs_C","Notes"
+"fib","126","41","431","390",,"3.1",,"AOT:build-failed "
+"sieve","895","24","1084","1060",,"1.18",,"AOT:build-failed "
+"nbody","2223","33",,,,,,"JIT:WRONG AOT:build-failed "
+"spectral","1087","27","1493","1466",,"1.35",,"AOT:build-failed "
+"fannkuch","1455","34",,,,,,"JIT:ERR(-1073741819) AOT:build-failed "
+"trees","8425","35","8036","8001",,"0.95",,"AOT:build-failed "

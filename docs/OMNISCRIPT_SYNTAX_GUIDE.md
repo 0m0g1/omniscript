@@ -1,4 +1,4 @@
-# OmniScript syntax guide (v4, compact)
+# OmniScript syntax guide (v5, compact)
 
 ## 0. Rules for the AI
 - Write complete, runnable `.os` files. State assumptions in one line.
@@ -59,11 +59,20 @@ import "x.os" as X;     import { foo, bar as baz } from "x.os";     import * fro
 function add(a: int, b: int) => int { return a + b; }
 function f(a: char*, n: int = 2) => void { }       // default args; no `=> R` means void
 let twice = function(x: int) => int { return x * 2; };   // lambda
-function id<T>(v: T) => T { return v; }                  // call ONLY as id<i32>(x): no inference from arguments (Call.cpp instantiates from the explicit-type callee name `id_i32`)
+function id<T>(v: T) => T { return v; }                  // call as id(x) (inferred) or id<i32>(x) (explicit) [test]
+function pick<T>(a: T, b: T) => T { return a; }          // pick(a64, 5) -> T = i64 [test]
+function first<T>(p: T*) => T { return p[0]; }           // first(&a64) -> T = i64 [test]
 function add<T extends i32 | i64 | f32>(a: T, b: T) => T { return a + b; }  // eagerly emits add_i32, add_i64, add_f32
 extern "C" fn printf(fmt: char*, ...) => int;
 intrinsic fn rsqrt(x: f32) => f32 { }
 ```
+- **Generic inference [test]**: a bare `f(x, y)` binds the type parameters from the arguments (works in `let r = f(..)`, nested arguments and statements; instances are created lazily). Rules:
+  - Typed variables bind their declared type (`i8` variable stays `i8`); `T*` binds from `&x` / pointer args; `T[N]` decays; string literals bind `char*`.
+  - A **bare numeric literal** defaults to `int` / `double` and never overrides a type another argument fixed: `pick(a64, 5)` and `pick(5, a64)` are both `i64`; `size_of(5)` is `i32`, `size_of(1.5)` is `f64`.
+  - Two different types for one `T` (`pick(x32, y64)`) is a compile error: `Cannot infer the type arguments of 'pick': 'T' would be both Int32 and Int64`. Fix: cast one argument or write `pick<i64>(..)`.
+  - A type parameter that no argument mentions (e.g. only in the return type) cannot be inferred: write `f<T>(..)`.
+  - Positional arguments only; a call with named arguments is not inferred. Method calls (`obj.m(..)`) are not inferred.
+  - Explicit `f<i32>(x)` always works and is the safe form when inference is in doubt.
 - `<T extends ...>` goes **after** the function name. Multiple constrained params = cartesian product. If any param is unconstrained, constraints aren't enforced and instantiation is lazy.
 - Named args: `f(name: "x", count: 3)`; no positional after named; variadics can't be named.
 - Overloads: by param types [Call.cpp]. Tier 0 exact (canonical spelling: `int`≡`i32`, `int64`≡`i64`) > 1 compatible (widening, decay, nullptr, T→T?) > 2 coerced. Ties: caller's own module, then first-registered. A typed variable/const (`let n: int`) matches `int` exactly, so `show(int)` vs `show(i64)` works for typed args; only a **bare literal** (`show(5)`, type `i8`) ties both at tier 1. Ranking is skipped when any named argument is used. No return-type-only overloads [?].
@@ -177,7 +186,7 @@ os --doc <module|file> [-o f.md] [--html]    os --doc-all standard/1/std.os [--s
 - **For the AI:** for any module not documented here, ask for `--doc-show standard/1/<File>.os`. To check a name exists, ask for `--doc-search standard/1/std.os <name>`.
 
 ## 13. Quirks checklist
-1. `[N]T` global with `char*` fields may fail: use a local. 2. Module-qualified fn as handler fails. 3. `try/catch` is unimplemented (compile error). 4. `Http.Response.finalUrl` leaks (small). 5. `listen` fails silently unless checked. 6. `nullptr` for `T*`, `null` for `T?`. 7. `new T(arg)` without a constructor inits fields. 8. `import "*.h"` = include. 9. `i8` literal truncation. 10. Block `module` last in file. 11. Prefer string import paths. 12. `T&` params: use pointers. 13. Bare-literal calls tie across `int`/`i64` overloads: type the argument. 14. User variadics drop their args. 15. Generics need explicit `f<i32>(x)` (no inference). 16. Postfix `T[N]` only.
+1. `[N]T` global with `char*` fields may fail: use a local. 2. Module-qualified fn as handler fails. 3. `try/catch` is unimplemented (compile error). 4. `Http.Response.finalUrl` leaks (small). 5. `listen` fails silently unless checked. 6. `nullptr` for `T*`, `null` for `T?`. 7. `new T(arg)` without a constructor inits fields. 8. `import "*.h"` = include. 9. `i8` literal truncation. 10. Block `module` last in file. 11. Prefer string import paths. 12. `T&` params: use pointers. 13. Bare-literal calls tie across `int`/`i64` overloads: type the argument. 14. User variadics drop their args. 15. Generic calls infer from arguments; conflicting types are a compile error, and a type parameter that no argument mentions needs `f<T>(..)`. 16. Postfix `T[N]` only.
 
 ## 14. Open probes [?]
-Prefix `[N]T`; plain `import` inside module body; nested-fn capture; `T&` type-check on `f(b)`; return-only overloads; modifier enforcement (`private` access error, `static`, `virtual`, `= delete`); enum semantics; constrained `add(5,6)` (unconstrained inference is confirmed absent); leading `<Number extends ...>` form (parser expects it after the name); backtick result type and `${` escape.
+Prefix `[N]T`; plain `import` inside module body; nested-fn capture; `T&` type-check on `f(b)`; return-only overloads; modifier enforcement (`private` access error, `static`, `virtual`, `= delete`); enum semantics; constrained `add(5,6)` (inference through `T extends ...`; unconstrained inference is confirmed working); leading `<Number extends ...>` form (parser expects it after the name); backtick result type and `${` escape.
