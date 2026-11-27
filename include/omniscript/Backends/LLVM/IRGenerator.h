@@ -15,6 +15,8 @@
 #include <omniscript/Expressions/AssignmentExpression.h>
 #include <omniscript/Expressions/ControlFlowExpressions.h>
 #include <omniscript/Expressions/DeleteExpression.h>
+#include <omniscript/Expressions/NewExpression.h>
+#include <omniscript/Expressions/DeferExpression.h>
 #include <omniscript/Expressions/FunctionInputExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 #include <omniscript/Backends/LLVM/LLVMExternalFunctionResolver.h>
@@ -206,6 +208,8 @@ public:
     
     llvm::Value* createNullValue(llvm::Type* type);
     llvm::Value* createNullPointer(llvm::Type* pointeeType);
+    llvm::Value* createNullableValue(llvm::Value* opt);
+    llvm::Value* createNullableValueOr(llvm::Value* opt, llvm::Value* fallback);
     llvm::Value* createRawPointer(uintptr_t address, llvm::Type* pointeeType);
     
     llvm::Value* create8BitInteger(int8_t value);
@@ -324,11 +328,22 @@ public:
     // `<Struct>.destructor` is called in reverse order when the scope ends: normal fall-through,
     // `return` (all scopes of the current function), `break` / `continue` (scopes inside the loop).
     // Independent of pushScope()/popScope(), which only handle name lookup.
-    struct DtorLocal { llvm::Value* ptr; std::string structName; };
+    // An entry is either a struct local to destroy (ptr + structName) or a `defer` action (ptr == nullptr,
+    // deferred set): the action is re-emitted at every exit of the scope, in the same reverse order.
+    struct DtorLocal {
+        llvm::Value* ptr = nullptr;
+        std::string structName;
+        std::shared_ptr<Expression> deferred;   // `defer` action, emitted at scope exit
+        SymbolTableType deferScope;             // symbol scope the action was written in
+    };
     std::vector<std::vector<DtorLocal>> dtorScopes_;
     size_t dtorBase_ = 0;                       // first dtor scope of the function being compiled
     void registerDtorLocal(llvm::Value* alloca, llvm::Type* type);
-    void emitDtors(size_t fromDepth);           // emit scopes top..fromDepth, does not pop them
+    llvm::Function* findDestructor(const std::string& structName);        // `<Struct>.destructor`, tolerant of mangled suffixes
+    llvm::Function* findCopyConstructor(const std::string& structName);   // `<Struct>.constructor(this, o: <Struct>&)`
+    void unregisterDtorLocal(llvm::Value* ptr);   // the value was moved elsewhere (member / element): its new owner destroys it
+    void registerDefer(const std::shared_ptr<Expression>& action, SymbolTableType scope);   // `defer`
+    void emitDtors(size_t fromDepth, llvm::Value* skip = nullptr);         // emit scopes top..fromDepth, does not pop them
     inline void beginDtorScope() { dtorScopes_.emplace_back(); }
     inline void endDtorScope() {                // block end: destroy, then drop the scope
         if (!dtorScopes_.empty()) {
@@ -337,6 +352,7 @@ public:
         }
     }
     llvm::Value* createLoopJump(bool isBreak, const FileSpan& span);
+    llvm::Value* createNew(const std::shared_ptr<NewExpression>& nw, SymbolTableType scope);
     // `delete p;`: null-check, run `<Struct>.destructor` if the pointee has one, then free().
     llvm::Value* createDelete(const std::shared_ptr<DeleteExpression>& del, SymbolTableType scope);
     // `text ${expr}` -> snprintf into one of 8 rotating 512-byte scratch buffers; yields the char* buffer.

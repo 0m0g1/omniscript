@@ -8,6 +8,7 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
 #include <omniscript/Statements/DeleteStatement.h>
+#include <omniscript/Statements/DeferStatement.h>
 
 namespace Omniscript {
 // Parse a single statement
@@ -80,6 +81,22 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
             }
             if (word == "switch" && lexer.peekToken(1).getType() == TokenTypes::LeftParen) {
                 statement = parseSwitch();
+                break;
+            }
+            // `defer` is a keyword only when a statement follows it (`defer f();`, `defer { }`,
+            // `defer delete p;`); `defer = 1`, `defer(x)` and `defer.x` stay ordinary uses of the name.
+            if (word == "defer") {
+                const TokenTypes next = lexer.peekToken(1).getType();
+                if (next == TokenTypes::Identifier || next == TokenTypes::LeftBrace || next == TokenTypes::Delete) {
+                    statement = parseDefer();
+                    break;
+                }
+            }
+            // `arena a { ... }` is a keyword only for `arena <identifier> {`; any other use of the name stays ordinary.
+            if (word == "arena" &&
+                lexer.peekToken(1).getType() == TokenTypes::Identifier &&
+                lexer.peekToken(2).getType() == TokenTypes::LeftBrace) {
+                statement = parseArena();
                 break;
             }
             if (lexer.peekToken(1).getType() == TokenTypes::Increment || 
@@ -231,6 +248,15 @@ std::shared_ptr<Statement> Parser::parseDelete() {
 
     eat(TokenTypes::Delete);
 
+    // `delete[] p;` destroys every element of an array made by `new T[n]`
+    bool isArray = false;
+    if (currentToken.getType() == TokenTypes::LeftBracket &&
+        lexer.peekToken(1).getType() == TokenTypes::RightBracket) {
+        eat(TokenTypes::LeftBracket);
+        eat(TokenTypes::RightBracket);
+        isArray = true;
+    }
+
     switch (currentToken.getType()) {
         case TokenTypes::Semicolon:
         case TokenTypes::Newline:
@@ -250,9 +276,87 @@ std::shared_ptr<Statement> Parser::parseDelete() {
         return nullptr;
     }
 
-    auto stmt = std::make_shared<DeleteStatement>(operand);
+    auto stmt = std::make_shared<DeleteStatement>(operand, isArray);
     stmt->setPosition(startToken, previousToken);
     return stmt;
+}
+
+
+// defer <statement>;   or   defer { ... }
+// Runs when the enclosing scope exits (end of block, return, break, continue), last in first out.
+std::shared_ptr<Statement> Parser::parseDefer() {
+    const Token startToken = currentToken;
+
+    eat(TokenTypes::Identifier);   // the contextual keyword `defer`
+
+    std::shared_ptr<Statement> action;
+    if (currentToken.getType() == TokenTypes::LeftBrace) {
+        action = parseBlock();
+    } else {
+        action = parseStatement(false);   // the caller consumes the terminator
+    }
+
+    if (!action) {
+        SYNTAX_ERROR_F("Expected a statement or block after 'defer', found '%s'",
+                       getTokenTypeName(currentToken.getType()).c_str());
+        return nullptr;
+    }
+
+    auto stmt = std::make_shared<DeferStatement>(action);
+    stmt->setPosition(startToken, previousToken);
+    return stmt;
+}
+
+// arena a { ... }
+// Everything allocated from `a` (`new(a) T`, `Str.String(a)`) is released when the block exits: end of block,
+// return, break and continue. Lowered to a block holding
+//     let __arena_a: Arena;  let a: Arena* = &__arena_a;  defer __arena_a.destroy();  { body }
+// The three lines are parsed by an ordinary Parser over that text, so they are exactly what the user could
+// have written by hand, and the existing `defer` machinery does the rest.
+std::shared_ptr<Statement> Parser::parseArena() {
+    const Token startToken = currentToken;
+
+    eat(TokenTypes::Identifier);                       // the contextual keyword `arena`
+    const std::string name = currentToken.getValue();
+    eat(TokenTypes::Identifier, expectedIdentifierMessage("arena name"));
+
+    auto body = parseBlock();
+    if (!body) {
+        SYNTAX_ERROR_F("Expected a block after 'arena %s', found '%s'",
+                       name.c_str(), getTokenTypeName(currentToken.getType()).c_str());
+        return nullptr;
+    }
+
+    const std::string hidden = "__arena_" + name;
+    const std::string prologue =
+        "let " + hidden + ": Arena;\n"
+        "let " + name + ": Arena* = &" + hidden + ";\n"
+        "defer " + hidden + ".destroy();\n";
+
+    Lexer prologueLexer(prologue, startToken.getFilePath());
+    Parser prologueParser(prologueLexer);
+    std::vector<std::shared_ptr<Statement>> stmts;
+    for (int guard = 0; guard < 32 && prologueParser.currentToken.getType() != TokenTypes::EOI; ++guard) {
+        auto st = prologueParser.parseStatement();
+        if (st) {
+            st->setPosition(startToken, startToken);   // errors point at the `arena` keyword, not at the helper text
+            stmts.push_back(st);
+        }
+    }
+    if (stmts.size() != 3) {
+        REPORT_ERROR_WITH_SPAN(
+            Console::SYNTAX_ERROR,
+            "Could not set up the arena '" + name + "' (is the Arena type available? import standard/1/Arena.os)",
+            errorSpanAtCurrentToken()
+        );
+        return nullptr;
+    }
+    stmts.push_back(body);
+
+    auto block = std::make_shared<BlockStatement>(stmts);
+    if (auto bodyBlock = std::dynamic_pointer_cast<BlockStatement>(body)) block->isGlobal = bodyBlock->isGlobal;
+    block->setPosition(startToken, previousToken);
+    return block;
 }
 
 } // namespace Omniscript

@@ -20,7 +20,7 @@ std::shared_ptr<Expression> DeleteStatement::express(SymbolTableType scope) {
         return nullptr;
     }
 
-    auto deleteExpr = std::make_shared<DeleteExpression>(operandExpr);
+    auto deleteExpr = std::make_shared<DeleteExpression>(operandExpr, isArray);
     deleteExpr->setSpan(this->getSpan());
     return deleteExpr;
 }

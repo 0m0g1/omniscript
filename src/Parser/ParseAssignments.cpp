@@ -1,3 +1,4 @@
+#include <cctype>
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/FunctionStatement.h>
@@ -262,6 +263,39 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 }
                 
                 DEBUG_LOG("Parsing assignment for " + getTokenTypeName(variableType) + " '" + variableName + "' with type '" + currentType->toString() + "'.");
+
+                // `let s: T(args);` is the same as `let s = T(args);` (C++ style declaration with a constructor call).
+                if (currentToken.getType() == TokenTypes::LeftParen) {
+                    std::string ctorName;
+                    bool generic = false;
+                    for (const auto& tk : dataTypes) {
+                        if (tk == "<") generic = true;
+                        if (tk.empty() || !(std::isalpha(static_cast<unsigned char>(tk[0])) || tk[0] == '_')) continue;
+                        if (!ctorName.empty()) ctorName += ".";
+                        ctorName += tk;
+                    }
+                    if (generic || ctorName.empty()) {
+                        console.reportError(
+                            Console::SYNTAX_ERROR,
+                            "'let " + variableName + ": T(args);' needs a plain type name",
+                            "To resolve this:\nUse 'let " + variableName + " = T<...>(args);' for generic types",
+                            errorSpanAtCurrentToken()
+                        );
+                        return nullptr;
+                    }
+                    std::vector<std::shared_ptr<Statement>> ctorArgs = parseArguments();
+                    auto ctorCall = std::make_shared<Call>(ctorName, ctorArgs);
+                    ctorCall->setInstanceName(variableName);
+                    ctorCall->isFromAssignment = true;
+                    if (variableType == TokenTypes::Const) ctorCall->markAsConstant();
+                    ctorCall->setPosition(startToken, currentToken);
+                    declarations.push_back(ctorCall);
+                    if (currentToken.getType() == TokenTypes::Comma) {
+                        eat(TokenTypes::Comma);
+                        continue;
+                    }
+                    break;
+                }
 
                 if (currentToken.getType() == TokenTypes::Assign) {
                     eat(TokenTypes::Assign);

@@ -99,15 +99,48 @@ llvm::Value* IRGenerator::createStructInstance(
     const std::vector<llvm::Value*>& args,
     bool isGlobal) {
     
+
+    // The AST flag defaults to true for every constructor call, so a local `let r = Res(n)` arrives
+    // here marked global. Only a real global (no insert block) may take the constant-initializer path.
+    if (isGlobal && Builder->GetInsertBlock()) isGlobal = false;
+
     llvm::StructType* structType = llvm::StructType::getTypeByName(*Context, structName);
     if (!structType) {
         DEBUG_LOG("Struct type '" + structName + "' does not exist.");
         return nullptr;
     }
 
+    // A declared constructor replaces "args are the field values".
+    llvm::Function* ctor = nullptr;
+    // false when `args` are the struct's default field values rather than constructor arguments
+    // (a zero-argument `T()` on a struct with fields arrives with one value per field).
+    bool ctorTakesArgs = true;
+    llvm::Module* lookupMod = Builder->GetInsertBlock() ? Builder->GetInsertBlock()->getModule() : currentModule;
+    if (!isGlobal && lookupMod) {
+        const std::string prefix = structName + ".constructor";
+        // Prefer the overload whose parameter types equal the argument types (`Buf(int)` vs `Buf(Buf&)`);
+        // otherwise the first one with the right arity.
+        llvm::Function* arityMatch = nullptr;
+        for (llvm::Function& f : lookupMod->functions()) {
+            if (!f.getName().starts_with(prefix) || f.arg_size() != args.size() + 1) continue;
+            if (!arityMatch) arityMatch = &f;
+            bool exact = true;
+            for (size_t i = 0; i < args.size(); ++i) {
+                if (args[i] && args[i]->getType() != f.getFunctionType()->getParamType(static_cast<unsigned>(i + 1))) { exact = false; break; }
+            }
+            if (exact) { ctor = &f; break; }
+        }
+        if (!ctor) ctor = arityMatch;
+        if (!ctor && args.size() == structType->getNumElements()) {
+            for (llvm::Function& f : lookupMod->functions()) {
+                if (f.getName().starts_with(prefix) && f.arg_size() == 1) { ctor = &f; ctorTakesArgs = false; break; }
+            }
+        }
+    }
+
     size_t fieldCount = structType->getNumElements();
-    if (args.size() != fieldCount) {
-        console.reportError(Console::TYPE_ERROR, "Mismatch: struct '" + structName + "' expects " +
+    if (!ctor && args.size() != fieldCount) {
+         console.reportError(Console::TYPE_ERROR, "Mismatch: struct '" + structName + "' expects " +
                       std::to_string(fieldCount) + " fields, but got " +
                       std::to_string(args.size()) + " arguments.", FileSpan{});
         return nullptr;
@@ -143,7 +176,8 @@ llvm::Value* IRGenerator::createStructInstance(
             // Try to cast to constant directly
             auto* c = llvm::dyn_cast<llvm::Constant>(arg);
             if (!c) {
-                console.reportError(Console::TYPE_ERROR, "Non-constant used in global initializer for field " + std::to_string(i), FileSpan{});
+                console.reportError(Console::TYPE_ERROR, "Non-constant used in global initializer for field " + std::to_string(i) +
+                    " of '" + varName + "' (struct '" + structName + "', value type '" + debugType(arg->getType()) + "')", FileSpan{});
                 return nullptr;
             }
             
@@ -183,41 +217,64 @@ llvm::Value* IRGenerator::createStructInstance(
     llvm::IRBuilder<> entryBuilder(&entryBlock, entryBlock.begin());
     llvm::AllocaInst* localVar = entryBuilder.CreateAlloca(structType, nullptr, varName);
 
-    for (size_t i = 0; i < fieldCount; ++i) {
-        llvm::Value* fieldPtr = Builder->CreateStructGEP(structType, localVar, i, 
-                                                         varName + "_field" + std::to_string(i));
+    // Stores `args` into the fields (defaults / field initialisers).
+    auto storeFields = [&]() {
+        for (size_t i = 0; i < fieldCount; ++i) {
+            llvm::Value* fieldPtr = Builder->CreateStructGEP(structType, localVar, i, 
+                                                             varName + "_field" + std::to_string(i));
         
-        llvm::Value* valueToStore = args[i];
-        llvm::Type* expectedType = structType->getElementType(i);
+            llvm::Value* valueToStore = args[i];
+            llvm::Type* expectedType = structType->getElementType(i);
         
-        // If the argument is a pointer and we expect a value type, load it first
-        if (valueToStore->getType()->isPointerTy() && !expectedType->isPointerTy()) {
-            // In modern LLVM with opaque pointers, we need to specify the type to load
-            valueToStore = Builder->CreateLoad(expectedType, valueToStore, 
-                                              varName + "_load_field" + std::to_string(i));
-        }
-        
-        // A field initialiser may have another numeric width than the field (`P{ x: 1.0 }` with an f32 field,
-        // an i32 into an i64 field, ...). Convert instead of storing a mismatched type.
-        if (valueToStore->getType() != expectedType) {
-            llvm::Type* from = valueToStore->getType();
-            const std::string cname = varName + "_conv_field" + std::to_string(i);
-            if (from->isFloatingPointTy() && expectedType->isFloatingPointTy()) {
-                valueToStore = Builder->CreateFPCast(valueToStore, expectedType, cname);
-            } else if (from->isIntegerTy() && expectedType->isIntegerTy()) {
-                valueToStore = Builder->CreateIntCast(valueToStore, expectedType, from->getIntegerBitWidth() != 1, cname);
-            } else if (from->isIntegerTy() && expectedType->isFloatingPointTy()) {
-                valueToStore = Builder->CreateSIToFP(valueToStore, expectedType, cname);
-            } else if (from->isFloatingPointTy() && expectedType->isIntegerTy()) {
-                valueToStore = Builder->CreateFPToSI(valueToStore, expectedType, cname);
+            // If the argument is a pointer and we expect a value type, load it first
+            if (valueToStore->getType()->isPointerTy() && !expectedType->isPointerTy()) {
+                // In modern LLVM with opaque pointers, we need to specify the type to load
+                valueToStore = Builder->CreateLoad(expectedType, valueToStore, 
+                                                  varName + "_load_field" + std::to_string(i));
             }
-        }
+        
+            // A field initialiser may have another numeric width than the field (`P{ x: 1.0 }` with an f32 field,
+            // an i32 into an i64 field, ...). Convert instead of storing a mismatched type.
+            if (valueToStore->getType() != expectedType) {
+                llvm::Type* from = valueToStore->getType();
+                const std::string cname = varName + "_conv_field" + std::to_string(i);
+                if (from->isFloatingPointTy() && expectedType->isFloatingPointTy()) {
+                    valueToStore = Builder->CreateFPCast(valueToStore, expectedType, cname);
+                } else if (from->isIntegerTy() && expectedType->isIntegerTy()) {
+                    valueToStore = Builder->CreateIntCast(valueToStore, expectedType, from->getIntegerBitWidth() != 1, cname);
+                } else if (from->isIntegerTy() && expectedType->isFloatingPointTy()) {
+                    valueToStore = Builder->CreateSIToFP(valueToStore, expectedType, cname);
+                } else if (from->isFloatingPointTy() && expectedType->isIntegerTy()) {
+                    valueToStore = Builder->CreateFPToSI(valueToStore, expectedType, cname);
+                }
+            }
 
-        Builder->CreateStore(valueToStore, fieldPtr);
+            Builder->CreateStore(valueToStore, fieldPtr);
+        }
+    };
+
+    if (ctor) {
+        Builder->CreateStore(llvm::Constant::getNullValue(structType), localVar);
+        if (!ctorTakesArgs) storeFields();   // field defaults first, then the user's constructor body runs
+        std::vector<llvm::Value*> cargs{ localVar };
+        auto* fty = ctor->getFunctionType();
+        for (size_t i = 0; ctorTakesArgs && i < args.size(); ++i) {
+            llvm::Value* v = args[i];
+            llvm::Type* want = fty->getParamType(i + 1);
+            if (v->getType() != want) { v = generateCast(v, want); if (!v) return nullptr; }
+            cargs.push_back(v);
+        }
+        Builder->CreateCall(ctor, cargs);
+        registerDtorLocal(localVar, structType);
+        activeScope->set(varName, localVar);
+        return localVar;
     }
+
+    storeFields();
 
     DEBUG_LOG("Created local struct instance: " + varName);
     activeScope->set(varName, localVar);
+    registerDtorLocal(localVar, structType);   // a struct with ~destructor() but no constructor is still destroyed at scope end
     return localVar;
 }
 

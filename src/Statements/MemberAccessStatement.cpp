@@ -20,6 +20,7 @@
 #include <omniscript/omniscript_pch.h>
 #include <omniscript/Symboltable.h>
 #include <omniscript/Expressions/EntityExpressions.h>
+#include <omniscript/Expressions/NullableExpressions.h>   // NEW: NullableValueExpression, NullableValueOrExpression
 
 namespace Omniscript {
 
@@ -174,6 +175,25 @@ std::shared_ptr<Expression> MemberAccess::express(SymbolTableType scope) {
     
     if (!baseExpr) {
         return nullptr;
+    }
+
+    // `T?` intrinsics: `.value` and `.valueOr(d)`. These must be handled before the struct-field and
+    // method paths below, which unwrap to T and would look up "<null>.value" / "<null>.valueOr".
+    if (auto nullable = std::dynamic_pointer_cast<NullableType>(baseExpr->getType())) {
+        if (memberName == "value" && !isMethodCall() && arguments.empty() && !assignmentValue) {
+            auto valueExpr = std::make_shared<NullableValueExpression>(baseExpr, nullable->innerType);
+            valueExpr->setSpan(getSpan());
+            this->type = nullable->innerType;
+            return valueExpr;
+        }
+        if (memberName == "valueOr" && arguments.size() == 1 && !assignmentValue) {
+            auto fallback = arguments[0]->express(scope);
+            if (!fallback) return nullptr;
+            auto orExpr = std::make_shared<NullableValueOrExpression>(baseExpr, fallback, nullable->innerType);
+            orExpr->setSpan(getSpan());
+            this->type = nullable->innerType;
+            return orExpr;
+        }
     }
     
     DEBUG_LOG("Base type name: " + baseTypeName + " (from '" +
@@ -562,6 +582,10 @@ MemberAccess::findVariableInScope(SymbolTableType scope, const std::string& varN
 }
 
 std::string MemberAccess::extractTypeName(std::shared_ptr<Type> type) {
+    // `o: Buf&` names the same struct as its referent: look through references first.
+    while (type && type->isReference()) type = type->getReferencedType();
+    if (!type) return "<null>";
+
     auto pointee = type->getBasePointeeType();
 
     // NEW: on-demand instantiation. When the base expression's type is a

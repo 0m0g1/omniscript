@@ -2,12 +2,12 @@
 #include <cstdio>
 #include <variant>
 #include <omniscript/Statements/Statement.h>
+#include <omniscript/Statements/NewStatement.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/LiteralStatements.h>
 #include <omniscript/Statements/ExpressionStatements.h>
 #include <omniscript/Statements/ObjectLiteralStatement.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
-
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Parser.h>
@@ -400,10 +400,40 @@ std::shared_ptr<Statement> Parser::factor() {
         }
     }
 
-    else if (currentToken.getType() == TokenTypes::Identifier || currentToken.getType() == TokenTypes::New) {
-        if (currentToken.getType() == TokenTypes::New) {
-            eat(TokenTypes::New);
+    else if (currentToken.getType() == TokenTypes::New) {
+        eat(TokenTypes::New);
+        // `new(arena) T(args)`: allocate from an arena instead of the heap
+        std::shared_ptr<Statement> newAllocator;
+        if (currentToken.getType() == TokenTypes::LeftParen) {
+            eat(TokenTypes::LeftParen);
+            newAllocator = parseExpression();
+            eat(TokenTypes::RightParen, "Expected ')' after the allocator of 'new'.");
         }
+        std::string typeName = currentToken.getValue();
+        eat(TokenTypes::Identifier, "Expected a type name after 'new'.");
+        while (currentToken.getType() == TokenTypes::Dot) {
+            eat(TokenTypes::Dot);
+            typeName += "." + currentToken.getValue();
+            eat(TokenTypes::Identifier, "Expected a type name after '.'.");
+        }
+        // `new T[count](args)`: an array of `count` elements, each constructed with the same arguments
+        std::shared_ptr<Statement> newCount;
+        if (currentToken.getType() == TokenTypes::LeftBracket) {
+            eat(TokenTypes::LeftBracket);
+            newCount = parseExpression();
+            eat(TokenTypes::RightBracket, "Expected ']' after the element count of 'new'.");
+        }
+        std::vector<std::shared_ptr<Statement>> newArgs;
+        if (currentToken.getType() == TokenTypes::LeftParen)
+            newArgs = parseArguments();
+        else if (currentToken.getType() == TokenTypes::LeftBrace)
+            newArgs = parseArguments(TokenTypes::LeftBrace, TokenTypes::RightBrace, TokenTypes::Colon);
+        auto newStmt = std::make_shared<NewStatement>(typeName, newArgs, newCount);
+        newStmt->allocator = newAllocator;
+        left = newStmt;
+    }
+
+    else if (currentToken.getType() == TokenTypes::Identifier) {
         left = parseIdentifier();
         DEBUG_LOG("Parsed the identifier and got " + left->toString() + "'.");
     }

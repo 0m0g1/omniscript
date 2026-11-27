@@ -284,19 +284,6 @@ std::shared_ptr<Expression> Call::express(SymbolTableType scope) {
         called = findCallable(callee, scope);
     }
     if (!called) {
-        std::string suggestion = Console::formatString(
-            "To resolve this:\n"
-            "1. Verify function '%s' is defined\n"
-            "2. Check for correct scope or namespace\n"
-            "3. Ensure proper import or module inclusion",
-            callee.c_str()
-        );
-        console.reportError(
-            Console::SEMANTIC_ERROR,
-            Console::formatString("Callable '%s' not found in scope '%s'", 
-                callee.c_str(), scope->getName().c_str()),
-            suggestion
-        );
         return nullptr;
     }
     
@@ -385,6 +372,49 @@ std::shared_ptr<Expression> Call::express(SymbolTableType scope) {
     }
     
     auto parameters = callable->cloneParameters();
+
+    // `let a = T(args)` on a struct that declares constructors: bind the arguments to the matching
+    // constructor's parameters. Binding them to the struct's FIELDS only works when a constructor
+    // happens to take the same types as the fields (`Res(n: char*)` over `name: char*`), and fails for
+    // `Buf(n: int)` over `data: u8*`. With no matching constructor the field binding below still applies.
+    if (std::dynamic_pointer_cast<StructExpression>(called) && !args.empty()) {
+        std::vector<std::shared_ptr<Expression>> ctorOverloads = scope->getOverloads(evaluatedCallee + ".constructor");
+        if (ctorOverloads.empty() && callee != evaluatedCallee) ctorOverloads = scope->getOverloads(callee + ".constructor");
+        if (!ctorOverloads.empty()) {
+            auto evaluatedArgs = evaluateArguments(scope);
+            if (evaluatedArgs.size() == args.size()) {
+                std::shared_ptr<FunctionExpression> best;
+                bool bestIsExact = false;
+                for (const auto& o : ctorOverloads) {
+                    auto fe = std::dynamic_pointer_cast<FunctionExpression>(o);
+                    if (!fe) continue;
+                    auto ps = fe->cloneParameters();
+                    if (!ps.empty() && ps.front() && ps.front()->getName() == "this") ps.erase(ps.begin());
+                    if (ps.size() != evaluatedArgs.size()) continue;
+                    bool ok = true, exact = true;
+                    for (size_t i = 0; i < ps.size(); ++i) {
+                        auto at = evaluatedArgs[i] ? evaluatedArgs[i]->getType() : nullptr;
+                        auto pt = ps[i] ? ps[i]->getType() : nullptr;
+                        if (!at || !pt) { ok = false; break; }
+                        if (at->toString() != pt->toString()) {
+                            exact = false;
+                            if (!Type::isSameOrCastableTo(at, pt)) { ok = false; break; }
+                        }
+                    }
+                    if (!ok) continue;
+                    if (!best || (exact && !bestIsExact)) { best = fe; bestIsExact = exact; }
+                    if (exact) break;
+                }
+                if (best) {
+                    DEBUG_LOG("[Call] Binding the arguments of '" + callee + "' to its constructor parameters.");
+                    parameters = best->cloneParameters();
+                    if (!parameters.empty() && parameters.front() && parameters.front()->getName() == "this")
+                        parameters.erase(parameters.begin());
+                }
+            }
+        }
+    }
+
     type = callable->getType();
     if (type->isFunction()) {
         DEBUG_LOG("The function's return type is '" + type->getReturnType()->toString() + "'.");
@@ -1667,6 +1697,18 @@ std::shared_ptr<Expression> Call::createCallExpression(
     }
     
     instanceConstructor->setSpan(this->getSpan());
+
+    // `let r = T(args)` is parsed as a Call carrying the instance name. Register it here, in the
+    // enclosing scope, or later uses of `r` fail with "Symbol 'r' could not be resolved".
+    if (!instanceName.empty()) {
+        // localScope is the temporary "call_<callee>" child scope used for argument processing;
+        // the variable must live in its parent, the scope the `let` appears in.
+        auto scope = localScope->getParent() ? localScope->getParent() : localScope;
+        if (!instanceConstructor->type || instanceConstructor->type->isInvalid()) {
+            if (auto t = scope->getType(evaluatedCallee)) instanceConstructor->type = t;
+        }
+        scope->setVariable(instanceName, instanceConstructor);
+    }
     return instanceConstructor;
 }
 

@@ -239,6 +239,11 @@ llvm::Value* IRGenerator::assignVariable(
                     for (const auto& elem : arrayLit->elements) {
                         auto* val = llvm::dyn_cast_or_null<llvm::Constant>(codegen(elem, scope));
                         if (!val) {
+                            if (auto* bb = Builder->GetInsertBlock()) {
+                                DEBUG_LOG("getVariable miss '" + name + "' in " + bb->getParent()->getName().str());
+                                console.reportError(Console::RUNTIME_ERROR,
+                                    "Lookup of '" + name + "' failed inside function '" + bb->getParent()->getName().str() + "'", FileSpan{});
+                            }
                             std::string suggestion = Console::formatString(
                                 "To resolve this:\n"
                                 "1. Ensure array elements for '%s' are constant expressions\n"

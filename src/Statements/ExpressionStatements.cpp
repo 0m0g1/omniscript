@@ -558,6 +558,8 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
         );
     }
     
+    if (!leftValue || !rightValue) return nullptr;
+    
     if (rightType->isNull() && leftType->isNullable()) {
         if (auto varAccess = std::dynamic_pointer_cast<VariableAccessExpression>(leftValue)) {
             varAccess->extractValue = false;

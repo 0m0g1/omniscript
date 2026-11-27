@@ -101,6 +101,8 @@ class Parser {
         std::shared_ptr<Statement> parseSwitch();              // switch (x) { case v: ... default: ... }
         std::shared_ptr<Statement> parseReturnStatement();
         std::shared_ptr<Statement> parseDelete();               // delete p;  
+        std::shared_ptr<Statement> parseDefer();                // defer <statement>;  /  defer { }  (contextual keyword)
+        std::shared_ptr<Statement> parseArena();                // arena a { ... }  (contextual keyword)
         bool isAssignmentExpression(TokenTypes tokenType);
         std::shared_ptr<Statement> parseAssignment(std::shared_ptr<Statement> assignee = nullptr);          
         std::shared_ptr<Statement> parseAssignment(parameterType paramType);      

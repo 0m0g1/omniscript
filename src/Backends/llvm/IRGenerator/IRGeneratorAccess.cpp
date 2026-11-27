@@ -242,6 +242,7 @@ llvm::Value* IRGenerator::handleMemberAccess(
         // would be written into the field).
         if ((currentType->isStructTy() || currentType->isArrayTy()) &&
             valueToStore->getType()->isPointerTy()) {
+            if (currentType->isStructTy()) unregisterDtorLocal(valueToStore);   // moved into the field
             valueToStore = Builder->CreateLoad(currentType, valueToStore);
         }
         if (valueToStore->getType() != currentType) {
@@ -350,6 +351,7 @@ llvm::Value* IRGenerator::handleArrowAccess(
         // Aggregates are passed as addresses; load before storing into an aggregate field
         if ((fieldType->isStructTy() || fieldType->isArrayTy()) &&
             valueToStore->getType()->isPointerTy()) {
+            if (fieldType->isStructTy()) unregisterDtorLocal(valueToStore);   // moved into the field
             valueToStore = Builder->CreateLoad(fieldType, valueToStore);
         } else if (valueToStore->getType() != fieldType) {
             valueToStore = generateCast(valueToStore, fieldType);
@@ -571,6 +573,7 @@ llvm::Value* IRGenerator::handleIndexAccess(
         }
         
         if (isAggregate && valueToStore->getType()->isPointerTy()) {
+            if (elemTy->isStructTy()) unregisterDtorLocal(valueToStore);   // moved into the element
             valueToStore = Builder->CreateLoad(elemTy, valueToStore);
         } else if (valueToStore->getType() != elemTy) {
             valueToStore = generateCast(valueToStore, elemTy);

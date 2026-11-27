@@ -14,15 +14,19 @@ namespace Omniscript {
 class DeleteStatement : public TypedStatement, public ASTExpression {
     friend class GenericInstantiator;   // generic body substitution must rewrite the operand
     std::shared_ptr<Statement> operand;
+    bool isArray = false;   // `delete[] p;`
 public:
-    explicit DeleteStatement(std::shared_ptr<Statement> operand) : operand(std::move(operand)) {}
+    explicit DeleteStatement(std::shared_ptr<Statement> operand, bool isArray = false)
+        : operand(std::move(operand)), isArray(isArray) {}
 
     const std::shared_ptr<Statement>& getOperand() const { return operand; }
 
     std::shared_ptr<Expression> express(SymbolTableType scope) override;
 
+    bool getIsArray() const { return isArray; }
+
     std::string toString() const override {
-        return "delete " + (operand ? operand->toString() : std::string("<null>"));
+        return std::string(isArray ? "delete[] " : "delete ") + (operand ? operand->toString() : std::string("<null>"));
     }
 
     std::string formatError(const std::string& msg) const override {
@@ -30,7 +34,7 @@ public:
     }
 
     std::shared_ptr<Statement> clone() const override {
-        auto copy = std::make_shared<DeleteStatement>(operand ? operand->clone() : nullptr);
+        auto copy = std::make_shared<DeleteStatement>(operand ? operand->clone() : nullptr, isArray);
         copy->setSpan(getSpan());
         return copy;
     }

@@ -16,6 +16,8 @@
 #include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Expressions/AssignmentExpression.h>
 #include <omniscript/Expressions/ControlFlowExpressions.h>
+#include <omniscript/Expressions/NullableExpressions.h>
+
 namespace Omniscript { std::string canonicalTypeName(const std::string& name); }
 
 namespace Omniscript {
@@ -42,6 +44,31 @@ static llvm::Function* defineAtomicIntrinsic(
 ) {
     const std::string intrinsicPrefix = "intrinsic_";
     if (intrinsicName.rfind(intrinsicPrefix, 0) == 0) intrinsicName = intrinsicName.substr(intrinsicPrefix.size());
+    // `intrinsic fn call_ptr1(f: void*, obj: void*) => void;` calls the function pointer `f` with one pointer
+    // argument (used by Arena.destroy to run recorded destructors; OmniScript has no indirect calls).
+    if (mod && intrinsicName == "call_ptr1") {
+        if (paramTys.size() != 2 || !retTy->isVoidTy()) {
+            console.reportError(Console::SEMANTIC_ERROR,
+                "Intrinsic 'call_ptr1' must be declared as (f: void*, obj: void*) => void", FileSpan{});
+            return nullptr;
+        }
+        llvm::Function* fn = mod->getFunction(mangledName);
+        if (fn && !fn->empty()) return fn;   // already defined
+        if (!fn) {
+            auto* fnTy = llvm::FunctionType::get(retTy, paramTys, false);
+            fn = llvm::Function::Create(fnTy, llvm::GlobalValue::InternalLinkage, mangledName, mod);
+        }
+        llvm::LLVMContext& cctx = mod->getContext();
+        auto* centry = llvm::BasicBlock::Create(cctx, "entry", fn);
+        llvm::IRBuilder<> cb(centry);
+        auto cit = fn->arg_begin();
+        llvm::Value* target = &*cit++;
+        llvm::Value* obj = &*cit++;
+        auto* calleeTy = llvm::FunctionType::get(llvm::Type::getVoidTy(cctx), { llvm::PointerType::getUnqual(cctx) }, false);
+        cb.CreateCall(calleeTy, target, { obj });
+        cb.CreateRetVoid();
+        return fn;
+    }
     const std::string atomicPrefix = "atomic_";
     if (!mod || intrinsicName.rfind(atomicPrefix, 0) != 0) return nullptr;
 
@@ -285,6 +312,17 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
 
     if (result) {
         return result;
+    }
+
+    if (auto nv = std::dynamic_pointer_cast<NullableValueExpression>(value)) {
+        llvm::Value* opt = codegen(nv->optional, scope);
+        return opt ? createNullableValue(opt) : nullptr;
+    }
+
+    if (auto nvo = std::dynamic_pointer_cast<NullableValueOrExpression>(value)) {
+        llvm::Value* opt = codegen(nvo->optional, scope);
+        llvm::Value* fallback = codegen(nvo->fallback, scope);
+        return (opt && fallback) ? createNullableValueOr(opt, fallback) : nullptr;
     }
 
     if (auto so = std::dynamic_pointer_cast<SizeOfExpression>(value)) {
@@ -827,6 +865,53 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
             }
         }
 
+        // Pointer arithmetic is decided here, from the Omniscript types: the LLVM values are opaque
+        // `ptr`s and cannot tell `char* + int` (valid) from `char* + char*` (a type error).
+        {
+            const TokenTypes bop = binary->op.getType();
+            const bool isArith = bop == TokenTypes::Plus || bop == TokenTypes::Minus ||
+                                 bop == TokenTypes::Multiply || bop == TokenTypes::Divide ||
+                                 bop == TokenTypes::Modulo;
+            auto lt = binary->left->getType();
+            auto rt = binary->right->getType();
+            const bool lPtr = lt && lt->isPointer();
+            const bool rPtr = rt && rt->isPointer();
+            if (isArith && (lPtr || rPtr)) {
+                auto isInt = [](llvm::Value* v) {
+                    return v->getType()->isIntegerTy() && v->getType()->getIntegerBitWidth() > 1;
+                };
+                auto elemTypeOf = [&](const std::shared_ptr<Type>& pt) -> llvm::Type* {
+                    llvm::Type* e = resolveLLVMType(pt->getPointeeType());
+                    // void* / unresolved pointees step by bytes
+                    return (!e || e->isVoidTy()) ? llvm::Type::getInt8Ty(*Context) : e;
+                };
+                if (bop == TokenTypes::Plus && lPtr && !rPtr && isInt(rhs)) {
+                    return Builder->CreateGEP(elemTypeOf(lt), lhs, rhs, "ptradd");
+                }
+                if (bop == TokenTypes::Plus && rPtr && !lPtr && isInt(lhs)) {
+                    return Builder->CreateGEP(elemTypeOf(rt), rhs, lhs, "ptradd");
+                }
+                if (bop == TokenTypes::Minus && lPtr && !rPtr && isInt(rhs)) {
+                    return Builder->CreateGEP(elemTypeOf(lt), lhs, Builder->CreateNeg(rhs, "ptroff"), "ptrsub");
+                }
+                if (bop == TokenTypes::Minus && lPtr && rPtr && lt->toString() == rt->toString()) {
+                    llvm::Module* m = currentModule ? &*currentModule : &*Module;
+                    llvm::Type* i64 = llvm::Type::getInt64Ty(*Context);
+                    llvm::Type* elem = elemTypeOf(lt);
+                    uint64_t sz = m->getDataLayout().getTypeAllocSize(elem).getFixedValue();
+                    if (sz == 0) sz = 1;
+                    llvm::Value* diff = Builder->CreateSub(Builder->CreatePtrToInt(lhs, i64), Builder->CreatePtrToInt(rhs, i64), "ptrdiff");
+                    return Builder->CreateSDiv(diff, llvm::ConstantInt::get(i64, sz), "ptrdiff.elems");
+                }
+                console.reportError(Console::TYPE_ERROR,
+                    "Operator '" + binary->op.getValue() + "' is not defined for '" + (lt ? lt->toString() : std::string("?")) +
+                    "' and '" + (rt ? rt->toString() : std::string("?")) +
+                    "'. Pointers support: pointer +/- integer, and pointer - pointer of the same type.",
+                    binary->getSpan());
+                return nullptr;
+            }
+        }
+
         bool uns = isUnsignedOmniType(binary->left->getType()) || isUnsignedOmniType(binary->right->getType());
         return createBinaryExpression(lhs, binary->op.getType(), rhs, uns);
     }
@@ -1123,9 +1208,17 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         return createStringTemplate(value, scope);
     }
 
-    if (auto delExpr = std::dynamic_pointer_cast<DeleteExpression>(value)) {
-        DEBUG_LOG("Creating a delete statement");
+    if (auto newExpr = std::dynamic_pointer_cast<NewExpression>(value)) {
+        return createNew(newExpr, scope);
+    }
+    if (auto delExpr = std::dynamic_pointer_cast<DeleteExpression>(value)) {   // already there
         return createDelete(delExpr, scope);
+    }
+
+    if (auto deferExpr = std::dynamic_pointer_cast<DeferExpression>(value)) {
+        DEBUG_LOG("Registering a deferred action");
+        registerDefer(deferExpr->action, scope);   // emitted at scope exit, not here
+        return nullptr;
     }
 
     if (std::dynamic_pointer_cast<BreakExpression>(value)) {

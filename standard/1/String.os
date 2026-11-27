@@ -2,9 +2,11 @@
 //!
 //! ## Ownership rules
 //!
-//! - A `String` owns its buffer. Call `free()` when you are done (there is no destructor or `defer` yet).
-//! - Never copy one `String` into another with `=`: that copies the pointer and double-frees.
-//!   Use `a.clone(&b)` instead.
+//! - A `String` owns its buffer and frees it in its destructor when it goes out of scope.
+//! - A `String` made with an `Arena` (`Str.String(a)`) takes its memory from the arena and never frees it;
+//!   the arena releases everything at once.
+//! - Passing a `String` by value runs the copy constructor (a deep copy into the same arena, or the heap).
+//!   Never assign one `String` to another with `=`: that copies the pointer. Use `a.clone(&b)`.
 //! - Methods that can fail return `bool`.
 //!
 //! ## Usage
@@ -14,8 +16,10 @@
 //! s.set("hello");
 //! s.append(", world");
 //! printf("%s (%llu bytes)\n", s.cstr(), s.length());
-//! s.free();
+//! // freed automatically at the end of the scope
 //! ```
+
+module A = import "standard/1/Arena.os";
 
 // ASSUMPTIONS (patch if the compiler rejects them): i64/u64 exist; pointer <-> u64 casts work;
 // `&x` on a `char*` gives `char**`; `&arr` on a [N]char array decays to `char*` via `as`.
@@ -47,6 +51,31 @@ struct String {
     len: u64 = 0;
     /// Allocated size in bytes, including room for the terminator.
     cap: u64 = 0;
+    /// The arena this string allocates from, or `nullptr` for the heap.
+    arena: A.Arena* = nullptr;
+
+    /// Makes an empty string that allocates from `a`.
+    constructor(a: A.Arena*) {
+        this.data = nullptr;
+        this.len = 0;
+        this.cap = 0;
+        this.arena = a;
+    }
+
+    /// Copy constructor: a deep copy into the same arena (or the heap when `o` is a heap string).
+    constructor(o: String&) {
+        this.data = nullptr;
+        this.len = 0;
+        this.cap = 0;
+        this.arena = o.arena;
+        // fields, not o.cstr(): a `String&` cannot be passed where a method expects `this: String*`
+        if (o.data != nullptr) this.appendN(o.data, o.len);
+    }
+
+    /// Frees the buffer. Arena strings own nothing, so there is nothing to free.
+    ~destructor() {
+        this.free();
+    }
 
     /// Makes room for `n` bytes plus the terminator, keeping the existing contents.
     /// Returns `false` if the allocation fails.
@@ -56,7 +85,14 @@ struct String {
         let newCap: u64 = this.cap;
         if (newCap == 0) newCap = 16;
         while (newCap < need) newCap = newCap * 2;
-        let p = realloc(this.data as void*, newCap);
+        let p: void* = nullptr;
+        if (this.arena != nullptr) {
+            // A bump allocator cannot grow in place: take a new block and copy.
+            p = this.arena.alloc(newCap);
+            if (p != nullptr && this.data != nullptr) memcpy(p, this.data as void*, this.len + 1);
+        } else {
+            p = realloc(this.data as void*, newCap);
+        }
         if (p == nullptr) return false;
         this.data = p as char*;
         this.cap = newCap;
@@ -66,7 +102,7 @@ struct String {
 
     /// Releases the buffer and resets the string to empty. Call this when you are done with it.
     free() => void {
-        if (this.data != nullptr) free(this.data as void*);
+        if (this.arena == nullptr && this.data != nullptr) free(this.data as void*);
         this.data = nullptr;
         this.len = 0;
         this.cap = 0;
@@ -236,6 +272,7 @@ struct String {
         let flen = strlen(find);
         if (flen == 0) return false;
         let result: String;
+        result.arena = this.arena;
         let ok: bool = true;
         let cur: char* = this.cstr();
         let done: bool = false;
@@ -250,14 +287,14 @@ struct String {
                 cur = &p[flen];
             }
         }
-        if (!ok) {
-            result.free();
-            return false;
-        }
-        if (this.data != nullptr) free(this.data as void*);
+        if (!ok) return false;   // `result` frees itself at scope exit
+        if (this.arena == nullptr && this.data != nullptr) free(this.data as void*);
         this.data = result.data;
         this.len = result.len;
         this.cap = result.cap;
+        result.data = nullptr;   // ownership moved: stop `result` from freeing the buffer
+        result.len = 0;
+        result.cap = 0;
         return true;
     }
 }

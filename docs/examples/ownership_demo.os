@@ -104,6 +104,7 @@ function sec6() => void {
 
 /* NOT YET SUPPORTED: needs the `delete` statement (parse error today) -- uncomment when implemented
 // 7. new / delete: constructor runs on new, destructor on delete, struct defaults run on the heap
+*/
 struct Pt { x: int = 7; y: int = 9; }
 function sec7() => void {
     let p: Res* = new Res("heap");               // [NEW]
@@ -115,10 +116,10 @@ function sec7() => void {
 }
 // want: +heap used -heap 16
 
-*/
 
 /* NOT YET SUPPORTED BY THE PARSER -- uncomment when implemented
 // 8. arrays: new T[n] / delete[]
+*/
 function sec8() => void {
     let arr: Res* = new Res[2]("z");             // [NEW] constructs 2 elements with the same argument
     t("arr ");
@@ -126,10 +127,10 @@ function sec8() => void {
 }
 // want: +z +z arr -z -z
 
-*/
 
 /* NOT YET SUPPORTED: needs the `delete` statement (parse error today) -- uncomment when implemented
 // 9. freedom: aliasing is allowed, YOU decide who deletes. No lifetime checking.
+*/
 function sec9() => void {
     let p: Res* = new Res("shared");
     let alias: Res* = p;                         // two pointers, one object: fine
@@ -138,10 +139,10 @@ function sec9() => void {
 }
 // want: +shared shared -shared
 
-*/
 
 /* NOT YET SUPPORTED: needs the `delete` statement (parse error today) -- uncomment when implemented
 // 10. the one guard: copying a struct that has a destructor needs a copy constructor, otherwise the compiler refuses
+*/
 struct Buf {
     data: u8*; size: int;
     constructor(n: int) { this.size = n; this.data = new u8[n]; live = live + 1; t("+buf "); }
@@ -158,10 +159,10 @@ function sec10() => void {
 // COMPILE-ERROR TEST (uncomment to see the message): `struct NoCopy { ~NoCopy() {} }  let x = NoCopy(); let y = x;`
 //   expected: "NoCopy has a destructor: define a copy constructor, pass a pointer, or mark it [trivialCopy]"
 
-*/
 
 /* NOT YET SUPPORTED BY THE PARSER -- uncomment when implemented
 // 11. arenas: everything allocated inside is freed at once, destructors of arena objects run   [NEW]
+*/
 function sec11() => void {
     arena a {
         let s: Str.String(a);
@@ -172,18 +173,23 @@ function sec11() => void {
 }
 // want: +in-arena hello world -in-arena
 
-*/
 
+/* NOT YET SUPPORTED: StrView / view() do not exist (semantic error: Callable 'view' not found)
 // 12. string views: slicing and trimming do not allocate   [NEW]
+*/
+module SV = import "standard/1/StrView.os";
+
 function sec12() => void {
     let line: char* = "key = value";
-    let v: StrView = view(line);
+    let v: SV.StrView = SV.view(line);
     let eq: int = v.indexOf("=");
-    let key: StrView = v.slice(0, eq).trim();
-    let val: StrView = v.slice(eq + 1, v.len).trim();
-    if (key == "key" && val == "value") t("views-ok ");
+    let key: SV.StrView = v.slice(0, eq).trim();
+    let val: SV.StrView = v.slice(eq + 1, v.len).trim();
+    if (key.equalsC("key") && val.equalsC("value")) t("views-ok ");
 }
+
 // want: views-ok
+
 
 // 13. optionals: T? holds a value or nothing. Check, then .value   [NEW]
 function find(a: int, b: int, want: int) => int? {
@@ -241,12 +247,12 @@ function main() => int {
     sec4();  check("4  defer on early return",     "early close(7) ");
     sec5();  check("5  return local = move",       "+m got -m ");
     sec6();  check("6  members + list",            "+f1 +f2 +e filled -e ~Holder -f2 -f1 ");
-    // sec7();  check("7  new / delete / defaults",   "+heap used -heap 16 ");      // needs `delete`
-    // sec8();  check("8  new[] / delete[]",          "+z +z arr -z -z ");     // parser: `delete[]` not supported yet
-    // sec9();  check("9  aliasing is allowed",       "+shared shared -shared ");      // needs `delete`
-    // sec10(); check("10 copy constructor",          "+buf +copy -buf size=8 -buf ");      // needs `delete`
-    // sec11(); check("11 arena",                     "+in-arena hello world -in-arena ");   // parser: `arena` / `new(a)` not supported yet
-    sec12(); check("12 string views",              "views-ok ");
+    sec7();  check("7  new / delete / defaults",   "+heap used -heap 16 ");      // needs `delete`
+    sec8();  check("8  new[] / delete[]",          "+z +z arr -z -z ");     // parser: `delete[]` not supported yet
+    sec9();  check("9  aliasing is allowed",       "+shared shared -shared ");      // needs `delete`
+    sec10(); check("10 copy constructor",          "+buf +copy -buf size=8 -buf ");      // needs `delete`
+    sec11(); check("11 arena",                     "+in-arena hello world -in-arena ");   // parser: `arena` / `new(a)` not supported yet
+    sec12(); check("12 string views",              "views-ok ");      // needs StrView
     sec13(); check("13 optionals .value",          "found 9 missing default=0 no-res ");
     sec14(); check("14 lambda + interpolation",   "sum=6 twice=12 ");
     sec15(); check("15 raw malloc/free",           "3 ");

@@ -28,6 +28,8 @@
     #include <sys/stat.h>
 #endif
 
+namespace Omniscript { std::string canonicalTypeName(const std::string& name); }
+
 namespace Omniscript {
 void IRGenerator::createEntryFunction() {
     DEBUG_LOG("creating the entry function '__top_level'.");
@@ -315,6 +317,41 @@ llvm::Value* IRGenerator::createCall(
 
     // 4. Cast arguments if needed
     for (size_t i = 0; i < std::min(args.size(), fixedParams); ++i) {
+        // A struct passed by value that has a destructor must not be copied bit by bit (two owners of one
+        // resource). The argument arrives either as the object's address (aggregates evaluate to their
+        // address) or as a value loaded from a variable's slot (getVariable loads); both name the source.
+        if (auto* st = llvm::dyn_cast<llvm::StructType>(funcType->getParamType(i)); st && st->hasName()) {
+            llvm::Value* srcPtr = nullptr;
+            if (args[i]->getType()->isPointerTy()) {
+                srcPtr = args[i];
+            } else if (args[i]->getType() == st) {
+                if (auto* ld = llvm::dyn_cast<llvm::LoadInst>(args[i])) srcPtr = ld->getPointerOperand();
+            }
+            if (srcPtr && findDestructor(st->getName().str())) {
+                const bool isTemporary = srcPtr->getName().starts_with("__anonymous_") ||
+                                         srcPtr->getName().starts_with("__ctor_tmp_");
+                if (llvm::Function* copyCtor = findCopyConstructor(st->getName().str())) {
+                    if (isTemporary) {
+                        unregisterDtorLocal(srcPtr);   // moved into the callee, which destroys it
+                    } else {
+                        llvm::Function* fn = Builder->GetInsertBlock()->getParent();
+                        llvm::IRBuilder<> entry(&fn->getEntryBlock(), fn->getEntryBlock().begin());
+                        llvm::AllocaInst* copy = entry.CreateAlloca(st, nullptr, "byval.copy");
+                        Builder->CreateStore(llvm::Constant::getNullValue(st), copy);
+                        Builder->CreateCall(copyCtor, { copy, srcPtr });
+                        // Pass the copy in the same form the argument had; the callee destroys it.
+                        args[i] = args[i]->getType()->isPointerTy()
+                            ? static_cast<llvm::Value*>(copy)
+                            : Builder->CreateLoad(st, copy, "byval.arg");
+                    }
+                } else if (!isTemporary) {
+                    console.reportWarning(
+                        "'" + st->getName().str() + "' has a destructor: passing it by value copies it bit by bit. "
+                        "Define a copy constructor (`constructor(o: " + st->getName().str() + "&)`) or pass a pointer.",
+                        FileSpan{});
+                }
+            }
+        }
         if (args[i]->getType() != funcType->getParamType(i)) {
             args[i] = generateCast(args[i], funcType->getParamType(i));
             if (!args[i]) {
@@ -973,6 +1010,17 @@ llvm::Function* IRGenerator::registerFunction(
         currentModule
     );
 
+    // `T.constructor(this, o: T&)` is the copy constructor: by-value struct arguments are copied through it.
+    if (params.size() == 2 && params[1] && params[1]->getType() && params[1]->getType()->isReference()) {
+        const size_t ctorPos = name.find(".constructor");
+        if (ctorPos != std::string::npos) {
+            auto referent = std::dynamic_pointer_cast<UserDefinedType>(params[1]->getType()->getReferencedType());
+            if (referent && canonicalTypeName(referent->name) == canonicalTypeName(name.substr(0, ctorPos))) {
+                function->addFnAttr("os.copyctor");
+            }
+        }
+    }
+
     // Set parameter names
     unsigned idx = 0;
     bool foundArgsCount = false;
@@ -1099,6 +1147,14 @@ void IRGenerator::generateFunctionBody(
             llvm::AllocaInst* alloca = tmpBuilder.CreateAlloca(arg.getType(), nullptr, argName + ".addr");
             Builder->CreateStore(&arg, alloca);
             activeScope->set(argName, alloca);
+
+            // A by-value struct parameter owns its copy (createCall copied it through the copy constructor, or
+            // moved a temporary in), so the callee destroys it. Only structs that have both a destructor and a
+            // copy constructor: for the others the caller still owns the one real object.
+            if (auto* st = llvm::dyn_cast<llvm::StructType>(arg.getType()); st && st->hasName() &&
+                findDestructor(st->getName().str()) && findCopyConstructor(st->getName().str())) {
+                registerDtorLocal(alloca, st);
+            }
         }
 
         // Function-pointer parameters: register the callee's LLVM FunctionType under
@@ -1158,6 +1214,29 @@ void IRGenerator::generateFunctionBody(
         // - Insert one before the function epilogue if you have a single return.
     }
 
+
+    // A `<Struct>.destructor` also destroys the struct's members once its own body has run: first in
+    // reverse declaration order, after every local of the body. Entries run in reverse registration order,
+    // so registering the members now (before any body local) makes them run last. Registering them in the
+    // function-level scope also covers every `return` inside the destructor. emitDtors skips member types
+    // that have no destructor of their own.
+    {
+        const std::string fname = function->getName().str();
+        const size_t dpos = fname.find(".destructor");
+        const bool isDtor = dpos != std::string::npos
+            && (fname.size() == dpos + 11 || !std::isalnum(static_cast<unsigned char>(fname[dpos + 11])))
+            && function->arg_size() == 1 && function->getArg(0)->getName() == "this";
+        if (isDtor) {
+            if (auto* owner = llvm::StructType::getTypeByName(*Context, fname.substr(0, dpos))) {
+                for (unsigned i = 0; i < owner->getNumElements(); ++i) {
+                    auto* memberType = llvm::dyn_cast<llvm::StructType>(owner->getElementType(i));
+                    if (!memberType || !memberType->hasName()) continue;
+                    llvm::Value* memberPtr = Builder->CreateStructGEP(owner, function->getArg(0), i, "member.dtor");
+                    registerDtorLocal(memberPtr, memberType);
+                }
+            }
+        }
+    }
 
     // Generate function body
     llvm::Value* retVal = nullptr;

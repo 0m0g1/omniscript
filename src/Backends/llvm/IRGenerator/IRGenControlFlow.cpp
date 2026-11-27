@@ -1,6 +1,9 @@
 // src/Backends/llvm/IRGenerator/IRGenControlFlow.cpp
 #include <omniscript/Backends/LLVM/IRGenerator.h>
 #include <omniscript/Expressions/BlockExpression.h>
+#include <algorithm>
+
+namespace Omniscript { std::string canonicalTypeName(const std::string& name); }
 
 namespace Omniscript {
 llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* expectedReturnType) {
@@ -35,10 +38,10 @@ llvm::Value* IRGenerator::createReturn(llvm::Value* returnValue, llvm::Type* exp
         return nullptr;
     }
     
-    // Run destructors of every live local of this function before leaving it.
-    // (A returned value is already computed at this point; returning the address of a destructible
-    // local is not supported.)
-    emitDtors(dtorBase_);
+    llvm::Value* moved = nullptr;
+    if (auto* ld = llvm::dyn_cast_or_null<llvm::LoadInst>(returnValue)) moved = ld->getPointerOperand()->stripPointerCasts();
+    else if (llvm::isa_and_nonnull<llvm::AllocaInst>(returnValue)) moved = returnValue;
+    emitDtors(dtorBase_, moved);
 
     if (activeScope->get("va_list")) {
         llvm::Function* vaEndFunc = llvm::Intrinsic::getOrInsertDeclaration(Module.get(), llvm::Intrinsic::vaend);
@@ -354,19 +357,265 @@ void IRGenerator::registerDtorLocal(llvm::Value* alloca, llvm::Type* type) {
     if (dtorScopes_.empty() || !alloca) return;
     auto* st = llvm::dyn_cast_or_null<llvm::StructType>(type);
     if (!st || !st->hasName()) return;
+    // The same local can be registered from more than one codegen path: never destroy it twice.
+    for (const auto& scopeLocals : dtorScopes_)
+        for (const auto& e : scopeLocals)
+            if (e.ptr && e.ptr->stripPointerCasts() == alloca->stripPointerCasts()) return;
     dtorScopes_.back().push_back({alloca, st->getName().str()});
 }
 
-void IRGenerator::emitDtors(size_t fromDepth) {
+// The copy constructor is `T.constructor(this, o: T&)`. A reference is an opaque `ptr`, so it cannot be told
+// apart from `constructor(p: SomeType*)` by its LLVM signature: registerFunction marks it "os.copyctor".
+llvm::Function* IRGenerator::findCopyConstructor(const std::string& structName) {
+    llvm::Module* mod = currentModule ? &*currentModule : &*Module;
+    if (!mod) return nullptr;
+    const std::string prefix = structName + ".constructor";
+    for (llvm::Function& f : mod->functions())
+        if (f.arg_size() == 2 && f.hasFnAttribute("os.copyctor") && f.getName().starts_with(prefix)) return &f;
+    return nullptr;
+}
+
+// `member = Temp(...)` / `arr[i] = local` moves the object into its new owner, which destroys it.
+// Drop the source from the scope-exit list so it is not destroyed twice.
+void IRGenerator::unregisterDtorLocal(llvm::Value* ptr) {
+    if (!ptr) return;
+    llvm::Value* target = ptr->stripPointerCasts();
+    for (auto& scopeLocals : dtorScopes_) {
+        scopeLocals.erase(std::remove_if(scopeLocals.begin(), scopeLocals.end(),
+            [&](const DtorLocal& e) { return e.ptr && !e.deferred && e.ptr->stripPointerCasts() == target; }),
+            scopeLocals.end());
+    }
+}
+
+// Destructors are emitted with a mangled suffix, like constructors (see createStructInstance),
+// so an exact getFunction("<Struct>.destructor") misses them. Match by prefix and require the
+// single `this` parameter.
+llvm::Function* IRGenerator::findDestructor(const std::string& structName) {
+    llvm::Module* mod = currentModule ? &*currentModule : &*Module;
+    if (!mod) return nullptr;
+    const std::string exact = structName + ".destructor";
+    if (auto* f = mod->getFunction(exact); f && f->arg_size() == 1) return f;
+    for (llvm::Function& f : mod->functions())
+        if (f.arg_size() == 1 && f.getName().starts_with(exact)) return &f;
+    return nullptr;
+}
+
+void IRGenerator::emitDtors(size_t fromDepth, llvm::Value* skip) {
     if (!Module || !Builder->GetInsertBlock() || currentBlockHasTerminator()) return;
     for (size_t s = dtorScopes_.size(); s-- > fromDepth;) {
-        auto& locals = dtorScopes_[s];
-        for (size_t i = locals.size(); i-- > 0;) {          // reverse declaration order
-            llvm::Function* dtor = Module->getFunction(locals[i].structName + ".destructor");
-            if (!dtor || dtor->arg_size() != 1) continue;   // type has no destructor
-            Builder->CreateCall(dtor, { locals[i].ptr });
+        for (size_t i = dtorScopes_[s].size(); i-- > 0;) {  // reverse declaration order
+            // Copy the entry: emitting a deferred action can register more locals and grow the vectors.
+            DtorLocal entry = dtorScopes_[s][i];
+            if (skip && entry.ptr && entry.ptr->stripPointerCasts() == skip) continue;
+            if (entry.deferred) {                           // `defer`: runs in order with the destructors
+                if (currentBlockHasTerminator()) return;
+                codegen(entry.deferred, entry.deferScope);
+                continue;
+            }
+            llvm::Function* dtor = findDestructor(entry.structName);
+            if (!dtor) continue;   // type has no destructor
+            Builder->CreateCall(dtor, { entry.ptr });
         }
     }
+}
+
+void IRGenerator::registerDefer(const std::shared_ptr<Expression>& action, SymbolTableType scope) {
+    if (!action) return;
+    if (dtorScopes_.empty()) {
+        console.reportError(
+            Console::SEMANTIC_ERROR,
+            "defer outside of a function",
+            "To resolve this:\n"
+            "1. Use defer inside a function body, loop body or if branch",
+            action->getSpan()
+        );
+        return;
+    }
+    DtorLocal entry;
+    entry.deferred = action;
+    entry.deferScope = scope;
+    dtorScopes_.back().push_back(std::move(entry));
+}
+
+// Finds a function whose name starts with `prefix` and that takes `nparams` parameters (methods carry a
+// mangled suffix, like destructors; see findDestructor).
+static llvm::Function* findFnByPrefix(llvm::Module* mod, const std::string& prefix, unsigned nparams) {
+    if (!mod) return nullptr;
+    if (auto* f = mod->getFunction(prefix); f && f->arg_size() == nparams) return f;
+    // `Arena.alloc` may be emitted as `A.Arena.alloc` (import alias) and with a mangled suffix:
+    // accept the name at the start or right after a '.'.
+    for (llvm::Function& f : mod->functions()) {
+        if (f.arg_size() != nparams) continue;
+        const std::string n = f.getName().str();
+        size_t pos = n.find(prefix);
+        while (pos != std::string::npos) {
+            if (pos == 0 || n[pos - 1] == '.') return &f;
+            pos = n.find(prefix, pos + 1);
+        }
+    }
+    return nullptr;
+}
+
+llvm::Value* IRGenerator::createNew(const std::shared_ptr<NewExpression>& nw, SymbolTableType scope) {
+    if (!nw || !Builder->GetInsertBlock() || currentBlockHasTerminator()) return nullptr;
+    llvm::Module* mod = currentModule ? &*currentModule : &*Module;
+    llvm::LLVMContext& ctx = *Context;
+    llvm::Type* i64 = llvm::Type::getInt64Ty(ctx);
+    llvm::Type* ptrTy = llvm::PointerType::getUnqual(ctx);
+    llvm::FunctionCallee mallocFn = mod->getOrInsertFunction("malloc", llvm::FunctionType::get(ptrTy, { i64 }, false));
+
+    // `new(a) T`: memory comes from `Arena.alloc(a, n)` (zeroed) instead of malloc; objects whose type has a
+    // destructor are recorded with `Arena.record(a, obj, dtor)` so the arena can destroy them in reverse.
+    llvm::Value* arenaV = nullptr;
+    llvm::Function* arenaAlloc = nullptr;
+    llvm::Function* arenaRecord = nullptr;
+    if (nw->allocator) {
+        arenaV = codegen(nw->allocator, scope);
+        if (!arenaV) return nullptr;
+        arenaAlloc = findFnByPrefix(mod, "Arena.alloc", 2);
+        arenaRecord = findFnByPrefix(mod, "Arena.record", 3);
+        if (!arenaAlloc || !arenaRecord) {
+            std::string seen;
+            int shown = 0;
+            for (llvm::Function& f : mod->functions())
+                if (f.getName().contains("Arena") && shown++ < 12) seen += "\n  " + f.getName().str() + " (" + std::to_string(f.arg_size()) + " params)";
+            console.reportError(Console::SEMANTIC_ERROR, "new(...): Arena.alloc / Arena.record were not found",
+                "To resolve this:\n1. Import standard/1/Arena.os (String.os imports it already)\n"
+                "Functions with 'Arena' in their name:" + (seen.empty() ? std::string("\n  (none)") : seen), nw->getSpan());
+            return nullptr;
+        }
+    }
+    auto rawAlloc = [&](llvm::Value* bytes) -> llvm::Value* {
+        if (!arenaAlloc) return Builder->CreateCall(mallocFn, { bytes }, "new.raw");
+        return Builder->CreateCall(arenaAlloc, { arenaV, bytes }, "new.araw");
+    };
+
+    // `new u8[n]` / `new int[n]`: raw zeroed storage with no header, so a plain `delete p` and
+    // `delete[] p` both free it. Only arrays of structs carry the count header (see below).
+    if (nw->count && nw->type) {
+        if (auto pointee = nw->type->getPointeeType()) {
+            llvm::Type* elemLL = resolveLLVMType(pointee);
+            if (elemLL && !elemLL->isStructTy() && elemLL->isSized()) {
+                llvm::Value* countV = codegen(nw->count, scope);
+                if (!countV) return nullptr;
+                if (!countV->getType()->isIntegerTy()) {
+                    console.reportError(Console::TYPE_ERROR, "new '" + nw->allocTypeName + "[...]': the element count must be an integer",
+                                        nw->getSpan());
+                    return nullptr;
+                }
+                countV = Builder->CreateIntCast(countV, i64, true, "new.count");
+                uint64_t elemSize = mod->getDataLayout().getTypeAllocSize(elemLL).getFixedValue();
+                if (elemSize == 0) elemSize = 1;
+                llvm::Value* bytes = Builder->CreateMul(countV, llvm::ConstantInt::get(i64, elemSize), "new.bytes");
+                llvm::Value* raw = rawAlloc(bytes);
+                if (!raw) return nullptr;
+                Builder->CreateMemSet(raw, llvm::ConstantInt::get(llvm::Type::getInt8Ty(ctx), 0), bytes, llvm::MaybeAlign(1));
+                return raw;
+            }
+        }
+    }
+
+    llvm::StructType* st = nullptr;
+    std::vector<std::string> names = { nw->allocTypeName, canonicalTypeName(nw->allocTypeName) };
+    if (size_t d = nw->allocTypeName.rfind('.'); d != std::string::npos) names.push_back(nw->allocTypeName.substr(d + 1));
+    for (const auto& n : names) {
+        if (auto* t = llvm::dyn_cast_or_null<llvm::StructType>(activeScope->getType(n))) { st = t; break; }
+        if (auto* t = llvm::StructType::getTypeByName(ctx, n)) { st = t; break; }
+    }
+    if (!st || !st->isSized()) {
+        console.reportError(Console::TYPE_ERROR, "new: unknown or unsized type '" + nw->allocTypeName + "'", nw->getSpan());
+        return nullptr;
+    }
+    if (nw->members.size() != st->getNumElements()) {
+        console.reportError(Console::TYPE_ERROR, "new '" + nw->allocTypeName + "': expected " +
+            std::to_string(st->getNumElements()) + " field values, got " + std::to_string(nw->members.size()), nw->getSpan());
+        return nullptr;
+    }
+
+    uint64_t size = mod->getDataLayout().getTypeAllocSize(st).getFixedValue();
+    if (size == 0) size = 1;
+
+    // Arena objects with a destructor are recorded so Arena.destroy() runs it.
+    auto recordDtor = [&](llvm::Value* obj) {
+        if (!arenaV) return;
+        if (llvm::Function* dtor = findDestructor(st->getName().str()))
+            Builder->CreateCall(arenaRecord, { arenaV, obj, dtor });
+    };
+
+    // Stores the initial field values (defaults / field initialisers) of the object at `objPtr`.
+    auto initFields = [&](llvm::Value* objPtr) -> bool {
+        for (unsigned i = 0; i < st->getNumElements(); ++i) {
+            llvm::Value* v = nw->members[i] ? codegen(nw->members[i]->value, scope) : nullptr;
+            if (!v) return false;
+            llvm::Type* want = st->getElementType(i);
+            if (v->getType() != want) {
+                v = generateCast(v, want);
+                if (!v) return false;
+            }
+            Builder->CreateStore(v, Builder->CreateStructGEP(st, objPtr, i, "new.field" + std::to_string(i)));
+        }
+        return true;
+    };
+
+    // `new T[count](args)`: [ i64 count | pad to 16 | element 0 | element 1 | ... ]. The result points at
+    // element 0; `delete[]` reads the count back from the 16 bytes in front of it.
+    if (nw->count) {
+        constexpr uint64_t kArrayHeader = 16;
+        llvm::Value* countV = codegen(nw->count, scope);
+        if (!countV) return nullptr;
+        if (!countV->getType()->isIntegerTy()) {
+            console.reportError(Console::TYPE_ERROR, "new '" + nw->allocTypeName + "[...]': the element count must be an integer",
+                                nw->getSpan());
+            return nullptr;
+        }
+        countV = Builder->CreateIntCast(countV, i64, true, "new.count");
+
+        llvm::Value* bytes = Builder->CreateAdd(
+            Builder->CreateMul(countV, llvm::ConstantInt::get(i64, size), "new.elembytes"),
+            llvm::ConstantInt::get(i64, kArrayHeader), "new.bytes");
+        llvm::Value* raw = rawAlloc(bytes);
+        if (!raw) return nullptr;
+        Builder->CreateStore(countV, raw);
+        llvm::Value* base = Builder->CreateGEP(llvm::Type::getInt8Ty(ctx), raw,
+                                               { llvm::ConstantInt::get(i64, kArrayHeader) }, "new.arr");
+
+        llvm::Function* fn = Builder->GetInsertBlock()->getParent();
+        llvm::BasicBlock* pre  = Builder->GetInsertBlock();
+        llvm::BasicBlock* cond = llvm::BasicBlock::Create(ctx, "new.cond", fn);
+        llvm::BasicBlock* body = llvm::BasicBlock::Create(ctx, "new.body", fn);
+        llvm::BasicBlock* done = llvm::BasicBlock::Create(ctx, "new.done", fn);
+        Builder->CreateBr(cond);
+
+        Builder->SetInsertPoint(cond);
+        llvm::PHINode* idx = Builder->CreatePHI(i64, 2, "new.i");
+        idx->addIncoming(llvm::ConstantInt::get(i64, 0), pre);
+        Builder->CreateCondBr(Builder->CreateICmpSLT(idx, countV, "new.more"), body, done);
+
+        Builder->SetInsertPoint(body);
+        llvm::Value* elem = Builder->CreateGEP(st, base, { idx }, "new.elem");
+        if (!initFields(elem)) return nullptr;
+        activeScope->set(nw->hiddenName, elem);   // the constructor's `this` is this element
+        if (nw->ctorCall) codegen(nw->ctorCall, scope);
+        recordDtor(elem);
+        llvm::Value* next = Builder->CreateAdd(idx, llvm::ConstantInt::get(i64, 1), "new.next");
+        idx->addIncoming(next, Builder->GetInsertBlock());
+        Builder->CreateBr(cond);
+
+        Builder->SetInsertPoint(done);
+        return base;
+    }
+
+    llvm::Value* ptr = rawAlloc(llvm::ConstantInt::get(i64, size));
+    if (!ptr) return nullptr;
+    if (!initFields(ptr)) return nullptr;
+
+    // The ctor's `this` is ReferenceTo(hiddenName); make that name resolve to the heap pointer.
+    activeScope->set(nw->hiddenName, ptr);
+    if (nw->ctorCall && !codegen(nw->ctorCall, scope) && !currentBlockHasTerminator()) {
+        // void ctor returns nullptr legitimately; only real failures were reported by codegen
+    }
+    recordDtor(ptr);
+    return ptr;   // heap object: never registered for scope-exit destruction
 }
 
 llvm::Value* IRGenerator::createDelete(const std::shared_ptr<DeleteExpression>& del, SymbolTableType scope) {
@@ -420,12 +669,13 @@ llvm::Value* IRGenerator::createDelete(const std::shared_ptr<DeleteExpression>& 
     // Pointers are opaque `ptr`, so the destructor is found through the Omniscript pointee type,
     // using the same `<Struct>.destructor` name that scope-exit cleanup uses.
     llvm::Function* dtor = nullptr;
+    llvm::StructType* elemStruct = nullptr;
     if (auto pointee = omniType->getPointeeType()) {
         llvm::Type* pointeeLL = resolveLLVMType(pointee);
         auto* st = llvm::dyn_cast_or_null<llvm::StructType>(pointeeLL);
         if (st && st->hasName()) {
-            dtor = mod->getFunction(st->getName().str() + ".destructor");
-            if (dtor && dtor->arg_size() != 1) dtor = nullptr;
+            dtor = findDestructor(st->getName().str());
+            elemStruct = st;
         }
     }
 
@@ -438,13 +688,44 @@ llvm::Value* IRGenerator::createDelete(const std::shared_ptr<DeleteExpression>& 
     Builder->CreateCondBr(isNull, endBlock, doBlock);
 
     Builder->SetInsertPoint(doBlock);
-    if (dtor) {
-        Builder->CreateCall(dtor, { ptr });
-    }
     llvm::Type* ptrTy = llvm::PointerType::getUnqual(ctx);
     llvm::FunctionCallee freeFn = mod->getOrInsertFunction(
         "free", llvm::FunctionType::get(llvm::Type::getVoidTy(ctx), { ptrTy }, false));
-    Builder->CreateCall(freeFn, { ptr });
+
+    if (del->isArray && elemStruct) {
+        // `new T[n]` (T a struct) stores the count in the 16 bytes in front of element 0 (see createNew).
+        constexpr int64_t kArrayHeader = 16;
+        llvm::Type* i64 = llvm::Type::getInt64Ty(ctx);
+        llvm::Type* i8  = llvm::Type::getInt8Ty(ctx);
+        llvm::Value* raw = Builder->CreateGEP(i8, ptr, { llvm::ConstantInt::getSigned(i64, -kArrayHeader) }, "delete.raw");
+        if (dtor && elemStruct) {
+            llvm::Value* count = Builder->CreateLoad(i64, raw, "delete.count");
+            llvm::BasicBlock* pre  = Builder->GetInsertBlock();
+            llvm::BasicBlock* cond = llvm::BasicBlock::Create(ctx, "delete.cond", function);
+            llvm::BasicBlock* body = llvm::BasicBlock::Create(ctx, "delete.body", function);
+            llvm::BasicBlock* done = llvm::BasicBlock::Create(ctx, "delete.done", function);
+            Builder->CreateBr(cond);
+
+            Builder->SetInsertPoint(cond);
+            llvm::PHINode* remaining = Builder->CreatePHI(i64, 2, "delete.n");
+            remaining->addIncoming(count, pre);
+            Builder->CreateCondBr(Builder->CreateICmpSGT(remaining, llvm::ConstantInt::get(i64, 0)), body, done);
+
+            Builder->SetInsertPoint(body);   // last element first
+            llvm::Value* last = Builder->CreateSub(remaining, llvm::ConstantInt::get(i64, 1), "delete.i");
+            Builder->CreateCall(dtor, { Builder->CreateGEP(elemStruct, ptr, { last }, "delete.elem") });
+            remaining->addIncoming(last, Builder->GetInsertBlock());
+            Builder->CreateBr(cond);
+
+            Builder->SetInsertPoint(done);
+        }
+        Builder->CreateCall(freeFn, { raw });   // the allocation starts at the header
+    } else {
+        if (dtor) {
+            Builder->CreateCall(dtor, { ptr });
+        }
+        Builder->CreateCall(freeFn, { ptr });
+    }
     Builder->CreateBr(endBlock);
 
     Builder->SetInsertPoint(endBlock);

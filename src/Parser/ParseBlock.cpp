@@ -79,10 +79,9 @@ std::shared_ptr<Statement> Parser::parseBlock() {
                 pushIfValid(parseStatement());
             }
         }
+        // Do not consume a trailing ';' here: it belongs to the enclosing statement
+        // (e.g. `return function() { ... };`).
         eat(TokenTypes::RightBrace);
-        if (currentToken.getType() == TokenTypes::Semicolon) {
-            eat(TokenTypes::Semicolon);
-        }
     } else if (currentToken.getType() == TokenTypes::Return) {
         pushIfValid(parseReturnStatement());
     } else {

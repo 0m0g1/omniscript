@@ -85,6 +85,10 @@ llvm::Value* IRGenerator::createBinaryExpression(llvm::Value* left, TokenTypes o
         auto isNullLiteral = [&](llvm::Value* v) -> bool {
             if (v->getType()->isVoidTy()) return true;
             if (llvm::isa<llvm::ConstantPointerNull>(v)) return true;
+            // `null` lowered as the zero value of some struct type (e.g. `%Res zeroinitializer`
+            // when the expected type was the pointee of `Res*?`). A zero aggregate is never a real
+            // operand of == against a nullable, so treat it as the null literal.
+            if (v->getType()->isStructTy() && llvm::isa<llvm::ConstantAggregateZero>(v)) return true;
             if (looksNullable(v->getType())) {
                 if (llvm::isa<llvm::ConstantAggregateZero>(v)) return true;
                 if (auto* cs = llvm::dyn_cast<llvm::ConstantStruct>(v)) {
