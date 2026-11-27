@@ -19,3 +19,37 @@ dependencies/openssl/
 bin/
 /.vscode/*
 browser_cookies.txt
+# --- Omniscript benchmark outputs (docs/examples/bench) ---
+file_cache.json
+docs/examples/bench/bench_build_0M0G1.csv
+docs/examples/bench/bench_c.exe
+docs/examples/bench/bench_fannkuch.exe
+docs/examples/bench/bench_fib.exe
+docs/examples/bench/bench_go.exe
+docs/examples/bench/bench_langs_0M0G1.csv
+docs/examples/bench/bench_nbody.exe
+docs/examples/bench/bench_nbody.os
+docs/examples/bench/bench_results_0M0G1.csv
+docs/examples/bench/bench_rs.exe
+docs/examples/bench/bench_sieve.exe
+docs/examples/bench/bench_spectral.exe
+docs/examples/bench/bench_trees.exe
+docs/examples/bench/bench_*.exe
+docs/examples/bench/bench_c
+docs/examples/bench/bench_go
+docs/examples/bench/bench_rs
+docs/examples/bench/java_out/
+docs/examples/bench/dotnet_out/
+docs/examples/bench/dotnet/obj/
+docs/examples/bench/dotnet/bin/
+docs/examples/bench/bench_results_*.csv
+docs/examples/bench/bench_langs_*.csv
+docs/examples/bench/bench_build_*.csv
+
+# --- engine output from the project root (the runner is launched from here) ---
+/file_cache.json
+/a.out
+*.obj
+*.o
+*.pdb
+*.ilk

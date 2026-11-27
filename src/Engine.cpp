@@ -476,6 +476,14 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
 
     for (int i = 1; i < argc; ++i) {
         std::string_view arg(argv[i]);
+
+        // Everything after "--", or after the first source file, belongs to the script.
+        if (arg == "--" || fileSpecified) {
+            for (int j = (arg == "--" ? i + 1 : i); j < argc; ++j)
+                config.scriptArgs.emplace_back(argv[j]);
+            break;
+        }
+
         auto handlerIt = ArgumentParser::argHandlers.find(arg);
         if (handlerIt != ArgumentParser::argHandlers.end()) {
             std::span<char*> args(argv + i + 1, argc - i - 1);
@@ -495,6 +503,8 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
             config.mode = CompileMode::AOT;
         } else if (arg == "--dry") {
             config.mode = CompileMode::DryCompile;
+        } else if (arg == "--native") {
+            config.cpuFeatures = "native";
         } else if (arg == "--version") {
             printVersion();
             std::exit(0);
@@ -681,17 +691,12 @@ Engine::parseArguments(int argc, char* argv[]) noexcept {
         } else if (arg == "--enable-concurrent-gc") {
             config.runtime.enableConcurrentGC = true;
         } else if (arg == "-" || !arg.starts_with("-")) {
-            if (!fileSpecified) OMNISCRIPT_LIKELY {
-                config.filePath = std::string(arg);
-                config.sourcePaths.push_back(std::string(arg));
-                fileSpecified = true;
-            } else {
-                config.sourcePaths.push_back(std::string(arg));
-                console.reportWarning("Multiple file paths provided. All will be processed.", FileSpan{});
-            }
+            config.filePath = std::string(arg);
+            config.sourcePaths.push_back(std::string(arg));
+            fileSpecified = true;
         } else {
             static const char* const otherOptions[] = {
-                "--verbose", "--execute", "--make", "--dry", "--version", "--help", "--list-targets", "--show-host-info",
+                "--verbose", "--execute", "--make", "--dry", "--native", "--version", "--help", "--list-targets", "--show-host-info",
                 "--doc", "--doc-all", "--doc-search", "--doc-list", "--doc-show", "--all", "--entry", "--output", "--keep-obj", "--log-asm",
                 "--log-final-code", "--show-metadata", "--enable-parallel-gc", "--enable-concurrent-gc"};
             std::vector<std::string> known;
@@ -1346,6 +1351,7 @@ void Engine::printUsage() noexcept {
     console.log("  --log-asm                Log generated assembly code");
     console.log("  --log-final-code         Log final IR code");
     console.log("  --make                   Compile AOT");
+    console.log("  --native                 AOT: optimize for this machine's CPU");
     console.log("  --output, -o <file>      Set output file path");
     console.log("  --optimization-level, -O <n> Optimization level: 0-3");
     console.log("  --target <os>            Build for windows, linux, android, macos, ios or wasm");

@@ -122,28 +122,6 @@ let m: f64* = CMem.malloc(bytes) as f64*;
 setup(x, y, z, vx, vy, vz, m);
 let e0: f64 = energy(x, y, z, vx, vy, vz, m);
 
-// DEBUG = 1 prints setup state in 1e-9 units (truncated). Expected values:
-//   m0=39478417604 m1=37693674 x1=4841431442 vx1=606326392
-//   vx0=-387663 vy0=-3275359 vz0=23935 ke=183753790 pe=352828954 e0=-169075163
-const DEBUG: int = 1;
-if (DEBUG == 1) {
-    dump("m0  = ", m[0]);  dump("m1  = ", m[1]);
-    dump("x1  = ", x[1]);  dump("vx1 = ", vx[1]);
-    dump("vx0 = ", vx[0]); dump("vy0 = ", vy[0]); dump("vz0 = ", vz[0]);
-    let ke: f64 = 0.0;
-    let pe: f64 = 0.0;
-    for (let i: int = 0; i < 5; i = i + 1) {
-        ke = ke + 0.5 * m[i] * (vx[i] * vx[i] + vy[i] * vy[i] + vz[i] * vz[i]);
-        for (let j: int = i + 1; j < 5; j = j + 1) {
-            let dx: f64 = x[i] - x[j];
-            let dy: f64 = y[i] - y[j];
-            let dz: f64 = z[i] - z[j];
-            pe = pe + (m[i] * m[j]) / sqrt(dx * dx + dy * dy + dz * dz);
-        }
-    }
-    dump("ke  = ", ke);    dump("pe  = ", pe);
-}
-
 let s: i64 = 0;
 while (s < STEPS) {
     advance(0.01, x, y, z, vx, vy, vz, m);

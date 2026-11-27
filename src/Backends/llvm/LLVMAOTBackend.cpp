@@ -45,6 +45,16 @@ void LLVMAOTBackend::setupTargetMachine(const Config& config) {
             "native" : config.getDefaultCPU(arch));
         std::string features = irGen->buildFeatureString(targetTriple);
 
+        // --native: tune for the machine doing the build. The output may not run on older CPUs.
+        if (config.cpuFeatures == "native" && !config.isCrossCompilation()) {
+            cpu = llvm::sys::getHostCPUName().str();
+            features.clear();
+            for (const auto& feature : llvm::sys::getHostCPUFeatures()) {
+                if (!features.empty()) features += ",";
+                features += (feature.getValue() ? "+" : "-") + feature.getKey().str();
+            }
+        }
+
         DEBUG_LOG("Target triple: " + targetTriple);
         DEBUG_LOG("CPU: " + cpu);
         DEBUG_LOG("Features: " + features);
@@ -126,9 +136,9 @@ std::optional<llvm::CodeModel::Model> LLVMAOTBackend::getCodeModel(const Config&
     auto arch = config.resolveTargetArch();
     if (arch == TargetArch::ARM32 || arch == TargetArch::WASM32) {
         return llvm::CodeModel::Small;
-    } else if (arch == TargetArch::X86_64 || arch == TargetArch::ARM64) {
-        return llvm::CodeModel::Large;
     }
+    // x86-64 and ARM64 use the target's default (small) code model. The large model turns direct
+    // calls and global accesses into 64-bit address loads, which costs speed in every AOT binary.
     return std::nullopt;
 }
 
@@ -276,6 +286,14 @@ void LLVMAOTBackend::execute(const std::vector<std::shared_ptr<Statement>>& stat
     }
 
     irGen->printErrors();
+
+    // The optimizer needs the real target layout, so set it before optimizing, not only at emit time.
+    if (!targetMachines.empty()) {
+        if (auto* m = irGen->getCurrentModule()) {
+            m->setTargetTriple(targetMachines[0].second->getTargetTriple());
+            m->setDataLayout(targetMachines[0].second->createDataLayout());
+        }
+    }
 
     if (config.optimization.level > 0) {
         // Skip custom passes due to missing addCustomPass

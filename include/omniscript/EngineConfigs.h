@@ -230,6 +230,7 @@ struct Config {
     std::string filePath;
     std::string mainSourceFile;
     std::vector<std::string> rawArgs;   // original argv; --watch re-launches itself with these
+    std::vector<std::string> scriptArgs; // arguments for the script itself (after the source file, or after "--")
     std::string outputPath = "a.out";
     std::string entry;
     CompileMode mode = CompileMode::JIT;

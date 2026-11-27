@@ -2,6 +2,8 @@
 #include <cstdlib>
 #include <system_error>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/Format.h>
+#include <chrono>
 #include <omniscript/Backends/llvm/LLVMJITBackend.h>
 #include <omniscript/Core.h>
 #include <omniscript/omniscript_pch.h>
@@ -114,24 +116,12 @@ llvm::Expected<llvm::orc::JITTargetMachineBuilder> LLVMJITBackend::createTargetM
 
     builder.setOptions(opt);
 
-    std::string targetTriple = builder.getTargetTriple().str();
-    std::string resolvedCPU = irGen ? irGen->resolveCPUName(targetTriple) : llvm::sys::getHostCPUName().str();
-    builder.setCPU(resolvedCPU);
-
-    std::string features = irGen ? irGen->buildFeatureString(targetTriple) : "";
-    if (!features.empty()) {
-        std::vector<std::string> featureVec;
-        std::stringstream ss(features);
-        std::string feature;
-        while (std::getline(ss, feature, ',')) {
-            if (!feature.empty()) {
-                featureVec.push_back(feature);
-            }
-        }
-        if (!featureVec.empty()) {
-            builder.addFeatures(featureVec);
-        }
+    // JIT code only ever runs on this machine, so keep the host CPU and features that detectHost()
+    // filled in. Do not override them with a configured/default CPU.
+    if (config.optimization.level >= 2) {
+        builder.setCodeGenOptLevel(llvm::CodeGenOptLevel::Aggressive);
     }
+    DEBUG_LOG("JIT CPU: " + builder.getCPU());
 
     return std::move(builder);
 }
@@ -602,6 +592,11 @@ bool LLVMJITBackend::hasMainFunction() {
 }
 
 void LLVMJITBackend::executeFunction(const std::string& functionName, const Config& config) {
+    // Set OMNISCRIPT_TIMINGS=1 to print compile and run times separately (to stderr).
+    // LLJIT generates machine code during lookup(), so the lookup belongs to compile time.
+    const bool timings = std::getenv("OMNISCRIPT_TIMINGS") != nullptr;
+    auto codegenStart = std::chrono::steady_clock::now();
+
     auto symbol = jit->lookup(functionName);
     if (!symbol) {
         logError(config, "Function '" + functionName + "' not found: " + llvm::toString(symbol.takeError()));
@@ -609,7 +604,9 @@ void LLVMJITBackend::executeFunction(const std::string& functionName, const Conf
     }
 
     auto fnAddr = symbol.get();
-    auto fn = fnAddr.toPtr<int()>();
+    // Called as main(argc, argv): argv[0] is the script path, the rest is Config::scriptArgs.
+    // A main() declared without parameters ignores the extra arguments (Win64 / SysV calling conventions).
+    auto fn = fnAddr.toPtr<int(int, char**)>();
     if (!fn) {
         logError(config, "Failed to get function pointer for: " + functionName);
         throw std::runtime_error("Failed to get function pointer");
@@ -618,7 +615,31 @@ void LLVMJITBackend::executeFunction(const std::string& functionName, const Conf
     DEBUG_LOG("Executing JIT-compiled function: " + functionName);
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    int result = fn();
+    if (timings) {
+        auto codegenMs = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - codegenStart).count();
+        auto compileMs = std::chrono::duration<double, std::milli>(
+            std::chrono::system_clock::now() - compilationStartTime).count();
+        llvm::errs() << "[timings] codegen_ms=" << llvm::format("%.1f", codegenMs)
+                     << " compile_total_ms=" << llvm::format("%.1f", compileMs) << "\n";
+        llvm::errs().flush();
+    }
+
+    auto runStart = std::chrono::steady_clock::now();
+    std::vector<std::string> argStore;
+    argStore.push_back(config.mainSourceFile.empty() ? config.filePath : config.mainSourceFile);
+    argStore.insert(argStore.end(), config.scriptArgs.begin(), config.scriptArgs.end());
+    std::vector<char*> argvPtrs;
+    for (auto& a : argStore) argvPtrs.push_back(a.data());
+    argvPtrs.push_back(nullptr);
+    int result = fn(static_cast<int>(argStore.size()), argvPtrs.data());
+
+    if (timings) {
+        auto runMs = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - runStart).count();
+        llvm::errs() << "[timings] run_ms=" << llvm::format("%.1f", runMs) << "\n";
+        llvm::errs().flush();
+    }
 
     if (config.diagnostics.logTimings) {
         auto endTime = std::chrono::high_resolution_clock::now();

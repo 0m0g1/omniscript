@@ -23,6 +23,17 @@ namespace Omniscript {
 
 extern bool g_deferAssignmentToUnary;  // defined in ParseIdentifiers.cpp
 
+// Builds a binary node and stamps it with the operator token's location. Without this the node had no
+// span, so every type error reported by ASTBinaryExpression::express printed without a file/line.
+static std::shared_ptr<Statement> makeBinary(const std::shared_ptr<Statement>& l, const Token& opTok,
+                                             const std::shared_ptr<Statement>& r) {
+    auto node = std::make_shared<ASTBinaryExpression>(l, opTok, r);
+    node->setSpan(FileSpan(opTok.getLine(), opTok.getColumn(),
+                           opTok.getLine(), opTok.getColumn() + std::max<size_t>(1, opTok.getValue().size()) - 1,
+                           opTok.getFilePath()));
+    return node;
+}
+
 std::shared_ptr<Statement> Parser::parseExpression() {
     return parseTernaryExpression();
 }
@@ -37,15 +48,18 @@ std::shared_ptr<Statement> Parser::parseTernaryExpression() {
         Token opToken = currentToken;
         eat(TokenTypes::NullCoalescing);
         std::shared_ptr<Statement> right = logicalOrExpression();
-        condition = std::make_shared<ASTBinaryExpression>(condition, opToken, right);
+        condition = makeBinary(condition, opToken, right);
     }
 
     if (currentToken.getType() == TokenTypes::QuestionMark) {
+        Token qTok = currentToken;
         eat(TokenTypes::QuestionMark);
         std::shared_ptr<Statement> truthy = parseExpression();
         eat(TokenTypes::Colon);
         std::shared_ptr<Statement> falsey = parseExpression();
-        return std::make_shared<ASTTernaryExpression>(condition, truthy, falsey);
+        auto ternary = std::make_shared<ASTTernaryExpression>(condition, truthy, falsey);
+        ternary->setSpan(FileSpan(qTok.getLine(), qTok.getColumn(), qTok.getLine(), qTok.getColumn(), qTok.getFilePath()));
+        return ternary;
     }
 
     return condition;
@@ -66,7 +80,7 @@ std::shared_ptr<Statement> Parser::parseBinaryExpression() {
         }
 
         std::shared_ptr<Statement> right = term(); // Fixed: call same level for left-associativity
-        left = std::make_shared<ASTBinaryExpression>(left, opToken, right);
+        left = makeBinary(left, opToken, right);
     }
 
     return left;
@@ -80,7 +94,7 @@ std::shared_ptr<Statement> Parser::logicalOrExpression() {
         Token opToken = currentToken;
         eat(TokenTypes::LogicalOr);
         std::shared_ptr<Statement> right = logicalAndExpression(); // Fixed: correct for left-associativity
-        left = std::make_shared<ASTBinaryExpression>(left, opToken, right);
+        left = makeBinary(left, opToken, right);
     }
 
     return left;
@@ -94,7 +108,7 @@ std::shared_ptr<Statement> Parser::logicalAndExpression() {
         Token opToken = currentToken;
         eat(TokenTypes::LogicalAnd);
         std::shared_ptr<Statement> right = comparisonExpression(); // Fixed: correct for left-associativity
-        left = std::make_shared<ASTBinaryExpression>(left, opToken, right);
+        left = makeBinary(left, opToken, right);
     }
 
     return left;
@@ -125,7 +139,7 @@ std::shared_ptr<Statement> Parser::comparisonExpression() {
         }
 
         std::shared_ptr<Statement> right = parseBinaryExpression(); // Fixed: call same level
-        left = std::make_shared<ASTBinaryExpression>(left, operationTok, right);
+        left = makeBinary(left, operationTok, right);
     }
 
     return left;
@@ -162,7 +176,7 @@ std::shared_ptr<Statement> Parser::term() {
         } 
 
         std::shared_ptr<Statement> right = parseAs(); // Fixed: call same level
-        left = std::make_shared<ASTBinaryExpression>(left, opToken, right);
+        left = makeBinary(left, opToken, right);
     }
 
     return left;

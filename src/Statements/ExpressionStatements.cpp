@@ -192,6 +192,16 @@ std::shared_ptr<Expression> ASTTernaryExpression::express(SymbolTableType scope)
 
 std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) {
     setSpan(getSpan());
+    // Operand nodes that have not been expressed yet carry no span (literals and nested binaries set it
+    // lazily in express()), which made errors print without a location. Fall back to this node's span.
+    auto spanOf = [&](const auto& operand) {
+        if (operand) {
+            auto sp = operand->getSpan();
+            if (sp.start.line != 0 || sp.start.col != 0) return sp;
+        }
+        return this->getSpan();
+    };
+
     DEBUG_LOG("Evaluating binary expression: " + toString());
 
     DEBUG_LOG("Left expression: " + (left ? left->toString() : "null"));
@@ -238,7 +248,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
             Console::formatString("Left operand '%s' has no type or is not a typed statement",
                                left->toString().c_str()),
             suggestion,
-            left->getSpan()
+            spanOf(left)
         );
     }
 
@@ -264,7 +274,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
             Console::formatString("Right operand '%s' has no type or is not a typed statement",
                                right->toString().c_str()),
             suggestion,
-            right->getSpan()
+            spanOf(right)
         );
         return left->express(scope);
     }
@@ -272,6 +282,24 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
     std::shared_ptr<Expression> leftResult;
     std::shared_ptr<Expression> rightResult;
     
+    // An arithmetic sub-expression of floats (`0.0 - 1.5`, `2.0 / 3.0`, `(a - b) * 6.0`) must be computed in the
+    // type this expression is being evaluated as. Expressed on its own, an all-literal subtree defaults to
+    // Double, and that Double is also remembered on the node by an earlier pass (the AST is expressed more than
+    // once), so by the time we get here the operand already reports Double and the `type` check below rejects it
+    // (Double -> Float). Retype float-typed (or still untyped) arithmetic operands to `type` and let them
+    // re-express in it; literals are handled by the `if (type)` block below.
+    if (type && type->isFloat() && op.isArithmeticOperator() && !op.isBitwiseOperator() &&
+        op.getType() != TokenTypes::ShiftLeft && op.getType() != TokenTypes::ShiftRight) {
+        auto pushDown = [&](const auto& operand, std::shared_ptr<Type>& operandType) {
+            auto bin = std::dynamic_pointer_cast<ASTBinaryExpression>(operand);
+            if (!bin || !bin->op.isArithmeticOperator() || bin->op.isBitwiseOperator()) return;
+            if (operandType && !operandType->isFloat()) return;                  // int / pointer math: leave alone
+            if (auto t = std::dynamic_pointer_cast<TypedStatement>(operand)) t->setType(type);
+            operandType = type;
+        };
+        pushDown(left, leftType);
+        pushDown(right, rightType);
+    }
         if (!leftType || leftType->isInvalid()) {
         auto tempScope = scope->createChildScope("temp");
         auto leftClone = left->clone();
@@ -291,7 +319,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
                 "Left operand '" + left->toString() + "' evaluated to a value with no type",
                 "This is a compiler bug — an expression node did not set its type. "
                 "Check ASTUnaryExpression::express and UnaryExpression::getType.",
-                left->getSpan());
+                spanOf(left));
             return nullptr;
         }
         DEBUG_LOG("The evaluated left operand type is of type '" + leftType->toString() + "'.");
@@ -312,7 +340,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
             console.reportError(Console::INTERNAL_ERROR,
                 "Right operand '" + right->toString() + "' evaluated to a value with no type",
                 "This is a compiler bug — an expression node did not set its type.",
-                right->getSpan());
+                spanOf(right));
             return nullptr;
         }
         DEBUG_LOG("The evaluated right operand type is of type '" + rightType->toString() + "'.");
@@ -332,7 +360,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
             Console::formatString("Right operand '%s' has an invalid type",
                                right->toString().c_str()),
             suggestion,
-            right->getSpan()
+            spanOf(right)
         );
     }
 
@@ -391,7 +419,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
                                        leftType->toString().c_str(),
                                        type->toString().c_str()),
                     suggestion,
-                    left->getSpan()
+                    spanOf(left)
                 );
             }
     
@@ -422,7 +450,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
                                        rightType->toString().c_str(),
                                        type->toString().c_str()),
                     suggestion,
-                    right->getSpan()
+                    spanOf(right)
                 );
             }
         }
@@ -469,7 +497,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
                                        right->toString().c_str(),
                                        rightType->toString().c_str()),
                     suggestion,
-                    left->getSpan()
+                    spanOf(left)
                 );
                 return nullptr;
             }
@@ -484,10 +512,29 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
             if (leftIsLit && rightIsLit) {
                 // Two untyped literals: give BOTH the same concrete type. rootType can be a narrow
                 // smallest-fit type (e.g. Int8), which made `64 * 64` wrap to 0 in 8 bits.
-                auto litType = (std::dynamic_pointer_cast<IntegerLiteral>(left) &&
-                                std::dynamic_pointer_cast<IntegerLiteral>(right))
-                    ? Type::createPrimitiveType(Kind::Int32)
-                    : leftType;
+                // Float literals: leftType is the left literal's smallest-fit rootType, which for 0.0 or
+                // 0.00166... is Half. Using it for both operands folded `0.00166 * 365.24` in f16 and lost
+                // ~3 digits (nbody). An unsuffixed float literal pair is computed as f64; a suffix
+                // (f / l) on either side still wins.
+                std::shared_ptr<Type> litType;
+                auto leftFloat = std::dynamic_pointer_cast<FloatLiteral>(left);
+                auto rightFloat = std::dynamic_pointer_cast<FloatLiteral>(right);
+                if (leftFloat && rightFloat) {
+                    if (leftFloat->isFloat80 || rightFloat->isFloat80) litType = Type::createPrimitiveType(Kind::X86_FP80);
+                    else if (leftFloat->isFloat32 && rightFloat->isFloat32) litType = Type::createPrimitiveType(Kind::Float);
+                    else litType = Type::createPrimitiveType(Kind::Double);
+                } else if (leftFloat || rightFloat) {
+                    // float literal with an integer literal: the float side decides
+                    auto f = leftFloat ? leftFloat : rightFloat;
+                    litType = f->isFloat80 ? Type::createPrimitiveType(Kind::X86_FP80)
+                            : f->isFloat32 ? Type::createPrimitiveType(Kind::Float)
+                            : Type::createPrimitiveType(Kind::Double);
+                } else if (std::dynamic_pointer_cast<IntegerLiteral>(left) &&
+                           std::dynamic_pointer_cast<IntegerLiteral>(right)) {
+                    litType = Type::createPrimitiveType(Kind::Int32);
+                } else {
+                    litType = leftType;
+                }
                 type = litType;
                 if (leftTyped) leftTyped->setType(litType);
                 if (rightTyped) rightTyped->setType(litType);
@@ -534,7 +581,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
                                        right->toString().c_str(),
                                        rightType->toString().c_str()),
                     suggestion,
-                    left->getSpan()
+                    spanOf(left)
                 );
                 return nullptr;
             }
@@ -596,7 +643,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
             Console::RUNTIME_ERROR,
             "Left operand evaluated to null",
             suggestion,
-            left->getSpan()
+            spanOf(left)
         );
     }
     
@@ -613,7 +660,7 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
             Console::RUNTIME_ERROR,
             "Right operand evaluated to null",
             suggestion,
-            right->getSpan()
+            spanOf(right)
         );
     }
     

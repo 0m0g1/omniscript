@@ -1,4 +1,4 @@
-# OmniScript syntax guide (v5, compact)
+# OmniScript syntax guide (v0, compact)
 
 ## 0. Rules for the AI
 - Write complete, runnable `.os` files. State assumptions in one line.
@@ -149,7 +149,7 @@ Signatures are NOT listed here. Behaviour that `--doc-show` can't tell you:
 - **Fs / String**: out-params are pointers (`&out`). Caller frees any `Str.String` it receives.
 
 ## 12. std.os modules (all work; import path `standard/1/<File>.os`)
-- T0 raw C (`standard/1/c/*.os`): CMem CString CFile CConsole CMath CTime COs CStdioExtra CThread CNet CDl CGlfw CVulkan COpenGL COpenAL CCurl CSqlite CSsl CZlib CFfmpeg CImage CFont
+- T0 raw C (`standard/1/c/*.os`): CMem CString CFile CConsole CMath CTime COs CStdioExtra CThread CNet CDl CGlfw CVulkan COpenGL COpenAL CCurl CSqlite CSsl CZlib CFfmpeg CImage CFont (file names can differ: `Canvas.os` imports `c/mem.os`, `c/glfw.os`, `c/opengl.os`, `c/vulkan.os`, `c/svg.os`)
 - T1: Core Mem String StringView(StrView.os) Math Random Time Arena
 - T2: List Collections Map Set Queue Stack Deque PriorityQueue Algo Iter
 - T3: Text Regex Json Csv Toml Yaml Xml Binary
@@ -185,8 +185,24 @@ os --doc <module|file> [-o f.md] [--html]    os --doc-all standard/1/std.os [--s
 - Signatures may use the file's module aliases (`L.List`, `Str.String`). Paths are case-insensitive on Windows.
 - **For the AI:** for any module not documented here, ask for `--doc-show standard/1/<File>.os`. To check a name exists, ask for `--doc-search standard/1/std.os <name>`.
 
+## 12c. Dumping APIs to a text file
+From the project root (PowerShell; script not yet run). `$mods` takes subpaths too, e.g. `'Canvas/Types'`.
+```
+$os = ".\bin\Release-windows-x86_64\Osengine.exe"
+$mods = 'IO','Time'
+$mods | ForEach-Object {
+  "===== $_ ====="
+  & $os --doc-show "standard/1/$_.os" *>&1
+} | ForEach-Object { "$_" -replace '\x1b\[[0-9;]*m','' } | Set-Content -Encoding utf8 apis.txt
+```
+- Unknown module: `os --doc-search standard/1/std.os <name>`. Engine options: `os --help`.
+- Check every block. `file not found` (labelled `parse error:`) = not dumped: list real names with `Get-ChildItem -Recurse -Filter *.os <library folder>`.
+- `0 items` does not mean no API. Print the source (`Get-Content standard\1\<File>.os`); if it only has `include` lines (e.g. `Canvas.os`), dump those files.
+- Dumps give signatures, not behaviour. For behaviour, send the function body (`:N` in the output is its line) or run a small probe.
+- For the AI: send `apis.txt` and the full text of any error. Do not paste signatures into this guide.
+
 ## 13. Quirks checklist
-1. `[N]T` global with `char*` fields may fail: use a local. 2. Module-qualified fn as handler fails. 3. `try/catch` is unimplemented (compile error). 4. `Http.Response.finalUrl` leaks (small). 5. `listen` fails silently unless checked. 6. `nullptr` for `T*`, `null` for `T?`. 7. `new T(arg)` without a constructor inits fields. 8. `import "*.h"` = include. 9. `i8` literal truncation. 10. Block `module` last in file. 11. Prefer string import paths. 12. `T&` params: use pointers. 13. Bare-literal calls tie across `int`/`i64` overloads: type the argument. 14. User variadics drop their args. 15. Generic calls infer from arguments; conflicting types are a compile error, and a type parameter that no argument mentions needs `f<T>(..)`. 16. Postfix `T[N]` only.
+1. `[N]T` global with `char*` fields may fail: use a local. 2. Module-qualified fn as handler fails. 3. `try/catch` is unimplemented (compile error). 4. `Http.Response.finalUrl` leaks (small). 5. `listen` fails silently unless checked. 6. `nullptr` for `T*`, `null` for `T?`. 7. `new T(arg)` without a constructor inits fields. 8. `import "*.h"` = include. 9. `i8` literal truncation. 10. Block `module` last in file. 11. Prefer string import paths. 12. `T&` params: use pointers. 13. Bare-literal calls tie across `int`/`i64` overloads: type the argument. 14. User variadics drop their args. 15. Generic calls infer from arguments; conflicting types are a compile error, and a type parameter that no argument mentions needs `f<T>(..)`. 16. Postfix `T[N]` only. 17. [?] `Canvas.os` header warns of a compiler quirk: no `return` inside loop bodies. Safe: set a flag or result variable, `break`, return after the loop.
 
 ## 14. Open probes [?]
-Prefix `[N]T`; plain `import` inside module body; nested-fn capture; `T&` type-check on `f(b)`; return-only overloads; modifier enforcement (`private` access error, `static`, `virtual`, `= delete`); enum semantics; constrained `add(5,6)` (inference through `T extends ...`; unconstrained inference is confirmed working); leading `<Number extends ...>` form (parser expects it after the name); backtick result type and `${` escape.
+Prefix `[N]T` (`--doc-show` prints library array fields as `[512]u8`); passing script arguments to `main(argc, argv)`; plain `import` inside module body; nested-fn capture; `T&` type-check on `f(b)`; return-only overloads; modifier enforcement (`private` access error, `static`, `virtual`, `= delete`); enum semantics; constrained `add(5,6)` (inference through `T extends ...`; unconstrained inference is confirmed working); leading `<Number extends ...>` form (parser expects it after the name); backtick result type and `${` escape.

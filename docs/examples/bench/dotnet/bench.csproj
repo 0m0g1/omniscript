@@ -13,4 +13,8 @@
     <ServerGarbageCollector>false</ServerGarbageCollector>
     <TieredPGO>true</TieredPGO>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- the source lives one folder up, next to bench.go / Bench.java -->
+    <Compile Include="..\bench.cs" />
+  </ItemGroup>
 </Project>

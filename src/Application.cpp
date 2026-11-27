@@ -47,7 +47,10 @@ int Application::run() noexcept {
         return 1;
     }
 
-    console.info("Starting Omniscript engine execution...");
+    // Keep stdout clean for scripts (grep | findstr, etc.): the banner is only shown with --verbose or in watch mode.
+    if (config_->diagnostics.verbose || config_->hotReload.enabled) {
+        console.info("Starting Omniscript engine execution...");
+    }
     DEBUG_NOTE("Configuration loaded successfully");
 
     if (config_->hotReload.enabled) {
@@ -90,7 +93,7 @@ int Application::run() noexcept {
         return 1;
     }
 
-    console.info("\nEngine execution completed successfully");
+    if (config_->diagnostics.verbose) console.info("\nEngine execution completed successfully");
 
     if (config_->diagnostics.debugMode) {
         const auto& stats = *result;
@@ -119,7 +122,7 @@ int Application::run() noexcept {
     }
     
     DEBUG_PHASE_END();
-    console.info("Application completed successfully");
+    if (config_->diagnostics.verbose) console.info("Application completed successfully");
     return 0;
 }
 

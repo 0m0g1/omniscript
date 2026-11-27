@@ -7,7 +7,7 @@
 # For each benchmark it reports the best of -Reps runs for:
 #   C        gcc/clang -O3 -march=native reference (skipped if no compiler is on PATH)
 #   JIT      the whole `os file.os` run, i.e. compile + run
-#   compile  `os file.os --dry` (compile only); JIT-run = JIT - compile, an estimate of pure run time
+#   compile  `os file.os --dry` (compile only); JIT-run = run_ms printed by the engine (OMNISCRIPT_TIMINGS=1), else JIT - compile
 #   AOT      `os file.os --make -o x.exe`, then the produced exe (run time only)
 # A run only counts if the program printed PASS (its own correctness check against known values).
 #
@@ -18,6 +18,10 @@
 #   powershell -ExecutionPolicy Bypass -File .\bench\run_bench.ps1 -Langs node,go,rust -SkipAot
 #   powershell -ExecutionPolicy Bypass -File .\bench\run_bench.ps1 -Langs python -Only fib -Reps 1 -TimeoutSec 900
 #   -SkipOs skips the OmniScript runs entirely (useful for only measuring the other languages).
+# Compile times: per bench, AOT_build_ms (`--make`, best of -Reps), JIT_compile_ms / JIT_codegen_ms (engine-reported with
+# OMNISCRIPT_TIMINGS=1: compile_total_ms excludes lex/parse, codegen_ms is machine-code generation) and Compile_ms (`--dry`).
+# A build-time table (bench_build_<machine>.csv) also lists the other toolchains. Those build all benchmarks from ONE source file
+# once (single build, includes link / restore), while OS AOT builds one file per bench, so its figure there is the SUM over benches.
 # Results are saved as bench_results_<machine>.csv and bench_langs_<machine>.csv so several devices can be compared.
 param(
     [string]$Engine = ".\bin\Release-windows-x86_64\Osengine.exe",
@@ -35,6 +39,11 @@ param(
 $Only  = @($Only  | ForEach-Object { $_ -split "," } | Where-Object { $_ })
 $Langs = @($Langs | ForEach-Object { $_ -split "," } | Where-Object { $_ })
 $here  = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Pick up toolchains installed after this shell was opened (go, java, ...): merge the machine + user PATH.
+try {
+    $fresh = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = $env:Path + ";" + $fresh
+} catch {}
 $names = @("fib", "sieve", "nbody", "spectral", "fannkuch", "trees")
 if ($Only.Count -gt 0) { $names = $names | Where-Object { $Only -contains $_ } }
 
@@ -47,16 +56,28 @@ function Invoke-Timed([string]$exe, [string[]]$argList) {
     return [pscustomobject]@{ Ms = $sw.Elapsed.TotalMilliseconds; Out = $out; Code = $LASTEXITCODE }
 }
 
+# last "<key> ... <number>" in the engine's OMNISCRIPT_TIMINGS output, or $null
+function Get-Timing([string]$text, [string]$key) {
+    $m = [regex]::Matches($text, $key + '\D{0,5}([0-9]+(?:\.[0-9]+)?)')
+    if ($m.Count -eq 0) { return $null }
+    return [double]::Parse($m[$m.Count - 1].Groups[1].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+}
+function Min-Of($a, $b) { if ($null -eq $b) { return $a }; if ($null -eq $a -or $b -lt $a) { return $b }; return $a }
+
 function Best-Of([string]$exe, [string[]]$argList, [int]$reps, [bool]$needPass) {
-    $best = $null; $lastOut = ""
+    $best = $null; $bestRun = $null; $bestComp = $null; $bestGen = $null; $lastOut = ""
     for ($i = 0; $i -lt $reps; $i++) {
         $r = Invoke-Timed $exe $argList
         $lastOut = $r.Out
-        if ($r.Code -ne 0) { return [pscustomobject]@{ Ms = $null; Out = $r.Out; Status = "ERR($($r.Code))" } }
-        if ($needPass -and $r.Out -notmatch "PASS") { return [pscustomobject]@{ Ms = $null; Out = $r.Out; Status = "WRONG" } }
+        if ($r.Code -ne 0) { return [pscustomobject]@{ Ms = $null; RunMs = $null; CompMs = $null; GenMs = $null; Out = $r.Out; Status = "ERR($($r.Code))" } }
+        if ($needPass -and $r.Out -notmatch "PASS") { return [pscustomobject]@{ Ms = $null; RunMs = $null; CompMs = $null; GenMs = $null; Out = $r.Out; Status = "WRONG" } }
         if ($null -eq $best -or $r.Ms -lt $best) { $best = $r.Ms }
+        # OMNISCRIPT_TIMINGS=1 makes the engine print run_ms, compile_total_ms and codegen_ms on stderr
+        $bestRun  = Min-Of $bestRun  (Get-Timing $r.Out 'run_ms')
+        $bestComp = Min-Of $bestComp (Get-Timing $r.Out 'compile_total_ms')
+        $bestGen  = Min-Of $bestGen  (Get-Timing $r.Out 'codegen_ms')
     }
-    return [pscustomobject]@{ Ms = $best; Out = $lastOut; Status = "ok" }
+    return [pscustomobject]@{ Ms = $best; RunMs = $bestRun; CompMs = $bestComp; GenMs = $bestGen; Out = $lastOut; Status = "ok" }
 }
 
 
@@ -146,7 +167,13 @@ function Prepare-Lang([string]$lang, [string]$dir) {
             $major = ($ver -split "\.")[0]
             $proj = Join-Path $dir "dotnet\bench.csproj"
             $out = Join-Path $dir "dotnet_out"
-            & $t build $proj -c Release -o $out "-p:TargetFramework=net$major.0" -nologo -v q 2>&1 | Out-Host
+            $tfm = "net$major.0"
+            # A stale obj\project.assets.json (restored for another framework) gives NETSDK1005: start clean and
+            # restore with the same TargetFramework the build uses.
+            $objDir = Join-Path $dir "dotnet\obj"
+            if (Test-Path $objDir) { Remove-Item $objDir -Recurse -Force -ErrorAction SilentlyContinue }
+            & $t restore $proj "-p:TargetFramework=$tfm" -nologo -v q 2>&1 | Out-Host
+            & $t build $proj -c Release -o $out "-p:TargetFramework=$tfm" --no-restore -nologo -v q 2>&1 | Out-Host
             $dll = Join-Path $out "bench_dotnet.dll"
             if ($LASTEXITCODE -ne 0 -or -not (Test-Path $dll)) { Write-Host "  dotnet build failed" -ForegroundColor Yellow; return $null }
             return @{ Exe = $t; Pre = @($dll); Version = ".NET SDK $ver" }
@@ -161,14 +188,18 @@ try { $cpu = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name.Tri
 Write-Host "Machine: $machine  |  $cpu" -ForegroundColor DarkGray
 
 # ---- C reference build ------------------------------------------------------
+$buildTimes = [ordered]@{}   # tool -> build ms (whole suite)
 $cExe = $null
 if (-not $SkipC) {
     $cc = Get-Command gcc -ErrorAction SilentlyContinue
     if (-not $cc) { $cc = Get-Command clang -ErrorAction SilentlyContinue }
     if ($cc) {
         $cExe = Join-Path $here "bench_c.exe"
+        $swc = [System.Diagnostics.Stopwatch]::StartNew()
         & $cc.Source -O3 -march=native (Join-Path $here "bench.c") -o $cExe -lm 2>$null
         if ($LASTEXITCODE -ne 0) { & $cc.Source -O3 -march=native (Join-Path $here "bench.c") -o $cExe 2>$null }
+        $swc.Stop()
+        if ($LASTEXITCODE -eq 0) { $buildTimes["C ($($cc.Name) -O3 -march=native)"] = [math]::Round($swc.Elapsed.TotalMilliseconds) }
         if ($LASTEXITCODE -ne 0) { Write-Host "C reference failed to build; skipping C column." -ForegroundColor Yellow; $cExe = $null }
         else { Write-Host "C reference built with $($cc.Name)" }
     } else { Write-Host "No gcc/clang on PATH: skipping C column (ratios will be blank)." -ForegroundColor Yellow }
@@ -183,8 +214,17 @@ if (-not $SkipLangs) {
     foreach ($l in $Langs) {
         $l = $l.ToLower()
         if (-not (Test-Path $langDir)) { Write-Host "No langs folder at $langDir; skipping other languages." -ForegroundColor Yellow; break }
+        $swl = [System.Diagnostics.Stopwatch]::StartNew()
         $cmd = Prepare-Lang $l $langDir
-        if ($cmd) { $langCmd[$l] = $cmd; Write-Host "$l ready: $($cmd.Version)" }
+        $swl.Stop()
+        if ($cmd) {
+            $langCmd[$l] = $cmd; Write-Host "$l ready: $($cmd.Version)"
+            # interpreted / JIT-only languages (node, python) have no build step; their build time is just the version probe
+            if ($l -ne "node" -and $l -ne "python") {
+                $bk = if ($l -eq "dotnet") { "dotnet (build incl. restore)" } else { "$l (build)" }
+                $buildTimes[$bk] = [math]::Round($swl.Elapsed.TotalMilliseconds)
+            }
+        }
         else { Write-Host "$l skipped (toolchain missing or build failed)" -ForegroundColor Yellow }
     }
 }
@@ -194,7 +234,7 @@ $rows = @()
 foreach ($n in $names) {
     $src = Join-Path $here "bench_$n.os"
     Write-Host "== $n" -ForegroundColor Cyan
-    $row = [ordered]@{ Bench = $n; C_ms = $null; Compile_ms = $null; JIT_total_ms = $null; JIT_run_ms = $null; AOT_ms = $null; JIT_vs_C = $null; AOT_vs_C = $null; Notes = "" }
+    $row = [ordered]@{ Bench = $n; C_ms = $null; Compile_ms = $null; JIT_total_ms = $null; JIT_run_ms = $null; JIT_compile_ms = $null; JIT_codegen_ms = $null; AOT_build_ms = $null; AOT_ms = $null; JIT_vs_C = $null; AOT_vs_C = $null; Notes = "" }
 
     if ($cExe) {
         $c = Best-Of $cExe @($n) $Reps $false
@@ -209,10 +249,16 @@ foreach ($n in $names) {
     $d = Invoke-Timed $Engine @($src, "--dry")
     if ($d.Code -eq 0) { $row.Compile_ms = [math]::Round($d.Ms) }
 
+    $env:OMNISCRIPT_TIMINGS = "1"
     $j = Best-Of $Engine @($src) $Reps $true
+    Remove-Item Env:OMNISCRIPT_TIMINGS -ErrorAction SilentlyContinue
     if ($j.Ms) {
         $row.JIT_total_ms = [math]::Round($j.Ms)
-        if ($row.Compile_ms) { $row.JIT_run_ms = [math]::Round([math]::Max($j.Ms - $row.Compile_ms, 1)) }
+        # prefer the engine's own run_ms; fall back to total - --dry (which overstates run time)
+        if ($j.RunMs) { $row.JIT_run_ms = [math]::Round($j.RunMs) }
+        elseif ($row.Compile_ms) { $row.JIT_run_ms = [math]::Round([math]::Max($j.Ms - $row.Compile_ms, 1)) }
+        if ($j.CompMs) { $row.JIT_compile_ms = [math]::Round($j.CompMs) }
+        if ($j.GenMs)  { $row.JIT_codegen_ms = [math]::Round($j.GenMs) }
         $first = ($j.Out -split "`r?`n" | Where-Object { $_ -match "PASS|FAIL|N/A" } | Select-Object -First 1)
         $nums = ($j.Out -split "`r?`n" | Where-Object { $_ -match "^\s*-?\d+(\.\d+)?\s*$" }) -join " "
         if ($first) { Write-Host "   JIT: $first $nums" }
@@ -226,7 +272,13 @@ foreach ($n in $names) {
         $exe = Join-Path $here "bench_$n.exe"
         if (Test-Path $exe) { Remove-Item $exe -Force }
         $b = Invoke-Timed $Engine @($src, "--make", "-o", $exe)
+        $bestBuild = $b.Ms
         if ($b.Code -eq 0 -and (Test-Path $exe)) {
+            for ($bi = 1; $bi -lt $Reps; $bi++) {
+                $b2 = Invoke-Timed $Engine @($src, "--make", "-o", $exe)
+                if ($b2.Code -eq 0 -and $b2.Ms -lt $bestBuild) { $bestBuild = $b2.Ms }
+            }
+            $row.AOT_build_ms = [math]::Round($bestBuild)
             $a = Best-Of $exe @() $Reps $true
             if ($a.Ms) { $row.AOT_ms = [math]::Round($a.Ms) } else { $row.Notes += "AOT:$($a.Status) " }
         } else {
@@ -279,6 +331,22 @@ if ($ga) { Write-Host "Geometric mean slowdown vs C  (AOT):     ${ga}x" }
 $csv = Join-Path $here "bench_results_$machine.csv"
 $rows | Select-Object @{n="Machine";e={$machine}}, * | Export-Csv -NoTypeInformation -Path $csv
 Write-Host "Saved $csv"
+
+# ---- build / compile times ------------------------------------------------------
+$osBuild = @($rows | Where-Object { $_.AOT_build_ms } | ForEach-Object { $_.AOT_build_ms })
+if ($osBuild.Count -gt 0) {
+    $sum = ($osBuild | Measure-Object -Sum).Sum
+    $buildTimes["OS AOT (--make, sum of $($osBuild.Count) benches)"] = $sum
+}
+if ($buildTimes.Count -gt 0) {
+    Write-Host ""
+    Write-Host "Build time in ms. Others: one build of all benchmarks (single run). OS AOT: best of $Reps per bench, summed. Not like-for-like (link step, runtime startup)." -ForegroundColor Cyan
+    $buildRows = @($buildTimes.Keys | ForEach-Object { [pscustomobject]@{ Tool = $_; Build_ms = $buildTimes[$_] } })
+    $buildRows | Format-Table -AutoSize
+    $csv3 = Join-Path $here "bench_build_$machine.csv"
+    $buildRows | Select-Object @{n="Machine";e={$machine}}, * | Export-Csv -NoTypeInformation -Path $csv3
+    Write-Host "Saved $csv3"
+}
 
 # ---- cross-language comparison -------------------------------------------------
 if ($cmpRows.Count -gt 0) {
