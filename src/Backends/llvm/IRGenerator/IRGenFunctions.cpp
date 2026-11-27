@@ -1,3 +1,4 @@
+// src\Backends\llvm\IRGenerator\IRGenFunctions.cpp
 // src/Backends/LLVM/IRGenFunctions.cpp
 #include <omniscript/Types/Types.h>
 #include <omniscript/utils.h>
@@ -345,10 +346,15 @@ llvm::Value* IRGenerator::createCall(
                             : Builder->CreateLoad(st, copy, "byval.arg");
                     }
                 } else if (!isTemporary) {
-                    console.reportWarning(
-                        "'" + st->getName().str() + "' has a destructor: passing it by value copies it bit by bit. "
+                    // Two owners of one resource (double free): not allowed. Moves (temporaries) and structs with a
+                    // copy constructor are handled above; everything else must pass a pointer.
+                    console.reportError(
+                        Console::SEMANTIC_ERROR,
+                        "'" + st->getName().str() + "' has a destructor: passing it by value would copy it bit by bit "
+                        "and destroy it twice. "
                         "Define a copy constructor (`constructor(o: " + st->getName().str() + "&)`) or pass a pointer.",
                         FileSpan{});
+                    return nullptr;
                 }
             }
         }

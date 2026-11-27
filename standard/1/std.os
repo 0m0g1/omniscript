@@ -1,5 +1,4 @@
 // standard/1/std.os
-// Ordered by tier. Uncommented = exists and compiles. Uncomment one at a time as you implement/verify each.
 module std {
     // ---------------- Tier 0: raw C, the escape hatch ----------------
     public module CMem = import "standard/1/c/mem.os";
@@ -29,9 +28,11 @@ module std {
     public module Core = import "standard/1/Core.os";
     public module Mem = import "standard/1/Mem.os";
     public module String = import "standard/1/String.os";
+    public module StringView = import "standard/1/StrView.os";
     public module Math = import "standard/1/Math.os";
     public module Random = import "standard/1/Random.os";
     public module Time = import "standard/1/Time.os";
+    public module Arena = import "standard/1/Arena.os";
 
     // //  ---------------- Tier 2: collections and iteration ----------------
     public module List = import "standard/1/List.os";
@@ -50,8 +51,8 @@ module std {
     public module Regex = import "standard/1/Regex.os";
     public module Json = import "standard/1/Json.os";
     public module Csv = import "standard/1/Csv.os";
-    public module Toml = import "standard/1/Toml.os";            // stub
-    public module Yaml = import "standard/1/Yaml.os";            // stub
+    public module Toml = import "standard/1/Toml.os";            
+    public module Yaml = import "standard/1/Yaml.os";            
     public module Xml = import "standard/1/Xml.os";
     public module Binary = import "standard/1/Binary.os";
 
@@ -68,12 +69,12 @@ module std {
     // // ---------------- Tier 5: concurrency and networking ----------------
     public module Thread = import "standard/1/Thread.os";
     public module Channel = import "standard/1/Channel.os";
-    public module Tasks = import "standard/1/Async.os";              // stub
+    public module Tasks = import "standard/1/Async.os";              
     public module Net = import "standard/1/Net.os";
     public module Http = import "standard/1/Http.os";
-    public module HttpServer = import "standard/1/HttpServer.os";   // stub
-    public module Ws = import "standard/1/Ws.os";                // stub
-    public module Tls = import "standard/1/Tls.os";              // stub
+    public module HttpServer = import "standard/1/HttpServer.os";   
+    public module Ws = import "standard/1/Ws.os";                
+    public module Tls = import "standard/1/Tls.os";              
 
     // // ---------------- Tier 6: security, storage, compression ----------------
     public module Crypto = import "standard/1/Crypto.os";
@@ -88,17 +89,17 @@ module std {
     public module Input = import "standard/1/Input.os";
     public module OpenGL = import "standard/1/OpenGL.os";
     public module Vk = import "standard/1/Vulkan.os";
-    public module Canvas = import "standard/1/Canvas.os";        // stub
+    public module Canvas = import "standard/1/Canvas.os";        
     public module Image = import "standard/1/Image.os";
     public module Font = import "standard/1/Font.os";
     public module Audio = import "standard/1/Audio.os";
-    public module Video = import "standard/1/Video.os";          // stub
-    public module Gui = import "standard/1/Gui.os";              // stub
+    public module Video = import "standard/1/Video.os";          
+    public module Gui = import "standard/1/Gui.os";              
 
     // ---------------- Tier 8: language tooling and interop ----------------
     public module Ffi = import "standard/1/Ffi.os";
-    public module Reflect = import "standard/1/Reflect.os";      // stub
-    public module Test = import "standard/1/Test.os";            // yours; enable when ready
+    public module Reflect = import "standard/1/Reflect.os";      
+    public module Test = import "standard/1/Test.os";          
     public module Bench = import "standard/1/Bench.os";
     public module Debug = import "standard/1/Debug.os";
 }

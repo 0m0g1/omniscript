@@ -17,7 +17,40 @@
 #include <omniscript/Expressions/AccessExpressions.h>
 
 namespace Omniscript {
-    
+
+std::string canonicalTypeName(const std::string& name);
+
+namespace {
+// `can <op>` methods are ordinary methods named '<Type>.operator<op>' (see Parser::parseStruct).
+const char* operatorSuffix(TokenTypes t) {
+    switch (t) {
+        case TokenTypes::Plus: return "+";           case TokenTypes::Minus: return "-";
+        case TokenTypes::Multiply: return "*";       case TokenTypes::Divide: return "/";
+        case TokenTypes::Modulo: return "%";         case TokenTypes::Equals: return "==";
+        case TokenTypes::NotEquals: return "!=";     case TokenTypes::LessThan: return "<";
+        case TokenTypes::GreaterThan: return ">";    case TokenTypes::LessEqual: return "<=";
+        case TokenTypes::GreaterEqual: return ">=";  case TokenTypes::BitwiseAnd: return "&";
+        case TokenTypes::BitwiseOr: return "|";      case TokenTypes::BitwiseXor: return "^";
+        case TokenTypes::ShiftLeft: return "<<";     case TokenTypes::ShiftRight: return ">>";
+        default: return nullptr;
+    }
+}
+} // namespace
+
+// True when `t` is a user struct/class VALUE type that defines operator<suffix>.
+bool hasOperatorMethod(SymbolTableType scope, const std::shared_ptr<Type>& t, const std::string& suffix) {
+    if (!t || t->isNull() || t->isInvalid()) return false;
+    // Value operands only: `p == nullptr` on a `T*` is a pointer comparison, never a call to T.operator==.
+    if (t->isPointer()) return false;
+    auto udt = std::dynamic_pointer_cast<UserDefinedType>(t);
+    if (!udt) return false;
+    for (const std::string& n : { udt->name, canonicalTypeName(udt->name) }) {
+        const std::string method = n + ".operator" + suffix;
+        if (scope->get(method) || !scope->getOverloads(method).empty()) return true;
+    }
+    return false;
+}
+
 std::shared_ptr<Expression> ASTTernaryExpression::express(SymbolTableType scope) {
     setSpan(getSpan());
     if (auto stmt = std::dynamic_pointer_cast<TypedStatement>(truthy)) {
@@ -303,6 +336,32 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
         );
     }
 
+    // Operator overloading: `a <op> b` where a's type defines `can <op>` becomes the method call a.operator<op>(b).
+    // Primitives, raw pointers and char* never match (hasOperatorMethod needs a user struct/class type).
+    if (const char* opSuffix = operatorSuffix(op.getType())) {
+        std::string useSuffix;
+        bool negate = false;
+        if (hasOperatorMethod(scope, leftType, opSuffix)) {
+            useSuffix = opSuffix;
+        } else if (op.getType() == TokenTypes::NotEquals && hasOperatorMethod(scope, leftType, "==")) {
+            useSuffix = "==";      // a != b  ->  !(a == b)
+            negate = true;
+        }
+        if (!useSuffix.empty()) {
+            auto access = std::make_shared<MemberAccess>(leftOrig, "operator" + useSuffix);
+            access->setArguments({ rightOrig });
+            access->setSpan(getSpan());
+            std::shared_ptr<Statement> callStmt = access;
+            if (negate) {
+                auto notExpr = std::make_shared<ASTUnaryExpression>(
+                    Token(TokenTypes::LogicalNot, "!"), callStmt, ASTUnaryExpression::Position::Prefix);
+                notExpr->setSpan(getSpan());
+                callStmt = notExpr;
+            }
+            return callStmt->express(scope);
+        }
+    }
+
     if (type) {
         if (!op.isComparisonOperator()) {
             if (Type::isSameOrCastableTo(leftType, type)) {
@@ -580,6 +639,35 @@ std::shared_ptr<Expression> ASTBinaryExpression::express(SymbolTableType scope) 
     return binaryExpr;
 }
 
+std::shared_ptr<Expression> ASTBinaryExpression::tryCompoundOperator(SymbolTableType scope) {
+    const char* base = operatorSuffix(op.getType());
+    if (!base || !left || !right) return nullptr;
+    const std::string suffix = std::string(base) + "=";
+
+    // Learn the left operand's type on a clone in a temp scope (same trick as express()).
+    auto tempScope = scope->createChildScope("temp");
+    auto leftClone = left->clone();
+    extendContextOf(leftClone);
+    auto leftExpr = leftClone->express(tempScope);
+    if (!leftExpr || !hasOperatorMethod(scope, leftExpr->getType(), suffix)) return nullptr;
+    // `a[i] += v` where `a[i]` is `a.operator[](i)`: that call returns a copy, so `operator+=` would change a
+    // temporary and silently lose the update. Use the `a[i] = a[i] + v` form (operator[]=) instead.
+    if (std::dynamic_pointer_cast<IndexAccess>(left) && !std::dynamic_pointer_cast<IndexAccessExpression>(leftExpr)) return nullptr;
+
+    auto access = std::make_shared<MemberAccess>(left, "operator" + suffix);
+    access->setArguments({ right });
+    access->setSpan(getSpan());
+    return access->express(scope);
+}
+
+std::shared_ptr<Expression> CompoundAccessAssignment::express(SymbolTableType scope) {
+    setSpan(getSpan());
+    if (compound) {
+        if (auto call = compound->tryCompoundOperator(scope)) return call;
+    }
+    return fallback ? fallback->express(scope) : nullptr;
+}
+
 bool ASTBinaryExpression::hasSideEffects() {
     return !isCompileTimeEvaluatable();
 }
@@ -589,6 +677,35 @@ bool ASTBinaryExpression::isCompileTimeEvaluatable() {
         return true;
     }
     return false;
+}
+
+std::shared_ptr<Expression> ASTUnaryExpression::tryOperator(SymbolTableType scope, bool& handled) {
+    handled = false;
+    if (!operand) return nullptr;
+    std::string name;
+    switch (op.getType()) {
+        case TokenTypes::LogicalNot: name = "!"; break;
+        case TokenTypes::Tilde:      name = "~"; break;
+        case TokenTypes::Minus:      if (position != Position::Prefix) return nullptr; name = "unary-"; break;
+        case TokenTypes::Plus:       if (position != Position::Prefix) return nullptr; name = "unary+"; break;
+        case TokenTypes::Increment:  name = "++"; break;     // one method serves prefix and postfix
+        case TokenTypes::Decrement:  name = "--"; break;
+        default: return nullptr;
+    }
+    if (std::dynamic_pointer_cast<Literal>(operand)) return nullptr;   // `-1`, `!true`: never a user type
+
+    // Learn the operand's type on a clone in a temp scope (same trick as ASTBinaryExpression::express).
+    auto tempScope = scope->createChildScope("temp");
+    auto operandClone = operand->clone();
+    extendContextOf(operandClone);
+    auto operandExpr = operandClone->express(tempScope);
+    if (!operandExpr || !hasOperatorMethod(scope, operandExpr->getType(), name)) return nullptr;
+
+    handled = true;
+    auto access = std::make_shared<MemberAccess>(operand, "operator" + name);
+    access->setArguments({});
+    access->setSpan(getSpan());
+    return access->express(scope);
 }
 
 std::shared_ptr<Expression> ASTUnaryExpression::express(SymbolTableType scope) {
@@ -609,6 +726,12 @@ std::shared_ptr<Expression> ASTUnaryExpression::express(SymbolTableType scope) {
     }
 
     extendContextOf(operand);
+
+    {   // operator overloading (`can !`, `can unary-`, `can ++`, ...)
+        bool handled = false;
+        auto overloaded = tryOperator(scope, handled);
+        if (handled) return overloaded;
+    }
 
     // Prefix `*p` is a dereference: lower it to a DereferenceExpression (same node `*p = v` uses),
     // whose type is the pointee. The target type pushed in by an enclosing cast (`*p as T`) must

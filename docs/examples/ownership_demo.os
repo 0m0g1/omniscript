@@ -1,3 +1,4 @@
+// docs\examples\ownership_demo.os
 // ownership_demo.os -- target ergonomics for OmniScript, C++ style (constructors, ~destructors, new/delete), self-checking.
 //
 // STATUS: PROPOSAL. Compiles only once the features exist. [NEW] marks syntax that does not exist yet.
@@ -240,6 +241,181 @@ function sec16() => void {
 }
 // want: [a][b]
 
+// 17. operator overloading on a user struct: `can <op> (params) => ret { body }` inside the struct   [NEW]
+//     Operands are passed as written (no automatic &), so the parameters are pointers.
+struct Num {
+    v: int = 0;
+    can + (o: Num*) => int { return this.v + o.v; }
+    can - (o: Num*) => int { return this.v - o.v; }
+    can == (o: Num*) => bool { return this.v == o.v; }
+    can < (o: Num*) => bool { return this.v < o.v; }
+    can += (o: Num*) => void { this.v = this.v + o.v; }
+    can ! () => bool { return this.v == 0; }                       // unary: no parameters
+    can - () => Num { let r: Num; r.v = 0 - this.v; return r; }    // unary minus (binary minus is above)
+    can -- () => int { this.v = this.v - 1; return this.v; }       // serves a-- and --a
+}
+function sec17() => void {
+    let a: Num;
+    let b: Num;
+    a.v = 2;
+    b.v = 3;
+    if ((a + &b) == 5) t("plus ");
+    if ((b - &a) == 1) t("minus ");
+    if (a == &a) t("eq ");
+    if (a != &b) t("ne ");          // only == is defined: a != b is !(a == b)
+    if (a < &b) t("lt ");
+    a += &b;                        // calls operator+= directly (no a = a + b)
+    if (a.v == 5) t("pluseq ");
+    let n: int = 7;                 // primitives are untouched
+    n += 1;
+    if (n == 8) t("prim ");
+    let p: Num* = &a;               // pointers are untouched: this is a pointer compare, not Num.operator==
+    if (p != nullptr) t("ptr ");
+}
+// want: plus minus eq ne lt pluseq prim ptr
+
+// 18. operators on the library types: String (== and +=) and StrView (==)   [NEW]
+function sec18() => void {
+    let s: Str.String;
+    s += "ab";
+    s += "cd";
+    if (s == "abcd") t("str-eq ");
+    if (s != "xyz") t("str-ne ");
+    let v: SV.StrView = SV.view("  key = value ");
+    let eq: int = v.indexOf("=");
+    let key: SV.StrView = v.slice(0, eq).trim();
+    if (key == "key") t("view-eq ");
+    if (key != "val") t("view-ne ");
+}
+// want: str-eq str-ne view-eq view-ne
+
+// 19. unary operators: ! - -- on a user struct (primitives untouched)   [NEW]
+function sec19() => void {
+    let a: Num;
+    a.v = 2;
+    if (!a) t("bad ");
+    let z: Num;
+    if (!z) t("not ");
+    let neg: Num = -a;
+    if (neg.v == 0 - 2) t("neg ");
+    a--;
+    if (a.v == 1) t("dec ");
+    let k: int = 5;
+    k--;
+    if (k == 4) t("primdec ");
+    let f: bool = false;
+    if (!f) t("primnot ");
+}
+// want: not neg dec primdec primnot
+
+// 20. indexing: `can []` reads, `can []=` writes; `a[i] += v` becomes a[i] = a[i] + v   [NEW]
+struct Slots {
+    data: int* = nullptr;
+    n: int = 0;
+    can [] (i: int) => int {
+        if (i < 0 || i >= this.n) return 0 - 1;
+        return this.data[i];
+    }
+    can []= (i: int, v: int) => bool {
+        if (i < 0 || i >= this.n) return false;
+        this.data[i] = v;
+        return true;
+    }
+}
+function sec20() => void {
+    let raw: [4]int;
+    let s: Slots;
+    s.data = (&raw) as int*;
+    s.n = 4;
+    s[1] = 42;
+    if (s[1] == 42) t("idx ");
+    if (s[9] == 0 - 1) t("oob ");
+    s[2] = s[1] + 1;
+    if (s[2] == 43) t("idx2 ");
+    s[3] = 1;
+    s[3] += 5;
+    if (s[3] == 6) t("idxadd ");
+    let st: Str.String;
+    st += "abc";
+    if ((st[1] as int) == 98) t("str-idx ");
+    st[0] = 65 as char;
+    if ((st[0] as int) == 65) t("str-set ");
+    let v: SV.StrView = SV.view("xyz");
+    if ((v[2] as int) == 122) t("view-idx ");
+}
+// want: idx oob idx2 idxadd str-idx str-set view-idx
+
+// 21. compound operator on a MEMBER: h.total += x calls Num.operator+= on the member (no a.x = a.x + b copy)   [NEW]
+struct Acc { total: Num; }
+function sec21() => void {
+    let h: Acc;
+    let d: Num;
+    d.v = 4;
+    h.total.v = 1;
+    h.total += &d;
+    if (h.total.v == 5) t("member-pluseq ");
+}
+// want: member-pluseq
+
+// 22. operators inside a GENERIC struct: the methods are renamed per instance (Box<int> gets Box_int.operator...)   [NEW]
+struct Box<T> {
+    v: T;
+    can [] (i: int) => T { return this.v; }
+    can == (o: Box<T>*) => bool { return this.v == o.v; }
+}
+function sec22() => void {
+    let a: Box<int>;
+    let b: Box<int>;
+    a.v = 7;
+    b.v = 7;
+    if (a[0] == 7) t("box-idx ");
+    if (a == &b) t("box-eq ");
+    b.v = 8;
+    if (a != &b) t("box-ne ");      // only == is defined: a != b is !(a == b)
+}
+// want: box-idx box-eq box-ne
+
+// 23. out-of-struct operator: `Type can <op> (params) => ret { body }` adds an operator to a struct declared elsewhere   [NEW]
+//     Num is the struct from section 17; the method gets an implicit `this: Num*`, exactly like an in-struct operator.
+Num can * (o: Num*) => int { return this.v * o.v; }
+function sec23() => void {
+    let a: Num;
+    let b: Num;
+    a.v = 3;
+    b.v = 4;
+    if ((a * &b) == 12) t("mul ");
+    let n: int = 6;                 // primitives are untouched
+    if (n * 7 == 42) t("primmul ");
+}
+// want: mul primmul
+
+// 24. out-of-struct operators on a GENERIC struct: `Pair<T> can ...` is appended to the template before its first use   [NEW]
+//     The type parameter must be spelled the same as in the struct declaration.
+struct Pair<T> { a: T; b: T; }
+Pair<T> can + (o: Pair<T>*) => T { return this.a + o.a; }
+Pair<T> can == (o: Pair<T>*) => bool { return this.a == o.a && this.b == o.b; }
+function sec24() => void {
+    let x: Pair<int>;
+    let y: Pair<int>;
+    x.a = 1;
+    x.b = 2;
+    y.a = 10;
+    y.b = 2;
+    if ((x + &y) == 11) t("pair-add ");
+    if (x == &x) t("pair-eq ");
+    if (x != &y) t("pair-ne ");
+}
+// want: pair-add pair-eq pair-ne
+
+// 25. copying a struct that has a destructor but no copy constructor is a COMPILE ERROR (two owners, double free)   [NEW]
+//     Not a runtime check: uncomment to see the error. Passing a pointer, moving a temporary or defining a copy
+//     constructor (section 10) are the legal ways.
+// function takesRes(r: Res) => void { }
+// function sec25() => void {
+//     let a = Res("a");
+//     takesRes(a);               // error: 'Res' has a destructor ... pass a pointer or define a copy constructor
+// }
+
 function main() => int {
     sec1();  check("1  scope exit",                "+a +b inner -b outer -a ");
     sec2();  check("2  return/continue/break",     "+r -r +r after-if -r +l body -l +l -l +l -l ");
@@ -257,6 +433,14 @@ function main() => int {
     sec14(); check("14 lambda + interpolation",   "sum=6 twice=12 ");
     sec15(); check("15 raw malloc/free",           "3 ");
     sec16(); check("16 no free() anywhere",        "[a][b]");
+    sec17(); check("17 operators on a struct",     "plus minus eq ne lt pluseq prim ptr ");
+    sec18(); check("18 String/StrView operators",  "str-eq str-ne view-eq view-ne ");
+    sec19(); check("19 unary operators",           "not neg dec primdec primnot ");
+    sec20(); check("20 index operators",           "idx oob idx2 idxadd str-idx str-set view-idx ");
+    sec21(); check("21 compound on a member",     "member-pluseq ");
+    sec22(); check("22 operators in a generic",   "box-idx box-eq box-ne ");
+    sec23(); check("23 out-of-struct operator",   "mul primmul ");
+    sec24(); check("24 out-of-struct on generic", "pair-add pair-eq pair-ne ");
     C.println(failed == 0 ? "ALL PASS" : `${failed} FAILED`);
     return failed;
 }

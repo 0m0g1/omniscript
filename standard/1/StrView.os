@@ -58,6 +58,15 @@ struct StrView {
         return -1;
     }
 
+    /// `v[i]`: the byte at `i`, or 0 when `i` is past the end.
+    can [] (i: u64) => char {
+        if (i >= this.len) return 0 as char;
+        return this.data[i];
+    }
+
+    /// `v == "text"`: same as `equalsC`. (`!=` follows automatically.)
+    can == (s: char*) => bool { return this.equalsC(s); }
+
     /// `true` if the view equals the C string `s`.
     equalsC(s: char*) => bool {
         let n: u64 = strlen(s);

@@ -1,4 +1,4 @@
-// ParseObjects.cpp
+// src\Parser\ParseObjects.cpp
 #include <omniscript/Statements/Statement.h>
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/FunctionStatement.h>
@@ -299,6 +299,144 @@ std::shared_ptr<Statement> Parser::parseClass() {
     return classStatement;
 }
 
+// ---- operator overloading helpers (shared by the in-struct and the out-of-struct form) ----
+
+// `canIdx` = lookahead index of `can`. Recognises the operator spelled right after it and requires `(` after that.
+bool Parser::matchOperatorAfterCan(int canIdx, std::string& opName, int& opTokens) {
+    opName.clear();
+    opTokens = 0;
+    const int b = canIdx;
+    switch (lexer.peekToken(b + 1).getType()) {
+        case TokenTypes::Plus:         opName = "+";   opTokens = 1; break;
+        case TokenTypes::Minus:        opName = "-";   opTokens = 1; break;
+        case TokenTypes::Multiply:     opName = "*";   opTokens = 1; break;
+        case TokenTypes::Divide:       opName = "/";   opTokens = 1; break;
+        case TokenTypes::Modulo:       opName = "%";   opTokens = 1; break;
+        case TokenTypes::Equals:       opName = "==";  opTokens = 1; break;
+        case TokenTypes::NotEquals:    opName = "!=";  opTokens = 1; break;
+        case TokenTypes::LessThan:     opName = "<";   opTokens = 1; break;
+        case TokenTypes::GreaterThan:  opName = ">";   opTokens = 1; break;
+        case TokenTypes::LessEqual:    opName = "<=";  opTokens = 1; break;
+        case TokenTypes::GreaterEqual: opName = ">=";  opTokens = 1; break;
+        case TokenTypes::BitwiseAnd:   opName = "&";   opTokens = 1; break;
+        case TokenTypes::BitwiseOr:    opName = "|";   opTokens = 1; break;
+        case TokenTypes::BitwiseXor:   opName = "^";   opTokens = 1; break;
+        case TokenTypes::ShiftLeft:    opName = "<<";  opTokens = 1; break;
+        case TokenTypes::ShiftRight:   opName = ">>";  opTokens = 1; break;
+        case TokenTypes::LogicalNot:   opName = "!";   opTokens = 1; break;
+        case TokenTypes::Tilde:        opName = "~";   opTokens = 1; break;
+        case TokenTypes::Increment:    opName = "++";  opTokens = 1; break;
+        case TokenTypes::Decrement:    opName = "--";  opTokens = 1; break;
+        case TokenTypes::PlusAssign:     opName = "+="; opTokens = 1; break;
+        case TokenTypes::MinusAssign:    opName = "-="; opTokens = 1; break;
+        case TokenTypes::MultiplyAssign: opName = "*="; opTokens = 1; break;
+        case TokenTypes::DivideAssign:   opName = "/="; opTokens = 1; break;
+        case TokenTypes::ModuloAssign:   opName = "%="; opTokens = 1; break;
+        case TokenTypes::LeftBracket:
+            if (lexer.peekToken(b + 2).getType() == TokenTypes::RightBracket) {
+                if (lexer.peekToken(b + 3).getType() == TokenTypes::Assign) { opName = "[]="; opTokens = 3; }
+                else { opName = "[]"; opTokens = 2; }
+            }
+            break;
+        default: break;
+    }
+    if (opTokens == 0 || lexer.peekToken(b + opTokens + 1).getType() != TokenTypes::LeftParen) {
+        opName.clear();
+        opTokens = 0;
+        return false;
+    }
+    // `can - () => T` (no parameters) is the UNARY minus/plus; `can - (o: T) => R` is the binary one.
+    if ((opName == "-" || opName == "+") && lexer.peekToken(b + opTokens + 2).getType() == TokenTypes::RightParen) {
+        opName = "unary" + opName;
+    }
+    return true;
+}
+
+// Statement-level lookahead (current token is an identifier): `A can op (`, `A.B can op (`, `A<T, U> can op (`.
+bool Parser::isOutOfStructOperatorAhead() {
+    int k = 1;
+    while (lexer.peekToken(k).getValue() == ".") {
+        if (lexer.peekToken(k + 1).getType() != TokenTypes::Identifier) return false;
+        k += 2;
+    }
+    if (lexer.peekToken(k).getType() == TokenTypes::LessThan) {
+        int depth = 0;
+        const int limit = k + 64;
+        for (; k < limit; ++k) {
+            const TokenTypes t = lexer.peekToken(k).getType();
+            if (t == TokenTypes::LessThan) ++depth;
+            else if (t == TokenTypes::GreaterThan) --depth;
+            else if (t == TokenTypes::ShiftRight) depth -= 2;
+            else if (t == TokenTypes::EOI || t == TokenTypes::Semicolon || t == TokenTypes::LeftBrace ||
+                     t == TokenTypes::LeftParen || t == TokenTypes::Assign) return false;
+            if (depth <= 0) { ++k; break; }
+        }
+        if (depth != 0) return false;
+    }
+    const Token canTok = lexer.peekToken(k);
+    if (canTok.getType() != TokenTypes::Identifier || canTok.getValue() != "can") return false;
+    std::string opName;
+    int opTokens = 0;
+    return matchOperatorAfterCan(k, opName, opTokens);
+}
+
+// Out-of-struct operator:
+//     Num can * (o: Num*) => Num { ... }          non-generic: a free function "Num.operator*" with an explicit `this: Num*`
+//     DynArray<T> can + (o: DynArray<T>*) => ... generic: handed to the template as an extra member
+// For the generic form the method is wrapped in a ConstructStructPrototype of the same name and type parameters;
+// GenericInstantiator::registerTemplate recognises that shape and appends the method to the existing template.
+std::shared_ptr<Statement> Parser::parseOutOfStructOperator() {
+    const Token startToken = currentToken;
+
+    std::string typeName = currentToken.getValue();
+    std::vector<std::string> typeTokens{typeName};
+    eat(TokenTypes::Identifier);
+    while (currentToken.getValue() == ".") {
+        eat(currentToken.getType());
+        typeName += "." + currentToken.getValue();
+        typeTokens.push_back(".");
+        typeTokens.push_back(currentToken.getValue());
+        eat(TokenTypes::Identifier);
+    }
+
+    parameterType typeParams;
+    if (currentToken.getType() == TokenTypes::LessThan) {
+        typeParams = parseTypeParametersForDeclaration();
+        if (typeParams.empty()) return nullptr;      // already reported
+    }
+
+    std::string opName;
+    int opTokens = 0;
+    if (currentToken.getType() != TokenTypes::Identifier || currentToken.getValue() != "can" ||
+        !matchOperatorAfterCan(0, opName, opTokens)) {
+        console.reportError(Console::SYNTAX_ERROR,
+            "Expected 'can <operator> (' after type '" + typeName + "'.",
+            errorSpanAtCurrentToken());
+        return nullptr;
+    }
+    eat(TokenTypes::Identifier);                       // `can`
+    for (int i = 0; i < opTokens; ++i) eat(currentToken.getType());
+
+    const std::string methodName = typeName + ".operator" + opName;
+
+    if (!typeParams.empty()) {
+        // Plain method: `this` is added when the instantiated struct is expressed, T is substituted per instance.
+        auto func = parseLambdaFunction(methodName);
+        if (!func) return nullptr;
+        std::vector<std::shared_ptr<Statement>> members{func};
+        auto proto = std::make_shared<ConstructStructPrototype>(typeName, members, typeParams);
+        proto->setPosition(startToken, previousToken);
+        return proto;
+    }
+
+    std::shared_ptr<Type> thisType = resolveType(typeTokens);
+    if (!thisType) thisType = Type::createUserDefinedType(typeName, Kind::Struct);
+    // parseFunctionDeclaration inserts `this: T*` as the first parameter when it is given the type.
+    auto func = parseLambdaFunction(methodName, {}, thisType);
+    if (func) func->setPosition(startToken, previousToken);
+    return func;
+}
+
 std::shared_ptr<Statement> Parser::parseStruct() {
     Token startToken = currentToken;
     eat(TokenTypes::Struct);
@@ -420,6 +558,24 @@ std::shared_ptr<Statement> Parser::parseStruct() {
                 eat(TokenTypes::Semicolon);
             }
             continue;
+        }
+
+        // ---- OPERATOR METHOD: `can <op> (params) => ret { body }` ----
+        // `can` is a contextual keyword: it only starts an operator when an operator token and then `(` follow.
+        // The method is an ordinary method with the reserved name '<struct>.operator<op>', e.g. 'Vec.operator+',
+        // 'Vec.operator[]', 'Vec.operator[]='. Unary vs binary is decided later by the parameter count.
+        if (currentToken.getType() == TokenTypes::Identifier && currentToken.getValue() == "can") {
+            std::string opName;
+            int opTokens = 0;
+            if (matchOperatorAfterCan(0, opName, opTokens)) {
+                eat(TokenTypes::Identifier);                       // `can`
+                for (int i = 0; i < opTokens; ++i) eat(currentToken.getType());
+                auto func = parseLambdaFunction(structName + ".operator" + opName);
+                if (!func) { skipBadMember(); continue; }
+                body.push_back(func);
+                if (currentToken.getType() == TokenTypes::Semicolon) eat(TokenTypes::Semicolon);
+                continue;
+            }
         }
 
         if (currentToken.getType() == TokenTypes::Identifier) {

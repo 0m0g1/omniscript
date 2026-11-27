@@ -134,6 +134,27 @@ struct String {
         return this.data;
     }
 
+    // ---- operators ----
+
+    /// `s == "text"`: `true` if the string equals the C string. (`!=` follows automatically.)
+    can == (other: char*) => bool { return strcmp(this.cstr(), other) == 0; }
+
+    /// `s[i]`: the byte at `i`, or 0 when `i` is past the end.
+    can [] (i: u64) => char {
+        if (i >= this.len) return 0 as char;
+        return this.data[i];
+    }
+
+    /// `s[i] = c`: replaces the byte at `i`. Returns `false` (and changes nothing) when `i` is past the end.
+    can []= (i: u64, c: char) => bool {
+        if (i >= this.len) return false;
+        this.data[i] = c;
+        return true;
+    }
+
+    /// `s += "text"`: appends the C string, in place.
+    can += (src: char*) => void { this.append(src); }
+
     // ---- building ----
 
     /// Replaces the contents with the C string `src`.

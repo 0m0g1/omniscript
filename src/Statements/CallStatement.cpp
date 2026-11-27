@@ -94,6 +94,35 @@ std::string bindMismatchMessage(const std::string& argTypeStr, const std::string
 } // namespace
 
 namespace {
+// A `T&` parameter takes the argument's address implicitly: the caller writes `a * b` / `f(b)`, not `a * &b`.
+// At IR level a reference parameter is a plain `ptr`, so an argument that evaluated to a T *value* must be turned
+// into its address here. That is exactly what `&b` produces (a ReferenceTo), and the IR generator's
+// ReferenceExpression handling already covers variables, fields, array elements and temporaries.
+// Returns the address expression (typed T*), or nullptr when nothing needs wrapping: the parameter is not a
+// reference, or the argument already is a pointer / reference (`f(&b)` keeps working unchanged).
+// `arg` is the AST argument, `value` what it evaluated to.
+std::shared_ptr<Expression> bindToReferenceParameter(
+    const std::shared_ptr<Statement>& arg,
+    const std::shared_ptr<Expression>& value,
+    const std::shared_ptr<Type>& paramType,
+    SymbolTableType scope,
+    const auto& span) {
+    if (!arg || !value || !paramType || !paramType->isReference()) return nullptr;
+    auto valueType = value->getType();
+    if (!valueType || valueType->isPointer() || valueType->isReference()) return nullptr;
+    auto referent = paramType->getReferencedType();
+    if (!referent) return nullptr;
+
+    auto ptrType = Type::createPointerType(referent);
+    auto ref = std::make_shared<ReferenceTo>(arg);
+    ref->setType(ptrType);
+    ref->setRootType(ptrType);
+    ref->setSpan(span);
+    return ref->express(scope);
+}
+} // namespace
+
+namespace {
 // Resolves the type of a variable holding a function pointer to its FunctionType.
 // `type X = fn(...) => T;` registers "X" (pointer) and "*X" (the function type) in the scope;
 // `let f: X;` leaves the variable typed as the user-defined name "X".
@@ -1291,6 +1320,10 @@ bool Call::processNamedArguments(
                 );
                 return false;
             }
+            // `T&` parameter: pass the object's address (same rule as for positional arguments).
+            if (auto addr = bindToReferenceParameter(namedArg->value, evaluated, param->getType(), scope, namedArg->getSpan())) {
+                evaluated = addr;
+            }
             localScope->set(paramName, evaluated);
             collectedArgs[paramIndex] = evaluated;
             providedParams.insert(paramName);
@@ -1624,6 +1657,11 @@ bool Call::processRegularPositionalArgument(
             reportSpan
         );
         return false;
+    }
+
+    // `T&` parameter: the caller passes the object itself, the callee receives its address.
+    if (auto addr = bindToReferenceParameter(arg, value, param->getType(), scope, reportSpan)) {
+        value = addr;
     }
 
     // Store in scope and collected args

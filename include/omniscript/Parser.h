@@ -1,3 +1,4 @@
+// include\omniscript\Parser.h
 #pragma once
 
 #include <omniscript/omniscript_pch.h>
@@ -161,6 +162,16 @@ class Parser {
         std::shared_ptr<Statement> parseObject();
         std::shared_ptr<Statement> parseClass();
         MemberModifiers parseMemberModifiers();
+
+        // Operator overloading (`can <op> (params) => ret { body }`).
+        // `canIdx` is the lexer lookahead index of the contextual keyword `can` (0 = the current token).
+        // True when an operator token and then `(` follow; fills the method suffix ("+", "[]=", "unary-" ...)
+        // and the number of tokens the operator spells.
+        bool matchOperatorAfterCan(int canIdx, std::string& opName, int& opTokens);
+        // True at `T can <op> (`, `A.B can <op> (` or `T<U> can <op> (` (out-of-struct operator, statement level).
+        bool isOutOfStructOperatorAhead();
+        // `T can <op> (params) => ret { body }`  and  `T<U> can <op> (params) => ret { body }`
+        std::shared_ptr<Statement> parseOutOfStructOperator();
 
         
         std::shared_ptr<Statement> parseTernaryExpression();   

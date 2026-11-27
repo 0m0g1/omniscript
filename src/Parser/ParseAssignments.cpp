@@ -19,6 +19,14 @@
 
 namespace Omniscript {
 
+// `a <op>= b` is lowered to `a = a <op> b`; the flag lets the semantic phase call `can <op>=` instead.
+static std::shared_ptr<Statement> makeCompoundBinary(std::shared_ptr<Statement> lhs, TokenTypes op, std::shared_ptr<Statement> rhs) {
+    auto bin = std::make_shared<ASTBinaryExpression>(lhs, op, rhs);
+    bin->fromCompound = true;
+    return bin;
+}
+
+
 bool Parser::isAssignmentExpression(TokenTypes tokenType) {
     if (tokenType == TokenTypes::Assign || 
         tokenType == TokenTypes::PlusAssign || 
@@ -481,31 +489,34 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
                 case TokenTypes::Assign:
                     break;
                 case TokenTypes::PlusAssign:
-                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::Plus, value);
+                    value = makeCompoundBinary(assignee, TokenTypes::Plus, value);
                     break;
                 case TokenTypes::MinusAssign:
-                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::Minus, value);
+                    value = makeCompoundBinary(assignee, TokenTypes::Minus, value);
                     break;
                 case TokenTypes::DivideAssign:
-                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::Divide, value);
+                    value = makeCompoundBinary(assignee, TokenTypes::Divide, value);
                     break;
                 case TokenTypes::MultiplyAssign:
-                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::Multiply, value);
+                    value = makeCompoundBinary(assignee, TokenTypes::Multiply, value);
+                    break;
+                case TokenTypes::ModuloAssign:
+                    value = makeCompoundBinary(assignee, TokenTypes::Modulo, value);
                     break;
                 case TokenTypes::BitwiseXorAssign:
-                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::BitwiseXor, value);
+                    value = makeCompoundBinary(assignee, TokenTypes::BitwiseXor, value);
                     break;
                 case TokenTypes::BitwiseAndAssign:
-                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::BitwiseAnd, value);
+                    value = makeCompoundBinary(assignee, TokenTypes::BitwiseAnd, value);
                     break;
                 case TokenTypes::BitwiseOrAssign:
-                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::BitwiseOr, value);
+                    value = makeCompoundBinary(assignee, TokenTypes::BitwiseOr, value);
                     break;
                 case TokenTypes::ShiftLeftAssign:
-                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::ShiftLeft, value);
+                    value = makeCompoundBinary(assignee, TokenTypes::ShiftLeft, value);
                     break;
                 case TokenTypes::ShiftRightAssign:
-                    value = std::make_shared<ASTBinaryExpression>(assignee, TokenTypes::ShiftRight, value);
+                    value = makeCompoundBinary(assignee, TokenTypes::ShiftRight, value);
                     break;  
                 default:
                     std::string suggestion = Console::formatString(
@@ -595,6 +606,15 @@ std::shared_ptr<Statement> Parser::parseAssignment(std::shared_ptr<Statement> as
         accessClone->setAssignmentValueTo(value);
         accessClone->setPosition(startToken, currentToken);
         accessClone->setSpan(span);
+        // `a.x += b`: let the semantic phase call `can +=` on the member if its type has one.
+        if (auto compound = std::dynamic_pointer_cast<ASTBinaryExpression>(value)) {
+            if (compound->fromCompound) {
+                auto wrapper = std::make_shared<CompoundAccessAssignment>(compound, accessClone);
+                wrapper->setPosition(startToken, currentToken);
+                wrapper->setSpan(span);
+                return wrapper;
+            }
+        }
         return accessClone;
     }
 

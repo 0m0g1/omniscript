@@ -1,3 +1,4 @@
+// src\Semantic\Genericinstantiator.cpp
 #include <omniscript/Semantic/GenericInstantiator.h>
 
 #include <omniscript/Core.h>
@@ -350,14 +351,124 @@ std::vector<std::shared_ptr<Expression>>& GenericInstantiator::pending() {
     return p;
 }
 
+// ---- out-of-struct operators on generic structs: `DynArray<T> can + (...) => R { ... }` ----
+// The parser wraps such an operator in a ConstructStructPrototype of the same name and type parameters whose
+// body holds only methods named "<name>.operator...". registerTemplate recognises that shape and APPENDS the
+// methods to the template of the real struct instead of replacing it. If the operator is expressed before the
+// struct (should not happen, but is harmless) it is parked and merged when the struct registers.
+namespace {
+std::map<std::string, std::vector<std::shared_ptr<Statement>>>& parkedOperators() {
+    static std::map<std::string, std::vector<std::shared_ptr<Statement>>> p;
+    return p;
+}
+
+bool isOperatorAddition(const std::string& name, const std::vector<std::shared_ptr<Statement>>& body) {
+    if (body.empty()) return false;
+    const std::string prefix = name + ".operator";
+    for (const auto& m : body) {
+        auto fn = std::dynamic_pointer_cast<FunctionDeclaration>(m);
+        if (!fn || fn->getName().rfind(prefix, 0) != 0) return false;
+    }
+    return true;
+}
+
+std::string paramSignature(const std::shared_ptr<FunctionDeclaration>& fn) {
+    std::string sig = fn->getName() + "(";
+    for (const auto& p : fn->parameters) {
+        auto ps = std::dynamic_pointer_cast<ParameterStatement>(p);
+        if (ps && ps->getName() == "this") continue;
+        sig += (ps && ps->getType()) ? ps->getType()->toString() : std::string("?");
+        sig += ",";
+    }
+    return sig + ")";
+}
+
+// Appends `extra` to `into`, skipping a method that is already there (same name and parameter types) and
+// renaming "<fromName>.x" to "<templateName>.x" so ensureInstance's prefix rename finds it (module-qualified templates).
+void appendOperatorMembers(std::vector<std::shared_ptr<Statement>>& into,
+                           const std::vector<std::shared_ptr<Statement>>& extra,
+                           const std::string& fromName, const std::string& templateName) {
+    for (const auto& m : extra) {
+        auto fn = std::dynamic_pointer_cast<FunctionDeclaration>(m);
+        if (!fn) continue;
+        if (fromName != templateName && fn->getName().rfind(fromName + ".", 0) == 0) {
+            fn->setName(templateName + "." + fn->getName().substr(fromName.size() + 1));
+        }
+        const std::string sig = paramSignature(fn);
+        bool dup = false;
+        for (const auto& e : into) {
+            auto ef = std::dynamic_pointer_cast<FunctionDeclaration>(e);
+            if (ef && paramSignature(ef) == sig) { dup = true; break; }
+        }
+        if (!dup) into.push_back(fn);
+    }
+}
+
+void storeTemplateBothKeys(std::map<std::string, GenericInstantiator::Template>& all, const GenericInstantiator::Template& t) {
+    all[t.name] = t;
+    const auto dot = t.name.rfind('.');
+    if (dot != std::string::npos) all[t.name.substr(dot + 1)] = t;
+}
+} // namespace
+
 void GenericInstantiator::registerTemplate(const std::string& name,
                                            const std::vector<std::shared_ptr<Statement>>& body,
                                            const GenericParamList& typeParams,
                                            SymbolTableType scope) {
+    auto& all = templates();
+
+    if (isOperatorAddition(name, body)) {
+        auto it = all.find(name);
+        if (it == all.end()) {
+            auto& parked = parkedOperators()[name];
+            parked.insert(parked.end(), body.begin(), body.end());
+            DEBUG_LOG("[GenericInstantiator] Parked operators for not yet declared template " + name);
+            return;
+        }
+        Template t = it->second;
+
+        // Same type parameter names, in the same order: the method body is written with them.
+        bool sameParams = t.typeParams.size() == typeParams.size();
+        for (size_t i = 0; sameParams && i < typeParams.size(); ++i) {
+            sameParams = t.typeParams[i].first == typeParams[i].first;
+        }
+        if (!sameParams) {
+            console.reportError(
+                Console::SEMANTIC_ERROR,
+                "An operator added to generic '" + name + "' must use the same type parameter names as the struct declaration",
+                body.front()->getSpan());
+            return;
+        }
+        // "<name>_T" is the placeholder instance made for the template's own signatures, not a real use.
+        std::string placeholder = t.name + "_";
+        for (size_t i = 0; i < t.typeParams.size(); ++i) {
+            if (i) placeholder += "__";
+            placeholder += t.typeParams[i].first;
+        }
+        for (const auto& kv : instances()) {
+            if (kv.first == placeholder) continue;
+            if (kv.first.rfind(t.name + "_", 0) == 0) {
+                console.reportError(
+                    Console::SEMANTIC_ERROR,
+                    "Operator added to generic '" + name + "' after '" + kv.first +
+                    "' was already instantiated; declare it before the first use of the generic type",
+                    body.front()->getSpan());
+                return;
+            }
+        }
+        appendOperatorMembers(t.body, body, name, t.name);
+        storeTemplateBothKeys(all, t);
+        DEBUG_LOG("[GenericInstantiator] Added operators to template " + t.name);
+        return;
+    }
+
     Template t{name, body, typeParams, scope};
-    templates()[name] = t;
-    const auto dot = name.rfind('.');
-    if (dot != std::string::npos) templates()[name.substr(dot + 1)] = t;
+    auto parked = parkedOperators().find(name);
+    if (parked != parkedOperators().end()) {
+        appendOperatorMembers(t.body, parked->second, name, name);
+        parkedOperators().erase(parked);
+    }
+    storeTemplateBothKeys(all, t);
     DEBUG_LOG("[GenericInstantiator] Registered template " + name);
 }
 
@@ -427,6 +538,17 @@ static void aliasInstanceName(SymbolTableType scope, const std::string& instName
     }
 }
 
+// substituteTypeParam returns the SAME Type object for a bare `T`. ConstructStructPrototype::express writes the field
+// name into the field's type (`type->parameterName = fieldName`), so `struct Pair<T> { a: T; b: T; }` ended up with two
+// members both called 'b'. Give every field its own copy of such a shared type.
+static std::shared_ptr<Type> copyTypeForField(const std::shared_ptr<Type>& t) {
+    if (auto p = std::dynamic_pointer_cast<PrimitiveType>(t))   return std::make_shared<PrimitiveType>(*p);
+    if (auto u = std::dynamic_pointer_cast<UserDefinedType>(t)) return std::make_shared<UserDefinedType>(*u);
+    if (auto p = std::dynamic_pointer_cast<PointerType>(t))     return std::make_shared<PointerType>(*p);
+    if (auto n = std::dynamic_pointer_cast<NullableType>(t))    return std::make_shared<NullableType>(*n);
+    return t;
+}
+
 bool GenericInstantiator::ensureInstance(const std::shared_ptr<UserDefinedType>& udt) {
     if (!udt || udt->templateName.empty() || udt->typeArgs.empty()) return false;
 
@@ -493,7 +615,11 @@ bool GenericInstantiator::ensureInstance(const std::shared_ptr<UserDefinedType>&
 
         if (auto field = std::dynamic_pointer_cast<ParameterStatement>(member)) {
             auto copy = std::make_shared<ParameterStatement>(*field);
-            copy->setType(substituteAll(field->getType()));
+            auto fieldType = substituteAll(field->getType());
+            for (const auto& arg : udt->typeArgs) {
+                if (fieldType == arg) { fieldType = copyTypeForField(fieldType); break; }   // bare `T`: shared object
+            }
+            copy->setType(fieldType);
             substituteInStatement(copy->defaultValue, bindings);   // e.g. `arr: List<T> = List<T>{}`
             newBody.push_back(copy);
             continue;

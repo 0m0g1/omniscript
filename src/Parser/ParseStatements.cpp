@@ -1,3 +1,4 @@
+// src\Parser\ParseStatements.cpp
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Lexer.h>
@@ -97,6 +98,11 @@ std::shared_ptr<Statement> Parser::parseStatement(bool checkForTerminalChar) {
                 lexer.peekToken(1).getType() == TokenTypes::Identifier &&
                 lexer.peekToken(2).getType() == TokenTypes::LeftBrace) {
                 statement = parseArena();
+                break;
+            }
+            // `T can + (...) => R { ... }` / `Box<T> can [] (...) => R { ... }`: operator for an already declared type.
+            if (isOutOfStructOperatorAhead()) {
+                statement = parseOutOfStructOperator();
                 break;
             }
             if (lexer.peekToken(1).getType() == TokenTypes::Increment || 

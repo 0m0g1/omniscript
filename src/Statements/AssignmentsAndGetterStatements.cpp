@@ -1,4 +1,5 @@
 #include <omniscript/Statements/Statement.h>
+#include <omniscript/Statements/ExpressionStatements.h>
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/LiteralStatements.h>
 #include <omniscript/Statements/FunctionStatement.h>
@@ -384,6 +385,27 @@ static std::shared_ptr<Expression> buildDefaultStructInstance(
 
 std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
     setSpanFromPosition(span.start.line, span.start.col, span.start.filePath);
+
+    // `a += b` where a's type defines `can +=`: call it directly instead of `a = a + b` (which would build a new
+    // value and bitwise-assign it over a destructor-owning struct).
+    if (isReassign) {
+        if (auto compound = std::dynamic_pointer_cast<ASTBinaryExpression>(value)) {
+            if (compound->fromCompound) {
+                if (auto call = compound->tryCompoundOperator(scope)) return call;
+            }
+        }
+        // `a++;` / `a--;` arrive as a reassignment of `a` from a postfix unary on `a` itself: call `can ++` / `can --`
+        // directly. (`x = -a` is NOT this case: the operand must be the variable being assigned.)
+        if (auto unary = std::dynamic_pointer_cast<ASTUnaryExpression>(value)) {
+            const TokenTypes ut = unary->getOperator().getType();
+            auto operandVar = std::dynamic_pointer_cast<GetVariable>(unary->getOperand());
+            if ((ut == TokenTypes::Increment || ut == TokenTypes::Decrement) && operandVar && operandVar->getName() == variable) {
+                bool handled = false;
+                auto call = unary->tryOperator(scope, handled);
+                if (handled) return call;
+            }
+        }
+    }
     if (type && type->isUnresolved()) {
         if (auto unresolved = std::dynamic_pointer_cast<UnresolvedType>(type)) {
             type = scope->getType(unresolved->joinedTypeString);

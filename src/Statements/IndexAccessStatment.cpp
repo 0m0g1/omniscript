@@ -3,6 +3,7 @@
 #include <omniscript/Statements/AccessStatements.h>
 #include <omniscript/Statements/CallableStatement.h>
 #include <omniscript/Statements/AssignmentAndGetterStatements.h>
+#include <omniscript/Statements/ExpressionStatements.h>
 
 #include <omniscript/Expressions/ClassExpression.h>
 #include <omniscript/Expressions/StructExpression.h>
@@ -45,6 +46,35 @@ std::shared_ptr<Expression> IndexAccess::express(SymbolTableType scope) {
         return nullptr;
     }
     
+    // Operator overloading: `a[i]` on a user type that defines `can []` calls a.operator[](i); `a[i] = v` calls
+    // a.operator[]=(i, v). Arrays, pointers and everything else keep the builtin behaviour below.
+    if (!isCall) {
+        auto containerType = containerExpr->getType();
+        if (assignmentValue) {
+            if (hasOperatorMethod(scope, containerType, "[]=")) {
+                auto access = std::make_shared<MemberAccess>(expr, "operator[]=");
+                access->setArguments({ index, assignmentValue });
+                access->setSpan(getSpan());
+                return access->express(scope);
+            }
+            if (hasOperatorMethod(scope, containerType, "[]")) {
+                console.reportError(
+                    Console::TYPE_ERROR,
+                    Console::formatString("Type '%s' defines operator[] but not operator[]=, so its elements cannot be assigned",
+                                     containerType->toString().c_str()),
+                    "Add `can []= (index: ..., value: ...) => bool { ... }` to the type.",
+                    getSpan()
+                );
+                return nullptr;
+            }
+        } else if (hasOperatorMethod(scope, containerType, "[]")) {
+            auto access = std::make_shared<MemberAccess>(expr, "operator[]");
+            access->setArguments({ index });
+            access->setSpan(getSpan());
+            return access->express(scope);
+        }
+    }
+
     // Resolve index expression
     auto indexExprValue = resolveIndexExpression(scope);
     if (!indexExprValue) {
