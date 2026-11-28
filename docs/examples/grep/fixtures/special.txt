@@ -1,0 +1,10 @@
+price is $5.00
+a+b=c
+(parens) here
+[brackets] here
+back\slash
+star*star
+question?
+caret^top
+pipe|char
+brace{1}

@@ -4,6 +4,20 @@
 #include <omniscript/Backends/LLVM/ExternalFunctionResolvers/WindowsAPILLVMResolver.h>
 
 namespace Omniscript {
+
+// generateCast is signless and always sign-extends. A u8/u16/u32 value widened into a wider
+// variable (`let x: int = A[0]`) must zero-extend or bytes >= 0x80 turn negative.
+static bool isUnsignedSource(const std::shared_ptr<Expression>& e) {
+    if (!e || !e->getType()) return false;
+    switch (e->getType()->getKind()) {
+        case Kind::UInt8: case Kind::UInt16: case Kind::UInt32: case Kind::UInt64:
+        case Kind::Size_t:
+            return true;
+        default:
+            return false;
+    }
+}
+
 llvm::Value* IRGenerator::assignVariable(
     std::shared_ptr<VariableAssignment> statement,
     SymbolTableType scope
@@ -185,7 +199,7 @@ llvm::Value* IRGenerator::assignVariable(
             llvm::Value* newValue = codegen(statement->getValue(), scope);
             if (!newValue) return nullptr; // error already reported
             if (newValue->getType() != type && !llvm::isa<llvm::AllocaInst>(newValue)) {
-                newValue = generateCast(newValue, type);
+                newValue = generateCast(newValue, type, isUnsignedSource(statement->getValue()));
                 if (!newValue) {
                     std::string suggestion = Console::formatString(
                         "To resolve this:\n"
@@ -403,7 +417,7 @@ llvm::Value* IRGenerator::assignVariable(
             if (!initValue) return nullptr; // error already reported
 
             if (initValue->getType() != type && !llvm::isa<llvm::AllocaInst>(initValue)) {
-                initValue = generateCast(initValue, type);
+                initValue = generateCast(initValue, type, isUnsignedSource(statement->getValue()));
                 if (!initValue) {
                     std::string suggestion = Console::formatString(
                         "To resolve this:\n"
@@ -430,7 +444,7 @@ llvm::Value* IRGenerator::assignVariable(
                     // aggregates evaluate to their address; copy the value
                     initValue = Builder->CreateLoad(alloca->getAllocatedType(), initValue);
                 } else {
-                    initValue = generateCast(initValue, alloca->getAllocatedType());
+                    initValue = generateCast(initValue, alloca->getAllocatedType(), isUnsignedSource(statement->getValue()));
                 }
                 if (!initValue) {
                     console.reportError(

@@ -1,4 +1,5 @@
 // standard/1/c/openal.os  (OpenAL Soft, 64-bit)
+// Added: alSourceQueueBuffers / alSourceUnqueueBuffers (needed for streaming audio).
 extern "dependencies/openal-soft-1.24.3-bin/bin/Win64/soft_oal.dll" {
     fn alcOpenDevice(name: char*) => void*;
     fn alcCloseDevice(dev: void*) => int;
@@ -17,5 +18,7 @@ extern "dependencies/openal-soft-1.24.3-bin/bin/Win64/soft_oal.dll" {
     fn alSourcePlay(src: u32) => void;
     fn alSourceStop(src: u32) => void;
     fn alSourcePause(src: u32) => void;
+    fn alSourceQueueBuffers(src: u32, n: int, bufs: u32*) => void;
+    fn alSourceUnqueueBuffers(src: u32, n: int, bufs: u32*) => void;
     fn alListenerf(param: int, v: float) => void;
 }

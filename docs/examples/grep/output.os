@@ -1,7 +1,7 @@
 /// grep output: buffered stdout, stderr messages, optional ANSI color.
 /// One reusable Str.String builds each line, then a single write goes to the C stdio buffer.
 /// NOTE: --color emits ANSI escapes; Windows Terminal handles them, the legacy console may need VT enabled.
-/// NEXT STEPS: -o (print only matches), -b byte offsets, --null, a bigger explicit output buffer.
+/// NEXT STEPS: -b byte offsets, --null, a bigger explicit output buffer.
 
 module IO = import "standard/1/IO.os";
 module Str = import "standard/1/String.os";
@@ -37,16 +37,23 @@ function colorEnd(o: Out*) => void {
     o.buf.append("[0m");
 }
 
-function sep(o: Out*) => void {
+// The separator after a file name / line number: ':' for selected lines, '-' for context lines.
+function sepCh(o: Out*, ch: char) => void {
     colorStart(o, "36");
-    o.buf.append(":");
+    o.buf.appendChar(ch);
     colorEnd(o);
 }
 
-// Appends "name:" and/or "lineNo:" to the line being built.
+function sep(o: Out*) => void { sepCh(o, ':'); }
+
+// Appends "name:" and/or "lineNo:" to the line being built. `ch` is the separator (':' or '-').
+function prefixSep(o: Out*, name: char*, showName: bool, lineNo: i64, showNum: bool, ch: char) => void {
+    if (showName) { colorStart(o, "35"); o.buf.append(name); colorEnd(o); sepCh(o, ch); }
+    if (showNum) { colorStart(o, "32"); o.buf.appendInt(lineNo); colorEnd(o); sepCh(o, ch); }
+}
+
 function prefix(o: Out*, name: char*, showName: bool, lineNo: i64, showNum: bool) => void {
-    if (showName) { colorStart(o, "35"); o.buf.append(name); colorEnd(o); sep(o); }
-    if (showNum) { colorStart(o, "32"); o.buf.appendInt(lineNo); colorEnd(o); sep(o); }
+    prefixSep(o, name, showName, lineNo, showNum, ':');
 }
 
 // Terminates the line, writes it, and resets the buffer.
@@ -54,6 +61,14 @@ function endLine(o: Out*) => void {
     o.buf.append("\n");
     o.f.write(o.buf.cstr());
     o.buf.clear();
+}
+
+// The "--" line printed between groups of context lines.
+function groupSep(o: Out*) => void {
+    colorStart(o, "36");
+    o.buf.append("--");
+    colorEnd(o);
+    endLine(o);
 }
 
 // "grep: name: message" on stderr.

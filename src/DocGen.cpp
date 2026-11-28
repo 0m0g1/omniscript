@@ -98,11 +98,18 @@ struct DocItem {
     std::string text;        // the `///` block
     size_t line = 0;         // 1-based line of the declaration
     bool documented = true;  // false for declarations found without a `///` block (only with includeUndocumented)
+    std::string file;        // the file it was found in (differs from the requested one for included files)
+};
+
+struct IncludeRef {
+    std::string path;        // the string literal as written
+    std::string owner;       // struct/class the include sits in, or ""
 };
 
 struct FileDocs {
     std::string moduleDoc;   // the `//!` lines
     std::vector<DocItem> items;
+    std::vector<IncludeRef> includes;
 };
 
 // Does this source line start a declaration? `inType` is true inside a struct/class/enum body, where
@@ -110,6 +117,7 @@ struct FileDocs {
 bool looksLikeDeclaration(const std::string& line, bool inType) {
     const std::string t = trim(line);
     if (t.empty() || t.rfind("//", 0) == 0) return false;
+    if (inType && t[0] == '~') return true;                    // ~destructor()
     size_t n = 0;
     while (n < t.size() && (std::isalnum(static_cast<unsigned char>(t[n])) || t[n] == '_')) ++n;
     if (n == 0) return false;
@@ -117,17 +125,21 @@ bool looksLikeDeclaration(const std::string& line, bool inType) {
     static const char* const keywords[] = {"function", "fn", "struct", "class", "enum", "const", "let",
                                            "public", "private", "protected", "static"};
     for (const char* kw : keywords) if (word == kw) return true;
-    if (!inType) return false;
+    if (word == "can" || t.find(" can ") != std::string::npos) return true;   // operator overloads
     size_t k = n;
     while (k < t.size() && (t[k] == ' ' || t[k] == '\t')) ++k;
-    return k < t.size() && (t[k] == ':' || t[k] == '(');
+    if (k >= t.size()) return false;
+    if (inType) return t[k] == ':' || t[k] == '(' || t[k] == '<';
+    // A method in a file that is `include`d into a struct, read on its own: `name(...) => R {`
+    return (t[k] == '(' || t[k] == '<') && t.find("=>") != std::string::npos;
 }
 
 // Lexes a whole file and collects its doc comments. The lexer's doc table is filled by lexing, and the
 // braces tell us which struct/class/enum body every line is in (so methods are listed under their owner).
 // With includeUndocumented, declarations that have no `///` block are collected too (documented = false):
 // the first token of every statement at file, module or type-body level is a candidate, and its line decides.
-bool extractDocs(const std::string& path, FileDocs& docs, std::string& error, bool includeUndocumented = false) {
+bool extractDocs(const std::string& path, FileDocs& docs, std::string& error, bool includeUndocumented = false,
+                 const std::string& outerOwner = std::string()) {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
         error = "Cannot open '" + path + "'";
@@ -142,6 +154,12 @@ bool extractDocs(const std::string& path, FileDocs& docs, std::string& error, bo
     std::vector<std::string> bodies;      // one entry per open '{': the owner's name, or "" for other blocks
     std::vector<bool> containers;         // parallel: true for struct/class/enum/module bodies
     std::set<size_t> startLines;          // lines where a statement starts at declaration level
+    docs.includes.clear();
+    bool expectInclude = false;
+    if (!outerOwner.empty()) {            // the file is pasted inside a struct body
+        bodies.push_back(outerOwner);
+        containers.push_back(true);
+    }
     std::string pendingName;
     bool expectName = false, pendingContainer = false, atStart = true;
     for (;;) {
@@ -151,6 +169,11 @@ bool extractDocs(const std::string& path, FileDocs& docs, std::string& error, bo
         if (type == TokenTypes::Newline) continue;
 
         ownerAtLine.emplace(t.getLine(), bodies.empty() ? std::string() : bodies.back());
+
+        if (expectInclude && type == TokenTypes::StringLiteral) {
+            docs.includes.push_back({t.getValue(), bodies.empty() ? std::string() : bodies.back()});
+        }
+        expectInclude = type == TokenTypes::Include;
 
         if (atStart && (containers.empty() || containers.back()) && type != TokenTypes::RightBrace &&
             type != TokenTypes::Semicolon && type != TokenTypes::LeftBrace) {
@@ -210,6 +233,7 @@ bool extractDocs(const std::string& path, FileDocs& docs, std::string& error, bo
         d.signature = sig;
         d.text = block.text;
         d.line = block.lastLine + 1;
+        d.file = path;
         docs.items.push_back(std::move(d));
     }
 
@@ -228,6 +252,7 @@ bool extractDocs(const std::string& path, FileDocs& docs, std::string& error, bo
             d.signature = sig;
             d.line = ln;
             d.documented = false;
+            d.file = path;
             docs.items.push_back(std::move(d));
         }
         std::stable_sort(docs.items.begin(), docs.items.end(),
@@ -236,13 +261,47 @@ bool extractDocs(const std::string& path, FileDocs& docs, std::string& error, bo
     return true;
 }
 
+fs::path resolveImportPath(const std::string& p, const fs::path& importer);
+bool isHeaderPath(const std::string& p);
+
+// extractDocs plus everything the file `include`s (recursively, in include order). `active` stops cycles.
+bool extractWithIncludes(const std::string& path, FileDocs& docs, std::string& error, bool includeUndocumented,
+                         const std::string& owner, std::set<std::string>& active) {
+    if (!extractDocs(path, docs, error, includeUndocumented, owner)) return false;
+    std::error_code ec;
+    const std::string key = fs::weakly_canonical(path, ec).string();
+    active.insert(key);
+    const std::vector<IncludeRef> includes = docs.includes;
+    for (const auto& inc : includes) {
+        if (isHeaderPath(inc.path)) continue;
+        const fs::path resolved = resolveImportPath(inc.path, path);
+        if (resolved.empty()) {
+            error = "Cannot find '" + inc.path + "' (included from '" + path + "')";
+            return false;
+        }
+        if (active.count(fs::weakly_canonical(resolved, ec).string())) continue;
+        FileDocs child;
+        if (!extractWithIncludes(resolved.string(), child, error, includeUndocumented, inc.owner, active)) return false;
+        docs.items.insert(docs.items.end(), child.items.begin(), child.items.end());
+    }
+    active.erase(key);
+    return true;
+}
+
 // Renders one file. `shift` pushes every heading down that many levels (used when the file
 // is embedded in a bigger document). `summary` receives the first line of the `//!` doc.
 // `entries` receives the number of documented declarations.
 bool renderFile(const std::string& path, const std::string& title, size_t shift,
-                std::string& out, std::string& summary, size_t& entries, std::string& error) {
+                std::string& out, std::string& summary, size_t& entries, std::string& error,
+                bool followIncludes = false, const std::string& owner = std::string()) {
     FileDocs docs;
-    if (!extractDocs(path, docs, error)) return false;
+    std::set<std::string> active;
+    if (followIncludes) {
+        if (!extractWithIncludes(path, docs, error, false, owner, active)) return false;
+        if (docs.items.empty() && !extractWithIncludes(path, docs, error, true, owner, active)) return false;
+    } else if (!extractDocs(path, docs, error, false, owner)) {
+        return false;
+    }
 
     auto heading = [&](size_t level) { return std::string(level + shift, '#') + " "; };
 
@@ -268,6 +327,7 @@ struct ModuleFile {
     std::string name;      // "std/Console", "std/math/Vector"
     std::string relMd;     // "Console.md", "math/Vector.md"
     fs::path source;
+    std::string owner;       // set when the file is `include`d inside a struct/class body
 };
 
 // ---- Following a library's imports ---------------------------------------------------------
@@ -276,6 +336,7 @@ struct ImportRef {
     std::string name;                      // declared name ("Console"); empty for `import "x"` / `include "x"`
     std::string path;                      // the string literal as written
     std::vector<std::string> enclosing;    // names of the `module X { ... }` bodies it sits in
+    std::string typeOwner;                 // for `include`: the struct/class body it sits in, or ""
 };
 
 struct ScanResult {
@@ -307,6 +368,9 @@ bool scanImports(const std::string& path, ScanResult& result, std::string& error
     St st = St::None;
     std::string pending;
     std::vector<std::string> stack;        // one entry per open '{': module name, or "" for other blocks
+    std::vector<std::string> types;        // parallel: struct/class name for its body, otherwise ""
+    std::string typeName;
+    bool expectType = false;
 
     auto enclosing = [&]() {
         std::vector<std::string> v;
@@ -320,6 +384,10 @@ bool scanImports(const std::string& path, ScanResult& result, std::string& error
         if (type == TokenTypes::EOI) break;
         if (type == TokenTypes::Newline) continue;
 
+        if (type == TokenTypes::Struct || type == TokenTypes::Class) expectType = true;
+        else if (expectType && type == TokenTypes::Identifier) { typeName = t.getValue(); expectType = false; }
+        else if (type == TokenTypes::Semicolon) { typeName.clear(); expectType = false; }
+
         switch (st) {
         case St::ModuleName:
             if (type == TokenTypes::Identifier) { pending = t.getValue(); st = St::AfterName; continue; }
@@ -330,6 +398,7 @@ bool scanImports(const std::string& path, ScanResult& result, std::string& error
             if (type == TokenTypes::LeftBrace) {
                 if (stack.empty() && result.topModule.empty()) result.topModule = pending;
                 stack.push_back(pending);
+                types.push_back("");
                 pending.clear();
                 st = St::None;
                 continue;
@@ -354,7 +423,9 @@ bool scanImports(const std::string& path, ScanResult& result, std::string& error
             }
             continue;                      // braces of `import { a } from` are not module bodies
         case St::IncludePath:
-            if (type == TokenTypes::StringLiteral) result.refs.push_back({"", t.getValue(), enclosing()});
+            if (type == TokenTypes::StringLiteral) {
+                result.refs.push_back({"", t.getValue(), enclosing(), types.empty() ? std::string() : types.back()});
+            }
             st = St::None;
             continue;
         case St::None:
@@ -364,8 +435,15 @@ bool scanImports(const std::string& path, ScanResult& result, std::string& error
         if (type == TokenTypes::Module) st = St::ModuleName;
         else if (type == TokenTypes::Import) st = St::ImportScan;
         else if (type == TokenTypes::Include) st = St::IncludePath;
-        else if (type == TokenTypes::LeftBrace) stack.push_back("");
-        else if (type == TokenTypes::RightBrace) { if (!stack.empty()) stack.pop_back(); }
+        else if (type == TokenTypes::LeftBrace) {
+            // a method body inside a struct gets "" so only direct struct-body includes inherit the owner
+            stack.push_back("");
+            types.push_back(typeName);
+            typeName.clear();
+        } else if (type == TokenTypes::RightBrace) {
+            if (!stack.empty()) stack.pop_back();
+            if (!types.empty()) types.pop_back();
+        }
     }
     return true;
 }
@@ -405,7 +483,8 @@ fs::path resolveImportPath(const std::string& p, const fs::path& importer) {
 
 // Depth-first, in source order. Each file is documented once, under the first name it was reached by.
 bool collectModules(const fs::path& file, const std::string& prefix, std::set<std::string>& visited,
-                    std::vector<ModuleFile>& out, std::string& error) {
+                    std::vector<ModuleFile>& out, std::string& error,
+                    const std::string& inheritedOwner = std::string()) {
     ScanResult scan;
     if (!scanImports(file.string(), scan, error)) return false;
 
@@ -436,9 +515,12 @@ bool collectModules(const fs::path& file, const std::string& prefix, std::set<st
 
         std::string flat = full;
         std::replace(flat.begin(), flat.end(), '/', '.');
-        out.push_back(ModuleFile{full, flat + ".md", resolved});
+        // an include inside a struct body (or inside a file that was itself pasted there) keeps that owner;
+        // a named or plain import starts a fresh scope
+        const std::string owner = !ref.typeOwner.empty() ? ref.typeOwner : inheritedOwner;
+        out.push_back(ModuleFile{full, flat + ".md", resolved, owner});
 
-        if (!collectModules(resolved, full, visited, out, error)) return false;
+        if (!collectModules(resolved, full, visited, out, error, owner)) return false;
     }
     return true;
 }
@@ -895,7 +977,7 @@ bool writeLibraryHtml(const std::vector<ModuleFile>& modules, const std::string&
     for (const auto& m : modules) {
         std::string md, summary, err;
         size_t entries = 0;
-        if (!renderFile(m.source.string(), m.name, 0, md, summary, entries, err)) {
+        if (!renderFile(m.source.string(), m.name, 0, md, summary, entries, err, false, m.owner)) {
             error = err;
             return false;
         }
@@ -996,14 +1078,14 @@ std::string resolveDocTarget(const std::string& name) {
 bool generateDocsMarkdown(const std::string& path, std::string& markdown, std::string& error) {
     std::string summary;
     size_t entries = 0;
-    return renderFile(path, stemOf(path), 0, markdown, summary, entries, error);
+    return renderFile(path, stemOf(path), 0, markdown, summary, entries, error, true);
 }
 
 bool generateDocsHtml(const std::string& path, std::string& html, std::string& error) {
     const std::string name = stemOf(path);
     std::string md, summary;
     size_t entries = 0;
-    if (!renderFile(path, name, 0, md, summary, entries, error)) return false;
+    if (!renderFile(path, name, 0, md, summary, entries, error, true)) return false;
 
     HtmlPage p;
     p.name = name;
@@ -1061,7 +1143,7 @@ bool generateLibraryDocs(const std::string& rootFile, const std::string& outPath
     for (const auto& m : modules) {
         std::string body, summary, err;
         size_t entries = 0;
-        if (!renderFile(m.source.string(), m.name, split ? 0 : 1, body, summary, entries, err)) {
+        if (!renderFile(m.source.string(), m.name, split ? 0 : 1, body, summary, entries, err, false, m.owner)) {
             error = err;
             return false;
         }
@@ -1178,34 +1260,16 @@ bool gatherModules(const std::string& rootFile, std::string& libName, std::vecto
     return collectModules(root, "", visited, modules, error);
 }
 
-// Decides whether undocumented declarations are included: when asked for (`all`), or when nothing in
-// the scope has a `///` comment at all (then the declarations are the only thing there is to show).
-bool needUndocumented(const std::vector<ModuleFile>& modules, bool all, bool& include, std::string& error) {
-    include = all;
-    if (all) return true;
-    for (const auto& m : modules) {
-        FileDocs docs;
-        if (!extractDocs(m.source.string(), docs, error, false)) return false;
-        if (!docs.items.empty()) return true;           // something is documented: keep to documented items
-    }
-    include = true;
-    return true;
-}
-
-const char* const kFallbackNote = "No /// doc comments found, so declarations are shown instead.";
-
 } // namespace
 
-bool findLibraryDocs(const std::string& rootFile, const std::string& query, const std::string& kindFilter, bool all,
+bool findLibraryDocs(const std::string& rootFile, const std::string& query, const std::string& kindFilter, bool /*all*/,
                      std::vector<DocHit>& hits, size_t& moduleCount, size_t& itemCount, std::string& note,
                      std::string& error) {
     std::string libName;
     std::vector<ModuleFile> modules;
     if (!gatherModules(rootFile, libName, modules, error)) return false;
 
-    bool include = false;
-    if (!needUndocumented(modules, all, include, error)) return false;
-    note = (include && !all) ? kFallbackNote : "";
+    note.clear();
 
     // "String.trim", "std/IO" and "read file" all become separate lowercase terms.
     std::string q = toLower(query);
@@ -1246,7 +1310,7 @@ bool findLibraryDocs(const std::string& rootFile, const std::string& query, cons
     moduleCount = modules.size();
     for (const auto& m : modules) {
         FileDocs docs;
-        if (!extractDocs(m.source.string(), docs, error, include)) return false;
+        if (!extractDocs(m.source.string(), docs, error, true, m.owner)) return false;
         itemCount += docs.items.size();
 
         if (kindMatches(kindFilter, "module")) {
@@ -1285,6 +1349,7 @@ bool findLibraryDocs(const std::string& rootFile, const std::string& query, cons
 
     std::sort(hits.begin(), hits.end(), [](const DocHit& a, const DocHit& b) {
         if (a.score != b.score) return a.score > b.score;
+        if (a.documented != b.documented) return a.documented;
         const std::string la = toLower(a.name), lb = toLower(b.name);
         if (la != lb) return la < lb;
         return a.module < b.module;
@@ -1330,7 +1395,7 @@ std::string formatDocHits(const std::vector<DocHit>& hits, const std::string& qu
         o << st.wrap("1;33", "No documented item matches") << " " << st.bold("'" + query + "'");
         if (!kindFilter.empty()) o << st.dim(" (kind: " + kindFilter + ")");
         o << "\n" << st.dim("Searched " + std::to_string(moduleCount) + " modules and " + std::to_string(itemCount) +
-                            " items. Declarations without /// doc comments are skipped unless you add --all.") << "\n";
+                            " items.") << "\n";
         return o.str();
     }
 
@@ -1369,14 +1434,11 @@ bool searchLibraryDocs(const std::string& rootFile, const std::string& query, co
     return true;
 }
 
-bool showFileDocs(const std::string& path, const std::string& title, const std::string& kindFilter, bool all,
+bool showFileDocs(const std::string& path, const std::string& title, const std::string& kindFilter, bool /*all*/,
                   bool color, std::string& output, std::string& error) {
-    std::vector<ModuleFile> single{ModuleFile{title, "", fs::path(path)}};
-    bool include = false;
-    if (!needUndocumented(single, all, include, error)) return false;
-
     FileDocs docs;
-    if (!extractDocs(path, docs, error, include)) return false;
+    std::set<std::string> active;
+    if (!extractWithIncludes(path, docs, error, true, "", active)) return false;
     const Style st{color};
 
     std::vector<const DocItem*> shown;
@@ -1390,19 +1452,22 @@ bool showFileDocs(const std::string& path, const std::string& title, const std::
     o << st.dim("  -  " + std::to_string(shown.size()) + (shown.size() == 1 ? " item" : " items")) << "\n";
     const std::string summary = firstLine(docs.moduleDoc);
     if (!summary.empty()) o << st.dim(summary) << "\n";
-    if (include && !all) o << st.dim(kFallbackNote) << "\n";
     o << "\n";
 
     if (shown.empty()) {
         o << st.wrap("1;33", "Nothing to show") << ": "
-          << st.dim(std::string(kindFilter.empty() ? "no declarations were found." : "no item of kind '" + kindFilter + "'.") +
-                    (include ? "" : " Declarations without /// doc comments are skipped unless you add --all."))
+          << st.dim(kindFilter.empty() ? std::string("no declarations were found.") : "no item of kind '" + kindFilter + "'.")
           << "\n";
         output = o.str();
         return true;
     }
 
+    std::string currentFile = path;
     for (const DocItem* d : shown) {
+        if (d->file != currentFile) {               // items pulled in by `include`: say which file the lines refer to
+            currentFile = d->file;
+            o << " " << st.dim("-- " + fs::path(currentFile).generic_string()) << "\n\n";
+        }
         const std::string kind = kindOf(*d);
         const std::string indent = d->owner.empty() ? " " : "   ";
         std::string badge = kind;
@@ -1419,13 +1484,10 @@ bool showFileDocs(const std::string& path, const std::string& title, const std::
 }
 
 bool listLibraryDocs(const std::string& rootFile, const std::string& kindFilter,
-                     std::string& output, std::string& error, bool all) {
+                     std::string& output, std::string& error, bool /*all*/) {
     std::string libName;
     std::vector<ModuleFile> modules;
     if (!gatherModules(rootFile, libName, modules, error)) return false;
-
-    bool include = false;
-    if (!needUndocumented(modules, all, include, error)) return false;
 
     // Same alphabetical, case-insensitive order as --doc-all.
     std::sort(modules.begin(), modules.end(), [](const ModuleFile& a, const ModuleFile& b) {
@@ -1437,7 +1499,7 @@ bool listLibraryDocs(const std::string& rootFile, const std::string& kindFilter,
     size_t moduleCount = 0, itemCount = 0;
     for (const auto& m : modules) {
         FileDocs docs;
-        if (!extractDocs(m.source.string(), docs, error, include)) return false;
+        if (!extractDocs(m.source.string(), docs, error, true, m.owner)) return false;
 
         std::ostringstream items;
         size_t n = 0;
@@ -1461,11 +1523,10 @@ bool listLibraryDocs(const std::string& rootFile, const std::string& kindFilter,
     }
 
     std::ostringstream o;
-    o << "# " << libName << " — " << (include ? "declarations" : "documented items") << "\n\n"
+    o << "# " << libName << " — " << "declarations" << "\n\n"
       << itemCount << " items in " << moduleCount << " modules";
     if (!kindFilter.empty()) o << " (kind: " << kindFilter << ")";
     o << ".\n\n";
-    if (include && !all) o << "_" << kFallbackNote << "_\n\n";
     o << body.str();
     output = o.str();
     return true;

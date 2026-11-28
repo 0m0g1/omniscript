@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_set>
 #include <omniscript/Core.h>
 #include <omniscript/utils.h>
 #include <omniscript/Types/BaseType.h>
@@ -460,7 +461,10 @@ public:
         const std::string& moduleName,
         const std::unordered_map<std::string, llvm::Value*>& members
     );
-    llvm::Value* generateCast(llvm::Value* src, llvm::Type* destType);
+    // srcUnsigned: the source Omniscript type is unsigned, so integer widening zero-extends.
+    // Values registered in unsignedValues (call args, return values) are treated the same way.
+    llvm::Value* generateCast(llvm::Value* src, llvm::Type* destType, bool srcUnsigned = false);
+    std::unordered_set<const llvm::Value*> unsignedValues;
 };
 
 } // namespace omniscript

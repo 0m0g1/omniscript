@@ -14,6 +14,7 @@
 #include <omniscript/Expressions/FunctionExpression.h>
 #include <omniscript/Expressions/LiteralExpressions.h>
 #include <omniscript/Expressions/AssignmentExpression.h>
+#include <omniscript/Expressions/CastExpression.h>
 #include <omniscript/Expressions/VariableAccessExpression.h>
 
 namespace Omniscript {
@@ -633,6 +634,20 @@ std::shared_ptr<Expression> AssignVariable::express(SymbolTableType scope) {
             );
             return nullptr;
         }
+    }
+
+    // A local `let x: int = <u8 expression>` must be an int, not a u8. The scope entry and the assignment
+    // node both took the initializer's type, so later uses (`x * 16`, `x & m`, `x = ... + n`) were typed UInt8:
+    // arithmetic wrapped silently, or an Int32 operand was rejected as "not compatible with UInt8".
+    // Wrap the initializer in a cast to the declared scalar type so the variable carries the declared type.
+    // Module-level variables keep their own path below (the IR generator converts constant initializers).
+    if (type && !isReassign && !isGlobal && !isConstant && !isExtern && result && result->getType() &&
+        (type->isInteger() || type->isFloat()) &&
+        (result->getType()->isInteger() || result->getType()->isFloat()) &&
+        type->toString() != result->getType()->toString()) {
+        auto cast = std::make_shared<CastExpression>(result, type);
+        cast->setSpan(this->getSpan());
+        result = cast;
     }
 
     if (isConstant) {

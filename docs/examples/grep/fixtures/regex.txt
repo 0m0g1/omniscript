@@ -1,0 +1,15 @@
+abc123
+foo42bar
+no digits here
+2024-11-27
+a.b
+axb
+test@example.com
+  indented line
+x
+aaa
+color
+colour
+ababab
+abcd
+abc

@@ -1,0 +1,5 @@
+-n is an option
+--verbose flag
+plain line
+a -- b
+-

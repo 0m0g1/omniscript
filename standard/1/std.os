@@ -90,6 +90,7 @@ module std {
     public module OpenGL = import "standard/1/OpenGL.os";
     public module Vk = import "standard/1/Vulkan.os";
     public module Canvas = import "standard/1/Canvas.os";        
+    public module Color = import "standard/1/Color.os";
     public module Image = import "standard/1/Image.os";
     public module Font = import "standard/1/Font.os";
     public module Audio = import "standard/1/Audio.os";

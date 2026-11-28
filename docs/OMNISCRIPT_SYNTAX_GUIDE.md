@@ -1,4 +1,4 @@
-# OmniScript syntax guide (v0, compact)
+# OmniScript syntax guide (v7, compact)
 
 ## 0. Rules for the AI
 - Write complete, runnable `.os` files. State assumptions in one line.
@@ -44,15 +44,16 @@ import "x.os" as X;     import { foo, bar as baz } from "x.os";     import * fro
 - Generics: `List<i64>`, `Map<string, List<i64*>>`. Mangling: `*`→ptr `&`→ref `?`→opt `[`→arr; `int`≡`i32` (`List<int>` is `List<i32>`).
 - `unique_ptr/shared_ptr/weak_ptr` parse only; stdlib support planned.
 - **`nullptr`** → any pointer/ref/fnptr. **`null`** → only `T?` (`let p: T* = null` is an error). `T?`: `.value`, `.valueOr(d)`, compare `== null` [demo].
-- Implicit: int→wider int, int→float, float→wider float, `char` acts as small int, `T[N]`→`T*`, `T`→`T?`.
-- Literals: int literal starts `i8`, retyped by context (`let x: i8 = 200` silently = -56; use `int`). Bare int=`int`, float=`double`. `0xFF`, `"a\nb"`, `r"raw"`, `'&'`.
+- Implicit: int→wider int, int→float, float→wider float, `char` acts as small int, `T[N]`→`T*` [test: `return A;`, `A as char*`, `f(A)`, for globals and locals], `T`→`T?`.
+- Literals: int literal starts `i8`, retyped by context (`let x: i8 = 200` silently = -56; use `int`). Bare int=`int`, float=`double`. Mixed arithmetic/bitwise between `int` and a narrower operand (a `u8` array element, a hex literal like `0xFE`) promotes to `int` [test]: `(tile & 0xFE) + (row >> 3)` is `int`. `0xFF`, `"a\nb"`, `r"raw"`, `'&'`.
 - Interpolation: backticks only, `` `n = ${n}` ``. `"{n}"` does not interpolate; `"n=" + 5` is an error. Result type / escaping `${` [?].
 - `"a" + "b"` concatenates, `==` compares contents. Casts `x as T`, `sizeof(T)`. No heterogeneous arrays.
 
 ## 4. Statements
 `let x: int = 5;` `let y = 5;` (reassign keeps type). Ops: `+ - * / %` `== != < <= > >=` `&& || !` `& | ^ << >> ~` `?:` `+= -= *= /= %= ++ --` `&x` `p.field` (**no `->`**) `p[i]`.
 `if/else while for(let i: int = 0; i < n; i = i + 1) do{}while switch/case/default break continue return`. `const N: int = 5;`
-**Unsupported**: `for (n in list)`, ranges `0..3`, `match`, `try/catch` (tokens exist, not implemented: compile error; use `bool` returns + `db.error()`). Switch fall-through / on `char*`/enum [?].
+**Unsupported**: `for (n in list)`, ranges `0..3`, `match`, `try/catch` (tokens exist, not implemented: compile error; use `bool` returns + `db.error()`). Switch on `int` with const (incl. hex) case labels and `break` [test]; fall-through / on `char*`/enum [?].
+Keywords are lowercase and case-sensitive: `FN`, `FZ`, `FH`, `FC` are valid names [author, fixed; the compiler once rejected `FN` because it matched `fn` case-insensitively].
 
 ## 5. Functions
 ```
@@ -203,6 +204,15 @@ $mods | ForEach-Object {
 
 ## 13. Quirks checklist
 1. `[N]T` global with `char*` fields may fail: use a local. 2. Module-qualified fn as handler fails. 3. `try/catch` is unimplemented (compile error). 4. `Http.Response.finalUrl` leaks (small). 5. `listen` fails silently unless checked. 6. `nullptr` for `T*`, `null` for `T?`. 7. `new T(arg)` without a constructor inits fields. 8. `import "*.h"` = include. 9. `i8` literal truncation. 10. Block `module` last in file. 11. Prefer string import paths. 12. `T&` params: use pointers. 13. Bare-literal calls tie across `int`/`i64` overloads: type the argument. 14. User variadics drop their args. 15. Generic calls infer from arguments; conflicting types are a compile error, and a type parameter that no argument mentions needs `f<T>(..)`. 16. Postfix `T[N]` only. 17. [?] `Canvas.os` header warns of a compiler quirk: no `return` inside loop bodies. Safe: set a flag or result variable, `break`, return after the loop.
+
+18. Fixed in the compiler, no workaround needed: `T[N]`→`T*` decay, `int & literal` typing, case-insensitive keyword matching. If old code or notes use `&A[0]`, `FLAG_N` or int temporaries only for these reasons, they can go back to the plain form.
+
+## 13b. Proven working [test]
+`docs/examples/gb/gb.os` (Game Boy core) compiles and `test_gb.os` passes (loadRom, LD/LDH/ADD/CALL/RET, serial capture, frame loop reaching VBlank). Constructs it relies on:
+- Global fixed storage `let ROM: u8[2097152];` (no initializer; zero it yourself, zeroing is not documented) and a global `let HEXD: char* = "...";`.
+- One struct with ~70 scalar fields (defaults) and ~70 methods, calling each other as `this.m(..)`; `let gb: Mod.GameBoy;` default-constructs it from another file.
+- `switch (int)` with hex cases + `break`; ternary inside bit expressions; `x as u8`; `!(a && b)`; `~`; `i64` field; `char*` `==`; flag variable plus `break`-free `while` instead of `return` inside loops.
+- Module import of a sibling file from the test file, run from the project root (file under `docs/examples/gb/`). Whether `import "gb.os"` resolves from the launch dir or from the importing file was not recorded: if it fails, use the project-root path.
 
 ## 14. Open probes [?]
 Prefix `[N]T` (`--doc-show` prints library array fields as `[512]u8`); passing script arguments to `main(argc, argv)`; plain `import` inside module body; nested-fn capture; `T&` type-check on `f(b)`; return-only overloads; modifier enforcement (`private` access error, `static`, `virtual`, `= delete`); enum semantics; constrained `add(5,6)` (inference through `T extends ...`; unconstrained inference is confirmed working); leading `<Number extends ...>` form (parser expects it after the name); backtick result type and `${` escape.

@@ -1,0 +1,6 @@
+cat
+cats
+concat
+the cat sat
+cat-like
+bobcat

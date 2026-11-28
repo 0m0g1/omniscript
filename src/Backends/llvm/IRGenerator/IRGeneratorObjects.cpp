@@ -380,8 +380,8 @@ llvm::Value* IRGenerator::createModuleObject(
 // signedness, so unsigned sources need the caller to say so: to support that, declare
 // `generateCast(llvm::Value*, llvm::Type*, bool srcIsSigned)` in IRGenerator.h and turn this
 // local into that parameter.
-llvm::Value* IRGenerator::generateCast(llvm::Value* src, llvm::Type* destType) {
-    const bool srcIsSigned = true;
+llvm::Value* IRGenerator::generateCast(llvm::Value* src, llvm::Type* destType, bool srcUnsigned) {
+    const bool srcIsSigned = !(srcUnsigned || unsignedValues.count(src) > 0);
     // Todo:: add a bitcast omniscript expression
     llvm::Type* srcType = src->getType();
 
@@ -486,6 +486,17 @@ llvm::Value* IRGenerator::generateCast(llvm::Value* src, llvm::Type* destType) {
     if (srcType->isPointerTy() && (destType->isStructTy() || destType->isArrayTy()) &&
         !llvm::isa<llvm::ConstantPointerNull>(src)) {
         return Builder->CreateLoad(destType, src, "agg.copy");
+    }
+
+    // Array-to-pointer decay: `T[N]` used where `T*` is expected. getVariable loads a fixed array
+    // by value; hand back the address that load came from (no copy, so writes through the pointer
+    // reach the real array) and drop the now-dead whole-array load.
+    if (srcType->isArrayTy() && destType->isPointerTy()) {
+        if (auto* ld = llvm::dyn_cast<llvm::LoadInst>(src)) {
+            llvm::Value* addr = ld->getPointerOperand();
+            if (ld->use_empty()) ld->eraseFromParent();
+            return addr;
+        }
     }
 
     console.reportError(Console::TYPE_ERROR, "Unsupported cast from '" + debugType(srcType) + "' to '" + debugType(destType) + "'", FileSpan{});

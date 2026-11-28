@@ -763,7 +763,10 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         if (val && type && val->getType()->isPointerTy() && (type->isStructTy() || type->isArrayTy())) {
             val = Builder->CreateLoad(type, val, "ret.load");
         }
-        return createReturn(val, type);
+        if (val && isUnsignedOmniType(ret->value->getType())) unsignedValues.insert(val);
+        llvm::Value* retInst = createReturn(val, type);
+        if (val) unsignedValues.erase(val);
+        return retInst;
     }
 
     if (auto unary = std::dynamic_pointer_cast<UnaryExpression>(value)) {
@@ -1039,6 +1042,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
                 }
             } else {
                 if (auto value = codegen(arg, scope)) {
+                    if (isUnsignedOmniType(arg->getType())) unsignedValues.insert(value);
                     args.push_back(value);
                 } else {
                     console.reportError(Console::SEMANTIC_ERROR, formatError("Failed to generate code for argument: " + arg->toString()), FileSpan{});
@@ -1055,6 +1059,7 @@ llvm::Value* IRGenerator::codegen(std::shared_ptr<Expression> value, SymbolTable
         if (call->instanceName.empty()) {
             DEBUG_LOG("Creating a normal call for " + call->calleeName);
             llvm::Value* callResult = createCall(call->calleeName, args, call->functionTypeName);
+            for (auto* a : args) unsignedValues.erase(a);   // unsigned marks only live for this call's casts
             // createCall reports argument mismatches without a location; name the call that failed.
             if (!callResult && call->getType() && !call->getType()->isVoidLike()) {
                 console.reportError(Console::SEMANTIC_ERROR,

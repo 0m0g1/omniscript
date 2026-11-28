@@ -29,7 +29,7 @@ struct LexerConfig {
     bool allowBinaryLiterals = true;     // Support for 0b... literals
     bool allowOctalLiterals = true;      // Support for 0o... literals
     bool allowHexLiterals = true;        // Support for 0x... literals
-    bool caseSensitiveKeywords = false;  // Whether keywords are case-sensitive
+    bool caseSensitiveKeywords = true;   // Whether keywords are case-sensitive (`fn` is a keyword, `FN` is a name)
     bool allowUnicodeIdentifiers = true; // Support Unicode in identifiers
     bool allowNestedComments = true;     // Support nested /* */ comments
     size_t maxIdentifierLength = 1024;   // Maximum identifier length

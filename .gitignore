@@ -53,3 +53,6 @@ docs/examples/bench/bench_build_*.csv
 *.o
 *.pdb
 *.ilk
+
+docs/examples/grep/fix
+docs/examples/gb/roms
